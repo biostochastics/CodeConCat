@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codeconcat"
+version = "1.0.0"  # Alternatively keep version in codeconcat/version.py
+description = "An LLM-friendly code aggregator and doc extractor"
+authors = [
+  { name = "Your Name", email = "you@example.com" }
+]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  "pyyaml >= 5.0",
+]
+
+[project.scripts]
+codeconcat = "codeconcat.main:cli_entry_point"
