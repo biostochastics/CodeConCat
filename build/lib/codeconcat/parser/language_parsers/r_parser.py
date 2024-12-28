@@ -1,9 +1,3 @@
-"""
-r_parser.py
-
-Naive approach: detect lines of form 'name <- function(...) {' at the top level.
-"""
-
 import re
 from codeconcat.types import ParsedFileData, Declaration
 
@@ -17,9 +11,4 @@ def parse_r(file_path: str, content: str) -> ParsedFileData:
         if match:
             declarations.append(Declaration("function", match.group(1), i+1, i+1))
 
-    return ParsedFileData(
-        file_path=file_path,
-        language="r",
-        content=content,
-        declarations=declarations
-    )
+    return ParsedFileData(file_path=file_path, language="r", content=content, declarations=declarations)

@@ -1,10 +1,3 @@
-"""
-annotator.py
-
-Takes ParsedFileData and produces AnnotatedFileData with headings for each file
-and subheadings for declarations, plus a code fence block.
-"""
-
 from codeconcat.types import ParsedFileData, AnnotatedFileData, CodeConCatConfig
 
 def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> AnnotatedFileData:

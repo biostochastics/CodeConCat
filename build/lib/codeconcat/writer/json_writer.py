@@ -1,9 +1,3 @@
-"""
-json_writer.py
-
-Serializes code + doc data to a structured JSON file.
-"""
-
 import json
 from typing import List
 from codeconcat.types import AnnotatedFileData, ParsedDocData, CodeConCatConfig
@@ -35,4 +29,5 @@ def write_json(
 
     with open(config.output, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+
     print(f"[CodeConCat] JSON output written to: {config.output}")

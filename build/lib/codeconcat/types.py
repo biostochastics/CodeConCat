@@ -57,6 +57,8 @@ class CodeConCatConfig:
 
     Fields:
       - target_path: local directory or placeholder for GitHub
+      - github_url: optional GitHub repository URL
+      - github_token: personal access token for private repos
       - include_languages / exclude_languages
       - exclude_paths: patterns for ignoring
       - docs: whether to parse docs
@@ -66,22 +68,31 @@ class CodeConCatConfig:
       - output: final file name
       - format: 'markdown' or 'json'
       - max_workers: concurrency
-      - ...
     """
+
+    # Basic path or GitHub info
     target_path: str = "."
     github_url: Optional[str] = None
+    github_token: Optional[str] = None  # for private GitHub repos
 
+    # Language filtering
     include_languages: List[str] = field(default_factory=list)
     exclude_languages: List[str] = field(default_factory=list)
+
+    # Exclude patterns
     exclude_paths: List[str] = field(default_factory=list)
 
+    # Doc extraction toggles
     docs: bool = False
     merge_docs: bool = False
     doc_extensions: List[str] = field(default_factory=lambda: [".md", ".rst", ".txt", ".rmd"])
 
+    # Custom extension→language
     custom_extension_map: Dict[str, str] = field(default_factory=dict)
 
+    # Output
     output: str = "code_concat_output.md"
     format: str = "markdown"  # or "json"
 
+    # Concurrency
     max_workers: int = 4

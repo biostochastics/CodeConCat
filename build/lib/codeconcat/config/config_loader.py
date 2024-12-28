@@ -1,19 +1,10 @@
-"""
-config_loader.py
-
-Loads and merges configuration from .codeconcat.yml with CLI arguments.
-"""
-
 import os
 import yaml
 from typing import Dict, Any
 from codeconcat.types import CodeConCatConfig
 
+
 def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
-    """
-    Creates a CodeConCatConfig by merging a YAML file (if present) with CLI args.
-    CLI args override the file's settings.
-    """
     config = CodeConCatConfig()
     file_data = read_config_file(".codeconcat.yml")
 
@@ -23,6 +14,7 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
     apply_dict_to_config(cli_args, config)
 
     return config
+
 
 def read_config_file(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
@@ -35,6 +27,7 @@ def read_config_file(path: str) -> Dict[str, Any]:
     except Exception:
         pass
     return {}
+
 
 def apply_dict_to_config(data: Dict[str, Any], config: CodeConCatConfig) -> None:
     for key, value in data.items():

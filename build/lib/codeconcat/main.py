@@ -1,10 +1,3 @@
-"""
-main.py
-
-The CLI entry for CodeConCat. Uses argparse to parse flags, merges with .codeconcat.yml,
-collects code and doc files, parses them concurrently, annotates them, and writes the final output.
-"""
-
 import argparse
 import sys
 from typing import List
@@ -20,6 +13,7 @@ from codeconcat.writer.json_writer import write_json
 
 from codeconcat.types import CodeConCatConfig, AnnotatedFileData, ParsedDocData
 
+
 def cli_entry_point():
     parser = argparse.ArgumentParser(
         prog="codeconcat",
@@ -27,9 +21,10 @@ def cli_entry_point():
     )
 
     parser.add_argument("target_path", nargs="?", default=".")
-    parser.add_argument("--github", help="GitHub URL (stubbed)", default=None)
+    parser.add_argument("--github", help="GitHub URL", default=None)
+    parser.add_argument("--github-token", help="GitHub personal access token", default=None)
 
-    parser.add_argument("--docs", action="store_true", help="Enable doc extraction (md/rst/txt/rmd)")
+    parser.add_argument("--docs", action="store_true", help="Enable doc extraction")
     parser.add_argument("--merge-docs", action="store_true", help="Merge doc content with code output")
 
     parser.add_argument("--output", default="code_concat_output.md", help="Output file name")
@@ -37,16 +32,16 @@ def cli_entry_point():
 
     parser.add_argument("--include-languages", nargs="*", default=[], help="Only include these languages")
     parser.add_argument("--exclude-languages", nargs="*", default=[], help="Exclude these languages")
-    parser.add_argument("--exclude", nargs="*", default=[], help="Paths or patterns to exclude (e.g. node_modules)")
+    parser.add_argument("--exclude", nargs="*", default=[], help="Paths/patterns to exclude")
 
-    parser.add_argument("--max-workers", type=int, default=4, help="Number of worker threads for concurrency")
+    parser.add_argument("--max-workers", type=int, default=4, help="Number of worker threads")
 
     args = parser.parse_args()
 
-    # Convert CLI to dict for merging
     cli_args = {
         "target_path": args.target_path,
         "github_url": args.github,
+        "github_token": args.github_token,
         "docs": args.docs,
         "merge_docs": args.merge_docs,
         "output": args.output,
@@ -60,9 +55,9 @@ def cli_entry_point():
     config = load_config(cli_args)
     run_codeconcat(config)
 
+
 def run_codeconcat(config: CodeConCatConfig) -> None:
     if config.github_url:
-        # Not implemented in detail
         try:
             file_paths = collect_github_files(config.github_url, config)
         except NotImplementedError as e:
@@ -79,22 +74,21 @@ def run_codeconcat(config: CodeConCatConfig) -> None:
     if config.docs:
         docs = extract_docs(file_paths, config)
 
-    # Parse code
     parsed_files = parse_code_files(file_paths, config)
 
-    # Annotate code
     annotated_files: List[AnnotatedFileData] = []
     for pf in parsed_files:
         annotated_files.append(annotate(pf, config))
 
-    # Write final output
     if config.format == "json":
         write_json(annotated_files, docs, config)
     else:
         write_markdown(annotated_files, docs, config)
 
+
 def main():
     cli_entry_point()
+
 
 if __name__ == "__main__":
     main()

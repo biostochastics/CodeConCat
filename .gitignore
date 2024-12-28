@@ -1,0 +1,60 @@
+# .gitignore
+
+# ---------------------------
+# OS / Editor / Misc
+# ---------------------------
+.DS_Store
+*.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# ---------------------------
+# Python Bytecode
+# ---------------------------
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.pda
+
+# ---------------------------
+# Distribution / Build Artifacts
+# ---------------------------
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+*.whl
+
+# ---------------------------
+# Virtual Environments
+# ---------------------------
+.venv/
+venv/
+ENV/
+env/
+
+# ---------------------------
+# Python Test Caches
+# ---------------------------
+.pytest_cache/
+coverage/
+.coverage
+.cache
+
+# ---------------------------
+# CodeConCat Temp
+# ---------------------------
+codeconcat_github_*
+
+# ---------------------------
+# Local config or secrets (Optional)
+# ---------------------------
+*.env
+.env
+
+# End of .gitignore

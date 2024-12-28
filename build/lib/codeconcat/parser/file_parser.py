@@ -1,9 +1,3 @@
-"""
-file_parser.py
-
-Coordinates parsing of code files in parallel, ignoring doc files if docs are enabled.
-"""
-
 import os
 from typing import List
 from concurrent.futures import ThreadPoolExecutor
@@ -14,23 +8,19 @@ from codeconcat.parser.language_parsers.js_ts_parser import parse_javascript_or_
 from codeconcat.parser.language_parsers.r_parser import parse_r
 from codeconcat.parser.language_parsers.julia_parser import parse_julia
 
+
 def parse_code_files(file_paths: List[str], config: CodeConCatConfig) -> List[ParsedFileData]:
-    """
-    Takes a list of file paths (both doc + code), filters out doc,
-    and parses code files in parallel.
-    """
     code_paths = [fp for fp in file_paths if not is_doc_file(fp, config.doc_extensions)]
 
     with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
         results = list(executor.map(lambda fp: parse_single_file(fp, config), code_paths))
-    
     return results
+
 
 def parse_single_file(file_path: str, config: CodeConCatConfig) -> ParsedFileData:
     ext = os.path.splitext(file_path)[1].lower().lstrip(".")
     content = read_file_content(file_path)
 
-    # Dispatch to specific language parser
     if ext == "py":
         return parse_python(file_path, content)
     elif ext == "js":
@@ -44,9 +34,11 @@ def parse_single_file(file_path: str, config: CodeConCatConfig) -> ParsedFileDat
     else:
         return ParsedFileData(file_path=file_path, language=ext, content=content)
 
+
 def is_doc_file(file_path: str, doc_exts: List[str]) -> bool:
     ext = os.path.splitext(file_path)[1].lower()
     return ext in doc_exts
+
 
 def read_file_content(file_path: str) -> str:
     try:

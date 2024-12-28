@@ -1,9 +1,3 @@
-"""
-julia_parser.py
-
-Naive detection of 'function name(...)' or 'struct Name'
-"""
-
 import re
 from codeconcat.types import ParsedFileData, Declaration
 
@@ -23,9 +17,4 @@ def parse_julia(file_path: str, content: str) -> ParsedFileData:
         if sm:
             declarations.append(Declaration("struct", sm.group(2), i+1, i+1))
 
-    return ParsedFileData(
-        file_path=file_path,
-        language="julia",
-        content=content,
-        declarations=declarations
-    )
+    return ParsedFileData(file_path=file_path, language="julia", content=content, declarations=declarations)

@@ -1,10 +1,3 @@
-"""
-js_ts_parser.py
-
-Naive approach for detecting 'function <name>' and 'class <name>'
-in JS/TS. Could be extended to arrow functions, exports, etc.
-"""
-
 import re
 from codeconcat.types import ParsedFileData, Declaration
 
@@ -19,13 +12,9 @@ def parse_javascript_or_typescript(file_path: str, content: str, language: str) 
         fm = func_pattern.match(line)
         if fm:
             declarations.append(Declaration("function", fm.group(1), i+1, i+1))
+
         cm = class_pattern.match(line)
         if cm:
             declarations.append(Declaration("class", cm.group(1), i+1, i+1))
 
-    return ParsedFileData(
-        file_path=file_path,
-        language=language,
-        content=content,
-        declarations=declarations
-    )
+    return ParsedFileData(file_path=file_path, language=language, content=content, declarations=declarations)

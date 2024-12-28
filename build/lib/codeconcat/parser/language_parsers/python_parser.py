@@ -1,10 +1,3 @@
-"""
-python_parser.py
-
-Naive regex approach to top-level 'def' and 'class' detection in Python files.
-For advanced usage, consider AST-based parsing.
-"""
-
 import re
 from codeconcat.types import ParsedFileData, Declaration
 
@@ -24,9 +17,4 @@ def parse_python(file_path: str, content: str) -> ParsedFileData:
         if cmatch:
             declarations.append(Declaration("class", cmatch.group(1), i+1, i+1))
 
-    return ParsedFileData(
-        file_path=file_path,
-        language="python",
-        content=content,
-        declarations=declarations
-    )
+    return ParsedFileData(file_path=file_path, language="python", content=content, declarations=declarations)
