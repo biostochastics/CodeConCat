@@ -1,8 +1,0 @@
-Metadata-Version: 2.1
-Name: codeconcat
-Version: 0.1.0
-Summary: An LLM-friendly code aggregator and doc extractor
-Author: Your Name
-Author-email: you@example.com
-Requires-Python: >=3.8
-Requires-Dist: pyyaml>=5.0

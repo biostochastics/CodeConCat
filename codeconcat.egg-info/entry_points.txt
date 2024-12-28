@@ -1,2 +1,0 @@
-[console_scripts]
-codeconcat = codeconcat.main:cli_entry_point
