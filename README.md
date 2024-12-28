@@ -187,7 +187,7 @@ pytest --maxfail=1 --disable-warnings -q
 ```
 * This runs the unit tests (e.g., checking collectors, parsers, writer outputs, etc.)
 
-## Project Structure (Example)
+## Project Structure
 
 ```
 codeconcat/
@@ -209,8 +209,6 @@ codeconcat/
 └─ config/
     └─ config_loader.py
 ```
-
-You can adapt or expand as needed. For instance, you might include an examples/ folder or a tests/ folder.
 
 ## Contributing
 
