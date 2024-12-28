@@ -1,5 +1,3 @@
-# CodeConCat
-=======
 CodeConCat is a lightweight command-line tool (CLI) that aggregates code and (optionally) documentation from a local folder (or GitHub in the future). It annotates source files, merges doc files, and produces an LLM-friendly output in Markdown or JSON. The tool supports multiple languages (Python, JavaScript/TypeScript, R, Julia, C/C++, etc.) and can run with concurrency to handle larger projects more efficiently.
 
 Table of Contents
