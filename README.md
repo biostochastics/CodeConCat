@@ -45,7 +45,7 @@ Use Case: If you want to feed your code (and possibly docs) to a Large Language 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/<YourUsername>/CodeConCat.git
+git clone https://github.com/biostochastics/CodeConCat.git
 cd CodeConCat
 ```
 
