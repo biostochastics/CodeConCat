@@ -214,8 +214,6 @@ codeconcat/
     └─ config_loader.py
 ```
 
-You can adapt or expand as needed. For instance, you might include an examples/ folder or a tests/ folder.
-
 ## Contributing
 
 1. Fork the repository
