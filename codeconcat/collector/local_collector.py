@@ -9,7 +9,21 @@ DEFAULT_EXCLUDES = [
     ".git",
     "*.git",
     ".DS_Store",
-    "*.DS_Store"
+    "*.DS_Store",
+    "__pycache__",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    "*.so",
+    "*.dll",
+    "*.dylib",
+    "*.class",
+    "*.exe",
+    "*.bin",
+    "*.pkl",
+    "*.pyc",
+    "*.pyo",
+    "*.o"
 ]
 
 
@@ -41,6 +55,10 @@ def should_skip_dir(dirpath: str, user_excludes: List[str]) -> bool:
 def should_include_file(path_str: str, config: CodeConCatConfig) -> bool:
     combined_excludes = config.exclude_paths + DEFAULT_EXCLUDES
     if any(matches_pattern(path_str, pat) for pat in combined_excludes):
+        return False
+
+    # Skip binary files
+    if is_binary_file(path_str):
         return False
 
     ext = os.path.splitext(path_str)[1].lower().lstrip(".")
@@ -79,3 +97,13 @@ def ext_map(ext: str, config: CodeConCatConfig) -> str:
         "rmd": "doc",
     }
     return builtin.get(ext, ext)
+
+
+def is_binary_file(file_path: str) -> bool:
+    """Check if a file is likely to be binary."""
+    try:
+        with open(file_path, 'tr') as check_file:
+            check_file.readline()
+            return False
+    except UnicodeDecodeError:
+        return True

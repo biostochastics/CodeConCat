@@ -1,6 +1,7 @@
 import argparse
 import sys
 from typing import List
+import os
 
 from codeconcat.config.config_loader import load_config
 from codeconcat.collector.local_collector import collect_local_files
@@ -36,6 +37,9 @@ def cli_entry_point():
 
     parser.add_argument("--max-workers", type=int, default=4, help="Number of worker threads")
 
+    parser.add_argument("--no-tree", action="store_true", help="Disable folder tree generation (enabled by default)")
+    parser.add_argument("--no-copy", action="store_true", help="Disable copying output to clipboard (enabled by default)")
+
     args = parser.parse_args()
 
     cli_args = {
@@ -50,10 +54,28 @@ def cli_entry_point():
         "exclude_languages": args.exclude_languages,
         "exclude_paths": args.exclude,
         "max_workers": args.max_workers,
+        "include_tree": not args.no_tree,
+        "copy_output": not args.no_copy
     }
 
     config = load_config(cli_args)
     run_codeconcat(config)
+
+
+def generate_folder_tree(root_path: str) -> str:
+    """
+    Walk the directory tree starting at root_path and return a string that represents the folder structure.
+    """
+    lines = []
+    for root, dirs, files in os.walk(root_path):
+        level = root.replace(root_path, "").count(os.sep)
+        indent = "    " * level
+        folder_name = os.path.basename(root) or root_path
+        lines.append(f"{indent}{folder_name}/")
+        sub_indent = "    " * (level + 1)
+        for f in files:
+            lines.append(f"{sub_indent}{f}")
+    return "\n".join(lines)
 
 
 def run_codeconcat(config: CodeConCatConfig) -> None:
@@ -80,10 +102,22 @@ def run_codeconcat(config: CodeConCatConfig) -> None:
     for pf in parsed_files:
         annotated_files.append(annotate(pf, config))
 
+    folder_tree_str = ""
+    if config.include_tree:
+        folder_tree_str = generate_folder_tree(config.target_path)
+
     if config.format == "json":
-        write_json(annotated_files, docs, config)
+        final_output = write_json(annotated_files, docs, config, folder_tree_str)
     else:
-        write_markdown(annotated_files, docs, config)
+        final_output = write_markdown(annotated_files, docs, config, folder_tree_str)
+
+    if config.copy_output and final_output:
+        try:
+            import pyperclip
+            pyperclip.copy(final_output)
+            print("[CodeConCat] Output copied to clipboard.")
+        except ImportError:
+            print("[CodeConCat] pyperclip not installed. Unable to copy to clipboard.")
 
 
 def main():

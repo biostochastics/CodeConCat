@@ -21,6 +21,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "pyyaml>=5.0",
+        "pyperclip>=1.8.0",
     ],
     python_requires=">=3.8",
     entry_points={

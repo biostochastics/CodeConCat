@@ -11,7 +11,8 @@ from typing import List, Dict, Optional
 @dataclass
 class Declaration:
     """
-    Represents a top-level construct in a code file, e.g. a function or class.
+    Represents a top-level construct in a code file, e.g. a function, class, or symbol.
+    Kinds can be: 'function', 'class', 'struct', 'symbol'
     """
     kind: str
     name: str
@@ -93,6 +94,6 @@ class CodeConCatConfig:
     # Output
     output: str = "code_concat_output.md"
     format: str = "markdown"  # or "json"
-
-    # Concurrency
     max_workers: int = 4
+    include_tree: bool = True
+    copy_output: bool = True

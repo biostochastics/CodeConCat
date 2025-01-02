@@ -1,6 +1,6 @@
 # CodeConCat
 
-CodeConCat is a lightweight command-line tool (CLI) that aggregates code and (optionally) documentation from a local folder or (optionally) from GitHub. It annotates source files, merges doc files, and produces an LLM-friendly output in Markdown or JSON. The tool supports multiple languages (Python, JavaScript/TypeScript, R, Julia, C/C++, etc.) and can run with concurrency to handle larger projects more efficiently.
+CodeConCat is a lightweight command-line tool (CLI) that aggregates code and (optionally) documentation from a local folder or (optionally) from GitHub (with private token support). It creates a folder tree, annotates source files, merges doc files, and produces an LLM-friendly output in Markdown or JSON; allows for automatic copying to the buffer. The tool supports multiple languages (Python, JavaScript/TypeScript, R, Julia, C/C++, etc.) and can run with concurrency to handle larger projects more efficiently.
 
 ## Table of Contents
 
@@ -35,11 +35,13 @@ CodeConCat scans your local directory (or a GitHub repo, if configured) for code
   * JSON: Structured data (one object for each file, plus docs if included)
 * **GitHub Collector**: Optionally clone from a public or private GitHub repo (via token) and run the same logic
 * **Default Ignores**: By default, CodeConCat skips .DS_Store, .git/, and other system files to keep your output clean
+* **Symbol Extraction**: Extracts and organizes constants and variables (symbols) from code files
 
 ## Requirements
 
 * Python 3.8+
 * pyyaml (if you want .codeconcat.yml support)
+* pyperclip (for clipboard support)
 * (Optional) pytest for running tests
 
 ## Installation
@@ -99,13 +101,17 @@ codeconcat --github https://github.com/User/PrivateRepo.git \
 | --max-workers | Concurrency threads (default 4) |
 | --github | Clone and parse a GitHub repo |
 | --github-token | Personal access token if it's a private GitHub repo |
+| --no-tree | Disable folder tree generation (enabled by default) |
+| --no-copy | Disable copying output to clipboard (enabled by default) |
 
 ### Example
 ```bash
 codeconcat . --docs --merge-docs --format=markdown --output=all_in_one.md
 ```
 * Recursively scans the current directory for code + doc files
+* Generates a folder tree of the project structure
 * Merges everything into all_in_one.md in Markdown format
+* Copies the final output to your system clipboard
 
 ## Configuration
 
@@ -143,8 +149,6 @@ To speed up the parsing of large projects, CodeConCat uses multithreading:
 * Doc Extraction uses concurrency to read doc files in parallel
 
 You can adjust the number of threads with `--max-workers <N>`.
-
-*Note: Python's GIL can limit speed gains for CPU-bound tasks, but reading files in parallel often improves I/O throughput.*
 
 ## Doc Extraction
 
@@ -187,7 +191,7 @@ pytest --maxfail=1 --disable-warnings -q
 ```
 * This runs the unit tests (e.g., checking collectors, parsers, writer outputs, etc.)
 
-## Project Structure (Example)
+## Project Structure
 
 ```
 codeconcat/
