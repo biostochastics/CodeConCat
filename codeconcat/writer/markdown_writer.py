@@ -16,15 +16,19 @@ def write_markdown(
         output_chunks.append(folder_tree_str)
         output_chunks.append("\n```\n\n")
 
-    for ann in annotated_files:
-        output_chunks.append(ann.annotated_content)
-        output_chunks.append("\n---\n")
+    # Write code files if any
+    if annotated_files:
+        output_chunks.append("## Code Files\n\n")
+        for ann in annotated_files:
+            output_chunks.append(ann.annotated_content)
+            output_chunks.append("\n---\n")
 
-    if config.docs and config.merge_docs and docs:
-        output_chunks.append("\n## Documentation\n\n")
+    # Write docs if any
+    if docs:
+        output_chunks.append("## Documentation\n\n")
         for doc in docs:
             output_chunks.append(f"### Doc File: {doc.file_path}\n")
-            output_chunks.append(f"```\n{doc.content}\n```\n\n")
+            output_chunks.append(f"```{doc.doc_type}\n{doc.content}\n```\n\n")
             output_chunks.append("---\n")
 
     final_str = "".join(output_chunks)

@@ -106,16 +106,24 @@ def run_codeconcat(config: CodeConCatConfig) -> None:
     if config.include_tree:
         folder_tree_str = generate_folder_tree(config.target_path)
 
+    # Always write code and docs separately
     if config.format == "json":
-        final_output = write_json(annotated_files, docs, config, folder_tree_str)
+        code_output = write_json(annotated_files, [], config, folder_tree_str)  # Empty docs list
+        if docs:
+            docs_output_path = os.path.splitext(config.output)[0] + "_docs.json"
+            write_json([], docs, config._replace(output=docs_output_path), "")  # Empty code list
     else:
-        final_output = write_markdown(annotated_files, docs, config, folder_tree_str)
+        code_output = write_markdown(annotated_files, [], config, folder_tree_str)  # Empty docs list
+        if docs:
+            docs_output_path = os.path.splitext(config.output)[0] + "_docs.md"
+            write_markdown([], docs, config._replace(output=docs_output_path), "")  # Empty code list
 
-    if config.copy_output and final_output:
+    # Only copy code to clipboard
+    if config.copy_output and code_output:
         try:
             import pyperclip
-            pyperclip.copy(final_output)
-            print("[CodeConCat] Output copied to clipboard.")
+            pyperclip.copy(code_output)
+            print("[CodeConCat] Code output copied to clipboard.")
         except ImportError:
             print("[CodeConCat] pyperclip not installed. Unable to copy to clipboard.")
 

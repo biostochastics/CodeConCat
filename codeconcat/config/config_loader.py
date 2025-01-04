@@ -5,15 +5,28 @@ from codeconcat.types import CodeConCatConfig
 
 
 def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
-    config = CodeConCatConfig()
-    file_data = read_config_file(".codeconcat.yml")
+    """
+    Load and merge configuration from .codeconcat.yml (if exists) and CLI args.
+    CLI args take precedence over the config file.
+    """
+    config_data = {}
 
-    if file_data:
-        apply_dict_to_config(file_data, config)
+    # Try to load .codeconcat.yml if it exists
+    config_path = os.path.join(cli_args.get("target_path", "."), ".codeconcat.yml")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config_data = yaml.safe_load(f) or {}
+        except Exception as e:
+            print(f"[CodeConCat] Warning: Failed to load .codeconcat.yml: {e}")
 
-    apply_dict_to_config(cli_args, config)
+    # Merge CLI args with config file (CLI takes precedence)
+    merged = {**config_data, **cli_args}
 
-    return config
+    # Always set merge_docs to False to ensure docs are output separately
+    merged["merge_docs"] = False
+
+    return CodeConCatConfig(**merged)
 
 
 def read_config_file(path: str) -> Dict[str, Any]:

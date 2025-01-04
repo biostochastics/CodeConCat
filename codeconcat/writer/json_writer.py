@@ -8,22 +8,25 @@ def write_json(
     config: CodeConCatConfig,
     folder_tree_str: str = ""
 ) -> str:
-    data = {
-        "code": [],
-        "docs": []
-    }
+    data = {}
 
+    # Add folder tree if present
     if folder_tree_str:
         data["folder_tree"] = folder_tree_str
 
-    for ann in annotated_files:
-        data["code"].append({
-            "file_path": ann.file_path,
-            "language": ann.language,
-            "annotated_content": ann.annotated_content
-        })
+    # Add code files if any
+    if annotated_files:
+        data["code"] = []
+        for ann in annotated_files:
+            data["code"].append({
+                "file_path": ann.file_path,
+                "language": ann.language,
+                "annotated_content": ann.annotated_content
+            })
 
-    if config.docs:
+    # Add docs if any
+    if docs:
+        data["docs"] = []
         for doc in docs:
             data["docs"].append({
                 "file_path": doc.file_path,
