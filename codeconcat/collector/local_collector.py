@@ -6,13 +6,29 @@ from concurrent.futures import ThreadPoolExecutor
 from codeconcat.types import CodeConCatConfig
 
 DEFAULT_EXCLUDES = [
+    # Version Control
     ".git",
-    "*.git",
+    ".git/**",
+    "**/.git/**",
+    ".gitignore",
+    "**/.gitignore",
+    
+    # OS and Editor Files
     ".DS_Store",
-    "*.DS_Store",
+    "**/.DS_Store",
+    "Thumbs.db",
+    "**/*.swp",
+    "**/*.swo",
+    ".idea/**",
+    ".vscode/**",
+    
+    # Build and Compilation
     "__pycache__",
+    "**/__pycache__/**",
     "*.pyc",
+    "**/*.pyc",
     "*.pyo",
+    "**/*.pyo",
     "*.pyd",
     "*.so",
     "*.dll",
@@ -20,10 +36,46 @@ DEFAULT_EXCLUDES = [
     "*.class",
     "*.exe",
     "*.bin",
-    "*.pkl",
-    "*.pyc",
-    "*.pyo",
-    "*.o"
+    "build/**",
+    "dist/**",
+    "*.egg-info/**",
+    "**/build/**",
+    "**/dist/**",
+    "**/*.egg-info/**",
+    
+    # Dependencies
+    "node_modules/**",
+    "**/node_modules/**",
+    "venv/**",
+    "**/.env/**",
+    
+    # Documentation Build
+    "_build/**",
+    "**/_build/**",
+    "**/*.doctree",
+    "**/searchindex.js",
+    "**/objects.inv",
+    "**/_static/**",
+    "**/_sources/**",
+    "**/CACHEDIR.TAG",
+    
+    # Caches and Temporary
+    ".pytest_cache/**",
+    "**/.pytest_cache/**",
+    ".mypy_cache/**",
+    ".ruff_cache/**",
+    ".coverage",
+    "coverage/**",
+    "**/*.log",
+    "**/*.tmp",
+    "**/*.temp",
+    
+    # Binary and Data Files
+    "**/*.pkl",
+    "**/*.h5",
+    "**/*.parquet",
+    "**/*.o",
+    "**/*.a"
 ]
 
 
@@ -48,8 +100,18 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[str]:
 
 
 def should_skip_dir(dirpath: str, user_excludes: List[str]) -> bool:
+    """Check if a directory should be skipped based on exclude patterns."""
+    rel_path = os.path.relpath(dirpath, os.getcwd())
     combined = user_excludes + DEFAULT_EXCLUDES
-    return any(matches_pattern(dirpath, pattern) for pattern in combined)
+    
+    for pattern in combined:
+        if pattern.endswith('/**'):
+            dir_pattern = pattern[:-3]  # Remove '/**'
+            if matches_pattern(rel_path, dir_pattern):
+                return True
+        elif matches_pattern(rel_path, pattern):
+            return True
+    return False
 
 
 def should_include_file(path_str: str, config: CodeConCatConfig) -> bool:
