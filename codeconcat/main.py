@@ -4,7 +4,7 @@ from typing import List
 import os
 
 from codeconcat.config.config_loader import load_config
-from codeconcat.collector.local_collector import collect_local_files
+from codeconcat.collector.local_collector import collect_local_files, should_skip_dir, should_include_file
 from codeconcat.collector.github_collector import collect_github_files
 from codeconcat.parser.file_parser import parse_code_files
 from codeconcat.parser.doc_extractor import extract_docs
@@ -62,19 +62,36 @@ def cli_entry_point():
     run_codeconcat(config)
 
 
-def generate_folder_tree(root_path: str) -> str:
+def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
     """
     Walk the directory tree starting at root_path and return a string that represents the folder structure.
+    Respects exclusion patterns from the config.
     """
+    from codeconcat.collector.local_collector import should_skip_dir, should_include_file
+    
     lines = []
     for root, dirs, files in os.walk(root_path):
+        # Check if we should skip this directory
+        if should_skip_dir(root, config.exclude_paths):
+            dirs[:] = []  # Clear dirs to prevent descending into this directory
+            continue
+            
         level = root.replace(root_path, "").count(os.sep)
         indent = "    " * level
         folder_name = os.path.basename(root) or root_path
         lines.append(f"{indent}{folder_name}/")
+        
+        # Filter files based on exclusion patterns
+        included_files = [f for f in files if should_include_file(os.path.join(root, f), config)]
+        
         sub_indent = "    " * (level + 1)
-        for f in files:
+        for f in sorted(included_files):
             lines.append(f"{sub_indent}{f}")
+            
+        # Filter directories for the next iteration
+        dirs[:] = [d for d in dirs if not should_skip_dir(os.path.join(root, d), config.exclude_paths)]
+        dirs.sort()  # Sort directories for consistent output
+        
     return "\n".join(lines)
 
 
@@ -104,7 +121,7 @@ def run_codeconcat(config: CodeConCatConfig) -> None:
 
     folder_tree_str = ""
     if config.include_tree:
-        folder_tree_str = generate_folder_tree(config.target_path)
+        folder_tree_str = generate_folder_tree(config.target_path, config)
 
     # Always write code and docs separately
     if config.format == "json":
