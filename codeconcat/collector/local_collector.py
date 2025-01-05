@@ -7,7 +7,7 @@ import logging
 from codeconcat.types import CodeConCatConfig
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 
 DEFAULT_EXCLUDES = [
     # Version Control
