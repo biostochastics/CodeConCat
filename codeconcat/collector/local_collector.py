@@ -27,9 +27,32 @@ DEFAULT_EXCLUDES = [
     ".idea/**",
     ".vscode/**",
     
+    # Configuration Files
+    "*.yml",
+    "./*.yml",
+    "**/*.yml",
+    "*.yaml",
+    "./*.yaml",
+    "**/*.yaml",
+    ".codeconcat.yml",
+    "./.codeconcat.yml",
+    "**/.codeconcat.yml",
+    ".github/*.yml",
+    ".github/*.yaml",
+    "**/.github/*.yml",
+    "**/.github/*.yaml",
+    
     # Build and Compilation
+    "__pycache__",
+    "./__pycache__",
+    "__pycache__/",
+    "./__pycache__/",
     "__pycache__/**",
+    "./__pycache__/**",
+    "**/__pycache__",
+    "**/__pycache__/",
     "**/__pycache__/**",
+    "**/__pycache__/**/*",
     "*.pyc",
     "**/*.pyc",
     "*.pyo",
@@ -41,86 +64,122 @@ DEFAULT_EXCLUDES = [
     "*.class",
     "*.exe",
     "*.bin",
+    "build",
+    "./build",
+    "build/",
+    "./build/",
     "build/**",
-    "dist/**",
-    "*.egg-info/**",
+    "./build/**",
+    "build/**/*",
+    "./build/**/*",
+    "**/build",
+    "**/build/",
     "**/build/**",
+    "**/build/**/*",
+    "dist",
+    "./dist",
+    "dist/",
+    "./dist/",
+    "dist/**",
+    "./dist/**",
+    "**/dist",
+    "**/dist/",
     "**/dist/**",
+    "**/dist/**/*",
+    "*.egg-info",
+    "./*.egg-info",
+    "*.egg-info/",
+    "./*.egg-info/",
+    "*.egg-info/**",
+    "./*.egg-info/**",
+    "*.egg-info/**/*",
+    "./*.egg-info/**/*",
+    "**/*.egg-info",
+    "**/*.egg-info/",
     "**/*.egg-info/**",
+    "**/*.egg-info/**/*",
+    "**/codeconcat.egg-info",
+    "**/codeconcat.egg-info/",
+    "**/codeconcat.egg-info/**",
+    "**/codeconcat.egg-info/**/*",
+    
+    # Test Files
+    "tests",
+    "./tests",
+    "tests/",
+    "./tests/",
+    "tests/**",
+    "./tests/**",
+    "tests/**/*",
+    "./tests/**/*",
+    "**/tests",
+    "**/tests/",
+    "**/tests/**",
+    "**/tests/**/*",
+    "**/test_*.py",
+    "**/*_test.py",
+    "**/test_*.py[cod]",
+    "test_*.py",
+    "*_test.py",
+    "./test_*.py",
+    "./*_test.py",
+    "**/test_*.py",
+    "**/*_test.py",
+    
+    # Log Files
+    "*.log",
+    "./*.log",
+    "**/*.log",
+    "**/leap.log",
+    "**/sqm.log",
+    "**/timer.log",
+    "**/build.log",
+    "**/test.log",
+    "**/debug.log",
+    "**/error.log",
+    "leap.log",
+    "sqm.log",
+    "timer.log",
+    "build.log",
+    "test.log",
+    "debug.log",
+    "error.log",
+    "./leap.log",
+    "./sqm.log",
+    "./timer.log",
+    "./build.log",
+    "./test.log",
+    "./debug.log",
+    "./error.log",
     
     # Dependencies
     "node_modules/**",
     "**/node_modules/**",
+    "vendor/**",
+    "**/vendor/**",
+    "env/**",
+    "**/env/**",
     "venv/**",
+    "**/venv/**",
+    ".env/**",
     "**/.env/**",
+    ".venv/**",
+    "**/.venv/**",
     
-    # Documentation Build
+    # Documentation
+    "docs/**",
+    "**/docs/**",
     "_build/**",
     "**/_build/**",
-    "docs/_build/**",
-    "**/docs/_build/**",
-    "**/*.doctree",
-    "**/searchindex.js",
-    "**/objects.inv",
+    "_static/**",
     "**/_static/**",
-    "**/_sources/**",
-    "**/CACHEDIR.TAG",
-    "**/.buildinfo",
-    "**/.buildinfo.bak",
-    "**/genindex.html",
-    "**/py-modindex.html",
-    "**/search.html",
-    "**/environment.pickle",
-    "**/doctrees/**",
-    "**/html/**",
-    "**/fonts/**",
-    "**/css/**",
-    "**/js/**",
+    "_templates/**",
+    "**/_templates/**",
     
-    # Caches and Temporary
-    ".pytest_cache/**",
-    "**/.pytest_cache/**",
-    ".mypy_cache/**",
-    ".ruff_cache/**",
-    ".coverage",
-    "coverage/**",
-    "**/*.log",
-    "**/*.tmp",
-    "**/*.temp",
-    
-    # Binary and Data Files
-    "**/*.pkl",
-    "**/*.h5",
-    "**/*.parquet",
-    "**/*.o",
-    "**/*.a",
-    "**/*.AC",
-    "**/*.AC0",
-    "**/*.INF",
-    "**/*.dat",
-    "**/*.out",
-    "**/*.in",
-    "**/*.pdb",
-    
-    # Test Files
-    "tests/**/__pycache__/**",
-    "**/test_*.py[c,o]",
-    "**/.pytest_cache/**",
-    "**/pytest_cache/**",
-    
-    # Output Files
-    "**/code_concat_output.md",
-    
-    # Specific Files
-    "**/ANTECHAMBER_*.AC",
-    "**/ANTECHAMBER_*.AC0",
-    "**/ATOMTYPE.INF",
-    "**/sqm.out",
-    "**/leap.log",
-    "**/timer.dat",
-    "**/sqm.in",
-    "**/build_polymer.in",
-    "**/sqm.pdb"
+    # CodeConCat Output
+    "code_concat_output.md",
+    "./code_concat_output.md",
+    "**/code_concat_output.md"
 ]
 
 
@@ -185,12 +244,22 @@ def should_include_file(path_str: str, config: CodeConCatConfig) -> bool:
     # Normalize path separators
     rel_path = rel_path.replace(os.sep, '/')
     
-    # Check exclusions first
+    # Check exclusions first for the file itself
     for pattern in all_excludes:
         if matches_pattern(rel_path, pattern):
             logging.debug(f"Excluding file {rel_path} due to pattern {pattern}")
             return False
             
+    # Check exclusions for all parent directories
+    path_parts = rel_path.split('/')
+    for i in range(len(path_parts)):
+        parent_path = '/'.join(path_parts[:i+1])
+        if parent_path:  # Skip empty path
+            for pattern in all_excludes:
+                if matches_pattern(parent_path, pattern):
+                    logging.debug(f"Excluding file {rel_path} due to parent directory {parent_path} matching pattern {pattern}")
+                    return False
+        
     # If we have includes, file must match at least one
     if config.include_languages:
         ext = os.path.splitext(path_str)[1].lower().lstrip(".")
@@ -218,12 +287,23 @@ def matches_pattern(path_str: str, pattern: str) -> bool:
     if pattern.endswith('/**'):
         # For directory wildcard patterns, check if the path starts with the directory part
         dir_pattern = pattern[:-3]  # Remove '/**'
+        # Remove leading ./ from both path and pattern for comparison
+        if dir_pattern.startswith('./'):
+            dir_pattern = dir_pattern[2:]
+        if path_str.startswith('./'):
+            path_str = path_str[2:]
         return path_str == dir_pattern or path_str.startswith(dir_pattern + '/')
     elif os.path.isdir(path_str) and not path_str.endswith('/'):
         # For directories, ensure they end with / for matching
         path_str += '/'
         if not pattern.endswith('/'):
             pattern += '/'
+    
+    # Remove leading ./ from both path and pattern for matching
+    if pattern.startswith('./'):
+        pattern = pattern[2:]
+    if path_str.startswith('./'):
+        path_str = path_str[2:]
     
     # Handle both glob patterns and direct matches
     return fnmatch.fnmatch(path_str, pattern)
