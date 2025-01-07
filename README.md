@@ -1,8 +1,8 @@
-# 🐱 CodeConcat
+# 🐱 CodeConCat
 
 > 🚀 A simple code aggregator and documentation extractor 
 
-CodeConcat is your intelligent companion for preparing codebases. It automatically ingests/collects, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows.
+CodeConCat is your intelligent companion for preparing codebases. It automatically ingests/collects, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows.
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -264,13 +264,8 @@ We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to
 ## 📝 License
 
 MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🌟 Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=biostochastics/codeconcat&type=Date)](https://star-history.com/#biostochastics/codeconcat&Date)
-
 ---
 
 <p align="center">
-  Made with ❤️ by the CodeConcat Team
+  Made with ❤️ by Sergey Kornilov for Biostochastics, LLC
 </p>
