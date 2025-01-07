@@ -1,7 +1,10 @@
+import os
+
 import pytest
+
 from codeconcat.base_types import CodeConCatConfig
 from codeconcat.main import run_codeconcat
-import os
+
 
 @pytest.fixture
 def sample_dir(tmp_path):
@@ -11,13 +14,14 @@ def sample_dir(tmp_path):
     doc_file.write_text("# This is documentation.")
     return tmp_path
 
+
 def test_run_codeconcat(sample_dir):
     config = CodeConCatConfig(
         target_path=str(sample_dir),
         docs=True,
         merge_docs=True,
         format="markdown",
-        output=str(sample_dir / "output.md")
+        output=str(sample_dir / "output.md"),
     )
     run_codeconcat(config)
 

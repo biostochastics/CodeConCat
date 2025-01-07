@@ -6,17 +6,16 @@ Holds data classes and typed structures used throughout CodeConCat.
 
 # Rename this file to base_types.py to avoid conflict with Python's types module
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
-
+from typing import Any, Dict, List, Optional
 
 PROGRAMMING_QUOTES = [
     '"Clean code always looks like it was written by someone who cares." - Robert C. Martin',
     '"First, solve the problem. Then write the code." - John Johnson',
     '"Any fool can write code that a computer can understand. Good programmers write code that humans can understand." - Martin Fowler',
-    '"Programming isn\'t about what you know; it\'s about what you can figure out." - Chris Pine',
+    "\"Programming isn't about what you know; it's about what you can figure out.\" - Chris Pine",
     '"Code is like humor. When you have to explain it, it\'s bad." - Cory House',
     '"The most important property of a program is whether it accomplishes the intention of its user." - C.A.R. Hoare',
-    '"Good code is its own best documentation. As you\'re about to add a comment, ask yourself, \'How can I improve the code so that this comment isn\'t needed?\'" - Steve McConnell',
+    "\"Good code is its own best documentation. As you're about to add a comment, ask yourself, 'How can I improve the code so that this comment isn't needed?'\" - Steve McConnell",
     '"Measuring programming progress by lines of code is like measuring aircraft building progress by weight." - Bill Gates',
     '"Talk is cheap. Show me the code." - Linus Torvalds',
     '"Truth can only be found in one place: the code." - Robert C. Martin',
@@ -30,6 +29,7 @@ PROGRAMMING_QUOTES = [
 @dataclass
 class SecurityIssue:
     """Represents a detected security issue in the code."""
+
     line_number: int
     line_content: str
     issue_type: str
@@ -40,6 +40,7 @@ class SecurityIssue:
 @dataclass
 class TokenStats:
     """Token statistics for a file."""
+
     gpt3_tokens: int
     gpt4_tokens: int
     davinci_tokens: int
@@ -52,6 +53,7 @@ class Declaration:
     Represents a top-level construct in a code file, e.g. a function, class, or symbol.
     Kinds can be: 'function', 'class', 'struct', 'symbol'
     """
+
     kind: str
     name: str
     start_line: int
@@ -63,6 +65,7 @@ class ParsedFileData:
     """
     Parsed output of a single code file.
     """
+
     file_path: str
     language: str
     content: str
@@ -76,6 +79,7 @@ class AnnotatedFileData:
     """
     A file's annotated content, ready to be written (Markdown/JSON).
     """
+
     file_path: str
     language: str
     annotated_content: str
@@ -89,6 +93,7 @@ class ParsedDocData:
     """
     Represents a doc file, storing raw text + file path + doc type (md, rst, etc.).
     """
+
     file_path: str
     doc_type: str
     content: str

@@ -1,6 +1,6 @@
 import os
-from typing import List
 from concurrent.futures import ThreadPoolExecutor
+from typing import List
 
 from codeconcat.base_types import CodeConCatConfig, ParsedDocData
 

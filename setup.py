@@ -1,6 +1,8 @@
 import os
 import re
+
 import setuptools
+
 
 # We'll read the version from codeconcat/version.py
 def get_version():
@@ -11,6 +13,7 @@ def get_version():
         if match:
             return match.group(1)
     return "0.0.0"
+
 
 setuptools.setup(
     name="codeconcat",
@@ -24,9 +27,5 @@ setuptools.setup(
         "pyperclip>=1.8.0",
     ],
     python_requires=">=3.8",
-    entry_points={
-        "console_scripts": [
-            "codeconcat=codeconcat.main:cli_entry_point"
-        ]
-    },
+    entry_points={"console_scripts": ["codeconcat=codeconcat.main:cli_entry_point"]},
 )

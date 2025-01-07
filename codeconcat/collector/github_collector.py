@@ -1,49 +1,48 @@
 import os
-import tempfile
+import re
 import shutil
 import subprocess
-import re
+import tempfile
 from typing import List, Optional, Tuple
+
+from github import Github
+from github.ContentFile import ContentFile
+from github.Repository import Repository
+
 from codeconcat.base_types import CodeConCatConfig
 from codeconcat.collector.local_collector import collect_local_files
-from github import Github
-from github.Repository import Repository
-from github.ContentFile import ContentFile
 
 
 def parse_github_url(url: str) -> Tuple[str, str, Optional[str]]:
     """Parse GitHub URL or shorthand into owner, repo, and ref."""
     # Handle shorthand notation (owner/repo)
-    if '/' in url and not url.startswith('http'):
-        parts = url.split('/')
+    if "/" in url and not url.startswith("http"):
+        parts = url.split("/")
         owner = parts[0]
         repo = parts[1]
         ref = parts[2] if len(parts) > 2 else None
         return owner, repo, ref
-    
+
     # Handle full URLs
-    match = re.match(r'https?://github\.com/([^/]+)/([^/]+)(?:/tree/([^/]+))?', url)
+    match = re.match(r"https?://github\.com/([^/]+)/([^/]+)(?:/tree/([^/]+))?", url)
     if match:
         return match.group(1), match.group(2), match.group(3)
-    
+
     raise ValueError(
         "Invalid GitHub URL or shorthand. Use format 'owner/repo', 'owner/repo/branch', "
         "or 'https://github.com/owner/repo'"
     )
 
 
-def collect_github_files(
-    github_url: str,
-    config: CodeConCatConfig
-) -> List[str]:
+def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[str]:
     owner, repo_name, url_ref = parse_github_url(github_url)
-    
+
     # Use explicit ref if provided, otherwise use ref from URL
-    target_ref = config.ref or url_ref or 'main'
-    
+    target_ref = config.ref or url_ref or "main"
+
     g = Github(config.github_token) if config.github_token else Github()
     repo = g.get_repo(f"{owner}/{repo_name}")
-    
+
     try:
         # Verify ref exists
         repo.get_commit(target_ref)
@@ -59,27 +58,23 @@ def collect_github_files(
                 )
         except Exception as e:
             raise ValueError(f"Error accessing repository: {str(e)}")
-    
+
     contents = []
     for content in repo.get_contents("", ref=target_ref):
         if content.type == "file":
-            contents.append(content.decoded_content.decode('utf-8'))
+            contents.append(content.decoded_content.decode("utf-8"))
         elif content.type == "dir":
             contents.extend(_collect_dir_contents(repo, content.path, target_ref))
-    
+
     return contents
 
 
-def _collect_dir_contents(
-    repo: Repository,
-    path: str,
-    ref: str
-) -> List[str]:
+def _collect_dir_contents(repo: Repository, path: str, ref: str) -> List[str]:
     """Recursively collect contents from a directory."""
     contents = []
     for content in repo.get_contents(path, ref=ref):
         if content.type == "file":
-            contents.append(content.decoded_content.decode('utf-8'))
+            contents.append(content.decoded_content.decode("utf-8"))
         elif content.type == "dir":
             contents.extend(_collect_dir_contents(repo, content.path, ref))
     return contents

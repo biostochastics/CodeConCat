@@ -1,4 +1,5 @@
-from codeconcat.base_types import ParsedFileData, AnnotatedFileData, CodeConCatConfig
+from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedFileData
+
 
 def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> AnnotatedFileData:
     pieces = []
@@ -53,7 +54,7 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
         summary_parts.append(f"{len(structs)} structs")
     if symbols:
         summary_parts.append(f"{len(symbols)} symbols")
-    
+
     summary = f"Contains {', '.join(summary_parts)}" if summary_parts else "No declarations found"
 
     # Generate tags
@@ -74,5 +75,5 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
         content=parsed_data.content,
         annotated_content="".join(pieces),
         summary=summary,
-        tags=tags
+        tags=tags,
     )
