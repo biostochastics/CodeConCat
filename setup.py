@@ -2,6 +2,7 @@ import os
 import re
 from setuptools import setup, find_packages
 
+
 def get_version():
     """
     Extracts the CodeConCat version from codeconcat/version.py
@@ -14,12 +15,14 @@ def get_version():
             return match.group(1)
     return "0.0.0"
 
+
 def get_long_description():
     try:
         with open("README.md", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
         return ""
+
 
 setup(
     name="codeconcat",
@@ -35,9 +38,7 @@ setup(
         "pyperclip>=1.8.0",
     ],
     python_requires=">=3.8",
-    entry_points={
-        "console_scripts": ["codeconcat=codeconcat.main:cli_entry_point"]
-    },
+    entry_points={"console_scripts": ["codeconcat=codeconcat.main:cli_entry_point"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
