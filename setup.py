@@ -2,10 +2,15 @@ import os
 import re
 from setuptools import setup, find_packages
 
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
 def get_version():
-    version_file = os.path.join(
-        os.path.dirname(__file__), "codeconcat", "version.py"
-    )
+    """
+    Extracts the CodeConCat version from codeconcat/version.py
+    """
+    version_file = os.path.join(os.path.dirname(__file__), "codeconcat", "version.py")
     with open(version_file, "r", encoding="utf-8") as f:
         content = f.read()
         match = re.search(r'__version__\s*=\s*"([^"]+)"', content)
@@ -26,14 +31,18 @@ setup(
     author="Sergey Kornilov",
     author_email="sergey.kornilov@biostochastics.com",
     description="An LLM-friendly code parser, aggregator and doc extractor",
+<<<<<<< Updated upstream
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
+=======
+>>>>>>> Stashed changes
     packages=find_packages(),
     install_requires=[
         "pyyaml>=5.0",
         "pyperclip>=1.8.0",
     ],
     python_requires=">=3.8",
+<<<<<<< Updated upstream
     entry_points={
         "console_scripts": ["codeconcat=codeconcat.main:cli_entry_point"]
     },
@@ -51,4 +60,7 @@ setup(
     project_urls={
         "Source": "https://github.com/biostochastics/codeconcat",
     },
+=======
+    entry_points={"console_scripts": ["codeconcat=codeconcat.main:cli_entry_point"]},
+>>>>>>> Stashed changes
 )
