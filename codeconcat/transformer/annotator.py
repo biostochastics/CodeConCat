@@ -43,8 +43,36 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
 
     pieces.append(f"```{parsed_data.language}\n{parsed_data.content}\n```\n")
 
+    # Generate summary
+    summary_parts = []
+    if functions:
+        summary_parts.append(f"{len(functions)} functions")
+    if classes:
+        summary_parts.append(f"{len(classes)} classes")
+    if structs:
+        summary_parts.append(f"{len(structs)} structs")
+    if symbols:
+        summary_parts.append(f"{len(symbols)} symbols")
+    
+    summary = f"Contains {', '.join(summary_parts)}" if summary_parts else "No declarations found"
+
+    # Generate tags
+    tags = []
+    if functions:
+        tags.append("has_functions")
+    if classes:
+        tags.append("has_classes")
+    if structs:
+        tags.append("has_structs")
+    if symbols:
+        tags.append("has_symbols")
+    tags.append(parsed_data.language)
+
     return AnnotatedFileData(
         file_path=parsed_data.file_path,
         language=parsed_data.language,
-        annotated_content="".join(pieces)
+        content=parsed_data.content,
+        annotated_content="".join(pieces),
+        summary=summary,
+        tags=tags
     )

@@ -1,5 +1,66 @@
 # Changelog
 
+All notable changes to CodeConcat will be documented in this file
+
+## [0.5.0] - 2025-01-07
+
+### Added
+- 🔄 Introduced `BaseParser` class for standardized parsing across languages
+- 🎯 Added `CodeSymbol` class for better code structure representation
+- ⚡️ Added new language parsers:
+  - Java: Classes, interfaces, enums, methods, annotations
+  - Go: Packages, interfaces, structs, functions
+  - PHP: Classes, interfaces, traits, methods
+- 🔧 Enhanced JavaScript/TypeScript parser:
+  - Better decorator handling
+  - Improved interface and type support
+  - Fixed language detection and initialization
+  - Added JSX/TSX support
+- ⚡️ Added C, C#, C++ parsers with comprehensive support:
+  - Classes, structs, and unions
+  - Templates and generics
+  - Namespaces and using directives
+  - Properties and events (C#)
+  - Attributes and annotations
+- 🌟 Enhanced Julia parser with comprehensive language support:
+  - Functions, structs, abstract types, modules, constants, macros
+  - Support for exports and type annotations
+  - Block-level construct tracking
+- 🔧 Enhanced R parser with improved language features:
+  - S4 class and method support
+  - Package imports and exports
+  - Better variable and constant detection
+- ⚡️ Enhanced Rust parser with modern language features:
+  - Improved trait and impl block handling
+  - Generic parameter support
+  - Attribute handling
+  - Module system support
+- 🎨 Added new CLI options for fine-grained control:
+  - `--no-annotations` to disable code annotations
+  - `--no-symbols` to disable symbol extraction
+  - `--debug` for detailed logging
+
+### Changed
+- 🔄 Refactored all language parsers to use the new base parser
+- 📦 Improved code organization and modularity
+- 🎯 Enhanced symbol relationship tracking
+- 🔧 Better handling of language-specific features
+- 📝 Improved logging and error messages
+- ⚡️ More efficient file processing in local collector
+- 🎨 Updated documentation and examples for all languages
+- 🔍 Improved language detection accuracy
+- 🚀 Enhanced parsing performance across all languages
+
+### Fixed
+- 🐛 Better handling of nested code blocks
+- 🔒 Improved error handling in file processing
+- 🔍 More accurate symbol detection and relationships
+- 🎨 Fixed inconsistencies in annotation handling
+- 🔧 Fixed JavaScript/TypeScript parser initialization
+- 🐛 Resolved language detection edge cases
+- 🔍 Fixed parsing issues with complex inheritance
+- ⚡️ Addressed memory usage in large codebases
+
 ## [0.4.1] - 2025-01-04
 
 ### Added
@@ -41,3 +102,15 @@
 - Automatic clipboard support
 - Basic regex-based code parsing
 - Support for custom file extension mapping
+
+## [0.1.0] - 2024-01-07
+
+### Added
+- Initial release
+- Basic code concatenation functionality
+- Support for multiple languages
+- Documentation extraction
+- GitHub integration
+- Markdown and JSON output formats
+- Configuration file support
+- Concurrent file processing

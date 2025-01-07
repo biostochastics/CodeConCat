@@ -21,7 +21,10 @@ def write_json(
             data["code"].append({
                 "file_path": ann.file_path,
                 "language": ann.language,
-                "annotated_content": ann.annotated_content
+                "content": ann.content,
+                "annotated_content": ann.annotated_content,
+                "summary": ann.summary,
+                "tags": ann.tags
             })
 
     # Add docs if any

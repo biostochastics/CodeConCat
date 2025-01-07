@@ -4,7 +4,8 @@ from typing import List
 from concurrent.futures import ThreadPoolExecutor
 import logging
 
-from codeconcat.types import CodeConCatConfig
+from codeconcat.types import CodeConCatConfig, ParsedFileData
+
 
 # Set up logging
 logging.basicConfig(level=logging.WARNING)
@@ -183,24 +184,73 @@ DEFAULT_EXCLUDES = [
 ]
 
 
-def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[str]:
-    all_files = []
-    for dirpath, dirnames, filenames in os.walk(root_path):
-        if should_skip_dir(dirpath, config.exclude_paths):
-            dirnames[:] = []
-            continue
-
-        for fname in filenames:
-            full_path = os.path.join(dirpath, fname)
-            all_files.append(full_path)
-
+def collect_local_files(root_path: str, config: CodeConCatConfig):
+    """Collect files from local filesystem."""
+    
+    logging.debug(f"[CodeConCat] Collecting files from: {root_path}")
+    
+    # Ensure root path exists
+    if not os.path.exists(root_path):
+        raise FileNotFoundError(f"Path does not exist: {root_path}")
+    
+    # Collect files using thread pool
     with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
-        results = list(executor.map(
-            lambda p: p if should_include_file(p, config) else None,
-            all_files
-        ))
-    final_files = [r for r in results if r is not None]
-    return final_files
+        futures = []
+        
+        for dirpath, dirnames, filenames in os.walk(root_path):
+            # Skip directories that match exclude patterns
+            if should_skip_dir(dirpath, config.exclude_paths):
+                dirnames.clear()  # Clear dirnames to skip subdirectories
+                continue
+            
+            # Process files in parallel
+            for filename in filenames:
+                file_path = os.path.join(dirpath, filename)
+                futures.append(
+                    executor.submit(process_file, file_path, config)
+                )
+        
+        # Collect results, filtering out None values
+        results = [f.result() for f in futures if f.result()]
+        
+    if not results:
+        logging.warning("[CodeConCat] No files found matching the criteria")
+    else:
+        logging.info(f"[CodeConCat] Collected {len(results)} files")
+    
+    return results
+
+
+def process_file(file_path: str, config: CodeConCatConfig):
+    """Process a single file, reading its content if it should be included."""
+    try:
+        if not should_include_file(file_path, config):
+            return None
+            
+        if is_binary_file(file_path):
+            logging.debug(f"[CodeConCat] Skipping binary file: {file_path}")
+            return None
+            
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        ext = os.path.splitext(file_path)[1].lstrip('.')
+        language = ext_map(ext, config)
+        
+        logging.debug(f"[CodeConCat] Processed file: {file_path} ({language})")
+        return ParsedFileData(
+            file_path=file_path,
+            language=language,
+            content=content,
+            declarations=[]  # We'll fill this in during parsing phase
+        )
+        
+    except UnicodeDecodeError:
+        logging.debug(f"[CodeConCat] Skipping non-text file: {file_path}")
+        return None
+    except Exception as e:
+        logging.error(f"[CodeConCat] Error processing {file_path}: {str(e)}")
+        return None
 
 
 def should_skip_dir(dirpath: str, user_excludes: List[str]) -> bool:
