@@ -2,7 +2,7 @@
 
 import re
 from typing import List, Dict, Pattern
-from codeconcat.types import ParsedFileData, Declaration
+from codeconcat.base_types import ParsedFileData, Declaration
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
 class JuliaParser(BaseParser):

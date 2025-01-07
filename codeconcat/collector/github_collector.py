@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import re
 from typing import List, Optional, Tuple
-from codeconcat.types import CodeConCatConfig
+from codeconcat.base_types import CodeConCatConfig
 from codeconcat.collector.local_collector import collect_local_files
 from github import Github
 from github.Repository import Repository

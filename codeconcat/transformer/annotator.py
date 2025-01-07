@@ -1,4 +1,4 @@
-from codeconcat.types import ParsedFileData, AnnotatedFileData, CodeConCatConfig
+from codeconcat.base_types import ParsedFileData, AnnotatedFileData, CodeConCatConfig
 
 def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> AnnotatedFileData:
     pieces = []

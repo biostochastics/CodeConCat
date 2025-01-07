@@ -2,9 +2,8 @@
 
 import os
 from typing import List
-from codeconcat.base_types import ParsedFileData, CodeConCatConfig
+from codeconcat.base_types import ParsedFileData, CodeConCatConfig, SecurityIssue
 from codeconcat.processor.token_counter import TokenStats
-from codeconcat.processor.security_types import SecurityIssue
 
 def process_file_content(content: str, config: CodeConCatConfig) -> str:
     """Process file content according to configuration options."""

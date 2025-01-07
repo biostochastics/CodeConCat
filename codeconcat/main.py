@@ -14,8 +14,12 @@ from codeconcat.writer.markdown_writer import write_markdown
 from codeconcat.writer.json_writer import write_json
 from codeconcat.writer.xml_writer import write_xml
 
-from codeconcat.types import CodeConCatConfig, AnnotatedFileData, ParsedDocData
+from codeconcat.base_types import CodeConCatConfig, AnnotatedFileData, ParsedDocData
 
+
+# Set up root logger
+logger = logging.getLogger("codeconcat")
+logger.setLevel(logging.WARNING)
 
 def cli_entry_point():
     parser = argparse.ArgumentParser(
@@ -44,17 +48,30 @@ def cli_entry_point():
 
     parser.add_argument("--no-tree", action="store_true", help="Disable folder tree generation (enabled by default)")
     parser.add_argument("--no-copy", action="store_true", help="Disable copying output to clipboard (enabled by default)")
-    parser.add_argument("--no-annotations", action="store_true", help="Disable code annotations (enabled by default)")
-    parser.add_argument("--no-symbols", action="store_true", help="Disable symbol extraction (enabled by default)")
+    parser.add_argument("--no-ai-context", action="store_true", help="Disable AI context generation")
+    parser.add_argument("--no-annotations", action="store_true", help="Disable code annotations")
+    parser.add_argument("--no-symbols", action="store_true", help="Disable symbol extraction")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
 
-    # Initialize logging
+    # Configure logging based on debug flag
     if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.INFO)
+        logger.setLevel(logging.DEBUG)
+        # Also set debug for all codeconcat loggers
+        for name in logging.root.manager.loggerDict:
+            if name.startswith("codeconcat"):
+                logging.getLogger(name).setLevel(logging.DEBUG)
+    
+    # Create console handler if not already present
+    if not logger.handlers:
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG if args.debug else logging.WARNING)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+
+    logger.debug("Debug logging enabled")
 
     # Handle initialization request
     if args.init:

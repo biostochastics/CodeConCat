@@ -1,6 +1,28 @@
 # Changelog
 
-All notable changes to CodeConcat will be documented in this file
+/\___/\
+(  o o  )  
+(  =^=  ) ___________________
+ (---)  /                    \
+/     \/  "Write code as if  |
+|      |   the next person    |
+|      |   to maintain it is  |
+\____/    a psychopath who   |
+         knows where you     |
+         live."             /
+         ________________/
+
+## [0.5.2] - 2025-01-08
+
+### Added
+- Added token counting for programming quotes using tiktoken
+- Added ASCII art frame around programming quotes in terminal output
+- Added more programming quotes to the collection
+
+### Fixed
+- Improved path handling to better exclude Next.js build artifacts and non-code files
+- Enhanced directory exclusion patterns to handle `.next` and other build directories
+- Fixed double slash issues in path handling
 
 ## [0.5.1] - 2025-01-08
 

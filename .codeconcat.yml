@@ -1,55 +1,136 @@
 exclude_paths:
-  # Configuration Files
-  - "**/*.{yml,yaml}"
-  - "**/.codeconcat.yml"
-  - "**/.github/*.{yml,yaml}"
-
-  # Test files
-  - "**/tests/**"
-  - "**/test_*.py"
-  - "**/*_test.py"
-
-  # Build and cache files
-  - "**/build/**"
+  # Next.js build artifacts and configuration
+  - "**/.next/**"  # Exclude all .next directory contents
+  - "**/next-env.d.ts"
+  - "**/next.config.*"
+  - "**/postcss.config.*"
+  - "**/tailwind.config.*"
+  - "**/*.tsbuildinfo"
+  
+  # Build artifacts and chunks
+  - "**/static/chunks/**"
+  - "**/server/chunks/**"
+  - "**/_next/**"
+  - "**/webpack-runtime.*"
+  - "**/webpack.*"
+  - "**/server-reference-manifest.*"
+  - "**/middleware-manifest.*"
+  - "**/client-reference-manifest.*"
+  - "**/BUILD_ID"
+  - "**/trace"
+  - "**/*.js.map"
+  - "**/*.css.map"
+  - "**/*.rsc"
+  - "**/*.meta"
+  - "**/*.nft.json"
+  
+  # Node modules and package files
+  - "**/node_modules/**"
+  - "**/package-lock.json"
+  - "**/yarn.lock"
+  - "**/.yarn/**"
+  - "**/.pnp.*"
+  
+  # Build directories and caches
+  - "**/cache/**"
   - "**/dist/**"
-  - "**/__pycache__/**"
-  - "**/*.pyc"
-  - "**/*.pyo"
-  - "**/*.pyd"
-  - "**/.pytest_cache/**"
-  - "**/.coverage"
-  - "**/htmlcov/**"
-
+  - "**/build/**"
+  - "**/.turbo/**"
+  - "**/.swc/**"
+  - "**/.eslintcache"
+  - "**/.tsbuildinfo"
+  
   # Version control
   - "**/.git/**"
   - "**/.gitignore"
-  - "**/.gitattributes"
-
-  # Environment and dependencies
-  - "**/.env"
+  - "**/.gitmodules"
+  
+  # Environment and local files
+  - "**/.env*"
   - "**/.venv/**"
-  - "**/env/**"
   - "**/venv/**"
-  - "**/node_modules/**"
+  - "**/__pycache__/**"
+  - "**/*.pyc"
   
   # IDE and editor files
-  - "**/.idea/**"
   - "**/.vscode/**"
+  - "**/.idea/**"
   - "**/*.swp"
-  - "**/*.swo"
-
+  
+  # Test files
+  - "**/tests/**"
+  - "**/test/**"
+  - "**/*_test.*"
+  - "**/*.test.*"
+  - "**/*.spec.*"
+  
   # Documentation
-  - "**/docs/_build/**"
-  - "**/.docstring/**"
+  - "**/docs/**"
+  - "**/doc/**"
+  - "**/*.md"
+  - "**/README*"
+  - "**/LICENSE*"
+  
+  # Non-code assets
+  - "**/*.svg"
+  - "**/*.png"
+  - "**/*.jpg"
+  - "**/*.jpeg"
+  - "**/*.gif"
+  - "**/*.ico"
+  - "**/*.woff"
+  - "**/*.woff2"
+  - "**/*.ttf"
+  - "**/*.eot"
+  - "**/*.pdf"
+  - "**/*.zip"
+  - "**/*.tar.gz"
+  - "**/*.tgz"
+  
+  # Generated and temporary files
+  - "**/*.min.js"
+  - "**/*.min.css"
+  - "**/*.bundle.js"
+  - "**/*.bundle.css"
+  - "**/*.chunk.js"
+  - "**/*.chunk.css"
+  - "**/manifest.json"
 
-  # CodeConCat Output
-  - "**/code_concat_output.md"
+include_languages:
+  - typescript
+  - javascript
+  - python
+  - tsx
+  - jsx
 
 include_paths:
-  - "**/*.{py,js,ts,jsx,tsx,java,cpp,c,h,hpp,go,rs,rb,php}"
-  - "**/*.{md,rst,txt}"
-  - "**/LICENSE*"
-  - "**/README*"
+  # Source code
+  - "**/src/**/*.ts"
+  - "**/src/**/*.tsx"
+  - "**/src/**/*.js"
+  - "**/src/**/*.jsx"
+  - "**/src/**/*.py"
+  
+  # App directory (Next.js)
+  - "**/app/**/*.ts"
+  - "**/app/**/*.tsx"
+  - "**/app/**/*.js"
+  - "**/app/**/*.jsx"
+  
+  # Components
+  - "**/components/**/*.ts"
+  - "**/components/**/*.tsx"
+  - "**/components/**/*.js"
+  - "**/components/**/*.jsx"
+  
+  # Library code
+  - "**/lib/**/*.ts"
+  - "**/lib/**/*.tsx"
+  - "**/lib/**/*.js"
+  - "**/lib/**/*.jsx"
+  
+  # Package configuration (but not lock files)
+  - "**/package.json"
 
 # Display Options
 include_file_summary: true

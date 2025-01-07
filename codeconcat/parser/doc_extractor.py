@@ -2,7 +2,7 @@ import os
 from typing import List
 from concurrent.futures import ThreadPoolExecutor
 
-from codeconcat.types import CodeConCatConfig, ParsedDocData
+from codeconcat.base_types import CodeConCatConfig, ParsedDocData
 
 
 def extract_docs(file_paths: List[str], config: CodeConCatConfig) -> List[ParsedDocData]:

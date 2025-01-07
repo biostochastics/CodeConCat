@@ -3,12 +3,25 @@ import fnmatch
 from typing import List
 from concurrent.futures import ThreadPoolExecutor
 import logging
+import re
 
-from codeconcat.types import CodeConCatConfig, ParsedFileData
+from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 
 
 # Set up logging
-logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
+
+# Create a console handler and set the level to debug
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+# Create a formatter and add it to the handler
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(ch)
 
 DEFAULT_EXCLUDES = [
     # Version Control
@@ -36,158 +49,76 @@ DEFAULT_EXCLUDES = [
     "./*.yaml",
     "**/*.yaml",
     ".codeconcat.yml",
-    "./.codeconcat.yml",
-    "**/.codeconcat.yml",
-    ".github/*.yml",
-    ".github/*.yaml",
-    "**/.github/*.yml",
-    "**/.github/*.yaml",
     
-    # Build and Compilation
-    "__pycache__",
-    "./__pycache__",
-    "__pycache__/",
-    "./__pycache__/",
-    "__pycache__/**",
-    "./__pycache__/**",
-    "**/__pycache__",
-    "**/__pycache__/",
-    "**/__pycache__/**",
-    "**/__pycache__/**/*",
-    "*.pyc",
-    "**/*.pyc",
-    "*.pyo",
-    "**/*.pyo",
-    "*.pyd",
-    "*.so",
-    "*.dll",
-    "*.dylib",
-    "*.class",
-    "*.exe",
-    "*.bin",
-    "build",
-    "./build",
+    # Build and Dependencies
+    "node_modules/",
+    "**/node_modules/",
+    "**/node_modules/**",
     "build/",
-    "./build/",
-    "build/**",
-    "./build/**",
-    "build/**/*",
-    "./build/**/*",
-    "**/build",
     "**/build/",
     "**/build/**",
-    "**/build/**/*",
-    "dist",
-    "./dist",
     "dist/",
-    "./dist/",
-    "dist/**",
-    "./dist/**",
-    "**/dist",
     "**/dist/",
     "**/dist/**",
-    "**/dist/**/*",
-    "*.egg-info",
-    "./*.egg-info",
-    "*.egg-info/",
-    "./*.egg-info/",
-    "*.egg-info/**",
-    "./*.egg-info/**",
-    "*.egg-info/**/*",
-    "./*.egg-info/**/*",
-    "**/*.egg-info",
-    "**/*.egg-info/",
-    "**/*.egg-info/**",
-    "**/*.egg-info/**/*",
-    "**/codeconcat.egg-info",
-    "**/codeconcat.egg-info/",
-    "**/codeconcat.egg-info/**",
-    "**/codeconcat.egg-info/**/*",
     
-    # Test Files
-    "tests",
-    "./tests",
-    "tests/",
-    "./tests/",
-    "tests/**",
-    "./tests/**",
-    "tests/**/*",
-    "./tests/**/*",
-    "**/tests",
-    "**/tests/",
-    "**/tests/**",
-    "**/tests/**/*",
-    "**/test_*.py",
-    "**/*_test.py",
-    "**/test_*.py[cod]",
-    "test_*.py",
-    "*_test.py",
-    "./test_*.py",
-    "./*_test.py",
-    "**/test_*.py",
-    "**/*_test.py",
+    # Next.js specific
+    ".next/",
+    "**/.next/",
+    "**/.next/**",
+    "**/static/chunks/**",
+    "**/server/chunks/**",
+    "**/BUILD_ID",
+    "**/trace",
+    "**/*.map",
+    "**/webpack-*.js",
+    "**/manifest*.js",
+    "**/server-reference-manifest.js",
+    "**/middleware-manifest.js",
+    "**/client-reference-manifest.js",
+    "**/webpack-runtime.js",
+    "**/server-reference-manifest.js",
+    "**/middleware-build-manifest.js",
+    "**/middleware-react-loadable-manifest.js",
+    "**/server-reference-manifest.js",
+    "**/interception-route-rewrite-manifest.js",
+    "**/next-font-manifest.js",
+    "**/polyfills-*.js",
+    "**/main-*.js",
+    "**/framework-*.js",
     
-    # Log Files
-    "*.log",
-    "./*.log",
-    "**/*.log",
-    "**/leap.log",
-    "**/sqm.log",
-    "**/timer.log",
-    "**/build.log",
-    "**/test.log",
-    "**/debug.log",
-    "**/error.log",
-    "leap.log",
-    "sqm.log",
-    "timer.log",
-    "build.log",
-    "test.log",
-    "debug.log",
-    "error.log",
-    "./leap.log",
-    "./sqm.log",
-    "./timer.log",
-    "./build.log",
-    "./test.log",
-    "./debug.log",
-    "./error.log",
+    # Package Files
+    "package-lock.json",
+    "**/package-lock.json",
+    "yarn.lock",
+    "**/yarn.lock",
+    "pnpm-lock.yaml",
+    "**/pnpm-lock.yaml",
     
-    # Dependencies
-    "node_modules/**",
-    "**/node_modules/**",
-    "vendor/**",
-    "**/vendor/**",
-    "env/**",
-    "**/env/**",
-    "venv/**",
-    "**/venv/**",
-    ".env/**",
-    "**/.env/**",
-    ".venv/**",
-    "**/.venv/**",
+    # Cache and Temporary Files
+    ".cache/",
+    "**/.cache/",
+    "**/.cache/**",
+    "tmp/",
+    "**/tmp/",
+    "**/tmp/**",
     
-    # Documentation
-    "docs/**",
-    "**/docs/**",
-    "_build/**",
-    "**/_build/**",
-    "_static/**",
-    "**/_static/**",
-    "_templates/**",
-    "**/_templates/**",
+    # Test Coverage
+    "coverage/",
+    "**/coverage/",
+    "**/coverage/**",
     
-    # CodeConCat Output
-    "code_concat_output.md",
-    "./code_concat_output.md",
-    "**/code_concat_output.md"
+    # Environment Files
+    ".env",
+    "**/.env",
+    ".env.*",
+    "**/.env.*"
 ]
 
 
 def collect_local_files(root_path: str, config: CodeConCatConfig):
     """Collect files from local filesystem."""
     
-    logging.debug(f"[CodeConCat] Collecting files from: {root_path}")
+    logger.debug(f"[CodeConCat] Collecting files from: {root_path}")
     
     # Ensure root path exists
     if not os.path.exists(root_path):
@@ -214,9 +145,9 @@ def collect_local_files(root_path: str, config: CodeConCatConfig):
         results = [f.result() for f in futures if f.result()]
         
     if not results:
-        logging.warning("[CodeConCat] No files found matching the criteria")
+        logger.warning("[CodeConCat] No files found matching the criteria")
     else:
-        logging.info(f"[CodeConCat] Collected {len(results)} files")
+        logger.info(f"[CodeConCat] Collected {len(results)} files")
     
     return results
 
@@ -228,7 +159,7 @@ def process_file(file_path: str, config: CodeConCatConfig):
             return None
             
         if is_binary_file(file_path):
-            logging.debug(f"[CodeConCat] Skipping binary file: {file_path}")
+            logger.debug(f"[CodeConCat] Skipping binary file: {file_path}")
             return None
             
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -237,7 +168,7 @@ def process_file(file_path: str, config: CodeConCatConfig):
         ext = os.path.splitext(file_path)[1].lstrip('.')
         language = ext_map(ext, config)
         
-        logging.debug(f"[CodeConCat] Processed file: {file_path} ({language})")
+        logger.debug(f"[CodeConCat] Processed file: {file_path} ({language})")
         return ParsedFileData(
             file_path=file_path,
             language=language,
@@ -246,17 +177,17 @@ def process_file(file_path: str, config: CodeConCatConfig):
         )
         
     except UnicodeDecodeError:
-        logging.debug(f"[CodeConCat] Skipping non-text file: {file_path}")
+        logger.debug(f"[CodeConCat] Skipping non-text file: {file_path}")
         return None
     except Exception as e:
-        logging.error(f"[CodeConCat] Error processing {file_path}: {str(e)}")
+        logger.error(f"[CodeConCat] Error processing {file_path}: {str(e)}")
         return None
 
 
 def should_skip_dir(dirpath: str, user_excludes: List[str]) -> bool:
     """Check if a directory should be skipped based on exclude patterns."""
     all_excludes = DEFAULT_EXCLUDES + (user_excludes or [])
-    logging.debug(f"Checking directory: {dirpath} against patterns: {all_excludes}")
+    logger.debug(f"Checking directory: {dirpath} against patterns: {all_excludes}")
     
     # Convert to relative path for matching
     if os.path.isabs(dirpath):
@@ -267,11 +198,28 @@ def should_skip_dir(dirpath: str, user_excludes: List[str]) -> bool:
     else:
         rel_path = dirpath
         
-    # Check each exclude pattern
+    # Normalize path separators and remove leading/trailing slashes
+    rel_path = rel_path.replace(os.sep, '/').strip('/')
+    
+    # Check if the directory itself matches any exclude pattern
     for pattern in all_excludes:
         if matches_pattern(rel_path, pattern):
-            logging.debug(f"Excluding directory {rel_path} due to pattern {pattern}")
+            logger.debug(f"Excluding directory {rel_path} due to pattern {pattern}")
             return True
+            
+    # Also check each parent directory
+    path_parts = [p for p in rel_path.split('/') if p]
+    current_path = ""
+    for part in path_parts:
+        if current_path:
+            current_path += '/'
+        current_path += part
+        
+        for pattern in all_excludes:
+            # Try both with and without trailing slash
+            if matches_pattern(current_path, pattern) or matches_pattern(current_path + '/', pattern):
+                logger.debug(f"Excluding directory {rel_path} due to parent {current_path} matching pattern {pattern}")
+                return True
     
     return False
 
@@ -280,7 +228,7 @@ def should_include_file(path_str: str, config: CodeConCatConfig) -> bool:
     """Determine if a file should be included based on patterns and configuration."""
     # Get all exclude patterns
     all_excludes = DEFAULT_EXCLUDES + (config.exclude_paths or [])
-    logging.debug(f"Checking file: {path_str} against patterns: {all_excludes}")
+    logger.debug(f"Checking file: {path_str} against patterns: {all_excludes}")
     
     # Convert to relative path for matching
     if os.path.isabs(path_str):
@@ -290,96 +238,152 @@ def should_include_file(path_str: str, config: CodeConCatConfig) -> bool:
             rel_path = path_str
     else:
         rel_path = path_str
-        
-    # Normalize path separators
-    rel_path = rel_path.replace(os.sep, '/')
     
-    # Check exclusions first for the file itself
+    # Normalize path separators and remove leading/trailing slashes
+    rel_path = rel_path.replace(os.sep, '/').strip('/')
+    
+    # First check if any parent directory is excluded
+    path_parts = [p for p in rel_path.split('/') if p]
+    current_path = ""
+    for part in path_parts[:-1]:  # Don't check the file itself yet
+        if current_path:
+            current_path += '/'
+        current_path += part
+        
+        for pattern in all_excludes:
+            # Try both with and without trailing slash
+            if matches_pattern(current_path, pattern) or matches_pattern(current_path + '/', pattern):
+                logger.debug(f"Excluding file {rel_path} due to parent directory {current_path} matching pattern {pattern}")
+                return False
+    
+    # Then check if the file itself matches any exclude pattern
     for pattern in all_excludes:
         if matches_pattern(rel_path, pattern):
-            logging.debug(f"Excluding file {rel_path} due to pattern {pattern}")
+            logger.debug(f"Excluding file {rel_path} due to pattern {pattern}")
             return False
-            
-    # Check exclusions for all parent directories
-    path_parts = rel_path.split('/')
-    for i in range(len(path_parts)):
-        parent_path = '/'.join(path_parts[:i+1])
-        if parent_path:  # Skip empty path
-            for pattern in all_excludes:
-                if matches_pattern(parent_path, pattern):
-                    logging.debug(f"Excluding file {rel_path} due to parent directory {parent_path} matching pattern {pattern}")
-                    return False
-        
-    # If we have includes, file must match at least one
-    if config.include_languages:
-        ext = os.path.splitext(path_str)[1].lower().lstrip(".")
+    
+    # Check file extension and type
+    ext = os.path.splitext(path_str)[1].lower().lstrip('.')
+    if '.' in os.path.basename(path_str):  # Only check extension if file has one
         language_label = ext_map(ext, config)
-        return language_label in config.include_languages
-        
+        if language_label in ('non-code', 'unknown'):
+            logger.debug(f"Excluding file {rel_path} due to non-code extension: {ext}")
+            return False
+    
+    # If we have includes, file must match at least one include pattern
+    if config.include_paths:
+        included = False
+        for pattern in config.include_paths:
+            if matches_pattern(rel_path, pattern):
+                included = True
+                break
+        if not included:
+            logger.debug(f"Excluding file {rel_path} as it doesn't match any include patterns")
+            return False
+    
+    # Check language includes if specified
+    if config.include_languages:
+        ext = os.path.splitext(path_str)[1].lower().lstrip('.')
+        language_label = ext_map(ext, config)
+        include_result = language_label in config.include_languages
+        logger.debug(f"Language check for {path_str}: ext={ext}, label={language_label}, included={include_result}")
+        return include_result
+    
     return True
 
 
 def matches_pattern(path_str: str, pattern: str) -> bool:
     """Match a path against a glob pattern, handling both relative and absolute paths."""
-    # Convert absolute paths to relative for matching
-    if os.path.isabs(path_str):
-        try:
-            path_str = os.path.relpath(path_str, os.getcwd())
-        except ValueError:
-            # If paths are on different drives, keep absolute path
-            pass
-
-    # Normalize path separators for consistent matching
-    path_str = path_str.replace(os.sep, '/')
-    pattern = pattern.replace(os.sep, '/')
+    # Normalize path separators and remove leading/trailing slashes
+    path_str = path_str.replace(os.sep, '/').strip('/')
+    pattern = pattern.replace(os.sep, '/').strip('/')
+    
+    # Handle special case of root directory
+    if pattern == '':
+        return path_str == ''
+    
+    # Convert glob pattern to regex
+    pattern = pattern.replace('.', '\\.')  # Escape dots
+    pattern = pattern.replace('**', '__DOUBLE_STAR__')  # Preserve **
+    pattern = pattern.replace('*', '[^/]*')  # Single star doesn't cross directories
+    pattern = pattern.replace('__DOUBLE_STAR__', '.*')  # ** can cross directories
+    pattern = pattern.replace('?', '[^/]')  # ? matches single character
     
     # Handle directory patterns
-    if pattern.endswith('/**'):
-        # For directory wildcard patterns, check if the path starts with the directory part
-        dir_pattern = pattern[:-3]  # Remove '/**'
-        # Remove leading ./ from both path and pattern for comparison
-        if dir_pattern.startswith('./'):
-            dir_pattern = dir_pattern[2:]
-        if path_str.startswith('./'):
-            path_str = path_str[2:]
-        return path_str == dir_pattern or path_str.startswith(dir_pattern + '/')
-    elif os.path.isdir(path_str) and not path_str.endswith('/'):
-        # For directories, ensure they end with / for matching
-        path_str += '/'
-        if not pattern.endswith('/'):
-            pattern += '/'
+    if pattern.endswith('/'):
+        pattern = pattern + '.*'  # Match anything after directory
     
-    # Remove leading ./ from both path and pattern for matching
-    if pattern.startswith('./'):
-        pattern = pattern[2:]
-    if path_str.startswith('./'):
-        path_str = path_str[2:]
+    # Handle pattern anchoring
+    if pattern.startswith('/'):
+        pattern = '^' + pattern[1:]  # Keep absolute path requirement
+    elif pattern.startswith('**/'):
+        pattern = '.*' + pattern[2:]  # Allow matching anywhere in path
+    else:
+        pattern = '^' + pattern  # Anchor to start by default
+        
+    if not pattern.endswith('$'):
+        pattern += '$'  # Always anchor to end
     
-    # Handle both glob patterns and direct matches
-    return fnmatch.fnmatch(path_str, pattern)
+    # Try to match
+    try:
+        return bool(re.match(pattern, path_str))
+    except re.error as e:
+        logger.warning(f"Invalid pattern {pattern}: {str(e)}")
+        return False
 
 
 def ext_map(ext: str, config: CodeConCatConfig) -> str:
+    """Map file extensions to their corresponding language or type."""
     if ext in config.custom_extension_map:
         return config.custom_extension_map[ext]
 
-    builtin = {
-        "py": "python",
-        "js": "javascript",
-        "ts": "typescript",
-        "r": "r",
-        "jl": "julia",
-        "cpp": "cpp",
-        "hpp": "cpp",
-        "cxx": "cpp",
-        "c": "c",
-        "h": "c",
-        "md": "doc",
-        "rst": "doc",
-        "txt": "doc",
-        "rmd": "doc",
+    # Non-code files that should be excluded
+    non_code_exts = {
+        # Images
+        'svg', 'png', 'jpg', 'jpeg', 'gif', 'ico', 'webp',
+        # Fonts
+        'woff', 'woff2', 'ttf', 'eot', 'otf',
+        # Documents
+        'pdf', 'doc', 'docx', 'xls', 'xlsx',
+        # Archives
+        'zip', 'tar', 'gz', 'tgz', '7z', 'rar',
+        # Build artifacts
+        'map', 'min.js', 'min.css', 'bundle.js', 'bundle.css',
+        'chunk.js', 'chunk.css', 'nft.json', 'rsc', 'meta',
+        # Other assets
+        'mp3', 'mp4', 'wav', 'avi', 'mov',
     }
-    return builtin.get(ext, ext)
+    
+    if ext.lower() in non_code_exts:
+        return 'non-code'
+
+    # Code files
+    code_exts = {
+        # Python
+        'py': 'python',
+        'pyi': 'python',
+        # JavaScript/TypeScript
+        'js': 'javascript',
+        'jsx': 'javascript',
+        'ts': 'typescript',
+        'tsx': 'typescript',
+        'mjs': 'javascript',
+        # Other languages
+        'r': 'r',
+        'jl': 'julia',
+        'cpp': 'cpp',
+        'hpp': 'cpp',
+        'cxx': 'cpp',
+        'c': 'c',
+        'h': 'c',
+        # Documentation
+        'md': 'doc',
+        'rst': 'doc',
+        'txt': 'doc',
+        'rmd': 'doc',
+    }
+    
+    return code_exts.get(ext.lower(), 'unknown')
 
 
 def is_binary_file(file_path: str) -> bool:

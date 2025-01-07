@@ -3,7 +3,7 @@
 from typing import List, Dict, Optional
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-from codeconcat.types import ParsedFileData, ParsedDocData, AnnotatedFileData
+from codeconcat.base_types import ParsedFileData, ParsedDocData, AnnotatedFileData
 
 def write_xml(
     code_files: List[ParsedFileData],

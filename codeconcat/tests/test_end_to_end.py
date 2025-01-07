@@ -1,5 +1,5 @@
 import pytest
-from codeconcat.types import CodeConCatConfig
+from codeconcat.base_types import CodeConCatConfig
 from codeconcat.main import run_codeconcat
 import os
 

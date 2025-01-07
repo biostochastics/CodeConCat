@@ -2,7 +2,7 @@ import os
 from typing import List, Optional, Callable, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
-from codeconcat.types import CodeConCatConfig, ParsedFileData
+from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 from codeconcat.parser.language_parsers.python_parser import parse_python
 from codeconcat.parser.language_parsers.js_ts_parser import parse_javascript_or_typescript
 from codeconcat.parser.language_parsers.r_parser import parse_r

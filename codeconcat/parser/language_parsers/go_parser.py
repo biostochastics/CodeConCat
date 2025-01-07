@@ -2,7 +2,7 @@
 
 from typing import List
 from codeconcat.parser.language_parsers.base_parser import BaseParser
-from codeconcat.types import Declaration
+from codeconcat.base_types import Declaration
 
 
 class GoParser(BaseParser):

@@ -1,7 +1,7 @@
 """AI context generation for CodeConcat output."""
 
 from typing import List, Dict
-from codeconcat.types import ParsedFileData, ParsedDocData, AnnotatedFileData
+from codeconcat.base_types import ParsedFileData, ParsedDocData, AnnotatedFileData
 
 def generate_ai_preamble(
     code_files: List[ParsedFileData],
