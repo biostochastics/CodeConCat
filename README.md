@@ -13,6 +13,8 @@ CodeConCat is your intelligent companion for preparing codebases. It automatical
 - 🔄 **Multiple Formats**: Output in Markdown, JSON, or XML
 - 🔍 **Language Detection**: Automatic language detection and syntax highlighting
 - 📋 **Clipboard Integration**: One-click copy to clipboard
+- 🔢 **Token Counting**: Accurate GPT-4 token counting for all processed content
+- ⏳ **Progress Tracking**: Real-time progress indication during processing
 - 🌐 **Multi-Language Support**: Comprehensive parsing for:
   - Python: Classes, functions, decorators, imports
   - JavaScript/TypeScript: Classes, functions, interfaces, types, decorators

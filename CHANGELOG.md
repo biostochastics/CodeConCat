@@ -18,6 +18,13 @@
 - Added token counting for programming quotes using tiktoken
 - Added ASCII art frame around programming quotes in terminal output
 - Added more programming quotes to the collection
+- Added progress spinner for better visibility of processing steps
+- Added accurate GPT-4 token counting for all processed content
+
+### Changed
+- Improved token counting accuracy by using cl100k_base tokenizer
+- Streamlined output display with cleaner token count presentation
+- Enhanced progress feedback during file processing
 
 ### Fixed
 - Improved path handling to better exclude Next.js build artifacts and non-code files

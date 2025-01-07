@@ -14,6 +14,7 @@ from codeconcat.parser.language_parsers.csharp_parser import parse_csharp_code
 from codeconcat.parser.language_parsers.java_parser import parse_java
 from codeconcat.parser.language_parsers.go_parser import parse_go
 from codeconcat.parser.language_parsers.php_parser import parse_php
+from codeconcat.processor.token_counter import get_token_stats
 
 
 def parse_code_files(file_paths: List[str], config: CodeConCatConfig) -> List[ParsedFileData]:
@@ -27,15 +28,26 @@ def parse_code_files(file_paths: List[str], config: CodeConCatConfig) -> List[Pa
 def parse_single_file(file_path: str, config: CodeConCatConfig) -> ParsedFileData:
     ext = os.path.splitext(file_path)[1].lower().lstrip(".")
     content = read_file_content(file_path)
+    
+    # Get token stats for all files
+    token_stats = get_token_stats(content)
 
     parser_info = get_language_parser(file_path)
     if parser_info:
         language, parser_func = parser_info
         if parser_func == parse_javascript_or_typescript:
-            return parser_func(file_path, content, language)
-        return parser_func(file_path, content)
+            parsed_data = parser_func(file_path, content, language)
+        else:
+            parsed_data = parser_func(file_path, content)
+        parsed_data.token_stats = token_stats
+        return parsed_data
     else:
-        return ParsedFileData(file_path=file_path, language=get_language_name(file_path), content=content)
+        return ParsedFileData(
+            file_path=file_path, 
+            language=get_language_name(file_path), 
+            content=content,
+            token_stats=token_stats
+        )
 
 
 def get_language_parser(file_path: str) -> Optional[Tuple[str, Callable]]:
