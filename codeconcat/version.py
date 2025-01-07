@@ -1,1 +1,3 @@
-__version__ = "0.4.1"
+"""Version information for CodeConcat."""
+
+__version__ = "0.5.1"

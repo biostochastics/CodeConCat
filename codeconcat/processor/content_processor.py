@@ -2,7 +2,9 @@
 
 import os
 from typing import List
-from codeconcat.types import CodeConCatConfig, ParsedFileData
+from codeconcat.base_types import ParsedFileData, CodeConCatConfig
+from codeconcat.processor.token_counter import TokenStats
+from codeconcat.processor.security_types import SecurityIssue
 
 def process_file_content(content: str, config: CodeConCatConfig) -> str:
     """Process file content according to configuration options."""
@@ -39,10 +41,25 @@ def generate_file_summary(file_data: ParsedFileData) -> str:
     summary = []
     summary.append(f"File: {os.path.basename(file_data.file_path)}")
     summary.append(f"Language: {file_data.language}")
+    
+    if file_data.token_stats:
+        summary.append("Token Counts:")
+        summary.append(f"  - GPT-3.5: {file_data.token_stats.gpt3_tokens:,}")
+        summary.append(f"  - GPT-4: {file_data.token_stats.gpt4_tokens:,}")
+        summary.append(f"  - Davinci: {file_data.token_stats.davinci_tokens:,}")
+        summary.append(f"  - Claude: {file_data.token_stats.claude_tokens:,}")
+    
+    if file_data.security_issues:
+        summary.append("\nSecurity Issues:")
+        for issue in file_data.security_issues:
+            summary.append(f"  - {issue.issue_type} (Line {issue.line_number})")
+            summary.append(f"    {issue.line_content}")
+    
     if file_data.declarations:
-        summary.append("Declarations:")
+        summary.append("\nDeclarations:")
         for decl in file_data.declarations:
             summary.append(f"  - {decl.kind}: {decl.name} (lines {decl.start_line}-{decl.end_line})")
+    
     return '\n'.join(summary)
 
 def generate_directory_structure(file_paths: List[str]) -> str:

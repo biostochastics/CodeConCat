@@ -2,6 +2,29 @@
 
 All notable changes to CodeConcat will be documented in this file
 
+## [0.5.1] - 2025-01-08
+
+### Added
+- 🔒 Added security scanning functionality to detect potential secrets and sensitive information
+  - AWS keys and secrets
+  - GitHub tokens
+  - Generic API keys
+  - Private keys (RSA, etc.)
+  - Basic auth credentials
+  - Bearer tokens
+  - Smart detection with ignore patterns for test/sample values
+- 📊 Added token counting functionality using tiktoken
+  - Support for multiple models (GPT-3.5, GPT-4, Davinci)
+  - Approximate token counting for Claude
+  - Token statistics in file summaries
+
+### Changed
+- 🏗️ Improved code organization:
+  - Moved core types to base_types.py
+  - Separated security and token counting into dedicated modules
+  - Eliminated circular dependencies
+  - Better type organization and imports
+
 ## [0.5.0] - 2025-01-07
 
 ### Added

@@ -6,6 +6,7 @@ Holds data classes and typed structures used throughout CodeConCat.
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
+from codeconcat.processor.security_types import SecurityIssue
 
 
 @dataclass
@@ -21,6 +22,15 @@ class Declaration:
 
 
 @dataclass
+class TokenStats:
+    """Token statistics for a file."""
+    gpt3_tokens: int
+    gpt4_tokens: int
+    davinci_tokens: int
+    claude_tokens: int
+
+
+@dataclass
 class ParsedFileData:
     """
     Parsed output of a single code file.
@@ -29,6 +39,8 @@ class ParsedFileData:
     language: str
     content: str
     declarations: List[Declaration] = field(default_factory=list)
+    token_stats: Optional[TokenStats] = None
+    security_issues: List[SecurityIssue] = field(default_factory=list)
 
 
 @dataclass
