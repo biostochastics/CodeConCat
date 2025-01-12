@@ -4,8 +4,10 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
-
+from pathlib import Path
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
+from pathspec import PathSpec
+from pathspec.patterns import GitWildMatchPattern
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -106,6 +108,70 @@ DEFAULT_EXCLUDES = [
 ]
 
 
+def get_gitignore_spec(root_path: str) -> PathSpec:
+    """
+    Read .gitignore file and create a PathSpec for matching.
+    
+    Args:
+        root_path: Root directory to search for .gitignore
+        
+    Returns:
+        PathSpec object for matching paths against .gitignore patterns
+    """
+    gitignore_path = os.path.join(root_path, '.gitignore')
+    patterns = []
+    
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, 'r') as f:
+            patterns = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+    
+    # Add common patterns that should always be ignored
+    patterns.extend([
+        '**/__pycache__/**',
+        '**/*.pyc',
+        '**/.git/**',
+        '**/node_modules/**',
+        '**/.pytest_cache/**',
+        '**/.coverage',
+        '**/build/**',
+        '**/dist/**',
+        '**/*.egg-info/**'
+    ])
+    
+    return PathSpec.from_lines(GitWildMatchPattern, patterns)
+
+
+def should_include_file(file_path: str, config: CodeConCatConfig, gitignore_spec: PathSpec = None) -> bool:
+    """
+    Check if a file should be included based on configuration and .gitignore.
+    
+    Args:
+        file_path: Path to the file
+        config: Configuration object
+        gitignore_spec: PathSpec object for .gitignore matching
+        
+    Returns:
+        bool: True if file should be included, False otherwise
+    """
+    # Get relative path for .gitignore matching
+    rel_path = os.path.relpath(file_path, config.target_path)
+    
+    # Check .gitignore first
+    if gitignore_spec and gitignore_spec.match_file(rel_path):
+        return False
+    
+    # Then check configuration patterns
+    if config.exclude_paths:
+        for pattern in config.exclude_paths:
+            if fnmatch.fnmatch(rel_path, pattern):
+                return False
+    
+    if config.include_paths:
+        return any(fnmatch.fnmatch(rel_path, pattern) for pattern in config.include_paths)
+    
+    return True
+
+
 def collect_local_files(root_path: str, config: CodeConCatConfig):
     """Collect files from local filesystem."""
 
@@ -114,6 +180,8 @@ def collect_local_files(root_path: str, config: CodeConCatConfig):
     # Ensure root path exists
     if not os.path.exists(root_path):
         raise FileNotFoundError(f"Path does not exist: {root_path}")
+
+    gitignore_spec = get_gitignore_spec(root_path)
 
     # Collect files using thread pool
     with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
@@ -128,7 +196,7 @@ def collect_local_files(root_path: str, config: CodeConCatConfig):
             # Process files in parallel
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
-                futures.append(executor.submit(process_file, file_path, config))
+                futures.append(executor.submit(process_file, file_path, config, gitignore_spec))
 
         # Collect results, filtering out None values
         results = [f.result() for f in futures if f.result()]
@@ -141,10 +209,10 @@ def collect_local_files(root_path: str, config: CodeConCatConfig):
     return results
 
 
-def process_file(file_path: str, config: CodeConCatConfig):
+def process_file(file_path: str, config: CodeConCatConfig, gitignore_spec: PathSpec):
     """Process a single file, reading its content if it should be included."""
     try:
-        if not should_include_file(file_path, config):
+        if not should_include_file(file_path, config, gitignore_spec):
             return None
 
         if is_binary_file(file_path):
@@ -215,80 +283,6 @@ def should_skip_dir(dirpath: str, user_excludes: List[str]) -> bool:
                 return True
 
     return False
-
-
-def should_include_file(path_str: str, config: CodeConCatConfig) -> bool:
-    """Determine if a file should be included based on patterns and configuration."""
-    # Get all exclude patterns
-    all_excludes = DEFAULT_EXCLUDES + (config.exclude_paths or [])
-    logger.debug(f"Checking file: {path_str} against patterns: {all_excludes}")
-
-    # Convert to relative path for matching
-    if os.path.isabs(path_str):
-        try:
-            rel_path = os.path.relpath(path_str, os.getcwd())
-        except ValueError:
-            rel_path = path_str
-    else:
-        rel_path = path_str
-
-    # Normalize path separators and remove leading/trailing slashes
-    rel_path = rel_path.replace(os.sep, "/").strip("/")
-
-    # First check if any parent directory is excluded
-    path_parts = [p for p in rel_path.split("/") if p]
-    current_path = ""
-    for part in path_parts[:-1]:  # Don't check the file itself yet
-        if current_path:
-            current_path += "/"
-        current_path += part
-
-        for pattern in all_excludes:
-            # Try both with and without trailing slash
-            if matches_pattern(current_path, pattern) or matches_pattern(
-                current_path + "/", pattern
-            ):
-                logger.debug(
-                    f"Excluding file {rel_path} due to parent directory {current_path} matching pattern {pattern}"
-                )
-                return False
-
-    # Then check if the file itself matches any exclude pattern
-    for pattern in all_excludes:
-        if matches_pattern(rel_path, pattern):
-            logger.debug(f"Excluding file {rel_path} due to pattern {pattern}")
-            return False
-
-    # Check file extension and type
-    ext = os.path.splitext(path_str)[1].lower().lstrip(".")
-    if "." in os.path.basename(path_str):  # Only check extension if file has one
-        language_label = ext_map(ext, config)
-        if language_label in ("non-code", "unknown"):
-            logger.debug(f"Excluding file {rel_path} due to non-code extension: {ext}")
-            return False
-
-    # If we have includes, file must match at least one include pattern
-    if config.include_paths:
-        included = False
-        for pattern in config.include_paths:
-            if matches_pattern(rel_path, pattern):
-                included = True
-                break
-        if not included:
-            logger.debug(f"Excluding file {rel_path} as it doesn't match any include patterns")
-            return False
-
-    # Check language includes if specified
-    if config.include_languages:
-        ext = os.path.splitext(path_str)[1].lower().lstrip(".")
-        language_label = ext_map(ext, config)
-        include_result = language_label in config.include_languages
-        logger.debug(
-            f"Language check for {path_str}: ext={ext}, label={language_label}, included={include_result}"
-        )
-        return include_result
-
-    return True
 
 
 def matches_pattern(path_str: str, pattern: str) -> bool:

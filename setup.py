@@ -24,6 +24,29 @@ def get_long_description():
         return ""
 
 
+extras_require = {
+    'web': [
+        'fastapi>=0.68.0',
+        'uvicorn>=0.15.0',
+        'pydantic>=1.8.0',
+    ],
+    'test': [
+        'pytest>=7.4.0',
+        'pytest-cov>=4.1.0',
+        'pytest-asyncio>=0.21.1',
+        'pytest-mock>=3.11.1',
+    ],
+    'all': [
+        'fastapi>=0.68.0',
+        'uvicorn>=0.15.0',
+        'pydantic>=1.8.0',
+        'pytest>=7.4.0',
+        'pytest-cov>=4.1.0',
+        'pytest-asyncio>=0.21.1',
+        'pytest-mock>=3.11.1',
+    ],
+}
+
 setup(
     name="codeconcat",
     version=get_version(),
@@ -37,6 +60,7 @@ setup(
         "pyyaml>=5.0",
         "pyperclip>=1.8.0",
     ],
+    extras_require=extras_require,
     python_requires=">=3.8",
     entry_points={"console_scripts": ["codeconcat=codeconcat.main:cli_entry_point"]},
     classifiers=[

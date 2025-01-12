@@ -12,6 +12,41 @@
          live."             /
          ________________/
 
+## [0.6.0] - 2025-01-12
+
+### Added
+- 🔌 Added programmatic Python API for direct code integration
+  - New `run_codeconcat_in_memory()` function returns output as string
+  - Full access to all CodeConCat features through Python API
+  - Comprehensive test suite for API functionality
+- 🌐 Added FastAPI web server for HTTP access
+  - POST `/concat` endpoint for code processing
+  - Support for all output formats (markdown, JSON, XML)
+  - Automatic API documentation with Swagger UI
+- 📚 Enhanced documentation
+  - Added programmatic usage examples
+  - Added web API usage guide
+  - Updated configuration documentation
+- 🎯 Added .gitignore support
+  - Automatically respects project's .gitignore rules
+  - Added common ignore patterns for build artifacts
+  - Improved file filtering performance
+
+### Changed
+- ♻️ Refactored core functionality for better reusability
+  - Separated CLI concerns from core processing
+  - Improved error handling and validation
+  - Better type hints and documentation
+- 🧪 Improved test coverage
+  - Added end-to-end workflow tests
+  - Added API-specific test cases
+  - Added edge case handling tests
+
+### Fixed
+- Fixed output handling to properly return strings in memory
+- Improved error handling in file processing
+- Enhanced validation of configuration options
+
 ## [0.5.2] - 2025-01-08
 
 ### Added

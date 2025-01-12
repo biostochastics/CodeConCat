@@ -27,36 +27,380 @@ CodeConCat is your intelligent companion for preparing codebases. It automatical
   - Rust: Traits, impls, structs, enums
   - C/C++: Classes, functions, structs, namespaces
   - C#: Classes, interfaces, methods, properties
+- 🔌 **Programmatic API**: Use CodeConCat directly in your Python code
+- 🌐 **Web API**: Built-in FastAPI web server for HTTP access
 
-## 🚀 Quick Start
+## 📖 Usage Guide
 
-### Installation
+### Installation Options
 
 ```bash
-pip install codeconcat
+# Clone the repository
+git clone https://github.com/codeium/codeconcat.git
+cd codeconcat
+
+# Basic installation
+pip install -e .
+
+# Install with web API dependencies
+pip install -e ".[web]"
+
+# Install with all optional dependencies
+pip install -e ".[all]"
 ```
 
-### Basic Usage
+Note: CodeConCat will be available on PyPI soon. For now, please install from source as shown above.
+
+### Command Line Interface (CLI)
+
+The CLI is the simplest way to use CodeConCat. Here are common usage patterns:
 
 ```bash
-# Process current directory
+# Process current directory with default settings
 codeconcat
 
-# Process specific directory
+# Process a specific directory
 codeconcat path/to/your/code
 
-# Process GitHub repository
-codeconcat --github username/repo
+# Change output format (markdown, json, or xml)
+codeconcat path/to/code --format json
+
+# Extract and include documentation
+codeconcat path/to/code --docs
+
+# Process a GitHub repository
+codeconcat --github username/repo --github-token YOUR_TOKEN
+
+# Specify files to include/exclude
+codeconcat --include "*.py" "*.js" --exclude "test_*" "*.pyc"
 ```
 
-### Using Configuration File
+#### CLI Configuration
 
-Initialize a default configuration:
+Create a `.codeconcat.yml` configuration file for persistent settings:
+
 ```bash
+# Initialize default configuration
 codeconcat --init
 ```
 
-This creates a `.codeconcat.yml` with smart defaults for common use cases.
+Example configuration:
+```yaml
+# .codeconcat.yml
+format: markdown
+extract_docs: true
+include_patterns:
+  - "*.py"
+  - "*.js"
+exclude_patterns:
+  - "*.test.js"
+  - "__pycache__"
+disable_tree: false
+disable_annotations: false
+```
+
+### Programmatic API
+
+For direct integration with Python code, use the programmatic API:
+
+```python
+from codeconcat import run_codeconcat_in_memory, CodeConCatConfig
+
+# Basic usage
+config = CodeConCatConfig(
+    target_path="path/to/code",
+    format="markdown"
+)
+output = run_codeconcat_in_memory(config)
+
+# Advanced configuration
+config = CodeConCatConfig(
+    target_path="path/to/code",
+    format="json",
+    extract_docs=True,
+    merge_docs=True,
+    include_paths=["*.py", "*.js"],
+    exclude_paths=["test_*", "*.pyc"],
+    disable_tree=False,
+    disable_annotations=False,
+    github_url=None,  # Optional: Process from GitHub
+    github_token=None,  # Optional: GitHub authentication
+    ref=None  # Optional: GitHub branch/tag/commit
+)
+
+# Process and use the output
+output = run_codeconcat_in_memory(config)
+print(output)  # Or save to file, send to API, etc.
+
+# Error handling
+try:
+    output = run_codeconcat_in_memory(config)
+except Exception as e:
+    print(f"Error processing code: {e}")
+```
+
+### Web API
+
+CodeConCat includes a FastAPI-based web server for HTTP access:
+
+1. Start the server:
+```bash
+# Install web dependencies if not already installed
+pip install "codeconcat[web]"
+
+# Start the server
+uvicorn app:app --reload
+```
+
+2. Access the API:
+
+```python
+import requests
+
+# Basic usage
+response = requests.post("http://localhost:8000/concat", 
+    json={
+        "target_path": "path/to/code",
+        "format": "markdown"
+    }
+)
+output = response.json()["output"]
+
+# Advanced configuration
+payload = {
+    "target_path": "path/to/code",
+    "format": "json",
+    "extract_docs": True,
+    "merge_docs": True,
+    "include": ["*.py", "*.js"],
+    "exclude": ["test_*", "*.pyc"],
+    "disable_tree": False,
+    "disable_annotations": False
+}
+response = requests.post("http://localhost:8000/concat", json=payload)
+```
+
+#### API Endpoints
+
+- `GET /` - API information and version
+- `POST /concat` - Process code and return output
+  - Request body: JSON with configuration options
+  - Response: JSON with processed output
+
+#### API Documentation
+
+Access the auto-generated API documentation:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+### Output Formats
+
+CodeConCat supports three output formats:
+
+1. **Markdown** (default):
+   - Human-readable format
+   - Syntax highlighting
+   - Directory tree visualization
+   - Documentation integration
+
+2. **JSON**:
+   - Machine-readable format
+   - Structured data for programmatic use
+   - Includes metadata and statistics
+   - Suitable for API responses
+
+3. **XML**:
+   - Traditional structured format
+   - Compatible with XML tools
+   - Includes all code metadata
+   - Good for legacy system integration
+
+### Best Practices
+
+1. **Performance**:
+   - Start with small directories to test configuration
+   - Use include/exclude patterns to limit file processing
+   - Disable tree or annotations if not needed
+
+2. **Security**:
+   - Keep GitHub tokens secure
+   - Review code before processing
+   - Check security scan results
+
+3. **Integration**:
+   - Use programmatic API for tight integration
+   - Use web API for loose coupling
+   - Consider using configuration files for consistency
+
+4. **Error Handling**:
+   - Always implement proper error handling
+   - Check return values and status codes
+   - Log errors appropriately
+
+## ⚙️ Configuration
+
+Create a `.codeconcat.yml` in your project root or use `codeconcat --init`:
+
+```yaml
+# Documentation settings
+docs: true
+merge_docs: false
+
+# Output settings
+output: "my_concat_output.md"
+format: "markdown"
+generate_tree: true
+copy_to_clipboard: true
+generate_ai_context: true
+
+# Language settings
+include_languages:
+  - python
+  - javascript
+  - java
+  - go
+  - php
+  - ruby
+  - r
+  - julia
+  - rust
+  - c
+  - cpp
+  - csharp
+
+exclude_languages:
+  - cpp
+
+# File patterns
+include_paths:
+  - "**/*.{py,js,ts,java,go,php,rb,r,jl,rs,cpp,cs}"
+  - "**/README*"
+  - "**/LICENSE*"
+
+exclude_paths:
+  - "**/*.{yml,yaml}"
+  - "**/tests/**"
+  - "**/build/**"
+  - "**/node_modules/**"
+  - "**/__pycache__/**"
+
+# Performance settings
+max_workers: 4
+
+# Custom language mappings
+custom_extension_map:
+  pyx: "cython"
+  jsx: "javascript"
+  tsx: "typescript"
+```
+
+### Configuration Priority Order
+
+1. Command line arguments (highest priority)
+2. Local `.codeconcat.yml` file
+3. Default settings (lowest priority)
+
+## 🎨 Output Formats
+
+### Markdown (Default)
+- Clean, readable format
+- Syntax highlighting
+- Directory tree visualization
+- AI-friendly structure
+
+### JSON
+- Machine-readable format
+- Perfect for automation
+- Preserves all metadata
+
+### XML
+- Structured format
+- Compatible with XML tools
+- Detailed metadata
+
+## 📊 Code Summaries
+
+### Output Summaries
+
+CodeConcat generates comprehensive summaries of your codebase:
+
+1. **File Statistics**
+   - File name and language
+   - Number of lines
+   - Number and types of declarations
+   - Line ranges for each declaration
+
+2. **Directory Structure**
+   - Tree view of project layout
+   - Hierarchical file organization
+   - File grouping by type/module
+
+3. **Code Declarations**
+   - Functions and classes with line numbers
+   - Methods and properties
+   - Imports and dependencies
+   - Language-specific constructs (e.g., interfaces, traits)
+
+Example output:
+```
+File: main.py
+Language: python
+Declarations:
+  - class: CodeParser (lines 10-45)
+  - function: parse_file (lines 15-30)
+  - function: process_content (lines 32-40)
+```
+
+### Directory Summary Example
+```
+project/
+├── src/
+│   ├── parser/
+│   │   ├── python_parser.py
+│   │   └── javascript_parser.py
+│   └── utils/
+│       └── helpers.py
+└── tests/
+    └── test_parser.py
+```
+
+## 🧪 Testing
+
+CodeConCat includes a comprehensive test suite covering unit tests, integration tests, and performance tests. To run the tests:
+
+```bash
+# Install test dependencies
+pip install -e ".[test]"
+
+# Run tests with coverage report
+pytest tests/ -v --cov=codeconcat
+
+# Or run directly using the test file
+python tests/test_codeconcat.py
+```
+
+The test suite includes:
+- Unit tests for parsers and processors
+- Integration tests for end-to-end workflows
+- Performance tests for concurrent processing
+- Edge case tests for special characters and large files
+- Security tests for sensitive data detection
+
+## 🤝 Contributing
+
+We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+Special thanks to all contributors who have helped shape CodeConCat.
+
+<b align="center">
+  Made with ❤️ by Sergey Kornilov for Biostochastics, LLC
+</b>
 
 ## 📊 Advanced Usage
 
@@ -128,132 +472,35 @@ codeconcat --include-languages python javascript java
 codeconcat --include "**/*.py" --exclude "**/tests/**" --include-languages python
 ```
 
-## ⚙️ Configuration
+### File Filtering
 
-Create a `.codeconcat.yml` in your project root or use `codeconcat --init`:
+CodeConCat provides multiple ways to control which files are processed:
 
-```yaml
-# Documentation settings
-docs: true
-merge_docs: false
+1. **.gitignore Support**
+   - Automatically respects your project's `.gitignore` rules
+   - Common patterns (e.g., `__pycache__`, `node_modules`) are always ignored
+   - No configuration needed - just works!
 
-# Output settings
-output: "my_concat_output.md"
-format: "markdown"
-generate_tree: true
-copy_to_clipboard: true
-generate_ai_context: true
+2. **Configuration File**
+   ```yaml
+   include_paths:
+     - "**/*.{py,js,ts}"
+     - "**/README*"
+   exclude_paths:
+     - "**/tests/**"
+     - "**/build/**"
+   ```
 
-# Language settings
-include_languages:
-  - python
-  - javascript
-  - java
-  - go
-  - php
-  - ruby
-  - r
-  - julia
-  - rust
-  - c
-  - cpp
-  - csharp
+3. **Command Line**
+   ```bash
+   codeconcat --include "**/*.py" --exclude "**/tests/**"
+   ```
 
-exclude_languages:
-  - cpp
-
-# File patterns
-include_paths:
-  - "**/*.{py,js,ts,java,go,php,rb,r,jl,rs,cpp,cs}"
-  - "**/README*"
-  - "**/LICENSE*"
-
-exclude_paths:
-  - "**/*.{yml,yaml}"
-  - "**/tests/**"
-  - "**/build/**"
-  - "**/node_modules/**"
-  - "**/__pycache__/**"
-
-# Performance settings
-max_workers: 4
-
-# Custom language mappings
-custom_extension_map:
-  pyx: "cython"
-  jsx: "javascript"
-  tsx: "typescript"
-```
-
-### Configuration Priority
-
-1. Command line arguments (highest priority)
-2. Local `.codeconcat.yml` file
-3. Default settings (lowest priority)
-
-## 🎨 Output Formats
-
-### Markdown (Default)
-- Clean, readable format
-- Syntax highlighting
-- Directory tree visualization
-- AI-friendly structure
-
-### JSON
-- Machine-readable format
-- Perfect for automation
-- Preserves all metadata
-
-### XML
-- Structured format
-- Compatible with XML tools
-- Detailed metadata
-
-## 📊 Code Summaries
-
-### Output Summaries
-
-CodeConcat generates comprehensive summaries of your codebase:
-
-1. **File Statistics**
-   - File name and language
-   - Number of lines
-   - Number and types of declarations
-   - Line ranges for each declaration
-
-2. **Directory Structure**
-   - Tree view of project layout
-   - Hierarchical file organization
-   - File grouping by type/module
-
-3. **Code Declarations**
-   - Functions and classes with line numbers
-   - Methods and properties
-   - Imports and dependencies
-   - Language-specific constructs (e.g., interfaces, traits)
-
-Example output:
-```
-File: main.py
-Language: python
-Declarations:
-  - class: CodeParser (lines 10-45)
-  - function: parse_file (lines 15-30)
-  - function: process_content (lines 32-40)
-```
-
-### Directory Summary Example
-```
-project/
-├── src/
-│   ├── parser/
-│   │   ├── python_parser.py
-│   │   └── javascript_parser.py
-│   └── utils/
-│       └── helpers.py
-└── tests/
-    └── test_parser.py
-```
+Priority order for file filtering:
+1. .gitignore rules (highest priority)
+2. Command line arguments
+3. Configuration file
+4. Default settings
 
 ## 🤝 Contributing
 
@@ -268,3 +515,25 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 <b align="center">
   Made with ❤️ by Sergey Kornilov for Biostochastics, LLC
 </b>
+
+### Running Tests
+
+CodeConCat includes a comprehensive test suite covering unit tests, integration tests, and performance tests. To run the tests:
+
+```bash
+# Install test dependencies
+pip install -e ".[test]"
+
+# Run tests with coverage report
+pytest tests/ -v --cov=codeconcat
+
+# Or run directly using the test file
+python tests/test_codeconcat.py
+```
+
+The test suite includes:
+- Unit tests for parsers and processors
+- Integration tests for end-to-end workflows
+- Performance tests for concurrent processing
+- Edge case tests for special characters and large files
+- Security tests for sensitive data detection

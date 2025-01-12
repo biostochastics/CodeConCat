@@ -24,6 +24,23 @@ logger = logging.getLogger("codeconcat")
 logger.setLevel(logging.WARNING)
 
 
+class CodeConcatError(Exception):
+    """Base exception class for CodeConCat errors."""
+    pass
+
+class ConfigurationError(CodeConcatError):
+    """Raised when there's an error in the configuration."""
+    pass
+
+class FileProcessingError(CodeConcatError):
+    """Raised when there's an error processing files."""
+    pass
+
+class OutputError(CodeConcatError):
+    """Raised when there's an error generating output."""
+    pass
+
+
 def cli_entry_point():
     parser = argparse.ArgumentParser(
         prog="codeconcat",
@@ -228,68 +245,197 @@ def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
 
 def run_codeconcat(config: CodeConCatConfig):
     """Main execution function for CodeConCat."""
+    try:
+        # Validate configuration
+        if not config.target_path:
+            raise ConfigurationError("Target path is required")
+        if config.format not in ["markdown", "json", "xml"]:
+            raise ConfigurationError(f"Invalid format: {config.format}")
 
-    # Collect files
-    if config.github_url:
-        code_files = collect_github_files(config)
-    else:
-        code_files = collect_local_files(config.target_path, config)
-
-    # Generate folder tree if enabled
-    folder_tree_str = ""
-    if not config.disable_tree:
-        folder_tree_str = generate_folder_tree(config.target_path, config)
-
-    # Parse code files
-    parsed_files = parse_code_files([f.file_path for f in code_files], config)
-
-    # Extract docs if requested
-    docs = []
-    if config.extract_docs:
-        docs = extract_docs([f.file_path for f in code_files], config)
-
-    # Annotate files if enabled
-    annotated_files = []
-    if not config.disable_annotations:
-        # Create annotations for each file
-        for file in parsed_files:
-            annotated = annotate(file, config)
-            annotated_files.append(annotated)
-    else:
-        # Create basic annotations without AI analysis
-        for file in parsed_files:
-            annotated_files.append(
-                AnnotatedFileData(
-                    file_path=file.file_path,
-                    language=file.language,
-                    content=file.content,
-                    annotated_content=file.content,
-                    summary="",
-                    tags=[],
-                )
-            )
-
-    # Write output in requested format
-    if config.format == "markdown":
-        output = write_markdown(annotated_files, docs, config, folder_tree_str)
-    elif config.format == "json":
-        output = write_json(annotated_files, docs, config, folder_tree_str)
-    elif config.format == "xml":
-        output = write_xml(
-            parsed_files, docs, {f.file_path: f for f in annotated_files}, folder_tree_str
-        )
-
-    # Copy to clipboard if enabled
-    if not config.disable_copy:
+        # Collect files
         try:
-            import pyperclip
-
-            pyperclip.copy(output)
-            print("[CodeConCat] Output copied to clipboard")
-        except ImportError:
-            print("[CodeConCat] Warning: pyperclip not installed, skipping clipboard copy")
+            if config.github_url:
+                code_files = collect_github_files(config)
+            else:
+                code_files = collect_local_files(config.target_path, config)
+                
+            if not code_files:
+                raise FileProcessingError("No files found to process")
         except Exception as e:
-            print(f"[CodeConCat] Warning: Failed to copy to clipboard: {str(e)}")
+            raise FileProcessingError(f"Error collecting files: {str(e)}")
+
+        # Generate folder tree if enabled
+        folder_tree_str = ""
+        if not config.disable_tree:
+            try:
+                folder_tree_str = generate_folder_tree(config.target_path, config)
+            except Exception as e:
+                print(f"Warning: Failed to generate folder tree: {str(e)}")
+
+        # Parse code files
+        try:
+            parsed_files = parse_code_files([f.file_path for f in code_files], config)
+            if not parsed_files:
+                raise FileProcessingError("No files were successfully parsed")
+        except Exception as e:
+            raise FileProcessingError(f"Error parsing files: {str(e)}")
+
+        # Extract docs if requested
+        docs = []
+        if config.extract_docs:
+            try:
+                docs = extract_docs([f.file_path for f in code_files], config)
+            except Exception as e:
+                print(f"Warning: Failed to extract documentation: {str(e)}")
+
+        # Annotate files if enabled
+        try:
+            annotated_files = []
+            if not config.disable_annotations:
+                for file in parsed_files:
+                    try:
+                        annotated = annotate(file, config)
+                        annotated_files.append(annotated)
+                    except Exception as e:
+                        print(f"Warning: Failed to annotate {file.file_path}: {str(e)}")
+                        # Fall back to basic annotation
+                        annotated_files.append(
+                            AnnotatedFileData(
+                                file_path=file.file_path,
+                                language=file.language,
+                                content=file.content,
+                                annotated_content=file.content,
+                                summary="",
+                                tags=[],
+                            )
+                        )
+            else:
+                # Create basic annotations without AI analysis
+                for file in parsed_files:
+                    annotated_files.append(
+                        AnnotatedFileData(
+                            file_path=file.file_path,
+                            language=file.language,
+                            content=file.content,
+                            annotated_content=file.content,
+                            summary="",
+                            tags=[],
+                        )
+                    )
+        except Exception as e:
+            raise FileProcessingError(f"Error during annotation: {str(e)}")
+
+        # Write output in requested format
+        try:
+            if config.format == "markdown":
+                output = write_markdown(annotated_files, docs, config, folder_tree_str)
+            elif config.format == "json":
+                output = write_json(annotated_files, docs, config, folder_tree_str)
+            elif config.format == "xml":
+                output = write_xml(
+                    parsed_files, docs, {f.file_path: f for f in annotated_files}, folder_tree_str
+                )
+        except Exception as e:
+            raise OutputError(f"Error generating {config.format} output: {str(e)}")
+
+        # Copy to clipboard if enabled
+        if not config.disable_copy:
+            try:
+                import pyperclip
+                pyperclip.copy(output)
+                print("[CodeConCat] Output copied to clipboard")
+            except ImportError:
+                print("[CodeConCat] Warning: pyperclip not installed, skipping clipboard copy")
+            except Exception as e:
+                print(f"[CodeConCat] Warning: Failed to copy to clipboard: {str(e)}")
+
+    except CodeConcatError as e:
+        print(f"[CodeConCat] Error: {str(e)}")
+        raise
+    except Exception as e:
+        print(f"[CodeConCat] Unexpected error: {str(e)}")
+        raise
+
+
+def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
+    """Run CodeConCat and return the output as a string."""
+    try:
+        if config.disable_copy is None:
+            config.disable_copy = True  # Always disable clipboard in memory mode
+            
+        # Process code
+        if config.github_url:
+            code_files = collect_github_files(config)
+        else:
+            code_files = collect_local_files(config.target_path, config)
+
+        if not code_files:
+            raise FileProcessingError("No files found to process")
+
+        # Generate folder tree
+        folder_tree_str = ""
+        if not config.disable_tree:
+            folder_tree_str = generate_folder_tree(config.target_path, config)
+
+        # Parse and process files
+        parsed_files = parse_code_files([f.file_path for f in code_files], config)
+        if not parsed_files:
+            raise FileProcessingError("No files were successfully parsed")
+
+        # Extract docs if requested
+        docs = []
+        if config.extract_docs:
+            docs = extract_docs([f.file_path for f in code_files], config)
+
+        # Annotate files
+        annotated_files = []
+        if not config.disable_annotations:
+            for file in parsed_files:
+                try:
+                    annotated = annotate(file, config)
+                    annotated_files.append(annotated)
+                except Exception as e:
+                    print(f"Warning: Failed to annotate {file.file_path}: {str(e)}")
+                    # Fall back to basic annotation
+                    annotated_files.append(
+                        AnnotatedFileData(
+                            file_path=file.file_path,
+                            language=file.language,
+                            content=file.content,
+                            annotated_content=file.content,
+                            summary="",
+                            tags=[],
+                        )
+                    )
+        else:
+            for file in parsed_files:
+                annotated_files.append(
+                    AnnotatedFileData(
+                        file_path=file.file_path,
+                        language=file.language,
+                        content=file.content,
+                        annotated_content=file.content,
+                        summary="",
+                        tags=[],
+                    )
+                )
+
+        # Generate output in requested format
+        if config.format == "markdown":
+            return write_markdown(annotated_files, docs, config, folder_tree_str)
+        elif config.format == "json":
+            return write_json(annotated_files, docs, config, folder_tree_str)
+        elif config.format == "xml":
+            return write_xml(
+                parsed_files, docs, {f.file_path: f for f in annotated_files}, folder_tree_str
+            )
+        else:
+            raise ConfigurationError(f"Invalid format: {config.format}")
+
+    except Exception as e:
+        error_msg = f"Error processing code: {str(e)}"
+        print(f"[CodeConCat] {error_msg}")
+        raise CodeConcatError(error_msg) from e
 
 
 def main():
