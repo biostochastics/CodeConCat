@@ -36,7 +36,7 @@ CodeConCat is your intelligent companion for preparing codebases. It automatical
 
 ```bash
 # Clone the repository
-git clone https://github.com/codeium/codeconcat.git
+git clone https://github.com/biostochastics/codeconcat.git
 cd codeconcat
 
 # Basic installation
