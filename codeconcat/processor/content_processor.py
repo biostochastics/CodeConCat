@@ -9,6 +9,9 @@ from codeconcat.processor.token_counter import TokenStats
 
 def process_file_content(content: str, config: CodeConCatConfig) -> str:
     """Process file content according to configuration options."""
+    if config.disable_copy:
+        return ""
+
     lines = content.split("\n")
     processed_lines = []
 
@@ -17,9 +20,10 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
         if config.remove_empty_lines and not line.strip():
             continue
 
-        # Skip if it's a comment and we're removing comments
-        if config.remove_comments:
+        # Process comments if needed
+        if config.remove_comments or config.disable_annotations:
             stripped = line.strip()
+            # Skip full comment lines
             if (
                 stripped.startswith("#")
                 or stripped.startswith("//")
@@ -30,6 +34,12 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
                 or stripped.endswith("*/")
             ):
                 continue
+            
+            # Handle inline comments
+            if "#" in line:
+                line = line.split("#")[0].rstrip()
+            if "//" in line:
+                line = line.split("//")[0].rstrip()
 
         # Add line number if configured
         if config.show_line_numbers:
@@ -37,7 +47,12 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
 
         processed_lines.append(line)
 
-    return "\n".join(processed_lines)
+    # Join lines and handle empty lines if needed
+    result = "\n".join(processed_lines)
+    if config.remove_empty_lines:
+        result = "\n".join(line for line in result.split("\n") if line.strip())
+
+    return result
 
 
 def generate_file_summary(file_data: ParsedFileData) -> str:
@@ -56,8 +71,9 @@ def generate_file_summary(file_data: ParsedFileData) -> str:
     if file_data.security_issues:
         summary.append("\nSecurity Issues:")
         for issue in file_data.security_issues:
-            summary.append(f"  - {issue.issue_type} (Line {issue.line_number})")
+            summary.append(f"  - {issue.issue_type} ({issue.severity}) (Line {issue.line_number})")
             summary.append(f"    {issue.line_content}")
+            summary.append(f"    Description: {issue.description}")
 
     if file_data.declarations:
         summary.append("\nDeclarations:")

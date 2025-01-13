@@ -147,10 +147,6 @@ def process_file(file_path: str, config: CodeConCatConfig):
         if not should_include_file(file_path, config):
             return None
 
-        if is_binary_file(file_path):
-            logger.debug(f"[CodeConCat] Skipping binary file: {file_path}")
-            return None
-
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
@@ -219,74 +215,42 @@ def should_skip_dir(dirpath: str, user_excludes: List[str]) -> bool:
 
 def should_include_file(path_str: str, config: CodeConCatConfig) -> bool:
     """Determine if a file should be included based on patterns and configuration."""
-    # Get all exclude patterns
-    all_excludes = DEFAULT_EXCLUDES + (config.exclude_paths or [])
-    logger.debug(f"Checking file: {path_str} against patterns: {all_excludes}")
+    # Get file extension
+    ext = os.path.splitext(path_str)[1].lower()
 
-    # Convert to relative path for matching
-    if os.path.isabs(path_str):
-        try:
-            rel_path = os.path.relpath(path_str, os.getcwd())
-        except ValueError:
-            rel_path = path_str
-    else:
-        rel_path = path_str
+    # Check if file is binary
+    if is_binary_file(path_str):
+        return False
 
-    # Normalize path separators and remove leading/trailing slashes
-    rel_path = rel_path.replace(os.sep, "/").strip("/")
+    # Get file type
+    file_type = ext_map(ext, config)
 
-    # First check if any parent directory is excluded
-    path_parts = [p for p in rel_path.split("/") if p]
-    current_path = ""
-    for part in path_parts[:-1]:  # Don't check the file itself yet
-        if current_path:
-            current_path += "/"
-        current_path += part
+    # Skip non-code files
+    if file_type == "non-code":
+        return False
 
-        for pattern in all_excludes:
-            # Try both with and without trailing slash
-            if matches_pattern(current_path, pattern) or matches_pattern(
-                current_path + "/", pattern
-            ):
-                logger.debug(
-                    f"Excluding file {rel_path} due to parent directory {current_path} matching pattern {pattern}"
-                )
-                return False
+    # Handle documentation files
+    is_doc = file_type == "markdown"
+    if is_doc and not config.extract_docs:
+        return False
 
-    # Then check if the file itself matches any exclude pattern
-    for pattern in all_excludes:
-        if matches_pattern(rel_path, pattern):
-            logger.debug(f"Excluding file {rel_path} due to pattern {pattern}")
-            return False
-
-    # Check file extension and type
-    ext = os.path.splitext(path_str)[1].lower().lstrip(".")
-    if "." in os.path.basename(path_str):  # Only check extension if file has one
-        language_label = ext_map(ext, config)
-        if language_label in ("non-code", "unknown"):
-            logger.debug(f"Excluding file {rel_path} due to non-code extension: {ext}")
-            return False
-
-    # If we have includes, file must match at least one include pattern
+    # Check if file matches any include patterns
     if config.include_paths:
-        included = False
-        for pattern in config.include_paths:
-            if matches_pattern(rel_path, pattern):
-                included = True
-                break
+        included = any(matches_pattern(path_str, pattern) for pattern in config.include_paths)
         if not included:
-            logger.debug(f"Excluding file {rel_path} as it doesn't match any include patterns")
             return False
 
-    # Check language includes if specified
-    if config.include_languages:
-        ext = os.path.splitext(path_str)[1].lower().lstrip(".")
-        language_label = ext_map(ext, config)
-        include_result = language_label in config.include_languages
-        logger.debug(
-            f"Language check for {path_str}: ext={ext}, label={language_label}, included={include_result}"
-        )
-        return include_result
+    # Check if file matches any exclude patterns
+    if config.exclude_paths:
+        excluded = any(matches_pattern(path_str, pattern) for pattern in config.exclude_paths)
+        if excluded:
+            return False
+
+    # Check if file type matches language filters
+    if config.include_languages and file_type not in config.include_languages:
+        return False
+    if config.exclude_languages and file_type in config.exclude_languages:
+        return False
 
     return True
 
@@ -294,8 +258,8 @@ def should_include_file(path_str: str, config: CodeConCatConfig) -> bool:
 def matches_pattern(path_str: str, pattern: str) -> bool:
     """Match a path against a glob pattern, handling both relative and absolute paths."""
     # Normalize path separators and remove leading/trailing slashes
-    path_str = path_str.replace(os.sep, "/").strip("/")
-    pattern = pattern.replace(os.sep, "/").strip("/")
+    path_str = path_str.replace(os.sep, "/").strip("/").lower()  # Case-insensitive matching
+    pattern = pattern.replace(os.sep, "/").strip("/").lower()
 
     # Handle special case of root directory
     if pattern == "":
@@ -333,58 +297,34 @@ def matches_pattern(path_str: str, pattern: str) -> bool:
 
 def ext_map(ext: str, config: CodeConCatConfig) -> str:
     """Map file extensions to their corresponding language or type."""
+    # Remove leading dot if present
+    ext = ext.lstrip(".").lower()
+
+    # Check custom mappings first - try both with and without dot
     if ext in config.custom_extension_map:
         return config.custom_extension_map[ext]
+    if f".{ext}" in config.custom_extension_map:
+        return config.custom_extension_map[f".{ext}"]
 
     # Non-code files that should be excluded
     non_code_exts = {
         # Images
-        "svg",
-        "png",
-        "jpg",
-        "jpeg",
-        "gif",
-        "ico",
-        "webp",
+        "svg", "png", "jpg", "jpeg", "gif", "ico", "webp",
         # Fonts
-        "woff",
-        "woff2",
-        "ttf",
-        "eot",
-        "otf",
+        "woff", "woff2", "ttf", "eot", "otf",
         # Documents
-        "pdf",
-        "doc",
-        "docx",
-        "xls",
-        "xlsx",
+        "pdf", "doc", "docx", "xls", "xlsx",
         # Archives
-        "zip",
-        "tar",
-        "gz",
-        "tgz",
-        "7z",
-        "rar",
+        "zip", "tar", "gz", "tgz", "7z", "rar",
         # Build artifacts
-        "map",
-        "min.js",
-        "min.css",
-        "bundle.js",
-        "bundle.css",
-        "chunk.js",
-        "chunk.css",
-        "nft.json",
-        "rsc",
-        "meta",
+        "map", "min.js", "min.css", "bundle.js", "bundle.css",
+        "chunk.js", "chunk.css", "nft.json", "rsc", "meta",
+        "pyc", "pyo", "pyd",  # Python bytecode files
         # Other assets
-        "mp3",
-        "mp4",
-        "wav",
-        "avi",
-        "mov",
+        "mp3", "mp4", "wav", "avi", "mov"
     }
 
-    if ext.lower() in non_code_exts:
+    if ext in non_code_exts:
         return "non-code"
 
     # Code files
@@ -392,12 +332,20 @@ def ext_map(ext: str, config: CodeConCatConfig) -> str:
         # Python
         "py": "python",
         "pyi": "python",
+        "pyx": "python",
         # JavaScript/TypeScript
         "js": "javascript",
         "jsx": "javascript",
         "ts": "typescript",
         "tsx": "typescript",
         "mjs": "javascript",
+        # Web
+        "html": "html",
+        "htm": "html",
+        "css": "css",
+        "scss": "css",
+        "sass": "css",
+        "less": "css",
         # Other languages
         "r": "r",
         "jl": "julia",
@@ -406,21 +354,67 @@ def ext_map(ext: str, config: CodeConCatConfig) -> str:
         "cxx": "cpp",
         "c": "c",
         "h": "c",
+        "go": "go",
+        "rs": "rust",
+        "java": "java",
+        "kt": "kotlin",
+        "scala": "scala",
+        "php": "php",
+        "rb": "ruby",
+        "pl": "perl",
+        "sh": "shell",
+        "bash": "shell",
+        "zsh": "shell",
         # Documentation
-        "md": "doc",
-        "rst": "doc",
-        "txt": "doc",
-        "rmd": "doc",
+        "md": "markdown",
+        "rst": "markdown",
+        "txt": "text",
+        "rmd": "markdown",
+        "adoc": "markdown",
+        # Config
+        "json": "json",
+        "toml": "toml",
+        "yaml": "yaml",
+        "yml": "yaml",
+        "ini": "ini",
+        "cfg": "ini"
     }
 
-    return code_exts.get(ext.lower(), "unknown")
+    return code_exts.get(ext, "text")  # Default to text for unknown extensions
 
 
 def is_binary_file(file_path: str) -> bool:
     """Check if a file is likely to be binary."""
+    # First check if the file exists
+    if not os.path.exists(file_path):
+        return False
+
+    # Check if it's a known binary extension
+    binary_exts = {
+        # Compiled files
+        ".pyc", ".pyo", ".pyd",  # Python
+        ".so", ".dylib", ".dll",  # Shared libraries
+        ".exe", ".bin",          # Executables
+        # Media files
+        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico",  # Images
+        ".mp3", ".wav", ".ogg", ".m4a",                   # Audio
+        ".mp4", ".avi", ".mov", ".mkv",                   # Video
+        # Archives
+        ".zip", ".tar", ".gz", ".bz2", ".7z", ".rar",
+        # Other
+        ".pdf", ".doc", ".docx", ".xls", ".xlsx",
+        ".db", ".sqlite", ".sqlite3"                      # Databases
+    }
+    
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in binary_exts:
+        return True
+
+    # For other files, try to read as text
     try:
-        with open(file_path, "tr") as check_file:
-            check_file.readline()
+        with open(file_path, "tr", encoding="utf-8") as check_file:
+            # Read first few KB to check for binary content
+            chunk = check_file.read(1024)
             return False
-    except UnicodeDecodeError:
+    except (UnicodeDecodeError, IOError):
         return True

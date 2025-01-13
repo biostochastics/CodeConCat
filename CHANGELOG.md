@@ -12,9 +12,10 @@
          live."             /
          ________________/
 
-## [0.5.2] - 2025-01-08
+## [0.6.0] - 2025-01-12
 
 ### Added
+- Added symbol indexing
 - Added token counting for programming quotes using tiktoken
 - Added ASCII art frame around programming quotes in terminal output
 - Added more programming quotes to the collection

@@ -15,6 +15,7 @@ CodeConCat is your intelligent companion for preparing codebases. It automatical
 - 📋 **Clipboard Integration**: One-click copy to clipboard
 - 🔢 **Token Counting**: Accurate GPT-4 token counting for all processed content
 - ⏳ **Progress Tracking**: Real-time progress indication during processing
+- 🔎 **Symbol Indexing**: Track declarations and references across your codebase
 - 🌐 **Multi-Language Support**: Comprehensive parsing for:
   - Python: Classes, functions, decorators, imports
   - JavaScript/TypeScript: Classes, functions, interfaces, types, decorators
@@ -47,6 +48,12 @@ codeconcat path/to/your/code
 
 # Process GitHub repository
 codeconcat --github username/repo
+
+# Enable symbol indexing
+codeconcat --symbols
+
+# Enable symbol indexing with reference tracking
+codeconcat --symbols --references
 ```
 
 ### Using Configuration File
@@ -81,6 +88,8 @@ This creates a `.codeconcat.yml` with smart defaults for common use cases.
 | `--no-ai-context` | `false` | Disable AI context generation |
 | `--no-annotations` | `false` | Disable code annotations |
 | `--no-symbols` | `false` | Disable symbol extraction |
+| `--symbols` | `false` | Enable symbol indexing |
+| `--references` | `false` | Enable reference tracking for symbol indexing |
 | `--debug` | `false` | Enable detailed logging |
 | `--init` | `false` | Initialize default configuration file |
 
@@ -183,6 +192,10 @@ custom_extension_map:
   pyx: "cython"
   jsx: "javascript"
   tsx: "typescript"
+
+# Symbol indexing settings
+symbol_indexing: false
+reference_tracking: false
 ```
 
 ### Configuration Priority

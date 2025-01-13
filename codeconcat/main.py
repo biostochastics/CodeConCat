@@ -14,6 +14,7 @@ from codeconcat.collector.local_collector import (
 from codeconcat.config.config_loader import load_config
 from codeconcat.parser.doc_extractor import extract_docs
 from codeconcat.parser.file_parser import parse_code_files
+from codeconcat.symbol_index import SymbolIndex
 from codeconcat.transformer.annotator import annotate
 from codeconcat.writer.json_writer import write_json
 from codeconcat.writer.markdown_writer import write_markdown
@@ -73,6 +74,8 @@ def cli_entry_point():
     parser.add_argument("--no-annotations", action="store_true", help="Disable code annotations")
     parser.add_argument("--no-symbols", action="store_true", help="Disable symbol extraction")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--symbols", action="store_true", help="Enable symbol indexing")
+    parser.add_argument("--references", action="store_true", help="Find symbol references")
 
     args = parser.parse_args()
 
@@ -243,6 +246,14 @@ def run_codeconcat(config: CodeConCatConfig):
     # Parse code files
     parsed_files = parse_code_files([f.file_path for f in code_files], config)
 
+    # Build symbol index if requested
+    symbol_index = None
+    if getattr(config, "symbols", False):
+        symbol_index = SymbolIndex()
+        symbol_index.build_index(parsed_files)
+        if getattr(config, "references", False):
+            symbol_index.find_references(parsed_files)
+
     # Extract docs if requested
     docs = []
     if config.extract_docs:
@@ -290,6 +301,15 @@ def run_codeconcat(config: CodeConCatConfig):
             print("[CodeConCat] Warning: pyperclip not installed, skipping clipboard copy")
         except Exception as e:
             print(f"[CodeConCat] Warning: Failed to copy to clipboard: {str(e)}")
+
+    # Print symbol index if enabled
+    if symbol_index:
+        print("\nSymbol Index:")
+        symbol_index.print_index()
+        if getattr(config, "references", False):
+            for symbol in symbol_index.symbol_table:
+                print(f"\nReferences to {symbol}:")
+                symbol_index.print_references(symbol)
 
 
 def main():
