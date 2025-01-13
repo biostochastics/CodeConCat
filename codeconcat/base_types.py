@@ -25,6 +25,7 @@ PROGRAMMING_QUOTES = [
     '"Always code as if the guy who ends up maintaining your code will be a violent psychopath who knows where you live." - Rick Osborne',
 ]
 
+VALID_FORMATS = {"markdown", "json", "xml"}
 
 @dataclass
 class SecurityIssue:
@@ -101,8 +102,7 @@ class ParsedDocData:
 
 @dataclass
 class CodeConCatConfig:
-    """
-    Global configuration object. Merged from CLI args + .codeconcat.yml.
+    """Global configuration object. Merged from CLI args + .codeconcat.yml.
 
     Fields:
       - target_path: local directory or placeholder for GitHub
@@ -116,7 +116,7 @@ class CodeConCatConfig:
       - doc_extensions: list of recognized doc file extensions
       - custom_extension_map: user-specified extension→language
       - output: final file name
-      - format: 'markdown' or 'json'
+      - format: 'markdown', 'json', or 'xml'
       - max_workers: concurrency
       - disable_tree: whether to disable directory structure
       - disable_copy: whether to disable copying output
@@ -129,43 +129,33 @@ class CodeConCatConfig:
       - show_line_numbers: whether to show line numbers
     """
 
-    # Basic path or GitHub info
     target_path: str = "."
     github_url: Optional[str] = None
     github_token: Optional[str] = None
     github_ref: Optional[str] = None
-
-    # Language filtering
     include_languages: List[str] = field(default_factory=list)
     exclude_languages: List[str] = field(default_factory=list)
-
-    # Path filtering
     include_paths: List[str] = field(default_factory=list)
     exclude_paths: List[str] = field(default_factory=list)
-
-    # Doc extraction toggles
     extract_docs: bool = False
     merge_docs: bool = False
     doc_extensions: List[str] = field(default_factory=lambda: [".md", ".rst", ".txt", ".rmd"])
-
-    # Custom extension→language
     custom_extension_map: Dict[str, str] = field(default_factory=dict)
-
-    # Output
     output: str = "code_concat_output.md"
     format: str = "markdown"
     max_workers: int = 4
-
-    # Feature toggles
     disable_tree: bool = False
     disable_copy: bool = False
     disable_annotations: bool = False
     disable_symbols: bool = False
     disable_ai_context: bool = False
-
-    # Display options
     include_file_summary: bool = True
     include_directory_structure: bool = True
     remove_comments: bool = False
     remove_empty_lines: bool = False
     show_line_numbers: bool = False
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        if self.format not in VALID_FORMATS:
+            raise ValueError(f"Invalid format '{self.format}'. Must be one of: {', '.join(VALID_FORMATS)}")

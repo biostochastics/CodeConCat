@@ -26,18 +26,25 @@ logger.setLevel(logging.WARNING)
 
 class CodeConcatError(Exception):
     """Base exception class for CodeConCat errors."""
+
     pass
+
 
 class ConfigurationError(CodeConcatError):
     """Raised when there's an error in the configuration."""
+
     pass
+
 
 class FileProcessingError(CodeConcatError):
     """Raised when there's an error processing files."""
+
     pass
+
 
 class OutputError(CodeConcatError):
     """Raised when there's an error generating output."""
+
     pass
 
 
@@ -258,7 +265,7 @@ def run_codeconcat(config: CodeConCatConfig):
                 code_files = collect_github_files(config)
             else:
                 code_files = collect_local_files(config.target_path, config)
-                
+
             if not code_files:
                 raise FileProcessingError("No files found to process")
         except Exception as e:
@@ -342,6 +349,7 @@ def run_codeconcat(config: CodeConCatConfig):
         if not config.disable_copy:
             try:
                 import pyperclip
+
                 pyperclip.copy(output)
                 print("[CodeConCat] Output copied to clipboard")
             except ImportError:
@@ -362,7 +370,7 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
     try:
         if config.disable_copy is None:
             config.disable_copy = True  # Always disable clipboard in memory mode
-            
+
         # Process code
         if config.github_url:
             code_files = collect_github_files(config)

@@ -10,7 +10,7 @@ __all__ = [
     "run_codeconcat",
     "run_codeconcat_in_memory",
     "CodeConCatConfig",
-    "AnnotatedFileData", 
+    "AnnotatedFileData",
     "ParsedDocData",
     "__version__",
 ]

@@ -6,8 +6,9 @@ from codeconcat import run_codeconcat_in_memory, CodeConCatConfig
 app = FastAPI(
     title="CodeConCat API",
     description="API for CodeConCat - An LLM-friendly code parser, aggregator and doc extractor",
-    version="1.0.0"
+    version="1.0.0",
 )
+
 
 class CodeConcatRequest(BaseModel):
     target_path: str
@@ -27,6 +28,7 @@ class CodeConcatRequest(BaseModel):
     disable_symbols: bool = False
     disable_ai_context: bool = False
     max_workers: int = 4
+
 
 @app.post("/concat")
 async def concat_code(request: CodeConcatRequest):
@@ -51,12 +53,13 @@ async def concat_code(request: CodeConcatRequest):
             disable_copy=request.disable_copy,
             disable_symbols=request.disable_symbols,
             disable_ai_context=request.disable_ai_context,
-            max_workers=request.max_workers
+            max_workers=request.max_workers,
         )
         output = run_codeconcat_in_memory(config)
         return {"output": output}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/")
 async def root():
@@ -66,5 +69,5 @@ async def root():
     return {
         "name": "CodeConCat API",
         "version": "1.0.0",
-        "description": "API for code concatenation and documentation extraction"
+        "description": "API for code concatenation and documentation extraction",
     }

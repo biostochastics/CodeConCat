@@ -111,64 +111,71 @@ DEFAULT_EXCLUDES = [
 def get_gitignore_spec(root_path: str) -> PathSpec:
     """
     Read .gitignore file and create a PathSpec for matching.
-    
+
     Args:
         root_path: Root directory to search for .gitignore
-        
+
     Returns:
         PathSpec object for matching paths against .gitignore patterns
     """
-    gitignore_path = os.path.join(root_path, '.gitignore')
+    gitignore_path = os.path.join(root_path, ".gitignore")
     patterns = []
-    
+
     if os.path.exists(gitignore_path):
-        with open(gitignore_path, 'r') as f:
-            patterns = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-    
+        with open(gitignore_path, "r") as f:
+            patterns = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+
     # Add common patterns that should always be ignored
-    patterns.extend([
-        '**/__pycache__/**',
-        '**/*.pyc',
-        '**/.git/**',
-        '**/node_modules/**',
-        '**/.pytest_cache/**',
-        '**/.coverage',
-        '**/build/**',
-        '**/dist/**',
-        '**/*.egg-info/**'
-    ])
-    
+    patterns.extend(
+        [
+            "**/__pycache__/**",
+            "**/*.pyc",
+            "**/.git/**",
+            "**/node_modules/**",
+            "**/.pytest_cache/**",
+            "**/.coverage",
+            "**/build/**",
+            "**/dist/**",
+            "**/*.egg-info/**",
+        ]
+    )
+
     return PathSpec.from_lines(GitWildMatchPattern, patterns)
 
 
-def should_include_file(file_path: str, config: CodeConCatConfig, gitignore_spec: PathSpec = None) -> bool:
+def should_include_file(
+    file_path: str, config: CodeConCatConfig, gitignore_spec: PathSpec = None
+) -> bool:
     """
     Check if a file should be included based on configuration and .gitignore.
-    
+
     Args:
         file_path: Path to the file
         config: Configuration object
         gitignore_spec: PathSpec object for .gitignore matching
-        
+
     Returns:
         bool: True if file should be included, False otherwise
     """
     # Get relative path for .gitignore matching
     rel_path = os.path.relpath(file_path, config.target_path)
-    
+
     # Check .gitignore first
     if gitignore_spec and gitignore_spec.match_file(rel_path):
         return False
-    
+
     # Then check configuration patterns
     if config.exclude_paths:
         for pattern in config.exclude_paths:
-            if fnmatch.fnmatch(rel_path, pattern):
+            # Check if any part of the path matches the pattern
+            path_parts = Path(rel_path).parts
+            if any(fnmatch.fnmatch(os.path.join(*path_parts[:i+1]), pattern) 
+                  for i in range(len(path_parts))):
                 return False
-    
+
     if config.include_paths:
         return any(fnmatch.fnmatch(rel_path, pattern) for pattern in config.include_paths)
-    
+
     return True
 
 

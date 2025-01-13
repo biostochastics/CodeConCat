@@ -25,25 +25,25 @@ def get_long_description():
 
 
 extras_require = {
-    'web': [
-        'fastapi>=0.68.0',
-        'uvicorn>=0.15.0',
-        'pydantic>=1.8.0',
+    "web": [
+        "fastapi>=0.68.0",
+        "uvicorn>=0.15.0",
+        "pydantic>=1.8.0",
     ],
-    'test': [
-        'pytest>=7.4.0',
-        'pytest-cov>=4.1.0',
-        'pytest-asyncio>=0.21.1',
-        'pytest-mock>=3.11.1',
+    "test": [
+        "pytest>=7.4.0",
+        "pytest-cov>=4.1.0",
+        "pytest-asyncio>=0.21.1",
+        "pytest-mock>=3.11.1",
     ],
-    'all': [
-        'fastapi>=0.68.0',
-        'uvicorn>=0.15.0',
-        'pydantic>=1.8.0',
-        'pytest>=7.4.0',
-        'pytest-cov>=4.1.0',
-        'pytest-asyncio>=0.21.1',
-        'pytest-mock>=3.11.1',
+    "all": [
+        "fastapi>=0.68.0",
+        "uvicorn>=0.15.0",
+        "pydantic>=1.8.0",
+        "pytest>=7.4.0",
+        "pytest-cov>=4.1.0",
+        "pytest-asyncio>=0.21.1",
+        "pytest-mock>=3.11.1",
     ],
 }
 

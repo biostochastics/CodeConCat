@@ -15,17 +15,17 @@ class PythonParser(BaseParser):
         self.patterns = {
             "class": re.compile(
                 r"^(?P<modifiers>(?:@\w+\s+)*)"  # Decorators
-                r"class\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Class name
+                r"class\s+(?P<n>[^\s:()]+)"  # Class name (any non-whitespace, non-special chars)
                 r"\s*(?:\([^)]*\))?\s*:"  # Optional parent class
             ),
             "function": re.compile(
                 r"^(?P<modifiers>(?:@\w+\s+)*)"  # Decorators
-                r"(?:async\s+)?def\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Function name
+                r"(?:async\s+)?def\s+(?P<n>[^\s:()]+)"  # Function name
                 r"\s*\([^)]*\)\s*(?:->[^:]+)?:"  # Args and optional return type
             ),
-            "constant": re.compile(r"^(?P<name>[A-Z][A-Z0-9_]*)\s*="),  # Constants (UPPER_CASE)
+            "constant": re.compile(r"^(?P<n>[A-Z][A-Z0-9_]*)\s*="),  # Constants (UPPER_CASE)
             "variable": re.compile(
-                r"^(?P<name>[a-z][a-z0-9_]*)\s*="  # Variables (lower_case)
+                r"^(?P<n>[^\s:()]+)\s*="  # Variables (any valid identifier)
                 r"(?!.*(?:def|class)\s)"  # Not part of function/class definition
             ),
         }
@@ -85,7 +85,7 @@ class PythonParser(BaseParser):
             for kind, pattern in self.patterns.items():
                 match = pattern.match(stripped)
                 if match:
-                    name = match.group("name")
+                    name = match.group("n")
                     modifiers = set(pending_decorators)
                     pending_decorators = []  # Clear pending decorators
 
