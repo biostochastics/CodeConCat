@@ -1,198 +1,255 @@
-"""JavaScript and TypeScript code parser for CodeConcat."""
+"""JavaScript/TypeScript code parser for CodeConcat."""
 
 import re
-from typing import Dict, List, Pattern
+from typing import List, Optional, Set
 
 from codeconcat.base_types import Declaration, ParsedFileData
-from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
+from codeconcat.parser.language_parsers.base_parser import BaseParser
+
+
+def parse_javascript_or_typescript(file_path: str, content: str, language: str = "javascript") -> Optional[ParsedFileData]:
+    """Parse JavaScript or TypeScript code and return declarations."""
+    parser = JstsParser(language)
+    declarations = parser.parse(content)
+    return ParsedFileData(
+        file_path=file_path,
+        language=language,
+        content=content,
+        declarations=declarations
+    )
+
+
+class CodeSymbol:
+    def __init__(
+        self,
+        name: str,
+        kind: str,
+        start_line: int,
+        end_line: int,
+        modifiers: Set[str],
+        docstring: Optional[str],
+        children: List["CodeSymbol"],
+    ):
+        self.name = name
+        self.kind = kind
+        self.start_line = start_line
+        self.end_line = end_line
+        self.modifiers = modifiers
+        self.docstring = docstring
+        self.children = children
+        self.brace_depth = 0  # Current nesting depth at the time this symbol was "opened"
 
 
 class JstsParser(BaseParser):
-    """JavaScript/TypeScript language parser."""
+    """
+    JavaScript/TypeScript language parser with improved brace-handling and 
+    arrow-function detection. Supports classes, functions, methods, arrow functions, 
+    interfaces, type aliases, enums, and basic decorators.
+    """
 
     def __init__(self, language: str = "javascript"):
-        self.language = language  # Set language before calling super()
+        self.language = language
+        self.patterns = []
         super().__init__()
-        self._setup_patterns()
 
-    def _setup_patterns(self):
-        """Set up JavaScript/TypeScript patterns."""
-        # Common patterns for both JS and TS
-        base_patterns = {
-            "class": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?(?:default\s+)?)"  # Export/default modifiers
-                r"class\s+(?P<class_name>[a-zA-Z_$][a-zA-Z0-9_$]*)"  # Class name
-                r"(?:\s+extends\s+(?P<extends_name>[a-zA-Z_$][a-zA-Z0-9_$]*))?"  # Optional extends
-                r"(?:\s+implements\s+(?P<implements_names>[a-zA-Z_$][a-zA-Z0-9_$]*(?:\s*,\s*[a-zA-Z_$][a-zA-Z0-9_$]*)*))?"  # Optional implements
-            ),
-            "function": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?(?:default\s+)?(?:async\s+)?)"  # Modifiers
-                r"(?:function\s+)?(?P<function_name>[a-zA-Z_$][a-zA-Z0-9_$]*)"  # Function name
-                r"\s*\((?P<parameters>[^)]*)\)"  # Parameters
-                r"(?:\s*:\s*(?P<return_type>[^{;]+))?"  # Optional return type (TS)
-            ),
-            "method": re.compile(
-                r"^(?P<modifiers>(?:public|private|protected|static|readonly|async)\s+)*"  # Method modifiers
-                r"(?P<method_name>[a-zA-Z_$][a-zA-Z0-9_$]*)"  # Method name
-                r"\s*\((?P<parameters>[^)]*)\)"  # Parameters
-                r"(?:\s*:\s*(?P<return_type>[^{;]+))?"  # Optional return type (TS)
-            ),
-            "variable": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?(?:const|let|var)\s+)"  # Variable modifiers
-                r"(?P<variable_name>[a-zA-Z_$][a-zA-Z0-9_$]*)"  # Variable name
-                r"(?:\s*:\s*(?P<type_annotation>[^=;]+))?"  # Optional type annotation (TS)
-                r"\s*=\s*"  # Assignment
-            ),
-            "interface": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?)"  # Export modifier
-                r"interface\s+(?P<interface_name>[a-zA-Z_$][a-zA-Z0-9_$]*)"  # Interface name
-                r"(?:\s+extends\s+(?P<extends_names>[a-zA-Z_$][a-zA-Z0-9_$]*(?:\s*,\s*[a-zA-Z_$][a-zA-Z0-9_$]*)*))?"  # Optional extends
-            ),
-            "type": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?)"  # Export modifier
-                r"type\s+(?P<type_name>[a-zA-Z_$][a-zA-Z0-9_$]*)"  # Type name
-                r"\s*=\s*(?P<type_value>.*)"  # Type assignment
-            ),
-        }
-
-        # TypeScript-specific patterns
-        if self.language == "typescript":
-            base_patterns.update(
-                {
-                    "enum": re.compile(
-                        r"^(?P<modifiers>(?:export\s+)?(?:const\s+)?)"  # Modifiers
-                        r"enum\s+(?P<enum_name>[a-zA-Z_$][a-zA-Z0-9_$]*)"  # Enum name
-                    ),
-                    "decorator": re.compile(
-                        r"^@(?P<decorator_name>[a-zA-Z_$][a-zA-Z0-9_$]*)"  # Decorator name
-                        r"(?:\s*\((?P<parameters>[^)]*)\))?"  # Optional parameters
-                    ),
-                }
-            )
-
-        self.patterns = base_patterns
-        self.modifiers = {
+        # Set recognized modifiers
+        self.recognized_modifiers = {
             "export",
             "default",
             "async",
-            "static",
             "public",
             "private",
             "protected",
+            "static",
             "readonly",
             "abstract",
             "declare",
+            "const",
         }
-        self.block_start = "{"
-        self.block_end = "}"
+
+        # Comment markers
         self.line_comment = "//"
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
 
+        # Context tracking
+        self.in_class = False
+
+        self._setup_patterns()
+
+    def _setup_patterns(self) -> List[re.Pattern]:
+        """Set up regex patterns for parsing JavaScript/TypeScript code."""
+        return [
+            # Function patterns
+            re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(?P<symbol_name>\w+)\s*\("),
+            re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?function\s*\("),
+            re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?\(.*\)\s*=>"),
+            
+            # Method patterns (inside class)
+            re.compile(r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\("),
+            
+            # Class patterns
+            re.compile(r"^(?:export\s+)?class\s+(?P<symbol_name>\w+)"),
+            
+            # Interface patterns (TypeScript)
+            re.compile(r"^(?:export\s+)?interface\s+(?P<symbol_name>\w+)"),
+            
+            # Type alias patterns (TypeScript)
+            re.compile(r"^(?:export\s+)?type\s+(?P<symbol_name>\w+)"),
+            
+            # Enum patterns (TypeScript)
+            re.compile(r"^(?:export\s+)?enum\s+(?P<symbol_name>\w+)"),
+        ]
+
     def parse(self, content: str) -> List[Declaration]:
         """Parse JavaScript/TypeScript code content."""
         lines = content.split("\n")
-        symbols = []
-        brace_count = 0
-        in_comment = False
-        in_template = False
-        pending_decorators = []
+        symbols: List[CodeSymbol] = []
+        symbol_stack: List[CodeSymbol] = []
+        current_doc_comments = []
+        current_modifiers = set()
+        brace_depth = 0
+        self.in_class = False
+
+        def pop_symbols_up_to(depth: int, line_idx: int):
+            """Pop symbols from stack up to given depth."""
+            while symbol_stack and symbol_stack[-1].brace_depth >= depth:
+                symbol = symbol_stack.pop()
+                symbol.end_line = line_idx
+                if symbol_stack:
+                    symbol_stack[-1].children.append(symbol)
+                symbols.append(symbol)
+                if symbol.kind == "class":
+                    self.in_class = False
 
         i = 0
         while i < len(lines):
             line = lines[i].strip()
-
-            # Skip empty lines
             if not line:
                 i += 1
                 continue
 
-            # Handle comments
-            if line.startswith("//"):
+            # Handle doc comments
+            if line.startswith("/**"):
+                current_doc_comments.append(line)
+                while i + 1 < len(lines) and "*/" not in lines[i]:
+                    i += 1
+                    current_doc_comments.append(lines[i].strip())
                 i += 1
                 continue
 
-            if "/*" in line and not in_template:
-                in_comment = True
-                if "*/" in line[line.index("/*") :]:
-                    in_comment = False
+            # Skip other comments
+            if line.startswith("//") or line.startswith("/*"):
                 i += 1
                 continue
 
-            if in_comment:
-                if "*/" in line:
-                    in_comment = False
+            # Handle decorators
+            if line.startswith("@"):
+                current_modifiers.add(line)
                 i += 1
                 continue
 
-            # Handle template literals
-            if "`" in line:
-                in_template = not in_template
+            # Count braces before pattern matching
+            brace_depth += line.count("{") - line.count("}")
 
-            if in_template:
-                i += 1
-                continue
-
-            # Handle decorators (TypeScript)
-            if self.language == "typescript" and line.startswith("@"):
-                pending_decorators.append(line)
-                i += 1
-                continue
-
-            # Look for declarations
-            for kind, pattern in self.patterns.items():
+            # Try to match each pattern
+            matched = False
+            for pattern in self._setup_patterns():
                 match = pattern.match(line)
                 if match:
-                    try:
-                        name = match.group(f"{kind}_name")
-                        modifiers = set()
-                        if "modifiers" in match.groupdict() and match.group("modifiers"):
-                            modifiers = {m.strip() for m in match.group("modifiers").split()}
-                        modifiers.update(pending_decorators)
-                        pending_decorators = []
-
-                        # Track braces for block scope
-                        brace_count += line.count("{") - line.count("}")
-
-                        symbol = CodeSymbol(
-                            name=name,
-                            kind=kind,
-                            start_line=i,
-                            end_line=i,
-                            modifiers=modifiers,
-                            parent=None,
-                        )
-
-                        # Find end of block
-                        if "{" in line:
-                            j = i + 1
-                            while j < len(lines) and brace_count > 0:
-                                brace_count += lines[j].count("{") - lines[j].count("}")
-                                j += 1
-                            symbol.end_line = j - 1
-                            i = j - 1
-
-                        symbols.append(symbol)
-                        break
-                    except IndexError:
-                        # Skip if the name group doesn't exist
+                    matched = True
+                    name = match.group("symbol_name")
+                    if not name:
                         continue
+
+                    # Get modifiers from regex and current set
+                    modifiers = set(current_modifiers)
+                    if line.startswith("export"):
+                        modifiers.add("export")
+                    if line.startswith("async"):
+                        modifiers.add("async")
+                    if line.startswith("const"):
+                        modifiers.add("const")
+                    if line.startswith("let"):
+                        modifiers.add("let")
+                    if line.startswith("var"):
+                        modifiers.add("var")
+                    current_modifiers.clear()
+
+                    # Get the kind based on pattern
+                    kind = self._get_kind(pattern)
+
+                    # Create symbol
+                    symbol = CodeSymbol(
+                        name=name,
+                        kind=kind,
+                        start_line=i + 1,
+                        end_line=0,  # Will be set when popped
+                        modifiers=modifiers,
+                        docstring="\n".join(current_doc_comments) if current_doc_comments else None,
+                        children=[],
+                    )
+                    symbol.brace_depth = brace_depth
+                    current_doc_comments.clear()
+
+                    # Update class context
+                    if kind == "class":
+                        self.in_class = True
+
+                    # Add to stack
+                    symbol_stack.append(symbol)
+                    break
+
+            # Handle closing braces after pattern matching
+            if "}" in line:
+                pop_symbols_up_to(brace_depth + 1, i + 1)
 
             i += 1
 
-        # Convert to Declarations for backward compatibility
-        return [
-            Declaration(symbol.kind, symbol.name, symbol.start_line + 1, symbol.end_line + 1)
-            for symbol in symbols
-        ]
+        # Pop any remaining symbols
+        pop_symbols_up_to(0, len(lines))
 
+        # Convert symbols to declarations
+        declarations = []
+        for symbol in symbols:
+            declarations.append(
+                Declaration(
+                    kind=symbol.kind,
+                    name=symbol.name,
+                    start_line=symbol.start_line,
+                    end_line=symbol.end_line,
+                    modifiers=symbol.modifiers,
+                    docstring=symbol.docstring,
+                )
+            )
+            # Also add child declarations
+            for child in symbol.children:
+                declarations.append(
+                    Declaration(
+                        kind=child.kind,
+                        name=child.name,
+                        start_line=child.start_line,
+                        end_line=child.end_line,
+                        modifiers=child.modifiers,
+                        docstring=child.docstring,
+                    )
+                )
 
-def parse_javascript_or_typescript(
-    file_path: str, content: str, language: str = "javascript"
-) -> ParsedFileData:
-    """Parse JavaScript or TypeScript code and return ParsedFileData."""
-    parser = JstsParser(language)
-    declarations = parser.parse(content)
-    return ParsedFileData(
-        file_path=file_path, language=language, content=content, declarations=declarations
-    )
+        return declarations
+
+    def _get_kind(self, pattern: re.Pattern) -> str:
+        """Get the kind of symbol based on the pattern that matched."""
+        pattern_str = pattern.pattern
+        if "function" in pattern_str or "=>" in pattern_str:
+            return "function"
+        elif "class" in pattern_str:
+            return "class"
+        elif "interface" in pattern_str:
+            return "interface"
+        elif "type" in pattern_str:
+            return "type"
+        elif "enum" in pattern_str:
+            return "enum"
+        elif self.in_class and r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\(" in pattern_str:
+            return "method"
+        return "function"  # Default to function for any other patterns

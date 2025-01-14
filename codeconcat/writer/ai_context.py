@@ -20,7 +20,7 @@ def generate_ai_preamble(
 
     # Generate summary
     lines = [
-        "# CodeConcat AI-Friendly Code Summary",
+        "# AI-Friendly Code Summary",
         "",
         "This document contains a structured representation of a codebase, organized for AI analysis.",
         "",

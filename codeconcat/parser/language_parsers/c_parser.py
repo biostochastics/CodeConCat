@@ -1,78 +1,130 @@
-"""C code parser for CodeConcat."""
+# file: codeconcat/parser/language_parsers/c_parser.py
 
 import re
-from typing import List, Tuple
+from typing import List, Optional, Set
+from codeconcat.base_types import Declaration, ParsedFileData
+from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
+def parse_c_code(file_path: str, content: str) -> Optional[ParsedFileData]:
+    parser = CParser()
+    declarations = parser.parse(content)
+    return ParsedFileData(
+        file_path=file_path,
+        language="c",
+        content=content,
+        declarations=declarations
+    )
 
-def parse_c_code(content: str) -> List[Tuple[str, int, int]]:
-    """Parse C code to identify functions, structs, unions, and enums.
+class CParser(BaseParser):
+    def _setup_patterns(self):
+        """
+        We define capturing groups: 'name' for declarations.
+        """
+        # Basic patterns for function, struct, union, enum, typedef, define
+        storage = r"(?:static|extern)?\s*"
+        inline = r"(?:inline)?\s*"
+        type_pattern = r"(?:[a-zA-Z_][\w*\s]+)+"
 
-    Returns:
-        List of tuples (symbol_name, start_line, end_line)
-    """
-    symbols = []
-    lines = content.split("\n")
+        self.patterns = {
+            "function": re.compile(
+                rf"^[^#/]*{storage}{inline}"
+                rf"{type_pattern}\s+"
+                rf"(?P<name>[a-zA-Z_]\w*)\s*\([^;{{]*"
+            ),
+            "struct": re.compile(
+                rf"^[^#/]*struct\s+(?P<name>[a-zA-Z_]\w*)"
+            ),
+            "union": re.compile(
+                rf"^[^#/]*union\s+(?P<name>[a-zA-Z_]\w*)"
+            ),
+            "enum": re.compile(
+                rf"^[^#/]*enum\s+(?P<name>[a-zA-Z_]\w*)"
+            ),
+            "typedef": re.compile(
+                r"^[^#/]*typedef\s+"
+                r"(?:struct|union|enum)?\s*"
+                r"(?:[a-zA-Z_][\w*\s]+)*"
+                r"(?:\(\s*\*\s*)?"
+                r"(?P<name>[a-zA-Z_]\w*)"
+                r"(?:\s*\))?"
+                r"\s*(?:\([^)]*\))?\s*;"
+            ),
+            "define": re.compile(
+                r"^[^#/]*#define\s+(?P<name>[A-Z_][A-Z0-9_]*)"
+            ),
+        }
 
-    # Patterns for C constructs
-    patterns = {
-        "function": r"^\s*(?:static\s+)?(?:inline\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\s+)+([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^;]*$",
-        "struct": r"^\s*struct\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-        "union": r"^\s*union\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-        "enum": r"^\s*enum\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-        "typedef": r"^\s*typedef\s+(?:struct|union|enum)?\s*(?:[a-zA-Z_][a-zA-Z0-9_]*\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*;",
-        "define": r"^\s*#define\s+([A-Z_][A-Z0-9_]*)",
-    }
+        # For braces
+        self.block_start = "{"
+        self.block_end = "}"
+        self.line_comment = "//"
+        self.block_comment_start = "/*"
+        self.block_comment_end = "*/"
 
-    in_block = False
-    block_start = 0
-    block_name = ""
-    brace_count = 0
-    in_comment = False
-    in_macro = False
+    def parse(self, content: str) -> List[Declaration]:
+        lines = content.split("\n")
+        symbols: List[CodeSymbol] = []
+        line_count = len(lines)
+        i = 0
 
-    for i, line in enumerate(lines):
-        # Handle multi-line comments
-        if "/*" in line:
-            in_comment = True
-        if "*/" in line:
-            in_comment = False
-            continue
-        if in_comment or line.strip().startswith("//"):
-            continue
+        while i < line_count:
+            line = lines[i].strip()
+            if not line or line.startswith("//"):
+                i += 1
+                continue
 
-        # Handle multi-line macros
-        if line.strip().endswith("\\"):
-            in_macro = True
-            continue
-        if in_macro:
-            if not line.strip().endswith("\\"):
-                in_macro = False
-            continue
-
-        # Skip preprocessor directives except #define
-        if line.strip().startswith("#") and not line.strip().startswith("#define"):
-            continue
-
-        # Track braces and blocks
-        if not in_block:
-            for construct, pattern in patterns.items():
-                match = re.match(pattern, line)
+            # Attempt matches
+            for kind, pattern in self.patterns.items():
+                match = pattern.match(line)
                 if match:
-                    block_name = match.group(1)
-                    block_start = i
-                    in_block = True
-                    brace_count = line.count("{") - line.count("}")
-                    # Handle one-line definitions
-                    if construct in ["typedef", "define"] or (brace_count == 0 and ";" in line):
-                        symbols.append((block_name, i, i))
-                        in_block = False
+                    name = match.group("name")
+                    # We find potential block ends
+                    block_end = i
+                    if kind in ["function", "struct", "union", "enum"]:
+                        block_end = self._find_block_end(lines, i)
+
+                    symbol = CodeSymbol(
+                        name=name,
+                        kind=kind,
+                        start_line=i,
+                        end_line=block_end,
+                        modifiers=set(),
+                    )
+                    symbols.append(symbol)
+                    i = block_end  # skip to block_end
                     break
-        else:
-            brace_count += line.count("{") - line.count("}")
+            i += 1
 
-        # Check if block ends
-        if in_block and brace_count == 0 and ("}" in line or ";" in line):
-            symbols.append((block_name, block_start, i))
-            in_block = False
+        # Convert to Declaration
+        declarations = []
+        for sym in symbols:
+            declarations.append(Declaration(
+                kind=sym.kind,
+                name=sym.name,
+                start_line=sym.start_line + 1,
+                end_line=sym.end_line + 1,
+                modifiers=sym.modifiers
+            ))
+        return declarations
 
-    return symbols
+    def _find_block_end(self, lines: List[str], start: int) -> int:
+        """
+        Naive approach: if we see '{', we try to find matching '}'.
+        If not found, return start.
+        """
+        line = lines[start]
+        if "{" not in line:
+            return start
+        brace_count = line.count("{") - line.count("}")
+        if brace_count <= 0:
+            return start
+
+        for i in range(start + 1, len(lines)):
+            l2 = lines[i]
+            # skip line comments
+            if l2.strip().startswith("//"):
+                continue
+            brace_count += l2.count("{") - l2.count("}")
+            if brace_count <= 0:
+                return i
+        return len(lines) - 1

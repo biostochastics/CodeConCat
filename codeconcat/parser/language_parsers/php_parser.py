@@ -1,152 +1,127 @@
-"""PHP language parser for CodeConcat."""
+# file: codeconcat/parser/language_parsers/php_parser.py
 
-from typing import List
+import re
+from typing import List, Optional, Set
+from codeconcat.base_types import Declaration, ParsedFileData
+from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
-from codeconcat.base_types import Declaration
-from codeconcat.parser.language_parsers.base_parser import BaseParser
-
+def parse_php(file_path: str, content: str) -> Optional[ParsedFileData]:
+    parser = PhpParser()
+    declarations = parser.parse(content)
+    return ParsedFileData(
+        file_path=file_path,
+        language="php",
+        content=content,
+        declarations=declarations
+    )
 
 class PhpParser(BaseParser):
-    """PHP language parser."""
-
     def _setup_patterns(self):
-        """Set up PHP-specific patterns."""
-        # Namespace pattern
-        self.namespace_pattern = self._create_pattern(r"namespace\s+([\w\\]+);")
+        """
+        Using consistent '(?P<name>...)' for all top-level declarations:
+        class, interface, trait, function, etc.
+        """
+        self.patterns = {
+            "class": re.compile(
+                r"^[^#/]*"
+                r"(?:abstract\s+|final\s+)?"
+                r"class\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"
+                r"(?:\s+extends\s+[a-zA-Z_][a-zA-Z0-9_]*)?"
+                r"(?:\s+implements\s+[a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)?"
+                r"\s*\{"
+            ),
+            "interface": re.compile(
+                r"^[^#/]*"
+                r"interface\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"
+                r"(?:\s+extends\s+[a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)?"
+                r"\s*\{"
+            ),
+            "trait": re.compile(
+                r"^[^#/]*"
+                r"trait\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"
+                r"\s*\{"
+            ),
+            "function": re.compile(
+                r"^[^#/]*"
+                r"(?:public\s+|private\s+|protected\s+|static\s+|final\s+)*"
+                r"function\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"
+                r"\s*\([^)]*\)"
+                r"(?:\s*:\s*[a-zA-Z_][a-zA-Z0-9_|\\]*)?"
+                r"\s*\{"
+            ),
+            "namespace": re.compile(
+                r"^[^#/]*"
+                r"namespace\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_\\]*)"
+                r"\s*;?"
+            ),
+        }
 
-        # Use/import pattern
-        self.use_pattern = self._create_pattern(r"use\s+([\w\\]+)(?:\s+as\s+(\w+))?;")
-
-        # Class pattern (including abstract, final, and traits)
-        self.class_pattern = self._create_pattern(
-            r"(?:abstract\s+|final\s+)?"
-            r"(?:class|interface|trait)\s+"
-            r"(\w+)"
-            r"(?:\s+extends\s+[\w\\]+)?"
-            r"(?:\s+implements\s+[\w\\,\s]+)?"
-            r"\s*{"
-        )
-
-        # Method pattern
-        self.method_pattern = self._create_pattern(
-            r"(?:public\s+|protected\s+|private\s+)?"
-            r"(?:static\s+|final\s+|abstract\s+)*"
-            r"function\s+"
-            r"(?:&\s*)?"  # Reference return
-            r"(\w+)"  # Method name
-            r"\s*\([^)]*\)"  # Parameters
-            r"(?:\s*:\s*\??[\w\\|]+)?"  # Return type hint
-            r"\s*(?:{|;)"  # Body or abstract method
-        )
-
-        # Property pattern
-        self.property_pattern = self._create_pattern(
-            r"(?:public\s+|protected\s+|private\s+)?"
-            r"(?:static\s+|readonly\s+)*"
-            r"(?:var\s+)?"
-            r"\$(\w+)"  # Property name
-            r"(?:\s*=\s*[^;]+)?;"  # Optional initialization
-        )
-
-        # Constant pattern
-        self.const_pattern = self._create_pattern(
-            r"const\s+"
-            r"(\w+)"  # Constant name
-            r"\s*=\s*[^;]+;"  # Value required
-        )
+        self.block_start = "{"
+        self.block_end = "}"
+        self.line_comment = "//"
+        # In PHP often '#' or '//' can be comment, but we just keep '//' for demonstration
+        self.block_comment_start = "/*"
+        self.block_comment_end = "*/"
 
     def parse(self, content: str) -> List[Declaration]:
-        """Parse PHP code content."""
         lines = content.split("\n")
-        symbols = []
-        brace_count = 0
-        in_comment = False
-        current_namespace = None
-        current_class = None
-
+        symbols: List[CodeSymbol] = []
         i = 0
-        while i < len(lines):
+        line_count = len(lines)
+
+        while i < line_count:
             line = lines[i].strip()
-
-            # Skip empty lines
-            if not line:
+            if not line or line.startswith("//") or line.startswith("#"):
                 i += 1
                 continue
 
-            # Handle block comments
-            if line.startswith("/*"):
-                in_comment = True
-                if "*/" in line[2:]:
-                    in_comment = False
+            matched = False
+            for kind, pattern in self.patterns.items():
+                match = pattern.match(line)
+                if match:
+                    name = match.group("name")
+                    block_end = i
+                    # class, interface, trait, function might have braces
+                    if kind in ["class", "interface", "trait", "function"]:
+                        block_end = self._find_block_end(lines, i)
+                    # namespace might end with ; or be followed by a block
+                    symbol = CodeSymbol(
+                        kind=kind,
+                        name=name,
+                        start_line=i,
+                        end_line=block_end,
+                        modifiers=set()
+                    )
+                    symbols.append(symbol)
+                    i = block_end
+                    matched = True
+                    break
+            if not matched:
                 i += 1
+
+        declarations = []
+        for sym in symbols:
+            declarations.append(Declaration(
+                kind=sym.kind,
+                name=sym.name,
+                start_line=sym.start_line + 1,
+                end_line=sym.end_line + 1,
+                modifiers=sym.modifiers,
+            ))
+        return declarations
+
+    def _find_block_end(self, lines: List[str], start: int) -> int:
+        line = lines[start]
+        if "{" not in line:
+            return start
+        brace_count = line.count("{") - line.count("}")
+        if brace_count <= 0:
+            return start
+        for i in range(start + 1, len(lines)):
+            l2 = lines[i]
+            if l2.strip().startswith("//") or l2.strip().startswith("#"):
                 continue
-            if in_comment:
-                if "*/" in line:
-                    in_comment = False
-                i += 1
-                continue
-
-            # Skip line comments
-            if line.startswith("//") or line.startswith("#"):
-                i += 1
-                continue
-
-            # Track braces for scope
-            brace_count += line.count("{") - line.count("}")
-
-            # Check for namespace declaration
-            if namespace_match := self.namespace_pattern.search(line):
-                current_namespace = namespace_match.group(1)
-                i += 1
-                continue
-
-            # Check for class/interface/trait declaration
-            if class_match := self.class_pattern.search(line):
-                class_name = class_match.group(1)
-                qualified_name = (
-                    f"{current_namespace}\\{class_name}" if current_namespace else class_name
-                )
-                current_class = qualified_name
-                symbols.append(
-                    Declaration(kind="class", name=qualified_name, start_line=i, end_line=i)
-                )
-                i += 1
-                continue
-
-            # Check for method declaration
-            if method_match := self.method_pattern.search(line):
-                method_name = method_match.group(1)
-                qualified_name = f"{current_class}::{method_name}" if current_class else method_name
-                symbols.append(
-                    Declaration(kind="function", name=qualified_name, start_line=i, end_line=i)
-                )
-                i += 1
-                continue
-
-            # Check for property declaration
-            if property_match := self.property_pattern.search(line):
-                property_name = property_match.group(1)
-                qualified_name = (
-                    f"{current_class}::{property_name}" if current_class else property_name
-                )
-                symbols.append(
-                    Declaration(kind="symbol", name=qualified_name, start_line=i, end_line=i)
-                )
-
-            # Check for constant declaration
-            if const_match := self.const_pattern.search(line):
-                const_name = const_match.group(1)
-                qualified_name = f"{current_class}::{const_name}" if current_class else const_name
-                symbols.append(
-                    Declaration(kind="symbol", name=qualified_name, start_line=i, end_line=i)
-                )
-
-            i += 1
-
-        return symbols
-
-
-def parse_php(file_path: str, content: str) -> List[Declaration]:
-    """Parse PHP code and return declarations."""
-    parser = PhpParser()
-    return parser.parse(content)
+            brace_count += l2.count("{") - l2.count("}")
+            if brace_count <= 0:
+                return i
+        return len(lines) - 1

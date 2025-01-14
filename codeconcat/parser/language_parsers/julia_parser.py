@@ -1,151 +1,96 @@
-"""Julia code parser for CodeConcat."""
+# file: codeconcat/parser/language_parsers/julia_parser.py
 
 import re
-from typing import Dict, List, Pattern
-
+from typing import List, Optional, Set
 from codeconcat.base_types import Declaration, ParsedFileData
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
+def parse_julia(file_path: str, content: str) -> Optional[ParsedFileData]:
+    parser = JuliaParser()
+    declarations = parser.parse(content)
+    return ParsedFileData(
+        file_path=file_path,
+        language="julia",
+        content=content,
+        declarations=declarations
+    )
 
 class JuliaParser(BaseParser):
-    """Julia language parser."""
-
     def _setup_patterns(self):
-        """Set up Julia-specific patterns."""
+        """
+        We'll define simpler patterns. Note we must handle single-line vs. multi-line function definitions
+        like:
+          function name(...) ...
+        or
+          name(x) = x+1
+        """
+        # We'll unify to 'name' group
         self.patterns = {
             "function": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?)"  # Optional export
-                r"function\s+(?P<func_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Function name
-                r"\s*\((?P<parameters>[^)]*)\)"  # Parameters
-                r"(?:\s*::\s*(?P<return_type>[^{;]+))?"  # Optional return type
+                r"^[^#]*"
+                r"(?:function\s+(?P<name>[a-zA-Z_]\w*))|"
+                r"^(?P<name2>[a-zA-Z_]\w*)\s*\([^)]*\)\s*=\s*"
             ),
             "struct": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?(?:mutable\s+)?)"  # Modifiers
-                r"struct\s+(?P<struct_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Struct name
-                r"(?:\s*<:\s*(?P<supertype>[^{]+))?"  # Optional supertype
+                r"^[^#]*(?:mutable\s+)?struct\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
             ),
             "abstract": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?)"  # Optional export
-                r"abstract\s+type\s+(?P<type_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Type name
-                r"(?:\s*<:\s*(?P<supertype>[^{]+))?"  # Optional supertype
+                r"^[^#]*abstract\s+type\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
             ),
             "module": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?)"  # Optional export
-                r"module\s+(?P<module_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Module name
-            ),
-            "const": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?)"  # Optional export
-                r"const\s+(?P<const_name>[A-Z][A-Z0-9_]*)"  # Constant name
-                r"(?:\s*::\s*(?P<type>[^=]+))?"  # Optional type annotation
-                r"\s*="  # Assignment
+                r"^[^#]*module\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
             ),
             "macro": re.compile(
-                r"^(?P<modifiers>(?:export\s+)?)"  # Optional export
-                r"macro\s+(?P<macro_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Macro name
-                r"\s*\((?P<parameters>[^)]*)\)"  # Parameters
-            ),
-            "variable": re.compile(
-                r"^(?P<var_name>[a-z][a-z0-9_]*)"  # Variable name
-                r"(?:\s*::\s*(?P<type>[^=]+))?"  # Optional type annotation
-                r"\s*=\s*(?!.*(?:function|struct|mutable|module|macro))"  # Assignment, not a definition
+                r"^[^#]*macro\s+(?P<name>[a-zA-Z_]\w*)"
             ),
         }
 
-        self.modifiers = {"export", "mutable"}
-        self.block_start = "begin"
+        self.block_start = "begin"  # not always used, but a placeholder
         self.block_end = "end"
         self.line_comment = "#"
         self.block_comment_start = "#="
         self.block_comment_end = "=#"
 
     def parse(self, content: str) -> List[Declaration]:
-        """Parse Julia code content."""
         lines = content.split("\n")
-        symbols = []
-        brace_count = 0
-        in_comment = False
-        current_module = None
-
+        symbols: List[CodeSymbol] = []
         i = 0
-        while i < len(lines):
-            line = lines[i].strip()
+        line_count = len(lines)
 
-            # Skip empty lines
-            if not line:
+        while i < line_count:
+            line = lines[i]
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
                 i += 1
                 continue
 
-            # Handle block comments
-            if line.startswith("#="):
-                in_comment = True
-                if "=#" in line[2:]:
-                    in_comment = False
-                i += 1
-                continue
-
-            if in_comment:
-                if "=#" in line:
-                    in_comment = False
-                i += 1
-                continue
-
-            # Skip line comments
-            if line.startswith("#"):
-                i += 1
-                continue
-
-            # Look for declarations
+            matched = False
             for kind, pattern in self.patterns.items():
-                match = pattern.match(line)
-                if match:
-                    name = match.group(f"{kind}_name")
-                    modifiers = set()
-                    if "modifiers" in match.groupdict() and match.group("modifiers"):
-                        modifiers = {m.strip() for m in match.group("modifiers").split()}
-
-                    # Create symbol
+                m = pattern.match(stripped)
+                if m:
+                    # unify name
+                    name = m.groupdict().get("name") or m.groupdict().get("name2")
+                    if not name:
+                        continue
                     symbol = CodeSymbol(
                         name=name,
                         kind=kind,
                         start_line=i,
                         end_line=i,
-                        modifiers=modifiers,
-                        parent=current_module,
+                        modifiers=set(),
                     )
-
-                    # Handle block-level constructs
-                    if kind in ("function", "struct", "abstract", "module", "macro"):
-                        j = i + 1
-                        block_level = 1
-                        while j < len(lines) and block_level > 0:
-                            if "begin" in lines[j] or kind in lines[j]:
-                                block_level += 1
-                            if "end" in lines[j]:
-                                block_level -= 1
-                            j += 1
-                        symbol.end_line = j - 1
-                        i = j - 1
-
-                        # Update current module context
-                        if kind == "module":
-                            current_module = symbol
-
                     symbols.append(symbol)
+                    matched = True
                     break
-
             i += 1
 
-        # Convert to Declarations for backward compatibility
-        return [
-            Declaration(symbol.kind, symbol.name, symbol.start_line + 1, symbol.end_line + 1)
-            for symbol in symbols
-        ]
-
-
-def parse_julia(file_path: str, content: str) -> ParsedFileData:
-    """Parse Julia code and return ParsedFileData."""
-    parser = JuliaParser()
-    declarations = parser.parse(content)
-    return ParsedFileData(
-        file_path=file_path, language="julia", content=content, declarations=declarations
-    )
+        declarations = []
+        for sym in symbols:
+            declarations.append(Declaration(
+                kind=sym.kind,
+                name=sym.name,
+                start_line=sym.start_line + 1,
+                end_line=sym.end_line + 1,
+                modifiers=sym.modifiers
+            ))
+        return declarations

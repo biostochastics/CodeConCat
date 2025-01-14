@@ -26,7 +26,7 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
         "merge_docs": cli_args.get("merge_docs", False),
         "output": cli_args.get("output", "code_concat_output.md"),
         "format": cli_args.get("format", "markdown"),
-        "max_workers": cli_args.get("max_workers", 4),
+        "max_workers": cli_args.get("max_workers", 2),
         "disable_tree": cli_args.get("no_tree", False),
         "disable_copy": cli_args.get("no_copy", False),
         "disable_annotations": cli_args.get("no_annotations", False),

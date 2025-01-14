@@ -6,7 +6,7 @@ Holds data classes and typed structures used throughout CodeConCat.
 
 # Rename this file to base_types.py to avoid conflict with Python's types module
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 PROGRAMMING_QUOTES = [
     '"Clean code always looks like it was written by someone who cares." - Robert C. Martin',
@@ -50,15 +50,18 @@ class TokenStats:
 
 @dataclass
 class Declaration:
-    """
-    Represents a top-level construct in a code file, e.g. a function, class, or symbol.
-    Kinds can be: 'function', 'class', 'struct', 'symbol'
-    """
+    """A declaration in a code file."""
 
     kind: str
     name: str
     start_line: int
     end_line: int
+    modifiers: Set[str] = field(default_factory=set)
+    docstring: str = ""
+
+    def __post_init__(self):
+        """Initialize a declaration."""
+        pass
 
 
 @dataclass

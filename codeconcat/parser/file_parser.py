@@ -15,7 +15,7 @@ from codeconcat.parser.language_parsers.julia_parser import parse_julia
 from codeconcat.parser.language_parsers.php_parser import parse_php
 from codeconcat.parser.language_parsers.python_parser import parse_python
 from codeconcat.parser.language_parsers.r_parser import parse_r
-from codeconcat.parser.language_parsers.rust_parser import parse_rust_code
+from codeconcat.parser.language_parsers.rust_parser import parse_rust
 from codeconcat.processor.token_counter import get_token_stats
 
 
@@ -64,7 +64,7 @@ def _parse_single_file(file_path: str, language: str) -> Optional[ParsedFileData
         elif language == "r":
             return parse_r(file_path, content)
         elif language == "rust":
-            return parse_rust_code(file_path, content)
+            return parse_rust(file_path, content)
         else:
             raise ValueError(f"Unsupported language: {language}")
 
@@ -138,7 +138,22 @@ def determine_language(file_path: str) -> Optional[str]:
     Returns:
         Language identifier or None if unknown
     """
+    # Get base name and extension
+    basename = os.path.basename(file_path)
     ext = os.path.splitext(file_path)[1].lower()
+
+    # Skip R project-specific files
+    r_specific_files = {
+        "DESCRIPTION",  # R package description
+        "NAMESPACE",    # R package namespace
+        ".Rproj",      # RStudio project file
+        "configure",    # R package configuration
+        "configure.win",# R package Windows configuration
+    }
+    if basename in r_specific_files:
+        return None
+
+    # Handle regular file extensions
     language_map = {
         ".py": "python",
         ".js": "javascript",
@@ -175,7 +190,7 @@ def get_language_parser(file_path: str) -> Optional[Tuple[str, Callable]]:
         ".r": ("r", parse_r),
         ".jl": ("julia", parse_julia),
         # New parsers
-        ".rs": ("rust", parse_rust_code),
+        ".rs": ("rust", parse_rust),
         ".cpp": ("cpp", parse_cpp_code),
         ".cxx": ("cpp", parse_cpp_code),
         ".cc": ("cpp", parse_cpp_code),

@@ -15,7 +15,7 @@ CodeConCat is your intelligent companion for preparing codebases. It automatical
 - 📋 **Clipboard Integration**: One-click copy to clipboard
 - 🔢 **Token Counting**: Accurate GPT-4 token counting for all processed content
 - ⏳ **Progress Tracking**: Real-time progress indication during processing
-- 🌐 **Multi-Language Support**: Comprehensive parsing for:
+- 🌐 **Multi-Language Support**: Minimal (!) regex-based parsing for (note that this is not an AST-based parser, and currently most tested in Python, R, and TS/JS):
   - Python: Classes, functions, decorators, imports
   - JavaScript/TypeScript: Classes, functions, interfaces, types, decorators
   - Java: Classes, interfaces, enums, methods, annotations
@@ -27,8 +27,8 @@ CodeConCat is your intelligent companion for preparing codebases. It automatical
   - Rust: Traits, impls, structs, enums
   - C/C++: Classes, functions, structs, namespaces
   - C#: Classes, interfaces, methods, properties
-- 🔌 **Programmatic API**: Use CodeConCat directly in your Python code
-- 🌐 **Web API**: Built-in FastAPI web server for HTTP access
+- 🔌 **Programmatic API**: Use CodeConCat directly in your Python code; you are welcome
+- 🌐 **Web API**: Built-in FastAPI web server for HTTP access if for some reason you need it
 
 ## 📖 Usage Guide
 
