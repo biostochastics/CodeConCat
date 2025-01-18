@@ -1,0 +1,70 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.8, pytest-8.3.4, pluggy-1.5.0
+rootdir: /Users/biostochastics/Development/GitHub/codeconcat
+configfile: pyproject.toml
+plugins: cov-6.0.0, asyncio-0.25.2, anyio-4.8.0, mock-3.14.0, hypothesis-6.123.16
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None
+
+Test Results Summary:
+- Total Tests: 73
+- Passed: 38
+- Failed: 35
+- Warnings: 1
+
+Failed Tests:
+1. test_python_parser_edge_cases
+2. test_large_file_handling
+3. TestCppParser::test_enum_declarations
+4. TestCppParser::test_function_declarations
+5. TestCppParser::test_typedef_declarations
+6. test_parse_go_function
+7. test_parse_go_struct
+8. test_parse_go_interface
+9. test_parse_java_class
+10. test_parse_java_method
+11. test_parse_java_field
+12. test_parse_julia_function
+13. test_parse_julia_struct
+14. test_parse_julia_abstract_type
+15. test_parse_julia_module
+16. test_parse_julia_macro
+17. test_parse_php_class
+18. test_parse_php_interface
+19. test_parse_php_trait
+20. test_parse_php_function
+21. test_parse_php_namespace
+22. TestRParser::test_class_declarations
+23. TestRParser::test_complex_assignments
+24. TestRParser::test_dollar_notation_methods
+25. TestRParser::test_function_declarations
+26. TestRParser::test_modifiers
+27. TestRParser::test_nested_functions
+28. TestRParser::test_object_methods_with_dots
+29. TestRParser::test_r6_class
+30. TestRParser::test_reference_class
+31. TestRParser::test_s3_methods
+32. test_parse_rust_impl
+33. test_parse_rust_doc_comments
+34. test_parse_rust_attributes
+35. test_parse_rust_complex_impl
+
+Coverage Summary:
+- Total Statements: 2607
+- Missed Statements: 1146
+- Coverage: 56%
+
+Key Coverage Issues:
+- codeconcat/main.py: 15% coverage
+- codeconcat/config/config_loader.py: 19% coverage
+- codeconcat/parser/language_parsers/c_parser.py: 10% coverage
+- codeconcat/parser/language_parsers/csharp_parser.py: 9% coverage
+- codeconcat/parser/language_parsers/js_ts_parser.py: 6% coverage
+- codeconcat/writer/xml_writer.py: 12% coverage
+
+Warnings:
+- DeprecationWarning in halo.py: setDaemon() is deprecated, set the daemon attribute instead
+
+Error Details:
+[See detailed test failures in previous output]
+
+Test session finished in 1.22s

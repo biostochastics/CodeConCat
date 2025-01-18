@@ -80,6 +80,9 @@ class JstsParser(BaseParser):
     def _setup_patterns(self) -> List[re.Pattern]:
         """Set up regex patterns for parsing JavaScript/TypeScript code."""
         return [
+            # Class patterns (must come before method patterns)
+            re.compile(r"^(?:export\s+)?class\s+(?P<symbol_name>\w+)"),
+            
             # Function patterns
             re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(?P<symbol_name>\w+)\s*\("),
             re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?function\s*\("),
@@ -87,9 +90,6 @@ class JstsParser(BaseParser):
             
             # Method patterns (inside class)
             re.compile(r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\("),
-            
-            # Class patterns
-            re.compile(r"^(?:export\s+)?class\s+(?P<symbol_name>\w+)"),
             
             # Interface patterns (TypeScript)
             re.compile(r"^(?:export\s+)?interface\s+(?P<symbol_name>\w+)"),
@@ -101,15 +101,37 @@ class JstsParser(BaseParser):
             re.compile(r"^(?:export\s+)?enum\s+(?P<symbol_name>\w+)"),
         ]
 
+    def _get_kind(self, pattern: re.Pattern) -> str:
+        """Get the kind of symbol based on the pattern that matched."""
+        pattern_str = pattern.pattern
+        if "=>" in pattern_str:
+            return "arrow_function"
+        elif "function\\s+" in pattern_str:
+            return "function"
+        elif "class\\s+" in pattern_str:
+            return "class"
+        elif "interface\\s+" in pattern_str:
+            return "interface"
+        elif "type\\s+" in pattern_str:
+            return "type"
+        elif "enum\\s+" in pattern_str:
+            return "enum"
+        elif r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\(" in pattern_str:
+            # If we're inside a class, it's a method. Otherwise, it's a function.
+            if self.in_class:
+                return "method"
+            return "function"
+        return "unknown"  # Default to unknown for any other patterns
+
     def parse(self, content: str) -> List[Declaration]:
         """Parse JavaScript/TypeScript code content."""
         lines = content.split("\n")
-        symbols: List[CodeSymbol] = []
-        symbol_stack: List[CodeSymbol] = []
-        current_doc_comments = []
-        current_modifiers = set()
-        brace_depth = 0
-        self.in_class = False
+        symbols = []  # List to store all symbols
+        symbol_stack = []  # Stack for tracking nested symbols
+        current_doc_comments = []  # List to store current doc comments
+        current_modifiers = set()  # Set to store current modifiers
+        brace_depth = 0  # Counter for tracking brace depth
+        self.in_class = False  # Initialize class context
 
         def pop_symbols_up_to(depth: int, line_idx: int):
             """Pop symbols from stack up to given depth."""
@@ -117,7 +139,11 @@ class JstsParser(BaseParser):
                 symbol = symbol_stack.pop()
                 symbol.end_line = line_idx
                 if symbol_stack:
+                    # Only add to children if we're popping a nested symbol
                     symbol_stack[-1].children.append(symbol)
+                    # Don't add to symbols list if it's a child
+                    if symbol.kind == "method":
+                        continue
                 symbols.append(symbol)
                 if symbol.kind == "class":
                     self.in_class = False
@@ -222,34 +248,18 @@ class JstsParser(BaseParser):
                     docstring=symbol.docstring,
                 )
             )
-            # Also add child declarations
+            # Add child declarations
             for child in symbol.children:
-                declarations.append(
-                    Declaration(
-                        kind=child.kind,
-                        name=child.name,
-                        start_line=child.start_line,
-                        end_line=child.end_line,
-                        modifiers=child.modifiers,
-                        docstring=child.docstring,
+                if child.kind == "method":
+                    declarations.append(
+                        Declaration(
+                            kind=child.kind,
+                            name=child.name,
+                            start_line=child.start_line,
+                            end_line=child.end_line,
+                            modifiers=child.modifiers,
+                            docstring=child.docstring,
+                        )
                     )
-                )
 
         return declarations
-
-    def _get_kind(self, pattern: re.Pattern) -> str:
-        """Get the kind of symbol based on the pattern that matched."""
-        pattern_str = pattern.pattern
-        if "function" in pattern_str or "=>" in pattern_str:
-            return "function"
-        elif "class" in pattern_str:
-            return "class"
-        elif "interface" in pattern_str:
-            return "interface"
-        elif "type" in pattern_str:
-            return "type"
-        elif "enum" in pattern_str:
-            return "enum"
-        elif self.in_class and r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\(" in pattern_str:
-            return "method"
-        return "function"  # Default to function for any other patterns

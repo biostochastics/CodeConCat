@@ -158,6 +158,8 @@ def determine_language(file_path: str) -> Optional[str]:
         ".py": "python",
         ".js": "javascript",
         ".ts": "typescript",
+        ".jsx": "javascript",
+        ".tsx": "typescript",
         ".r": "r",
         ".jl": "julia",
         ".rs": "rust",
