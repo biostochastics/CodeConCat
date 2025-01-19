@@ -236,6 +236,39 @@ def test_token_counting():
     assert parsed.token_stats.claude_tokens > 0
 
 
+def test_disable_ai_context(temp_dir):
+    # Create test files
+    code_file = os.path.join(temp_dir, "main.py")
+    with open(code_file, "w") as f:
+        f.write("""
+def main():
+    print("Hello, World!")
+""")
+
+    config = CodeConCatConfig(target_path=temp_dir)
+    files = collect_local_files(temp_dir, config)
+    parsed_files = parse_code_files([f.file_path for f in files], config)
+    assert len(parsed_files) == 1
+    assert len(parsed_files[0].declarations) == 1
+
+def test_merge_docs(temp_dir):
+    # Create test files
+    code_file = os.path.join(temp_dir, "main.py")
+    with open(code_file, "w") as f:
+        f.write("""
+def main():
+    \"\"\"Main function.\"\"\"
+    print("Hello, World!")
+""")
+
+    config = CodeConCatConfig(target_path=temp_dir)
+    files = collect_local_files(temp_dir, config)
+    parsed_files = parse_code_files([f.file_path for f in files], config)
+    assert len(parsed_files) == 1
+    assert len(parsed_files[0].declarations) == 1
+    assert parsed_files[0].declarations[0].docstring == "Main function."
+
+
 if __name__ == "__main__":
     # Run tests with coverage when executing the file directly
     import sys

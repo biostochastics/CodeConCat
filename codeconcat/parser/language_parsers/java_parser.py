@@ -16,116 +16,203 @@ def parse_java(file_path: str, content: str) -> Optional[ParsedFileData]:
     )
 
 class JavaParser(BaseParser):
-    def _setup_patterns(self):
-        """
-        We'll define patterns for class, interface, method, field (rough).
-        If the line includes `{` we'll parse the block. We handle constructor vs. method by checking if
-        there's a return type.
-        """
-        self.patterns = {
-            "class": re.compile(
-                r"^[^/]*"
-                r"(?:public|private|protected|static|final|abstract\s+)*"
-                r"class\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
-                r"(?:\s+extends\s+[a-zA-Z0-9_.]+)?"
-                r"(?:\s+implements\s+[a-zA-Z0-9_.]+(?:\s*,\s*[a-zA-Z0-9_.]+)*)?"
-                r"\s*\{"
-            ),
-            "interface": re.compile(
-                r"^[^/]*"
-                r"(?:public|private|protected|static\s+)*"
-                r"interface\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
-                r"(?:\s+extends\s+[a-zA-Z0-9_.]+(?:\s*,\s*[a-zA-Z0-9_.]+)*)?"
-                r"\s*\{"
-            ),
-            "method": re.compile(
-                r"^[^/]*"
-                r"(?:public|private|protected|static|final|abstract|synchronized\s+)*"
-                r"(?:[a-zA-Z_][a-zA-Z0-9_.<>\[\]\s]*\s+)+"   # return type
-                r"(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"         # method or constructor name
-                r"\s*\([^)]*\)\s*"
-                r"(?:throws\s+[a-zA-Z0-9_.]+(?:\s*,\s*[a-zA-Z0-9_.]+)*)?"
-                r"\s*\{"
-            ),
-            "field": re.compile(
-                r"^[^/]*"
-                r"(?:public|private|protected|static|final|volatile|transient\s+)*"
-                r"[a-zA-Z_][a-zA-Z0-9_<>\[\]\s]*\s+"
-                r"(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*;"
-            ),
-        }
+    def __init__(self):
+        super().__init__()
+        self._setup_patterns()
 
+    def _setup_patterns(self):
+        """Set up patterns for Java code declarations."""
+        self.patterns = {}
+        
+        # Java uses curly braces
         self.block_start = "{"
         self.block_end = "}"
         self.line_comment = "//"
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
 
-    def parse(self, content: str) -> List[Declaration]:
-        lines = content.split("\n")
-        symbols: List[CodeSymbol] = []
-        i = 0
-        line_count = len(lines)
+        # Class pattern (including modifiers and inheritance)
+        class_pattern = r"^\s*(?:public\s+|private\s+|protected\s+|static\s+|final\s+)*class\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)"
+        self.patterns["class"] = re.compile(class_pattern)
 
-        while i < line_count:
+        # Interface pattern
+        interface_pattern = r"^\s*(?:public\s+|private\s+|protected\s+)*interface\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)"
+        self.patterns["interface"] = re.compile(interface_pattern)
+
+        # Method pattern (including modifiers and return type)
+        method_pattern = r"^\s*(?:public\s+|private\s+|protected\s+|static\s+|final\s+|abstract\s+)*(?:[a-zA-Z_][a-zA-Z0-9_<>[\],\s]*\s+)?(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s*\("
+        self.patterns["method"] = re.compile(method_pattern)
+
+        # Field pattern (including modifiers and type)
+        field_pattern = r"^\s*(?:public\s+|private\s+|protected\s+|static\s+|final\s+)*(?:[a-zA-Z_][a-zA-Z0-9_<>[\],\s]*\s+)(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s*[=;]"
+        self.patterns["field"] = re.compile(field_pattern)
+
+        self.modifiers = {"public", "private", "protected", "static", "final", "abstract"}
+
+    def parse(self, content: str) -> List[Declaration]:
+        """Parse Java code content and return list of declarations."""
+        declarations = []
+        lines = content.split('\n')
+        in_comment = False
+        
+        i = 0
+        while i < len(lines):
             line = lines[i].strip()
-            if not line or line.startswith("//"):
+            
+            # Skip empty lines and comments
+            if not line or line.startswith('//'):
                 i += 1
                 continue
-
-            matched = False
+                
+            # Handle block comments
+            if "/*" in line and not in_comment:
+                in_comment = True
+                i += 1
+                continue
+            elif in_comment:
+                if "*/" in line:
+                    in_comment = False
+                i += 1
+                continue
+            
+            # Collect modifiers
+            modifiers = set()
+            words = line.split()
+            j = 0
+            while j < len(words) and words[j] in self.modifiers:
+                modifiers.add(words[j])
+                j += 1
+            
+            # Try to match patterns
             for kind, pattern in self.patterns.items():
                 match = pattern.match(line)
                 if match:
-                    name = match.group("name")
-                    # Distinguish constructor vs. method:
-                    if kind == "method":
-                        # If the 'return type' portion doesn't exist or matches the name exactly => constructor
-                        # This is simplistic check. We might check if the return type is the same as `name`.
-                        # We'll keep it as method for test.
-                        pass
-
-                    block_end = i
-                    if kind in ("class", "interface", "method"):
-                        block_end = self._find_block_end(lines, i)
-
-                    symbol = CodeSymbol(
-                        kind=kind,
-                        name=name,
-                        start_line=i,
-                        end_line=block_end,
-                        modifiers=set(),
-                    )
-                    symbols.append(symbol)
-                    i = block_end
-                    matched = True
-                    break
-            if not matched:
+                    name = match.group("n")
+                    if not name:
+                        continue
+                        
+                    # Find block end for block-based declarations
+                    end_line = i
+                    if kind in ("class", "interface", "enum", "method"):
+                        brace_count = 0
+                        found_opening = False
+                        
+                        # Find the end of the block by counting braces
+                        j = i
+                        while j < len(lines):
+                            curr_line = lines[j].strip()
+                            
+                            if "{" in curr_line:
+                                found_opening = True
+                                brace_count += curr_line.count("{")
+                            if "}" in curr_line:
+                                brace_count -= curr_line.count("}")
+                                
+                            if found_opening and brace_count == 0:
+                                end_line = j
+                                break
+                            j += 1
+                            
+                        # Extract docstring if present
+                        docstring = self.extract_docstring(lines, i, end_line)
+                        
+                        # Add the declaration
+                        declarations.append(Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i + 1,
+                            end_line=end_line + 1,
+                            modifiers=modifiers,
+                            docstring=docstring or ""
+                        ))
+                        
+                        # Parse nested declarations only for class/interface/enum
+                        if kind in ("class", "interface", "enum") and end_line > i:
+                            nested_content = []
+                            for k in range(i+1, end_line):
+                                nested_line = lines[k].strip()
+                                if nested_line and not nested_line.startswith('//'):
+                                    nested_content.append((k, lines[k]))
+                            
+                            if nested_content:
+                                for k, nested_line in nested_content:
+                                    # Try to match each pattern
+                                    for nested_kind, nested_pattern in self.patterns.items():
+                                        if nested_kind in ("class", "interface", "enum"):
+                                            continue  # Skip nested class declarations for now
+                                        nested_match = nested_pattern.match(nested_line.strip())
+                                        if nested_match:
+                                            nested_name = nested_match.group("n")
+                                            if nested_name:
+                                                # Extract modifiers
+                                                nested_modifiers = set()
+                                                nested_words = nested_line.strip().split()
+                                                m = 0
+                                                while m < len(nested_words) and nested_words[m] in self.modifiers:
+                                                    nested_modifiers.add(nested_words[m])
+                                                    m += 1
+                                                
+                                                # Find the end of the nested block
+                                                nested_end_line = k
+                                                if "{" in nested_line:
+                                                    nested_brace_count = 1
+                                                    n = k + 1
+                                                    while n < len(lines):
+                                                        curr_nested_line = lines[n].strip()
+                                                        if "{" in curr_nested_line:
+                                                            nested_brace_count += curr_nested_line.count("{")
+                                                        if "}" in curr_nested_line:
+                                                            nested_brace_count -= curr_nested_line.count("}")
+                                                        if nested_brace_count == 0:
+                                                            nested_end_line = n
+                                                            break
+                                                        n += 1
+                                                
+                                                declarations.append(Declaration(
+                                                    kind=nested_kind,
+                                                    name=nested_name,
+                                                    start_line=k + 1,
+                                                    end_line=nested_end_line + 1,
+                                                    modifiers=nested_modifiers,
+                                                    docstring=""
+                                                ))
+                        i = end_line + 1
+                        break
+                    else:
+                        # For non-block declarations (fields, etc.)
+                        declarations.append(Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i + 1,
+                            end_line=i + 1,
+                            modifiers=modifiers,
+                            docstring=""
+                        ))
+                        i += 1
+                        break
+            else:
                 i += 1
+                
+        # Filter declarations to keep only top-level class/interface/enum declarations and their members
+        filtered_declarations = []
+        top_level_declarations = [d for d in declarations if d.kind in ("class", "interface", "enum")]
+        
+        for top_level in top_level_declarations:
+            filtered_declarations.append(top_level)
+            
+            # Add members of this top-level declaration
+            start_line = top_level.start_line
+            end_line = top_level.end_line
+            for d in declarations:
+                if d.start_line > start_line and d.end_line < end_line:
+                    filtered_declarations.append(d)
+                    
+        return filtered_declarations
 
-        declarations = []
-        for sym in symbols:
-            declarations.append(Declaration(
-                kind=sym.kind,
-                name=sym.name,
-                start_line=sym.start_line + 1,
-                end_line=sym.end_line + 1,
-                modifiers=sym.modifiers
-            ))
-        return declarations
-
-    def _find_block_end(self, lines: List[str], start: int) -> int:
-        line = lines[start]
-        if "{" not in line:
-            return start
-        brace_count = line.count("{") - line.count("}")
-        if brace_count <= 0:
-            return start
-        for i in range(start + 1, len(lines)):
-            l2 = lines[i].strip()
-            if l2.startswith("//"):
-                continue
-            brace_count += l2.count("{") - l2.count("}")
-            if brace_count <= 0:
-                return i
-        return len(lines) - 1
+    def extract_docstring(self, lines, start, end):
+        """Extract docstring from Java code."""
+        docstring = ""
+        for line in lines[start+1:end]:
+            if line.strip().startswith("//"):
+                docstring += line.strip().replace("//", "", 1).strip() + "\n"
+        return docstring.strip()

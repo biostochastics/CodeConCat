@@ -49,7 +49,6 @@ class JstsParser(BaseParser):
 
     def __init__(self, language: str = "javascript"):
         self.language = language
-        self.patterns = []
         super().__init__()
 
         # Set recognized modifiers
@@ -75,21 +74,23 @@ class JstsParser(BaseParser):
         # Context tracking
         self.in_class = False
 
-        self._setup_patterns()
+        # Set up patterns
+        self.patterns = self._setup_patterns()
 
     def _setup_patterns(self) -> List[re.Pattern]:
         """Set up regex patterns for parsing JavaScript/TypeScript code."""
         return [
-            # Class patterns (must come before method patterns)
-            re.compile(r"^(?:export\s+)?class\s+(?P<symbol_name>\w+)"),
-            
-            # Function patterns
+            # Function patterns (must come before class patterns)
             re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(?P<symbol_name>\w+)\s*\("),
             re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?function\s*\("),
-            re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?\(.*\)\s*=>"),
+            # Arrow function pattern
+            re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>"),
             
             # Method patterns (inside class)
             re.compile(r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\("),
+            
+            # Class patterns
+            re.compile(r"^(?:export\s+)?class\s+(?P<symbol_name>\w+)"),
             
             # Interface patterns (TypeScript)
             re.compile(r"^(?:export\s+)?interface\s+(?P<symbol_name>\w+)"),
@@ -104,7 +105,8 @@ class JstsParser(BaseParser):
     def _get_kind(self, pattern: re.Pattern) -> str:
         """Get the kind of symbol based on the pattern that matched."""
         pattern_str = pattern.pattern
-        if "=>" in pattern_str:
+        # Check for arrow function first
+        if r"\s*=\s*(?:async\s+)?\([^)]*\)\s*=>" in pattern_str:
             return "arrow_function"
         elif "function\\s+" in pattern_str:
             return "function"
@@ -141,10 +143,9 @@ class JstsParser(BaseParser):
                 if symbol_stack:
                     # Only add to children if we're popping a nested symbol
                     symbol_stack[-1].children.append(symbol)
-                    # Don't add to symbols list if it's a child
-                    if symbol.kind == "method":
-                        continue
-                symbols.append(symbol)
+                else:
+                    # Only add to symbols list if it's a top-level symbol
+                    symbols.append(symbol)
                 if symbol.kind == "class":
                     self.in_class = False
 
@@ -180,7 +181,7 @@ class JstsParser(BaseParser):
 
             # Try to match each pattern
             matched = False
-            for pattern in self._setup_patterns():
+            for pattern in self.patterns:  # Use stored patterns
                 match = pattern.match(line)
                 if match:
                     matched = True
@@ -237,7 +238,9 @@ class JstsParser(BaseParser):
 
         # Convert symbols to declarations
         declarations = []
-        for symbol in symbols:
+        
+        def add_symbol_to_declarations(symbol: CodeSymbol):
+            """Helper function to recursively add symbols and their children to declarations."""
             declarations.append(
                 Declaration(
                     kind=symbol.kind,
@@ -248,18 +251,12 @@ class JstsParser(BaseParser):
                     docstring=symbol.docstring,
                 )
             )
-            # Add child declarations
+            # Add child declarations recursively
             for child in symbol.children:
-                if child.kind == "method":
-                    declarations.append(
-                        Declaration(
-                            kind=child.kind,
-                            name=child.name,
-                            start_line=child.start_line,
-                            end_line=child.end_line,
-                            modifiers=child.modifiers,
-                            docstring=child.docstring,
-                        )
-                    )
+                add_symbol_to_declarations(child)
+        
+        # Process each top-level symbol
+        for symbol in symbols:
+            add_symbol_to_declarations(symbol)
 
         return declarations

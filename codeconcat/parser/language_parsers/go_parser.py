@@ -7,7 +7,7 @@ from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbo
 
 def parse_go(file_path: str, content: str) -> Optional[ParsedFileData]:
     parser = GoParser()
-    declarations = parser.parse(content)
+    declarations = parser.parse_file(content)
     return ParsedFileData(
         file_path=file_path,
         language="go",
@@ -16,143 +16,196 @@ def parse_go(file_path: str, content: str) -> Optional[ParsedFileData]:
     )
 
 class GoParser(BaseParser):
-    def _setup_patterns(self):
-        """
-        We separate out interface vs. struct vs. type in general, to avoid double counting.
-        """
-        self.patterns = {
-            "struct": re.compile(
-                r"^[^/]*type\s+(?P<name>[A-Z][a-zA-Z0-9_]*)\s+struct\s*\{"
-            ),
-            "interface": re.compile(
-                r"^[^/]*type\s+(?P<name>[A-Z][a-zA-Z0-9_]*)\s+interface\s*\{"
-            ),
-            "function": re.compile(
-                r"^[^/]*func\s+(?:\([^)]+\)\s+)?(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)"
-                r"(?:\s*\([^)]*\))?\s*\{"
-            ),
-            "const": re.compile(
-                r"^[^/]*const\s+(?:\(\s*|(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*=)"
-            ),
-            "var": re.compile(
-                r"^[^/]*var\s+(?:\(\s*|(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|\s+[^=\s]+))"
-            ),
-        }
+    def __init__(self):
+        super().__init__()
+        self._setup_patterns()
 
+    def _setup_patterns(self):
+        """Set up patterns for Go code declarations."""
+        self.patterns = {}
+        
+        # Go uses curly braces
         self.block_start = "{"
         self.block_end = "}"
         self.line_comment = "//"
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
 
+        # Function pattern (both regular and method)
+        func_pattern = r"^\s*func\s+(?:\([^)]+\)\s+)?(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s*\("
+        self.patterns["function"] = re.compile(func_pattern)
+
+        # Interface pattern
+        interface_pattern = r"^\s*type\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s+interface\s*"
+        self.patterns["interface"] = re.compile(interface_pattern)
+
+        # Struct pattern
+        struct_pattern = r"^\s*type\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s+struct\s*"
+        self.patterns["struct"] = re.compile(struct_pattern)
+
+        # Const pattern (both single and block)
+        const_pattern = r"^\s*(?:const\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|const\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
+        self.patterns["const"] = re.compile(const_pattern)
+
+        # Var pattern (both single and block)
+        var_pattern = r"^\s*(?:var\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|var\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
+        self.patterns["var"] = re.compile(var_pattern)
+
+    def parse_file(self, content: str) -> List[Declaration]:
+        """Parse Go file content and return list of declarations."""
+        return self.parse(content)
+
     def parse(self, content: str) -> List[Declaration]:
-        lines = content.split("\n")
-        symbols: List[CodeSymbol] = []
+        """Parse Go code content and return list of declarations."""
+        declarations = []
+        lines = content.split('\n')
+        in_comment = False
+        comment_buffer = []
         in_const_block = False
         in_var_block = False
+        
         i = 0
         while i < len(lines):
-            line = lines[i]
-            stripped = line.strip()
-            if not stripped or stripped.startswith("//"):
+            line = lines[i].strip()
+            
+            # Skip empty lines and comments
+            if not line or line.startswith('//'):
                 i += 1
                 continue
-
-            # handle multi-line const ( ) or var ( )
-            if in_const_block or in_var_block:
-                if ")" in stripped:
-                    # block closed
+                
+            # Handle block comments
+            if "/*" in line and not in_comment:
+                in_comment = True
+                i += 1
+                continue
+            elif in_comment:
+                if "*/" in line:
+                    in_comment = False
+                i += 1
+                continue
+                
+            # Handle const blocks
+            if line.startswith("const ("):
+                in_const_block = True
+                i += 1
+                continue
+            elif in_const_block:
+                if line == ")":
                     in_const_block = False
-                    in_var_block = False
+                    i += 1
+                    continue
+                else:
+                    # Parse constant declaration inside block
+                    name = line.split("=")[0].strip()
+                    if name and name.isidentifier():
+                        declarations.append(Declaration(
+                            kind="const",
+                            name=name,
+                            start_line=i + 1,
+                            end_line=i + 1,
+                            modifiers=set(),
+                            docstring=""
+                        ))
                     i += 1
                     continue
 
-                # lines inside const/var block
-                if "=" in stripped:
-                    # parse out the name
-                    parts = stripped.split("=")
-                    name_part = parts[0].strip()
-                    # we only take the first token as name
-                    name = name_part.split()[0]
-                    kind = "const" if in_const_block else "var"
-                    symbol = CodeSymbol(
-                        name=name,
-                        kind=kind,
-                        start_line=i + 1,
-                        end_line=i + 1,
-                        modifiers=set(),
-                    )
-                    symbols.append(symbol)
+            # Handle var blocks
+            if line.startswith("var ("):
+                in_var_block = True
                 i += 1
                 continue
-
-            matched = False
-            for kind, pattern in self.patterns.items():
-                m = pattern.match(stripped)
-                if m:
-                    matched = True
-                    if kind in ("const", "var"):
-                        # If group 'name' is not found => multi-line block
-                        name = m.groupdict().get("name", None)
-                        if name is None:
-                            # e.g. const (
-                            if kind == "const":
-                                in_const_block = True
-                            else:
-                                in_var_block = True
-                        else:
-                            # Single-line const/var
-                            symbol = CodeSymbol(
-                                name=name,
-                                kind=kind,
-                                start_line=i + 1,
-                                end_line=i + 1,
-                                modifiers=set(),
-                            )
-                            symbols.append(symbol)
-                    else:
-                        # struct, interface, function
-                        name = m.group("name")
-                        block_end = self._find_block_end(lines, i)
-                        symbol = CodeSymbol(
+            elif in_var_block:
+                if line == ")":
+                    in_var_block = False
+                    i += 1
+                    continue
+                else:
+                    # Parse variable declaration inside block
+                    name = line.split("=")[0].strip().split()[0]
+                    if name and name.isidentifier():
+                        declarations.append(Declaration(
+                            kind="var",
                             name=name,
-                            kind=kind,
                             start_line=i + 1,
-                            end_line=block_end + 1,
+                            end_line=i + 1,
                             modifiers=set(),
-                        )
-                        symbols.append(symbol)
-                        i = block_end
+                            docstring=""
+                        ))
+                    i += 1
+                    continue
+                
+            # Try to match patterns
+            for kind, pattern in self.patterns.items():
+                match = pattern.match(line)
+                if match:
+                    name = match.group("n")
+                    if not name:
+                        continue
+                        
+                    # Find block end for block-based declarations
+                    end_line = i
+                    if kind in ("function", "interface", "struct"):
+                        brace_count = 0
+                        found_opening = False
+                        
+                        # Find the end of the block by counting braces
+                        j = i
+                        while j < len(lines):
+                            curr_line = lines[j].strip()
+                            
+                            if "{" in curr_line:
+                                found_opening = True
+                                brace_count += curr_line.count("{")
+                            if "}" in curr_line:
+                                brace_count -= curr_line.count("}")
+                                
+                            if found_opening and brace_count == 0:
+                                end_line = j
+                                break
+                            j += 1
+                        
+                    # Extract docstring if present
+                    docstring = None
+                    if end_line > i:
+                        docstring = self.extract_docstring(lines, i, end_line)
+                        
+                    declarations.append(Declaration(
+                        kind=kind,
+                        name=name,
+                        start_line=i + 1,
+                        end_line=end_line + 1,
+                        modifiers=set(),
+                        docstring=docstring or ""
+                    ))
+                    i = end_line + 1
                     break
-            if not matched:
-                # no pattern matched
-                pass
+            else:
+                i += 1
 
-            i += 1
-
-        declarations = []
-        for sym in symbols:
-            declarations.append(Declaration(
-                kind=sym.kind,
-                name=sym.name,
-                start_line=sym.start_line,
-                end_line=sym.end_line,
-                modifiers=sym.modifiers
-            ))
         return declarations
 
     def _find_block_end(self, lines: List[str], start: int) -> int:
-        line = lines[start]
-        if "{" not in line:
-            return start
-        brace_count = line.count("{") - line.count("}")
-        if brace_count <= 0:
-            return start
-        for i in range(start + 1, len(lines)):
-            l2 = lines[i]
-            if l2.strip().startswith("//"):
-                continue
-            brace_count += l2.count("{") - l2.count("}")
-            if brace_count <= 0:
-                return i
-        return len(lines) - 1
+        """Find the end of a Go code block."""
+        brace_count = 0
+        i = start
+        
+        # Find the opening brace
+        while i < len(lines):
+            line = lines[i]
+            if '{' in line:
+                brace_count += 1
+                break
+            i += 1
+        
+        # Find the matching closing brace
+        while i < len(lines):
+            line = lines[i]
+            brace_count += line.count('{')
+            brace_count -= line.count('}')
+            
+            if brace_count == 0:
+                return i + 1
+            
+            i += 1
+        
+        return len(lines)

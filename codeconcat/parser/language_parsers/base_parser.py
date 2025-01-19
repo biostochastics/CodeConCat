@@ -27,35 +27,37 @@ class BaseParser(ABC):
     """
 
     def __init__(self):
+        """Initialize the parser with default values."""
         self.symbols: List[CodeSymbol] = []
         self.current_symbol: Optional[CodeSymbol] = None
         self.symbol_stack: List[CodeSymbol] = []
+        self.block_start = "{"  # Default block start
+        self.block_end = "}"    # Default block end
+        self.line_comment = "//"  # Default line comment
+        self.block_comment_start = "/*"  # Default block comment start
+        self.block_comment_end = "*/"    # Default block comment end
         self._setup_patterns()
 
     @abstractmethod
     def _setup_patterns(self):
+        """Set up regex patterns for code declarations. Must be implemented by subclasses."""
         self.patterns: Dict[str, Pattern] = {}
         self.modifiers: Set[str] = set()
-        self.block_start: str = "{"
-        self.block_end: str = "}"
-        self.line_comment: str = "//"
-        self.block_comment_start: str = "/*"
-        self.block_comment_end: str = "*/"
+        raise NotImplementedError("Subclasses must implement _setup_patterns")
 
     def parse(self, content: str) -> List[Tuple[str, int, int]]:
-        """
-        A default naive parse that tries to identify code symbols via line-based scanning.
-        Subclasses often override parse() with a more language-specific approach.
-        """
+        """Parse code content and return list of declarations."""
         self.symbols = []
         self.current_symbol = None
         self.symbol_stack = []
+        
+        # Track seen declarations to avoid duplicates
+        seen_declarations = set()  # (name, start_line, kind) tuples
 
         lines = content.split("\n")
         in_comment = False
         comment_buffer = []
-
-        brace_count = 0  # naive brace count
+        brace_count = 0
 
         for i, line in enumerate(lines):
             stripped_line = line.strip()
@@ -72,7 +74,6 @@ class BaseParser(ABC):
                     in_comment = False
                     comment_end = line.index(self.block_comment_end)
                     comment_buffer.append(line[:comment_end])
-                    # Optionally, store docstrings if needed
                     comment_buffer = []
                 else:
                     comment_buffer.append(line)
@@ -83,49 +84,94 @@ class BaseParser(ABC):
                 continue
 
             # Basic brace tracking
-            brace_count += line.count(self.block_start) - line.count(self.block_end)
+            if self.block_start is not None and self.block_end is not None:
+                brace_count += line.count(self.block_start) - line.count(self.block_end)
 
-            # Attempt naive matching
-            if not self.current_symbol:
-                for kind, pattern in self.patterns.items():
-                    match = pattern.match(line)
-                    if match:
-                        # Typically, we look for match.group("name"), but must confirm
-                        if "name" in match.groupdict():
-                            name = match.group("name") or ""
-                        else:
-                            continue
+            # Try to match patterns
+            for kind, pattern in self.patterns.items():
+                match = pattern.match(stripped_line)
+                if match:
+                    name = match.group("n")  # Use "n" instead of "name"
+                    if not name:
+                        continue
 
-                        # Possibly gather modifiers
-                        mods = set()
-                        if "modifiers" in match.groupdict() and match.group("modifiers"):
-                            raw_mods = match.group("modifiers").split()
-                            mods = {m.strip() for m in raw_mods if m.strip()}
+                    # Check if we've seen this declaration before
+                    declaration_key = (name, i, kind)
+                    if declaration_key in seen_declarations:
+                        continue
+                    seen_declarations.add(declaration_key)
 
-                        symbol = CodeSymbol(
-                            name=name,
-                            kind=kind,
-                            start_line=i,
-                            end_line=i,
-                            modifiers=mods & self.modifiers,
-                        )
-                        if self.symbol_stack:
-                            symbol.parent = self.symbol_stack[-1]
-                            self.symbol_stack[-1].children.append(symbol)
+                    # Find block end for block-based declarations
+                    end_line = i
+                    if kind in ("class", "function", "method", "interface", "struct", "enum"):
+                        end_line = self._find_block_end(lines, i)
 
+                    # Extract docstring if present
+                    docstring = None
+                    if end_line > i:
+                        docstring = self.extract_docstring(lines, i, end_line)
+
+                    # Create new symbol
+                    symbol = CodeSymbol(
+                        name=name,
+                        kind=kind,
+                        start_line=i,
+                        end_line=end_line,
+                        modifiers=set(),
+                        docstring=docstring
+                    )
+
+                    # Handle symbol hierarchy
+                    if self.current_symbol:
+                        symbol.parent = self.current_symbol
+                        self.current_symbol.children.append(symbol)
+                    else:
+                        self.symbols.append(symbol)
+
+                    # Update current symbol for nested declarations
+                    if kind in ("class", "interface", "struct"):
+                        self.symbol_stack.append(self.current_symbol)
                         self.current_symbol = symbol
-                        self.symbol_stack.append(symbol)
-                        break
 
+            # Handle end of block
             if self.current_symbol and brace_count == 0:
-                if (self.block_end in line) or (";" in line):
-                    self.current_symbol.end_line = i
-                    self.symbols.append(self.current_symbol)
-                    if self.symbol_stack:
-                        self.symbol_stack.pop()
-                    self.current_symbol = self.symbol_stack[-1] if self.symbol_stack else None
+                self.current_symbol = self.symbol_stack.pop() if self.symbol_stack else None
 
-        return [(s.name, s.start_line, s.end_line) for s in self.symbols]
+        # Convert symbols to tuples
+        declarations = []
+        for symbol in self.symbols:
+            declarations.extend(self._flatten_symbol(symbol))
+        return declarations
+
+    def _flatten_symbol(self, symbol: CodeSymbol) -> List[Tuple[str, int, int]]:
+        """Flatten a symbol and its children into a list of declaration tuples."""
+        declarations = [(symbol.name, symbol.start_line, symbol.end_line)]
+        for child in symbol.children:
+            declarations.extend(self._flatten_symbol(child))
+        return declarations
+
+    def _find_block_end(self, lines: List[str], start: int) -> int:
+        """Find the end of a code block."""
+        if self.block_start is None or self.block_end is None:
+            return start
+
+        line = lines[start]
+        if self.block_start not in line:
+            return start
+
+        brace_count = line.count(self.block_start) - line.count(self.block_end)
+        if brace_count <= 0:
+            return start
+
+        for i in range(start + 1, len(lines)):
+            line = lines[i].strip()
+            if line.startswith(self.line_comment):
+                continue
+            brace_count += line.count(self.block_start) - line.count(self.block_end)
+            if brace_count <= 0:
+                return i
+
+        return len(lines) - 1
 
     def _create_pattern(self, base_pattern: str, modifiers: Optional[List[str]] = None) -> Pattern:
         if modifiers:

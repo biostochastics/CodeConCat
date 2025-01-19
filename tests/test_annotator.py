@@ -107,3 +107,55 @@ def test_annotate_with_symbols():
     assert set(result.tags) == {"has_symbols", "python"}
     assert "### Symbols" in result.annotated_content
     assert "- x" in result.annotated_content
+
+
+def test_disable_symbols():
+    parsed_data = ParsedFileData(
+        file_path="/path/to/test.py",
+        language="python",
+        content="x = 1\ny = 2\ndef test(): pass",
+        declarations=[
+            Declaration(
+                kind="symbol",
+                name="x",
+                start_line=1,
+                end_line=1,
+                modifiers=set(),
+                docstring=None
+            ),
+            Declaration(
+                kind="symbol",
+                name="y",
+                start_line=2,
+                end_line=2,
+                modifiers=set(),
+                docstring=None
+            ),
+            Declaration(
+                kind="function",
+                name="test",
+                start_line=3,
+                end_line=3,
+                modifiers=set(),
+                docstring=None
+            )
+        ]
+    )
+    
+    # Test with symbols enabled (default)
+    config = CodeConCatConfig(disable_symbols=False)
+    result = annotate(parsed_data, config)
+    assert "### Symbols" in result.annotated_content
+    assert "- x" in result.annotated_content
+    assert "- y" in result.annotated_content
+    assert "### Functions" in result.annotated_content
+    assert "- test" in result.annotated_content
+    
+    # Test with symbols disabled
+    config = CodeConCatConfig(disable_symbols=True)
+    result = annotate(parsed_data, config)
+    assert "### Symbols" not in result.annotated_content
+    assert "- x" not in result.annotated_content
+    assert "- y" not in result.annotated_content
+    assert "### Functions" in result.annotated_content
+    assert "- test" in result.annotated_content

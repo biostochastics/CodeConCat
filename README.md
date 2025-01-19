@@ -2,7 +2,7 @@
 
 🚀 A simple code aggregator and documentation extractor 
 
-CodeConCat is your intelligent companion for preparing codebases. It automatically ingests/collects, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows.
+CodeConCat is your semi-intelligent companion for preparing codebases. It automatically ingests/collects, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows.
 
 ## ✨ Features
 
@@ -394,13 +394,7 @@ We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
 
-Special thanks to all contributors who have helped shape CodeConCat.
-
-<b align="center">
-  Made with ❤️ by Sergey Kornilov for Biostochastics, LLC
-</b>
 
 ## 📊 Advanced Usage
 
@@ -502,38 +496,7 @@ Priority order for file filtering:
 3. Configuration file
 4. Default settings
 
-## 🤝 Contributing
-
-We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
-
-## 📝 License
-
-MIT License - see the [LICENSE](LICENSE) file for details.
-
----
 
 <b align="center">
   Made with ❤️ by Sergey Kornilov for Biostochastics, LLC
 </b>
-
-### Running Tests
-
-CodeConCat includes a comprehensive test suite covering unit tests, integration tests, and performance tests. To run the tests:
-
-```bash
-# Install test dependencies
-pip install -e ".[test]"
-
-# Run tests with coverage report
-pytest tests/ -v --cov=codeconcat
-
-# Or run directly using the test file
-python tests/test_codeconcat.py
-```
-
-The test suite includes:
-- Unit tests for parsers and processors
-- Integration tests for end-to-end workflows
-- Performance tests for concurrent processing
-- Edge case tests for special characters and large files
-- Security tests for sensitive data detection

@@ -60,8 +60,7 @@ class CppParser(BaseParser):
         self.enum_pattern = re.compile(
             r"""
             ^[^\#/]*?
-            enum\s+
-            (?:class\s+)?               # enum class?
+            enum(?:\s+class)?\s+
             (?P<name>[a-zA-Z_]\w*)
             (?:\s*:\s+[^\s{]+)?         # optional base type
             \s*{                       # opening brace

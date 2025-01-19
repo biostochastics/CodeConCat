@@ -18,7 +18,7 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
             classes.append(decl.name)
         elif decl.kind == "struct":
             structs.append(decl.name)
-        elif decl.kind == "symbol":
+        elif decl.kind == "symbol" and not config.disable_symbols:
             symbols.append(decl.name)
 
     # Add headers for each kind if they exist

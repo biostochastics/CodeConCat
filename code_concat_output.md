@@ -106,79 +106,6 @@ File: setup.py
 Language: python
 ```
 
-```python
-   1 | import os
-   2 | import re
-   3 | from setuptools import setup, find_packages
-   6 | def get_version():
-   8 |     Extracts the CodeConCat version from codeconcat/version.py
-  10 |     version_file = os.path.join(os.path.dirname(__file__), "codeconcat", "version.py")
-  11 |     with open(version_file, "r", encoding="utf-8") as f:
-  12 |         content = f.read()
-  13 |         match = re.search(r'__version__\s*=\s*"([^"]+)"', content)
-  14 |         if match:
-  15 |             return match.group(1)
-  16 |     return "0.0.0"
-  19 | def get_long_description():
-  20 |     try:
-  21 |         with open("README.md", "r", encoding="utf-8") as f:
-  22 |             return f.read()
-  23 |     except FileNotFoundError:
-  24 |         return ""
-  27 | extras_require = {
-  28 |     "web": [
-  29 |         "fastapi>=0.68.0",
-  30 |         "uvicorn>=0.15.0",
-  31 |         "pydantic>=1.8.0",
-  32 |     ],
-  33 |     "test": [
-  34 |         "pytest>=7.4.0",
-  35 |         "pytest-cov>=4.1.0",
-  36 |         "pytest-asyncio>=0.21.1",
-  37 |         "pytest-mock>=3.11.1",
-  38 |     ],
-  39 |     "all": [
-  40 |         "fastapi>=0.68.0",
-  41 |         "uvicorn>=0.15.0",
-  42 |         "pydantic>=1.8.0",
-  43 |         "pytest>=7.4.0",
-  44 |         "pytest-cov>=4.1.0",
-  45 |         "pytest-asyncio>=0.21.1",
-  46 |         "pytest-mock>=3.11.1",
-  47 |     ],
-  48 | }
-  50 | setup(
-  51 |     name="codeconcat",
-  52 |     version=get_version(),
-  53 |     author="Sergey Kornilov",
-  54 |     author_email="sergey.kornilov@biostochastics.com",
-  55 |     description="An LLM-friendly code parser, aggregator and doc extractor",
-  56 |     long_description=get_long_description(),
-  57 |     long_description_content_type="text/markdown",
-  58 |     packages=find_packages(),
-  59 |     install_requires=[
-  60 |         "pyyaml>=5.0",
-  61 |         "pyperclip>=1.8.0",
-  62 |     ],
-  63 |     extras_require=extras_require,
-  64 |     python_requires=">=3.8",
-  65 |     entry_points={"console_scripts": ["codeconcat=codeconcat.main:cli_entry_point"]},
-  66 |     classifiers=[
-  67 |         "Development Status :: 3 - Alpha",
-  68 |         "Intended Audience :: Developers",
-  69 |         "Programming Language :: Python :: 3",
-  70 |         "Programming Language :: Python :: 3.8",
-  71 |         "Programming Language :: Python :: 3.9",
-  72 |         "Programming Language :: Python :: 3.10",
-  73 |         "Programming Language :: Python :: 3.11",
-  74 |         "Operating System :: OS Independent",
-  75 |     ],
-  76 |     keywords="llm code parser documentation",
-  77 |     project_urls={
-  78 |         "Source": "https://github.com/biostochastics/codeconcat",
-  79 |     },
-  80 | )
-```
 
 ---
 ### File: ./app.py
@@ -253,6 +180,11 @@ Language: python
   73 |     }
 ```
 
+#### Analysis Notes
+## File: ./app.py
+### Functions
+### Classes
+
 ---
 ### File: ./tests/test_version.py
 #### Summary
@@ -261,13 +193,6 @@ File: test_version.py
 Language: python
 ```
 
-```python
-   1 | import re
-   2 | from codeconcat.version import __version__
-   5 | def test_version_format():
-   7 |     pattern = r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+)?$"
-   8 |     assert re.match(pattern, __version__) is not None
-```
 
 ---
 ### File: ./tests/conftest.py
@@ -277,14 +202,6 @@ File: conftest.py
 Language: python
 ```
 
-```python
-   1 | import pytest
-   4 | @pytest.fixture
-   5 | def sample_code():
-   6 |     return """
-   7 | def hello_world():
-   8 |     return "Hello, World!"
-```
 
 ---
 ### File: ./tests/test_rust_parser.py
@@ -294,241 +211,6 @@ File: test_rust_parser.py
 Language: python
 ```
 
-```python
-   3 | import pytest
-   4 | from codeconcat.parser.language_parsers.rust_parser import parse_rust
-   7 | def test_parse_rust_function():
-   9 |     code = """
-  10 | fn hello() {
-  11 |     println!("Hello, World!");
-  12 | }
-  14 | pub fn add(x: i32, y: i32) -> i32 {
-  15 |     x + y
-  16 | }
-  18 | async fn fetch_data() -> Result<String, Error> {
-  19 |     Ok(String::from("data"))
-  20 | }
-  22 |     result = parse_rust("test.rs", code)
-  23 |     assert result is not None
-  24 |     assert len(result.declarations) == 3
-  26 |     hello = next(d for d in result.declarations if d.name == "hello")
-  27 |     assert hello.kind == "function"
-  28 |     assert hello.start_line == 2
-  30 |     add = next(d for d in result.declarations if d.name == "add")
-  31 |     assert add.kind == "function"
-  32 |     assert add.start_line == 6
-  34 |     fetch = next(d for d in result.declarations if d.name == "fetch_data")
-  35 |     assert fetch.kind == "function"
-  36 |     assert fetch.start_line == 10
-  39 | def test_parse_rust_struct():
-  41 |     code = """
-  42 | pub struct Person {
-  43 |     name: String,
-  44 |     age: u32,
-  45 | }
-  47 | struct Point<T> {
-  48 |     x: T,
-  49 |     y: T,
-  50 | }
-  52 |     result = parse_rust("test.rs", code)
-  53 |     assert result is not None
-  54 |     assert len(result.declarations) == 2
-  56 |     person = next(d for d in result.declarations if d.name == "Person")
-  57 |     assert person.kind == "struct"
-  58 |     assert person.start_line == 2
-  60 |     point = next(d for d in result.declarations if d.name == "Point")
-  61 |     assert point.kind == "struct"
-  62 |     assert point.start_line == 7
-  65 | def test_parse_rust_enum():
-  67 |     code = """
-  68 | pub enum Option<T> {
-  69 |     Some(T),
-  70 |     None,
-  71 | }
-  73 | enum Result<T, E> {
-  74 |     Ok(T),
-  75 |     Err(E),
-  76 | }
-  78 |     result = parse_rust("test.rs", code)
-  79 |     assert result is not None
-  80 |     assert len(result.declarations) == 2
-  82 |     option = next(d for d in result.declarations if d.name == "Option")
-  83 |     assert option.kind == "enum"
-  84 |     assert option.start_line == 2
-  86 |     result_enum = next(d for d in result.declarations if d.name == "Result")
-  87 |     assert result_enum.kind == "enum"
-  88 |     assert result_enum.start_line == 7
-  91 | def test_parse_rust_trait():
-  93 |     code = """
-  94 | pub trait Display {
-  95 |     fn fmt(&self) -> String;
-  96 | }
-  98 | trait Debug {
-  99 |     fn debug(&self) -> String;
- 100 |     fn default() -> Self;
- 101 | }
- 103 |     result = parse_rust("test.rs", code)
- 104 |     assert result is not None
- 105 |     assert len(result.declarations) == 2
- 107 |     display = next(d for d in result.declarations if d.name == "Display")
- 108 |     assert display.kind == "trait"
- 109 |     assert display.start_line == 2
- 111 |     debug = next(d for d in result.declarations if d.name == "Debug")
- 112 |     assert debug.kind == "trait"
- 113 |     assert debug.start_line == 6
- 116 | def test_parse_rust_impl():
- 118 |     code = """
- 119 | impl Person {
- 120 |     fn new(name: String, age: u32) -> Self {
- 121 |         Person { name, age }
- 122 |     }
- 123 | }
- 125 | impl<T> Point<T> {
- 126 |     fn origin() -> Self {
- 127 |         Point { x: T::default(), y: T::default() }
- 128 |     }
- 129 | }
- 131 |     result = parse_rust("test.rs", code)
- 132 |     assert result is not None
- 133 |     assert len(result.declarations) == 4
- 135 |     person_impl = next(d for d in result.declarations if d.name == "Person")
- 136 |     assert person_impl.kind == "impl"
- 137 |     assert person_impl.start_line == 2
- 139 |     new_fn = next(d for d in result.declarations if d.name == "new")
- 140 |     assert new_fn.kind == "function"
- 141 |     assert new_fn.start_line == 3
- 143 |     point_impl = next(d for d in result.declarations if d.name == "Point")
- 144 |     assert point_impl.kind == "impl"
- 145 |     assert point_impl.start_line == 8
- 147 |     origin_fn = next(d for d in result.declarations if d.name == "origin")
- 148 |     assert origin_fn.kind == "function"
- 149 |     assert origin_fn.start_line == 9
- 152 | def test_parse_rust_empty():
- 154 |     result = parse_rust("test.rs", "")
- 155 |     assert result is not None
- 156 |     assert len(result.declarations) == 0
- 159 | def test_parse_rust_invalid():
- 161 |     code = """
- 162 | this is not valid rust code
- 164 |     result = parse_rust("test.rs", code)
- 165 |     assert result is not None
- 166 |     assert len(result.declarations) == 0
- 169 | def test_parse_rust_doc_comments():
- 171 |     code = """
- 174 | pub struct Person {
- 176 |     name: String,
- 178 |     age: u32,
- 179 | }
- 187 | struct Point {
- 188 |     x: f64,
- 189 |     y: f64,
- 190 | }
- 192 |     result = parse_rust("test.rs", code)
- 193 |     assert result is not None
- 194 |     assert len(result.declarations) == 2
- 196 |     person = next(d for d in result.declarations if d.name == "Person")
- 197 |     assert person.kind == "struct"
- 198 |     assert person.docstring == "/// A person in the system\n/// with multiple lines of docs"
- 200 |     point = next(d for d in result.declarations if d.name == "Point")
- 201 |     assert point.kind == "struct"
- 202 |     assert point.docstring == "/** A point in 2D space\n * with coordinates\n */"
- 205 | def test_parse_rust_attributes():
- 207 |     code = """
- 210 | pub struct Data {
- 211 |     value: i32,
- 212 | }
- 215 | mod tests {
- 217 |     fn it_works() {
- 218 |         assert_eq!(2 + 2, 4);
- 219 |     }
- 220 | }
- 223 |     derive(Serialize, Deserialize)
- 224 | )]
- 225 | struct Config {
- 226 |     setting: String,
- 227 | }
- 229 |     result = parse_rust("test.rs", code)
- 230 |     assert result is not None
- 231 |     assert len(result.declarations) == 5
- 233 |     data = next(d for d in result.declarations if d.name == "Data")
- 234 |     assert data.kind == "struct"
- 235 |     assert "#[derive(Debug, Clone)]" in data.modifiers
- 236 |     assert "#[repr(C)]" in data.modifiers
- 238 |     tests = next(d for d in result.declarations if d.name == "tests")
- 239 |     assert tests.kind == "mod"
- 240 |     assert "#[cfg(test)]" in tests.modifiers
- 242 |     config = next(d for d in result.declarations if d.name == "Config")
- 243 |     assert config.kind == "struct"
- 244 |     assert any("cfg_attr" in m for m in config.modifiers)
- 247 | def test_parse_rust_complex_impl():
- 249 |     code = """
- 250 | impl<T> Iterator for MyIter<T> {
- 251 |     type Item = T;
- 253 |     fn next(&mut self) -> Option<Self::Item> {
- 254 |         None
- 255 |     }
- 256 | }
- 258 | impl<T: Display> fmt::Debug for Point<T> {
- 259 |     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
- 260 |         write!(f, "Point({}, {})", self.x, self.y)
- 261 |     }
- 262 | }
- 264 | impl dyn AsyncRead + Send {
- 265 |     fn poll_read(&mut self) -> Poll<()> {
- 266 |         Poll::Ready(())
- 267 |     }
- 268 | }
- 270 |     result = parse_rust("test.rs", code)
- 271 |     assert result is not None
- 272 |     assert len(result.declarations) == 6
- 274 |     iter_impl = next(d for d in result.declarations if "Iterator for MyIter" in d.name)
- 275 |     assert iter_impl.kind == "impl"
- 276 |     assert iter_impl.start_line == 2
- 278 |     debug_impl = next(d for d in result.declarations if "Debug for Point" in d.name)
- 279 |     assert debug_impl.kind == "impl"
- 281 |     async_impl = next(d for d in result.declarations if "AsyncRead + Send" in d.name)
- 282 |     assert async_impl.kind == "impl"
- 285 | def test_parse_rust_unit_structs():
- 287 |     code = """
- 288 | pub struct Unit;
- 290 | struct Tuple(String, i32);
- 292 | struct Empty {}
- 294 | pub(crate) struct Visibility;
- 296 | struct Generic<T>(T);
- 298 |     result = parse_rust("test.rs", code)
- 299 |     assert result is not None
- 300 |     assert len(result.declarations) == 5
- 302 |     unit = next(d for d in result.declarations if d.name == "Unit")
- 303 |     assert unit.kind == "struct"
- 304 |     assert "pub" in unit.modifiers
- 306 |     tuple = next(d for d in result.declarations if d.name == "Tuple")
- 307 |     assert tuple.kind == "struct"
- 309 |     visibility = next(d for d in result.declarations if d.name == "Visibility")
- 310 |     assert visibility.kind == "struct"
- 311 |     assert "pub(crate)" in visibility.modifiers
- 314 | def test_parse_rust_trait_functions():
- 316 |     code = """
- 317 | pub trait Service {
- 318 |     fn call(&self) -> Result<(), Error>;
- 320 |     fn default() -> Self {
- 321 |         unimplemented!()
- 322 |     }
- 324 |     async fn process(&mut self);
- 325 | }
- 327 | trait Handler {
- 328 |     const TIMEOUT: u64 = 30;
- 329 |     type Error;
- 330 |     fn handle(&self) -> Result<(), Self::Error>;
- 331 | }
- 333 |     result = parse_rust("test.rs", code)
- 334 |     assert result is not None
- 335 |     assert len(result.declarations) == 2
- 337 |     service = next(d for d in result.declarations if d.name == "Service")
- 338 |     assert service.kind == "trait"
- 339 |     assert "pub" in service.modifiers
- 341 |     handler = next(d for d in result.declarations if d.name == "Handler")
- 342 |     assert handler.kind == "trait"
-```
 
 ---
 ### File: ./tests/test_cpp_parser.py
@@ -538,87 +220,6 @@ File: test_cpp_parser.py
 Language: python
 ```
 
-```python
-   3 | import unittest
-   4 | from codeconcat.parser.language_parsers.cpp_parser import CppParser
-   7 | class TestCppParser(unittest.TestCase):
-   8 |     def setUp(self):
-   9 |         self.parser = CppParser()
-  11 |     def test_class_declarations(self):
-  12 |         cpp_code = '''
-  14 |         class MyClass {
-  15 |             int x;
-  16 |         };
-  19 |         template<typename T>
-  20 |         class TemplateClass {
-  21 |             T value;
-  22 |         };
-  25 |         struct MyStruct {
-  26 |             double y;
-  27 |         };
-  29 |         declarations = self.parser.parse(cpp_code)
-  30 |         class_names = {d.name for d in declarations if d.kind == 'class'}
-  31 |         self.assertEqual(class_names, {'MyClass', 'TemplateClass', 'MyStruct'})
-  33 |     def test_function_declarations(self):
-  34 |         cpp_code = '''
-  36 |         void func1(int x) {
-  37 |             return x + 1;
-  38 |         }
-  41 |         template<typename T>
-  42 |         T func2(T x) {
-  43 |             return x * 2;
-  44 |         }
-  47 |         int func3() const noexcept {
-  48 |             return 42;
-  49 |         }
-  52 |         void func4() = default;
-  53 |         void func5() = delete;
-  55 |         declarations = self.parser.parse(cpp_code)
-  56 |         func_names = {d.name for d in declarations if d.kind == 'function'}
-  57 |         self.assertEqual(func_names, {'func1', 'func2', 'func3', 'func4', 'func5'})
-  59 |     def test_namespace_declarations(self):
-  60 |         cpp_code = '''
-  61 |         namespace ns1 {
-  62 |             void func1() {}
-  63 |         }
-  65 |         namespace ns2 {
-  66 |             class MyClass {};
-  67 |         }
-  69 |         declarations = self.parser.parse(cpp_code)
-  70 |         namespace_names = {d.name for d in declarations if d.kind == 'namespace'}
-  71 |         self.assertEqual(namespace_names, {'ns1', 'ns2'})
-  73 |     def test_enum_declarations(self):
-  74 |         cpp_code = '''
-  75 |         enum Color {
-  76 |             RED,
-  77 |             GREEN,
-  78 |             BLUE
-  79 |         };
-  81 |         enum class Direction {
-  82 |             NORTH,
-  83 |             SOUTH,
-  84 |             EAST,
-  85 |             WEST
-  86 |         };
-  88 |         declarations = self.parser.parse(cpp_code)
-  89 |         enum_names = {d.name for d in declarations if d.kind == 'enum'}
-  90 |         self.assertEqual(enum_names, {'Color', 'Direction'})
-  92 |     def test_typedef_declarations(self):
-  93 |         cpp_code = '''
-  94 |         typedef int Integer;
-  95 |         typedef double* DoublePtr;
-  96 |         typedef void (*FuncPtr)(int);
-  98 |         declarations = self.parser.parse(cpp_code)
-  99 |         typedef_names = {d.name for d in declarations if d.kind == 'typedef'}
- 100 |         self.assertEqual(typedef_names, {'Integer', 'DoublePtr', 'FuncPtr'})
- 102 |     def test_using_declarations(self):
- 103 |         cpp_code = '''
- 104 |         using MyInt = int;
- 105 |         using MyFunc = void(*)(double);
- 107 |         declarations = self.parser.parse(cpp_code)
- 108 |         using_names = {d.name for d in declarations if d.kind == 'using'}
- 109 |         self.assertEqual(using_names, {'MyInt', 'MyFunc'})
-```
 
 ---
 ### File: ./tests/test_go_parser.py
@@ -628,102 +229,6 @@ File: test_go_parser.py
 Language: python
 ```
 
-```python
-   3 | import pytest
-   4 | from codeconcat.parser.language_parsers.go_parser import parse_go
-   7 | def test_parse_go_function():
-   9 |     code = """
-  10 | package main
-  12 | func hello() {
-  13 |     fmt.Println("Hello, World!")
-  14 | }
-  16 | func add(x, y int) int {
-  17 |     return x + y
-  18 | }
-  20 |     result = parse_go("test.go", code)
-  21 |     assert result is not None
-  22 |     assert len(result.declarations) == 2
-  24 |     hello_func = next(d for d in result.declarations if d.name == "hello")
-  25 |     assert hello_func.kind == "function"
-  26 |     assert hello_func.start_line == 4
-  28 |     add_func = next(d for d in result.declarations if d.name == "add")
-  29 |     assert add_func.kind == "function"
-  30 |     assert add_func.start_line == 8
-  33 | def test_parse_go_struct():
-  35 |     code = """
-  36 | package main
-  38 | type Person struct {
-  39 |     Name string
-  40 |     Age  int
-  41 | }
-  43 | type Employee struct {
-  44 |     Person
-  45 |     Salary float64
-  46 | }
-  48 |     result = parse_go("test.go", code)
-  49 |     assert result is not None
-  50 |     assert len(result.declarations) == 2
-  52 |     person = next(d for d in result.declarations if d.name == "Person")
-  53 |     assert person.kind == "struct"
-  54 |     assert person.start_line == 4
-  56 |     employee = next(d for d in result.declarations if d.name == "Employee")
-  57 |     assert employee.kind == "struct"
-  58 |     assert employee.start_line == 9
-  61 | def test_parse_go_interface():
-  63 |     code = """
-  64 | package main
-  66 | type Reader interface {
-  67 |     Read(p []byte) (n int, err error)
-  68 | }
-  70 | type Writer interface {
-  71 |     Write(p []byte) (n int, err error)
-  72 | }
-  74 |     result = parse_go("test.go", code)
-  75 |     assert result is not None
-  76 |     assert len(result.declarations) == 2
-  78 |     reader = next(d for d in result.declarations if d.name == "Reader")
-  79 |     assert reader.kind == "interface"
-  80 |     assert reader.start_line == 4
-  82 |     writer = next(d for d in result.declarations if d.name == "Writer")
-  83 |     assert writer.kind == "interface"
-  84 |     assert writer.start_line == 8
-  87 | def test_parse_go_const_var():
-  89 |     code = """
-  90 | package main
-  92 | const (
-  93 |     MaxItems = 100
-  94 |     MinItems = 1
-  95 | )
-  97 | var (
-  98 |     Debug = false
-  99 |     Count = 0
- 100 | )
- 102 |     result = parse_go("test.go", code)
- 103 |     assert result is not None
- 104 |     assert len(result.declarations) == 4
- 106 |     max_items = next(d for d in result.declarations if d.name == "MaxItems")
- 107 |     assert max_items.kind == "const"
- 108 |     assert max_items.start_line == 5
- 110 |     min_items = next(d for d in result.declarations if d.name == "MinItems")
- 111 |     assert min_items.kind == "const"
- 112 |     assert min_items.start_line == 6
- 114 |     debug = next(d for d in result.declarations if d.name == "Debug")
- 115 |     assert debug.kind == "var"
- 116 |     assert debug.start_line == 10
- 118 |     count = next(d for d in result.declarations if d.name == "Count")
- 119 |     assert count.kind == "var"
- 120 |     assert count.start_line == 11
- 123 | def test_parse_go_empty():
- 125 |     result = parse_go("test.go", "")
- 126 |     assert result is not None
- 127 |     assert len(result.declarations) == 0
- 130 | def test_parse_go_invalid():
- 132 |     code = """
- 133 | this is not valid go code
- 135 |     result = parse_go("test.go", code)
- 136 |     assert result is not None
- 137 |     assert len(result.declarations) == 0
-```
 
 ---
 ### File: ./tests/__init__.py
@@ -733,9 +238,6 @@ File: __init__.py
 Language: python
 ```
 
-```python
-
-```
 
 ---
 ### File: ./tests/test_julia_parser.py
@@ -745,114 +247,6 @@ File: test_julia_parser.py
 Language: python
 ```
 
-```python
-   3 | import pytest
-   4 | from codeconcat.parser.language_parsers.julia_parser import parse_julia
-   7 | def test_parse_julia_function():
-   9 |     code = """
-  10 | function greet()
-  11 |     println("Hello, World!")
-  12 | end
-  14 | function add(x::Int, y::Int)::Int
-  15 |     return x + y
-  16 | end
-  19 | square(x) = x * x
-  21 |     result = parse_julia("test.jl", code)
-  22 |     assert result is not None
-  23 |     assert len(result.declarations) == 3
-  25 |     greet = next(d for d in result.declarations if d.name == "greet")
-  26 |     assert greet.kind == "function"
-  27 |     assert greet.start_line == 2
-  29 |     add = next(d for d in result.declarations if d.name == "add")
-  30 |     assert add.kind == "function"
-  31 |     assert add.start_line == 6
-  33 |     square = next(d for d in result.declarations if d.name == "square")
-  34 |     assert square.kind == "function"
-  35 |     assert square.start_line == 10
-  38 | def test_parse_julia_struct():
-  40 |     code = """
-  41 | struct Point
-  42 |     x::Float64
-  43 |     y::Float64
-  44 | end
-  46 | mutable struct Person
-  47 |     name::String
-  48 |     age::Int
-  49 | end
-  51 |     result = parse_julia("test.jl", code)
-  52 |     assert result is not None
-  53 |     assert len(result.declarations) == 2
-  55 |     point = next(d for d in result.declarations if d.name == "Point")
-  56 |     assert point.kind == "struct"
-  57 |     assert point.start_line == 2
-  59 |     person = next(d for d in result.declarations if d.name == "Person")
-  60 |     assert person.kind == "struct"
-  61 |     assert person.start_line == 7
-  64 | def test_parse_julia_abstract_type():
-  66 |     code = """
-  67 | abstract type Shape end
-  69 | abstract type Animal <: Organism end
-  71 |     result = parse_julia("test.jl", code)
-  72 |     assert result is not None
-  73 |     assert len(result.declarations) == 2
-  75 |     shape = next(d for d in result.declarations if d.name == "Shape")
-  76 |     assert shape.kind == "abstract"
-  77 |     assert shape.start_line == 2
-  79 |     animal = next(d for d in result.declarations if d.name == "Animal")
-  80 |     assert animal.kind == "abstract"
-  81 |     assert animal.start_line == 4
-  84 | def test_parse_julia_module():
-  86 |     code = """
-  87 | module Geometry
-  89 | export Point, distance
-  91 | struct Point
-  92 |     x::Float64
-  93 |     y::Float64
-  94 | end
-  96 | function distance(p1::Point, p2::Point)
-  97 |     sqrt((p2.x - p1.x)^2 + (p2.y - p1.y)^2)
-  98 | end
- 100 | end # module
- 102 |     result = parse_julia("test.jl", code)
- 103 |     assert result is not None
- 104 |     assert len(result.declarations) == 4
- 106 |     module_decl = next(d for d in result.declarations if d.name == "Geometry")
- 107 |     assert module_decl.kind == "module"
- 108 |     assert module_decl.start_line == 2
- 110 |     point = next(d for d in result.declarations if d.name == "Point")
- 111 |     assert point.kind == "struct"
- 112 |     assert point.start_line == 6
- 114 |     distance = next(d for d in result.declarations if d.name == "distance")
- 115 |     assert distance.kind == "function"
- 116 |     assert distance.start_line == 10
- 119 | def test_parse_julia_macro():
- 121 |     code = """
- 122 | macro debug(expr)
- 123 |     return :(println("Debug: ", $(esc(expr))))
- 124 | end
- 126 | @inline function fast_function(x)
- 127 |     x + 1
- 128 | end
- 130 |     result = parse_julia("test.jl", code)
- 131 |     assert result is not None
- 132 |     assert len(result.declarations) == 2
- 134 |     debug = next(d for d in result.declarations if d.name == "debug")
- 135 |     assert debug.kind == "macro"
- 136 |     assert debug.start_line == 2
- 138 |     fast_function = next(d for d in result.declarations if d.name == "fast_function")
- 139 |     assert fast_function.kind == "function"
- 140 |     assert fast_function.start_line == 6
- 143 | def test_parse_julia_empty():
- 145 |     result = parse_julia("test.jl", "")
- 146 |     assert result is not None
- 147 |     assert len(result.declarations) == 0
- 150 | def test_parse_julia_invalid():
- 152 |     code = """
- 153 | this is not valid julia code
- 155 |     result = parse_julia("test.jl", code)
- 156 |     assert result is not None
- 157 |     assert len(result.declarations) == 0
-```
 
 ---
 ### File: ./tests/test_content_processor.py
@@ -862,108 +256,6 @@ File: test_content_processor.py
 Language: python
 ```
 
-```python
-   3 | import pytest
-   4 | from codeconcat.base_types import (
-   5 |     CodeConCatConfig,
-   6 |     ParsedFileData,
-   7 |     TokenStats,
-   8 |     SecurityIssue,
-   9 |     Declaration
-  10 | )
-  11 | from codeconcat.processor.content_processor import (
-  12 |     process_file_content,
-  13 |     generate_file_summary,
-  14 |     generate_directory_structure
-  15 | )
-  18 | def test_process_file_content_basic():
-  19 |     content = "line1\nline2\nline3"
-  20 |     config = CodeConCatConfig(
-  21 |         remove_empty_lines=False,
-  22 |         remove_comments=False,
-  23 |         show_line_numbers=False
-  24 |     )
-  25 |     result = process_file_content(content, config)
-  26 |     assert result == content
-  29 | def test_process_file_content_with_line_numbers():
-  30 |     content = "line1\nline2\nline3"
-  31 |     config = CodeConCatConfig(
-  32 |         remove_empty_lines=False,
-  33 |         remove_comments=False,
-  34 |         show_line_numbers=True
-  35 |     )
-  36 |     result = process_file_content(content, config)
-  37 |     expected = "   1 | line1\n   2 | line2\n   3 | line3"
-  38 |     assert result == expected
-  41 | def test_process_file_content_remove_empty_lines():
-  42 |     content = "line1\n\nline2\n\nline3"
-  43 |     config = CodeConCatConfig(
-  44 |         remove_empty_lines=True,
-  45 |         remove_comments=False,
-  46 |         show_line_numbers=False
-  47 |     )
-  48 |     result = process_file_content(content, config)
-  49 |     assert result == "line1\nline2\nline3"
-  52 | def test_process_file_content_remove_comments():
-  53 |     content = "line1\n# comment\nline2\n// comment\nline3"
-  54 |     config = CodeConCatConfig(
-  55 |         remove_empty_lines=False,
-  56 |         remove_comments=True,
-  57 |         show_line_numbers=False
-  58 |     )
-  59 |     result = process_file_content(content, config)
-  60 |     assert result == "line1\nline2\nline3"
-  63 | def test_generate_file_summary():
-  64 |     file_data = ParsedFileData(
-  65 |         file_path="/path/to/test.py",
-  66 |         language="python",
-  67 |         content="test content",
-  68 |         declarations=[
-  69 |             Declaration(
-  70 |                 kind="function",
-  71 |                 name="test_func",
-  72 |                 start_line=1,
-  73 |                 end_line=5,
-  74 |                 modifiers=set(),
-  75 |                 docstring=None
-  76 |             )
-  77 |         ],
-  78 |         token_stats=TokenStats(
-  79 |             gpt3_tokens=100,
-  80 |             gpt4_tokens=120,
-  81 |             davinci_tokens=110,
-  82 |             claude_tokens=115
-  83 |         ),
-  84 |         security_issues=[
-  85 |             SecurityIssue(
-  86 |                 issue_type="hardcoded_secret",
-  87 |                 line_number=3,
-  88 |                 line_content="password = 'secret'",
-  89 |                 severity="high",
-  90 |                 description="Hardcoded password found in source code"
-  91 |             )
-  92 |         ]
-  93 |     )
-  95 |     summary = generate_file_summary(file_data)
-  96 |     assert "test.py" in summary
-  97 |     assert "python" in summary
-  98 |     assert "GPT-3.5: 100" in summary
-  99 |     assert "hardcoded_secret" in summary
- 100 |     assert "function: test_func" in summary
- 103 | def test_generate_directory_structure():
- 104 |     file_paths = [
- 105 |         "src/main.py",
- 106 |         "src/utils/helper.py",
- 107 |         "tests/test_main.py"
- 108 |     ]
- 109 |     structure = generate_directory_structure(file_paths)
- 110 |     assert "src" in structure
- 111 |     assert "main.py" in structure
- 112 |     assert "utils" in structure
- 113 |     assert "helper.py" in structure
- 114 |     assert "tests" in structure
- 115 |     assert "test_main.py" in structure
-```
 
 ---
 ### File: ./tests/test_js_ts_parser.py
@@ -973,140 +265,6 @@ File: test_js_ts_parser.py
 Language: python
 ```
 
-```python
-   1 | import pytest
-   2 | from codeconcat.parser.language_parsers.js_ts_parser import parse_javascript_or_typescript
-   5 | def test_basic_class():
-   6 |     content = """\
-  10 | export class MyClass extends BaseClass {
-  12 | }
-  14 |     parsed = parse_javascript_or_typescript("MyClass.ts", content, language="typescript")
-  15 |     assert len(parsed.declarations) == 1
-  17 |     decl = parsed.declarations[0]
-  18 |     assert decl.kind == "class"
-  19 |     assert decl.name == "MyClass"
-  20 |     assert "export" in decl.modifiers
-  21 |     assert decl.docstring is not None
-  22 |     assert "This is a class doc" in decl.docstring
-  25 | def test_function():
-  26 |     content = """\
-  28 | export function myFunction(a, b) {
-  29 |   return a + b;
-  30 | }
-  32 |     parsed = parse_javascript_or_typescript("func.js", content, language="javascript")
-  33 |     assert len(parsed.declarations) == 1
-  35 |     decl = parsed.declarations[0]
-  36 |     assert decl.kind == "function"
-  37 |     assert decl.name == "myFunction"
-  38 |     assert "export" in decl.modifiers
-  39 |     assert decl.start_line == 2
-  40 |     assert decl.end_line == 4
-  43 | def test_arrow_function():
-  44 |     content = """\
-  46 | export const add = (x, y) => {
-  47 |   return x + y;
-  48 | };
-  50 |     parsed = parse_javascript_or_typescript("arrow.js", content, language="javascript")
-  51 |     assert len(parsed.declarations) == 1
-  53 |     decl = parsed.declarations[0]
-  54 |     assert decl.kind == "arrow_function"
-  55 |     assert decl.name == "add"
-  56 |     assert "export" in decl.modifiers
-  57 |     assert "Arrow doc" in decl.docstring
-  60 | def test_method_in_class():
-  61 |     content = """\
-  62 | class MyClass {
-  64 |   myMethod(arg) {
-  65 |     return arg * 2;
-  66 |   }
-  67 | }
-  69 |     parsed = parse_javascript_or_typescript("MyClass.js", content, language="javascript")
-  83 |     assert len(parsed.declarations) == 2
-  85 |     class_decl = parsed.declarations[0]
-  86 |     method_decl = parsed.declarations[1]
-  89 |     assert class_decl.kind == "class"
-  90 |     assert class_decl.name == "MyClass"
-  93 |     assert method_decl.kind == "method"
-  94 |     assert method_decl.name == "myMethod"
-  95 |     assert "doc for method" in method_decl.docstring
-  98 | def test_interface_typescript():
-  99 |     content = """\
- 101 | export interface Foo<T> extends Bar, Baz<T> {
- 102 |   someProp: string;
- 103 | }
- 105 |     parsed = parse_javascript_or_typescript("types.ts", content, language="typescript")
- 106 |     assert len(parsed.declarations) == 1
- 108 |     decl = parsed.declarations[0]
- 109 |     assert decl.kind == "interface"
- 110 |     assert decl.name == "Foo"
- 111 |     assert "export" in decl.modifiers
- 112 |     assert "Interface doc" in decl.docstring
- 115 | def test_type_alias():
- 116 |     content = """\
- 118 | export type MyAlias = string | number;
- 120 |     parsed = parse_javascript_or_typescript("alias.ts", content, language="typescript")
- 121 |     assert len(parsed.declarations) == 1
- 123 |     decl = parsed.declarations[0]
- 124 |     assert decl.kind == "type"
- 125 |     assert decl.name == "MyAlias"
- 126 |     assert "export" in decl.modifiers
- 127 |     assert "Type doc" in decl.docstring
- 130 | def test_enum():
- 131 |     content = """\
- 132 | @CoolDecorator
- 133 | export enum MyEnum {
- 134 |   A,
- 135 |   B,
- 136 |   C
- 137 | }
- 140 |     parsed = parse_javascript_or_typescript("enum.ts", content, language="typescript")
- 141 |     assert len(parsed.declarations) == 1
- 143 |     decl = parsed.declarations[0]
- 144 |     assert decl.kind == "enum"
- 145 |     assert decl.name == "MyEnum"
- 147 |     assert "@CoolDecorator" in decl.modifiers
- 148 |     assert "export" in decl.modifiers
- 151 | def test_deeply_nested():
- 152 |     content = """\
- 153 | export function outer() {
- 154 |   function inner() {
- 155 |     class InnerClass {
- 156 |       method() {
- 157 |         return "hello";
- 158 |       }
- 159 |     }
- 160 |     return new InnerClass();
- 161 |   }
- 162 |   return inner();
- 163 | }
- 167 |     parsed = parse_javascript_or_typescript("nested.js", content, language="javascript")
- 178 |     assert len(parsed.declarations) >= 3
- 181 |     outer_func = parsed.declarations[0]
- 182 |     assert outer_func.kind == "function"
- 183 |     assert outer_func.name == "outer"
- 186 |     inner_func = parsed.declarations[1]
- 187 |     assert inner_func.kind == "function"
- 188 |     assert inner_func.name == "inner"
- 191 |     inner_class = parsed.declarations[2]
- 192 |     assert inner_class.kind == "class"
- 193 |     assert inner_class.name == "InnerClass"
- 196 | def test_multiline_doc_comment():
- 197 |     content = """\
- 202 | export function multilineDoc() {
- 203 |   return true;
- 204 | }
- 206 |     parsed = parse_javascript_or_typescript("multiline.js", content, language="javascript")
- 207 |     assert len(parsed.declarations) == 1
- 209 |     decl = parsed.declarations[0]
- 210 |     assert decl.kind == "function"
- 211 |     assert decl.name == "multilineDoc"
- 212 |     assert "multiline doc comment" in decl.docstring
- 213 |     assert "spanning multiple lines" in decl.docstring
- 216 | def test_no_symbols():
- 218 |     content = """\
- 222 |     parsed = parse_javascript_or_typescript("empty.js", content, language="javascript")
- 223 |     assert len(parsed.declarations) == 0
-```
 
 ---
 ### File: ./tests/test_codeconcat.py
@@ -1116,177 +274,6 @@ File: test_codeconcat.py
 Language: python
 ```
 
-```python
-   1 | import os
-   2 | import time
-   3 | import tempfile
-   4 | import pytest
-   5 | from unittest.mock import Mock, patch
-   6 | from codeconcat.base_types import (
-   7 |     CodeConCatConfig,
-   8 |     Declaration,
-   9 |     ParsedFileData,
-  10 |     SecurityIssue,
-  11 |     TokenStats,
-  12 | )
-  13 | from codeconcat.collector.local_collector import collect_local_files, should_include_file
-  14 | from codeconcat.parser.file_parser import parse_code_files
-  15 | from codeconcat.parser.language_parsers.python_parser import parse_python
-  16 | from codeconcat.transformer.annotator import annotate
-  17 | from codeconcat.processor.security_processor import SecurityProcessor
-  18 | from codeconcat.writer.markdown_writer import write_markdown
-  22 | @pytest.fixture
-  23 | def temp_dir():
-  24 |     with tempfile.TemporaryDirectory() as tmpdirname:
-  25 |         yield tmpdirname
-  28 | @pytest.fixture
-  29 | def sample_python_file(temp_dir):
-  30 |     content = """
-  31 | def hello_world():
-  33 |     return "Hello, World!"
-  35 | class TestClass:
-  36 |     def test_method(self):
-  37 |         pass
-  39 | CONSTANT = 42
-  41 |     file_path = os.path.join(temp_dir, "test.py")
-  42 |     with open(file_path, "w") as f:
-  43 |         f.write(content)
-  44 |     return file_path
-  47 | @pytest.fixture
-  48 | def sample_config():
-  49 |     return CodeConCatConfig(
-  50 |         target_path=".",
-  51 |         extract_docs=True,
-  52 |         merge_docs=False,
-  53 |         format="markdown",
-  54 |         output="test_output.md",
-  55 |     )
-  59 | def test_python_parser():
-  60 |     content = """
-  61 | def hello():
-  62 |     return "Hello"
-  64 | class TestClass:
-  65 |     def method(self):
-  66 |         pass
-  68 |     parsed = parse_python("test.py", content)
-  70 |     assert len(parsed.declarations) == 3
-  71 |     assert any(d.name == "hello" and d.kind == "function" for d in parsed.declarations)
-  72 |     assert any(d.name == "TestClass" and d.kind == "class" for d in parsed.declarations)
-  73 |     assert any(d.name == "method" and d.kind == "function" for d in parsed.declarations)
-  76 | def test_python_parser_edge_cases():
-  77 |     content = """
-  80 |     parsed = parse_python("empty.py", content)
-  81 |     assert len(parsed.declarations) == 0
-  83 |     content = """
-  84 | def func():  # Function with no body
-  85 |     pass
-  87 | @decorator
-  88 | def decorated_func():  # Function with decorator
-  89 |     pass
-  91 |     parsed = parse_python("decorated.py", content)
-  92 |     assert len(parsed.declarations) == 2
-  96 | def test_security_processor():
-  97 |     content = """
-  98 | API_KEY = "super_secret_key_12345"
-  99 | password = "password123"
- 101 |     issues = SecurityProcessor.scan_content(content, "test.py")
- 102 |     assert len(issues) > 0
- 103 |     assert any("API Key" in issue.issue_type for issue in issues)
- 106 | def test_security_processor_false_positives():
- 107 |     content = """
- 108 | EXAMPLE_KEY = "example_key"  # Should not trigger
- 109 | TEST_PASSWORD = "dummy_password"  # Should not trigger
- 111 |     issues = SecurityProcessor.scan_content(content, "test.py")
- 112 |     assert len(issues) == 0
- 116 | def test_end_to_end_workflow(temp_dir, sample_python_file, sample_config):
- 118 |     files = collect_local_files(temp_dir, sample_config)
- 119 |     assert len(files) > 0
- 120 |     assert any(f.file_path == sample_python_file for f in files)
- 123 |     parsed_files = parse_code_files([f.file_path for f in files], sample_config)
- 124 |     assert len(parsed_files) > 0
- 125 |     first_file = parsed_files[0]
- 126 |     assert isinstance(first_file, ParsedFileData)
- 127 |     assert len(first_file.declarations) > 0
- 130 |     annotated = annotate(first_file, sample_config)
- 131 |     assert "hello_world" in annotated.annotated_content
- 132 |     assert "TestClass" in annotated.annotated_content
- 135 |     output_path = os.path.join(temp_dir, "output.md")
- 136 |     sample_config.output = output_path
- 137 |     result = write_markdown([annotated], [], sample_config)
- 138 |     assert os.path.exists(output_path)
- 139 |     with open(output_path, "r") as f:
- 140 |         content = f.read()
- 141 |         assert "hello_world" in content
- 142 |         assert "TestClass" in content
- 146 | def test_malformed_files(temp_dir):
- 148 |     invalid_file = os.path.join(temp_dir, "invalid.py")
- 149 |     with open(invalid_file, "wb") as f:
- 150 |         f.write(b"\x80\x81\x82")  # Invalid UTF-8
- 152 |     config = CodeConCatConfig(target_path=temp_dir)
- 153 |     files = collect_local_files(temp_dir, config)
- 154 |     assert len(files) == 0  # Should skip invalid file
- 157 | def test_large_file_handling(temp_dir):
- 159 |     large_file = os.path.join(temp_dir, "large.py")
- 160 |     with open(large_file, "w") as f:
- 161 |         for i in range(10000):
- 162 |             f.write(f"def func_{i}(): pass\n")
- 164 |     config = CodeConCatConfig(target_path=temp_dir)
- 165 |     files = collect_local_files(temp_dir, config)
- 166 |     parsed_files = parse_code_files([f.file_path for f in files], config)
- 167 |     assert len(parsed_files) == 1
- 168 |     assert len(parsed_files[0].declarations) == 10000
- 171 | def test_special_characters(temp_dir):
- 172 |     content = """
- 173 | def func_with_unicode_☺():
- 174 |     pass
- 176 | class TestClass_🐍:
- 177 |     def test_method_💻(self):
- 178 |         pass
- 180 |     file_path = os.path.join(temp_dir, "unicode.py")
- 181 |     with open(file_path, "w", encoding="utf-8") as f:
- 182 |         f.write(content)
- 184 |     config = CodeConCatConfig(target_path=temp_dir)
- 185 |     files = collect_local_files(temp_dir, config)
- 186 |     parsed_files = parse_code_files([f.file_path for f in files], config)
- 187 |     assert len(parsed_files) == 1
- 188 |     assert any("☺" in d.name for d in parsed_files[0].declarations)
- 189 |     assert any("🐍" in d.name for d in parsed_files[0].declarations)
- 190 |     assert any("💻" in d.name for d in parsed_files[0].declarations)
- 194 | def test_concurrent_processing(temp_dir):
- 196 |     for i in range(10):
- 197 |         with open(os.path.join(temp_dir, f"test_{i}.py"), "w") as f:
- 198 |             f.write(f"def func_{i}(): pass\n" * 100)
- 200 |     config = CodeConCatConfig(target_path=temp_dir, max_workers=4)
- 201 |     start_time = time.time()
- 202 |     files = collect_local_files(temp_dir, config)
- 203 |     parsed_files = parse_code_files([f.file_path for f in files], config)
- 204 |     end_time = time.time()
- 206 |     assert len(parsed_files) == 10
- 207 |     assert end_time - start_time < 5  # Should complete within 5 seconds
- 211 | def test_config_validation():
- 213 |     with pytest.raises(ValueError):
- 214 |         CodeConCatConfig(target_path=".", format="invalid_format")
- 217 |     config = CodeConCatConfig(target_path=".", exclude_paths=["*.pyc", "__pycache__"])
- 218 |     assert not should_include_file("test.pyc", config)
- 219 |     assert not should_include_file("__pycache__/test.py", config)
- 220 |     assert should_include_file("test.py", config)
- 224 | def test_token_counting():
- 225 |     content = "def test_function(): pass"
- 226 |     parsed = ParsedFileData(
- 227 |         file_path="test.py",
- 228 |         language="python",
- 229 |         content=content,
- 230 |         token_stats=TokenStats(gpt3_tokens=10, gpt4_tokens=10, davinci_tokens=10, claude_tokens=8),
- 231 |     )
- 233 |     assert parsed.token_stats.gpt3_tokens > 0
- 234 |     assert parsed.token_stats.gpt4_tokens > 0
- 235 |     assert parsed.token_stats.davinci_tokens > 0
- 236 |     assert parsed.token_stats.claude_tokens > 0
- 239 | if __name__ == "__main__":
- 241 |     import sys
- 242 |     import pytest
- 244 |     sys.exit(pytest.main(["-v", "--cov=codeconcat", __file__]))
-```
 
 ---
 ### File: ./tests/test_python_parser.py
@@ -1296,111 +283,6 @@ File: test_python_parser.py
 Language: python
 ```
 
-```python
-   3 | import unittest
-   4 | from codeconcat.parser.language_parsers.python_parser import PythonParser, parse_python
-   7 | class TestPythonParser(unittest.TestCase):
-   8 |     def setUp(self):
-   9 |         self.parser = PythonParser()
-  11 |     def test_function_declarations(self):
-  12 |         python_code = '''
-  14 |         def func1(x):
-  15 |             return x + 1
-  18 |         def func2(x: int) -> int:
-  19 |             return x + 1
-  22 |         async def func3():
-  23 |             pass
-  26 |         def complex_func(
-  27 |             x: int,
-  28 |             y: str,
-  31 |         ) -> int:
-  32 |             return x
-  34 |         declarations = self.parser.parse(python_code)
-  35 |         func_names = {d.name for d in declarations if d.kind == 'function'}
-  36 |         self.assertEqual(func_names, {'func1', 'func2', 'func3', 'complex_func'})
-  38 |     def test_class_declarations(self):
-  39 |         python_code = '''
-  41 |         class MyClass:
-  42 |             pass
-  45 |         class ChildClass(MyClass):
-  46 |             pass
-  49 |         class MultiChild(MyClass, object):
-  50 |             pass
-  52 |         declarations = self.parser.parse(python_code)
-  53 |         class_names = {d.name for d in declarations if d.kind == 'class'}
-  54 |         self.assertEqual(class_names, {'MyClass', 'ChildClass', 'MultiChild'})
-  56 |     def test_decorators(self):
-  57 |         python_code = '''
-  59 |         @property
-  60 |         def my_prop(self):
-  61 |             pass
-  64 |         @classmethod
-  65 |         @staticmethod
-  66 |         def my_method():
-  67 |             pass
-  70 |         @my_decorator(
-  71 |             arg1='value1',
-  72 |             arg2='value2'
-  73 |         )
-  74 |         def decorated_func():
-  75 |             pass
-  78 |         @singleton
-  79 |         class MyClass:
-  80 |             pass
-  82 |         declarations = self.parser.parse(python_code)
-  84 |         prop = next(d for d in declarations if d.name == 'my_prop')
-  85 |         method = next(d for d in declarations if d.name == 'my_method')
-  86 |         func = next(d for d in declarations if d.name == 'decorated_func')
-  87 |         cls = next(d for d in declarations if d.name == 'MyClass')
-  89 |         self.assertEqual(prop.modifiers, {'@property'})
-  90 |         self.assertEqual(method.modifiers, {'@classmethod', '@staticmethod'})
-  91 |         self.assertTrue(any('@my_decorator' in m for m in func.modifiers))
-  92 |         self.assertEqual(cls.modifiers, {'@singleton'})
-  94 |     def test_docstrings(self):
-  95 |         python_code = '''
-  96 |         def func_with_docstring():
-  99 |             It spans multiple lines.
- 101 |             pass
- 103 |         class ClassWithDocstring:
- 106 |             With multiple lines.
- 108 |             pass
- 110 |         def func_with_quotes():
- 112 |             pass
- 114 |         declarations = self.parser.parse(python_code)
- 116 |         func = next(d for d in declarations if d.name == 'func_with_docstring')
- 117 |         cls = next(d for d in declarations if d.name == 'ClassWithDocstring')
- 118 |         quotes_func = next(d for d in declarations if d.name == 'func_with_quotes')
- 120 |         self.assertTrue(func.docstring)
- 121 |         self.assertTrue(cls.docstring)
- 122 |         self.assertTrue(quotes_func.docstring)
- 124 |     def test_variables_and_constants(self):
- 125 |         python_code = '''
- 127 |         x = 1
- 130 |         y: int = 2
- 133 |         z = (
- 134 |             some_function_call()
- 135 |         )
- 138 |         CONSTANT = 42
- 139 |         PI: float = 3.14159
- 141 |         declarations = self.parser.parse(python_code)
- 143 |         var_names = {d.name for d in declarations if d.kind == 'variable'}
- 144 |         const_names = {d.name for d in declarations if d.kind == 'constant'}
- 146 |         self.assertEqual(var_names, {'x', 'y', 'z'})
- 147 |         self.assertEqual(const_names, {'CONSTANT', 'PI'})
- 149 |     def test_nested_functions(self):
- 150 |         python_code = '''
- 151 |         def outer():
- 152 |             def inner1():
- 153 |                 def inner2():
- 154 |                     pass
- 155 |                 return inner2
- 156 |             return inner1
- 158 |         declarations = self.parser.parse(python_code)
- 159 |         func_names = {d.name for d in declarations if d.kind == 'function'}
- 160 |         self.assertEqual(func_names, {'outer', 'inner1', 'inner2'})
- 162 | if __name__ == '__main__':
- 163 |     unittest.main()
-```
 
 ---
 ### File: ./tests/test_php_parser.py
@@ -1410,139 +292,6 @@ File: test_php_parser.py
 Language: python
 ```
 
-```python
-   3 | import pytest
-   4 | from codeconcat.parser.language_parsers.php_parser import parse_php
-   7 | def test_parse_php_class():
-   9 |     code = """<?php
-  10 | class Person {
-  11 |     private $name;
-  12 |     private $age;
-  14 |     public function __construct(string $name, int $age) {
-  15 |         $this->name = $name;
-  16 |         $this->age = $age;
-  17 |     }
-  19 |     public function getName(): string {
-  20 |         return $this->name;
-  21 |     }
-  22 | }
-  24 | class Employee extends Person {
-  25 |     private $salary;
-  27 |     public function __construct(string $name, int $age, float $salary) {
-  28 |         parent::__construct($name, $age);
-  29 |         $this->salary = $salary;
-  30 |     }
-  31 | }
-  33 |     result = parse_php("test.php", code)
-  34 |     assert result is not None
-  35 |     assert len(result.declarations) == 2
-  37 |     person = next(d for d in result.declarations if d.name == "Person")
-  38 |     assert person.kind == "class"
-  39 |     assert person.start_line == 2
-  41 |     employee = next(d for d in result.declarations if d.name == "Employee")
-  42 |     assert employee.kind == "class"
-  43 |     assert employee.start_line == 15
-  46 | def test_parse_php_interface():
-  48 |     code = """<?php
-  49 | interface Readable {
-  50 |     public function read(): string;
-  51 | }
-  53 | interface Writable {
-  54 |     public function write(string $data): void;
-  55 | }
-  57 |     result = parse_php("test.php", code)
-  58 |     assert result is not None
-  59 |     assert len(result.declarations) == 2
-  61 |     readable = next(d for d in result.declarations if d.name == "Readable")
-  62 |     assert readable.kind == "interface"
-  63 |     assert readable.start_line == 2
-  65 |     writable = next(d for d in result.declarations if d.name == "Writable")
-  66 |     assert writable.kind == "interface"
-  67 |     assert writable.start_line == 6
-  70 | def test_parse_php_trait():
-  72 |     code = """<?php
-  73 | trait Logger {
-  74 |     private $logFile;
-  76 |     public function log(string $message): void {
-  77 |         file_put_contents($this->logFile, $message . PHP_EOL, FILE_APPEND);
-  78 |     }
-  79 | }
-  81 | trait Timestampable {
-  82 |     private $createdAt;
-  83 |     private $updatedAt;
-  85 |     public function setCreatedAt(): void {
-  86 |         $this->createdAt = new DateTime();
-  87 |     }
-  88 | }
-  90 |     result = parse_php("test.php", code)
-  91 |     assert result is not None
-  92 |     assert len(result.declarations) == 2
-  94 |     logger = next(d for d in result.declarations if d.name == "Logger")
-  95 |     assert logger.kind == "trait"
-  96 |     assert logger.start_line == 2
-  98 |     timestampable = next(d for d in result.declarations if d.name == "Timestampable")
-  99 |     assert timestampable.kind == "trait"
- 100 |     assert timestampable.start_line == 10
- 103 | def test_parse_php_function():
- 105 |     code = """<?php
- 106 | function hello(): void {
- 107 |     echo "Hello, World!";
- 108 | }
- 110 | function add(int $x, int $y): int {
- 111 |     return $x + $y;
- 112 | }
- 115 | $multiply = fn($x, $y) => $x * $y;
- 117 |     result = parse_php("test.php", code)
- 118 |     assert result is not None
- 119 |     assert len(result.declarations) == 3
- 121 |     hello = next(d for d in result.declarations if d.name == "hello")
- 122 |     assert hello.kind == "function"
- 123 |     assert hello.start_line == 2
- 125 |     add = next(d for d in result.declarations if d.name == "add")
- 126 |     assert add.kind == "function"
- 127 |     assert add.start_line == 6
- 129 |     multiply = next(d for d in result.declarations if d.name == "multiply")
- 130 |     assert multiply.kind == "function"
- 131 |     assert multiply.start_line == 10
- 134 | def test_parse_php_namespace():
- 136 |     code = """<?php
- 137 | namespace App\\Models;
- 139 | class User {
- 140 |     private $id;
- 141 |     private $email;
- 142 | }
- 144 | namespace App\\Controllers;
- 146 | class UserController {
- 147 |     public function index(): array {
- 148 |         return [];
- 149 |     }
- 150 | }
- 152 |     result = parse_php("test.php", code)
- 153 |     assert result is not None
- 154 |     assert len(result.declarations) == 4
- 156 |     models_ns = next(d for d in result.declarations if d.name == "App\\Models")
- 157 |     assert models_ns.kind == "namespace"
- 158 |     assert models_ns.start_line == 2
- 160 |     user = next(d for d in result.declarations if d.name == "User")
- 161 |     assert user.kind == "class"
- 162 |     assert user.start_line == 4
- 164 |     controllers_ns = next(d for d in result.declarations if d.name == "App\\Controllers")
- 165 |     assert controllers_ns.kind == "namespace"
- 166 |     assert controllers_ns.start_line == 9
- 168 |     controller = next(d for d in result.declarations if d.name == "UserController")
- 169 |     assert controller.kind == "class"
- 170 |     assert controller.start_line == 11
- 173 | def test_parse_php_empty():
- 175 |     result = parse_php("test.php", "")
- 176 |     assert result is not None
- 177 |     assert len(result.declarations) == 0
- 180 | def test_parse_php_invalid():
- 182 |     code = """
- 183 | this is not valid php code
- 185 |     result = parse_php("test.php", code)
- 186 |     assert result is not None
- 187 |     assert len(result.declarations) == 0
-```
 
 ---
 ### File: ./tests/test_java_parser.py
@@ -1552,116 +301,6 @@ File: test_java_parser.py
 Language: python
 ```
 
-```python
-   3 | import pytest
-   4 | from codeconcat.parser.language_parsers.java_parser import parse_java
-   7 | def test_parse_java_class():
-   9 |     code = """
-  10 | public class Person {
-  11 |     private String name;
-  12 |     private int age;
-  14 |     public Person(String name, int age) {
-  15 |         this.name = name;
-  16 |         this.age = age;
-  17 |     }
-  19 |     public String getName() {
-  20 |         return name;
-  21 |     }
-  22 | }
-  24 | class Employee extends Person {
-  25 |     private double salary;
-  27 |     public Employee(String name, int age, double salary) {
-  28 |         super(name, age);
-  29 |         this.salary = salary;
-  30 |     }
-  31 | }
-  33 |     result = parse_java("test.java", code)
-  34 |     assert result is not None
-  35 |     assert len(result.declarations) == 2
-  37 |     person = next(d for d in result.declarations if d.name == "Person")
-  38 |     assert person.kind == "class"
-  39 |     assert person.start_line == 2
-  41 |     employee = next(d for d in result.declarations if d.name == "Employee")
-  42 |     assert employee.kind == "class"
-  43 |     assert employee.start_line == 15
-  46 | def test_parse_java_interface():
-  48 |     code = """
-  49 | public interface Readable {
-  50 |     String read();
-  51 | }
-  53 | interface Writable {
-  54 |     void write(String data);
-  55 | }
-  57 |     result = parse_java("test.java", code)
-  58 |     assert result is not None
-  59 |     assert len(result.declarations) == 2
-  61 |     readable = next(d for d in result.declarations if d.name == "Readable")
-  62 |     assert readable.kind == "interface"
-  63 |     assert readable.start_line == 2
-  65 |     writable = next(d for d in result.declarations if d.name == "Writable")
-  66 |     assert writable.kind == "interface"
-  67 |     assert writable.start_line == 6
-  70 | def test_parse_java_method():
-  72 |     code = """
-  73 | public class Calculator {
-  74 |     public int add(int a, int b) {
-  75 |         return a + b;
-  76 |     }
-  78 |     private double multiply(double x, double y) {
-  79 |         return x * y;
-  80 |     }
-  82 |     protected static void log(String message) {
-  83 |         System.out.println(message);
-  84 |     }
-  85 | }
-  87 |     result = parse_java("test.java", code)
-  88 |     assert result is not None
-  89 |     assert len(result.declarations) == 4
-  91 |     calc = next(d for d in result.declarations if d.name == "Calculator")
-  92 |     assert calc.kind == "class"
-  93 |     assert calc.start_line == 2
-  95 |     add = next(d for d in result.declarations if d.name == "add")
-  96 |     assert add.kind == "method"
-  97 |     assert add.start_line == 3
-  99 |     multiply = next(d for d in result.declarations if d.name == "multiply")
- 100 |     assert multiply.kind == "method"
- 101 |     assert multiply.start_line == 7
- 103 |     log = next(d for d in result.declarations if d.name == "log")
- 104 |     assert log.kind == "method"
- 105 |     assert log.start_line == 11
- 108 | def test_parse_java_field():
- 110 |     code = """
- 111 | public class Constants {
- 112 |     public static final int MAX_VALUE = 100;
- 113 |     private static String prefix = "test";
- 114 |     protected boolean debug = false;
- 115 | }
- 117 |     result = parse_java("test.java", code)
- 118 |     assert result is not None
- 119 |     assert len(result.declarations) == 4
- 121 |     constants = next(d for d in result.declarations if d.name == "Constants")
- 122 |     assert constants.kind == "class"
- 123 |     assert constants.start_line == 2
- 125 |     max_value = next(d for d in result.declarations if d.name == "MAX_VALUE")
- 126 |     assert max_value.kind == "field"
- 127 |     assert max_value.start_line == 3
- 129 |     prefix = next(d for d in result.declarations if d.name == "prefix")
- 130 |     assert prefix.kind == "field"
- 131 |     assert prefix.start_line == 4
- 133 |     debug = next(d for d in result.declarations if d.name == "debug")
- 134 |     assert debug.kind == "field"
- 135 |     assert debug.start_line == 5
- 138 | def test_parse_java_empty():
- 140 |     result = parse_java("test.java", "")
- 141 |     assert result is not None
- 142 |     assert len(result.declarations) == 0
- 145 | def test_parse_java_invalid():
- 147 |     code = """
- 148 | this is not valid java code
- 150 |     result = parse_java("test.java", code)
- 151 |     assert result is not None
- 152 |     assert len(result.declarations) == 0
-```
 
 ---
 ### File: ./tests/test_annotator.py
@@ -1671,103 +310,6 @@ File: test_annotator.py
 Language: python
 ```
 
-```python
-   3 | import pytest
-   4 | from codeconcat.base_types import (
-   5 |     CodeConCatConfig,
-   6 |     ParsedFileData,
-   7 |     Declaration
-   8 | )
-   9 | from codeconcat.transformer.annotator import annotate
-  12 | def test_annotate_empty_file():
-  13 |     parsed_data = ParsedFileData(
-  14 |         file_path="/path/to/empty.py",
-  15 |         language="python",
-  16 |         content="",
-  17 |         declarations=[]
-  18 |     )
-  19 |     config = CodeConCatConfig()
-  21 |     result = annotate(parsed_data, config)
-  22 |     assert result.summary == "No declarations found"
-  23 |     assert result.tags == ["python"]
-  24 |     assert "## File: /path/to/empty.py" in result.annotated_content
-  27 | def test_annotate_with_declarations():
-  28 |     parsed_data = ParsedFileData(
-  29 |         file_path="/path/to/test.py",
-  30 |         language="python",
-  31 |         content="def test(): pass\nclass Test: pass",
-  32 |         declarations=[
-  33 |             Declaration(
-  34 |                 kind="function",
-  35 |                 name="test",
-  36 |                 start_line=1,
-  37 |                 end_line=1,
-  38 |                 modifiers=set(),
-  39 |                 docstring=None
-  40 |             ),
-  41 |             Declaration(
-  42 |                 kind="class",
-  43 |                 name="Test",
-  44 |                 start_line=2,
-  45 |                 end_line=2,
-  46 |                 modifiers=set(),
-  47 |                 docstring=None
-  48 |             )
-  49 |         ]
-  50 |     )
-  51 |     config = CodeConCatConfig()
-  53 |     result = annotate(parsed_data, config)
-  54 |     assert "1 functions, 1 classes" in result.summary
-  55 |     assert set(result.tags) == {"has_functions", "has_classes", "python"}
-  56 |     assert "### Functions" in result.annotated_content
-  57 |     assert "### Classes" in result.annotated_content
-  58 |     assert "- test" in result.annotated_content
-  59 |     assert "- Test" in result.annotated_content
-  62 | def test_annotate_with_structs():
-  63 |     parsed_data = ParsedFileData(
-  64 |         file_path="/path/to/test.cpp",
-  65 |         language="cpp",
-  66 |         content="struct Test { int x; };",
-  67 |         declarations=[
-  68 |             Declaration(
-  69 |                 kind="struct",
-  70 |                 name="Test",
-  71 |                 start_line=1,
-  72 |                 end_line=1,
-  73 |                 modifiers=set(),
-  74 |                 docstring=None
-  75 |             )
-  76 |         ]
-  77 |     )
-  78 |     config = CodeConCatConfig()
-  80 |     result = annotate(parsed_data, config)
-  81 |     assert "1 structs" in result.summary
-  82 |     assert set(result.tags) == {"has_structs", "cpp"}
-  83 |     assert "### Structs" in result.annotated_content
-  84 |     assert "- Test" in result.annotated_content
-  87 | def test_annotate_with_symbols():
-  88 |     parsed_data = ParsedFileData(
-  89 |         file_path="/path/to/test.py",
-  90 |         language="python",
-  91 |         content="x = 1",
-  92 |         declarations=[
-  93 |             Declaration(
-  94 |                 kind="symbol",
-  95 |                 name="x",
-  96 |                 start_line=1,
-  97 |                 end_line=1,
-  98 |                 modifiers=set(),
-  99 |                 docstring=None
- 100 |             )
- 101 |         ]
- 102 |     )
- 103 |     config = CodeConCatConfig()
- 105 |     result = annotate(parsed_data, config)
- 106 |     assert "1 symbols" in result.summary
- 107 |     assert set(result.tags) == {"has_symbols", "python"}
- 108 |     assert "### Symbols" in result.annotated_content
- 109 |     assert "- x" in result.annotated_content
-```
 
 ---
 ### File: ./tests/test_r_parser.py
@@ -1777,187 +319,6 @@ File: test_r_parser.py
 Language: python
 ```
 
-```python
-   1 | import unittest
-   2 | from codeconcat.parser.language_parsers.r_parser import RParser, parse_r
-   4 | class TestRParser(unittest.TestCase):
-   5 |     def setUp(self):
-   6 |         self.parser = RParser()
-   8 |     def test_function_declarations(self):
-   9 |         r_code = '''
-  11 |         func1 <- function(x) { x + 1 }
-  12 |         func2 = function(x) { x + 1 }
-  13 |         function(x) -> func3
-  16 |         complex_func <- # comment
-  17 |           function(x) {
-  18 |             x + 1
-  19 |         }
-  21 |         declarations = self.parser.parse(r_code)
-  22 |         func_names = {d.name for d in declarations if d.kind == 'function'}
-  23 |         self.assertEqual(func_names, {'func1', 'func2', 'func3', 'complex_func'})
-  25 |     def test_class_declarations(self):
-  26 |         r_code = '''
-  28 |         setClass("MyS4Class", slots = list(x = "numeric"))
-  31 |         MyS3Class <- function(x) {
-  32 |             obj <- list(x = x)
-  33 |             class(obj) <- "MyS3Class"
-  34 |             obj
-  35 |         }
-  38 |         setGeneric("myMethod", function(x) standardGeneric("myMethod"))
-  39 |         setMethod("myMethod", "MyS4Class", function(x) x@x)
-  41 |         declarations = self.parser.parse(r_code)
-  42 |         class_names = {d.name for d in declarations if d.kind == 'class'}
-  43 |         method_names = {d.name for d in declarations if d.kind == 'method'}
-  44 |         self.assertEqual(class_names, {'MyS4Class', 'MyS3Class'})
-  45 |         self.assertEqual(method_names, {'myMethod'})
-  47 |     def test_package_imports(self):
-  48 |         r_code = '''
-  49 |         library(dplyr)
-  50 |         library("tidyr")
-  51 |         require(ggplot2)
-  52 |         require("data.table")
-  55 |         dplyr::select
-  56 |         data.table:::fread
-  58 |         declarations = self.parser.parse(r_code)
-  59 |         package_names = {d.name for d in declarations if d.kind == 'package'}
-  60 |         self.assertEqual(
-  61 |             package_names,
-  62 |             {'dplyr', 'tidyr', 'ggplot2', 'data.table'}
-  63 |         )
-  65 |     def test_nested_functions(self):
-  66 |         r_code = '''
-  67 |         outer <- function() {
-  68 |             inner1 <- function() {
-  69 |                 inner2 <- function() {
-  70 |                     x + 1
-  71 |                 }
-  72 |                 inner2
-  73 |             }
-  74 |             inner1
-  75 |         }
-  77 |         declarations = self.parser.parse(r_code)
-  78 |         func_names = {d.name for d in declarations if d.kind == 'function'}
-  79 |         self.assertEqual(func_names, {'outer', 'inner1', 'inner2'})
-  81 |     def test_r6_class(self):
-  82 |         r_code = '''
-  84 |         Calculator <- R6Class("Calculator",
-  85 |             public = list(
-  86 |                 value = 0,
-  87 |                 add = function(x) {
-  88 |                     self$value <- self$value + x
-  89 |                 },
-  90 |                 subtract = function(x) {
-  91 |                     self$value <- self$value - x
-  92 |                 }
-  93 |             )
-  94 |         )
-  96 |         declarations = self.parser.parse(r_code)
-  97 |         class_decls = [d for d in declarations if d.kind == 'class']
-  98 |         method_decls = [d for d in declarations if d.kind == 'method']
- 100 |         self.assertEqual(len(class_decls), 1)
- 101 |         self.assertEqual(class_decls[0].name, 'Calculator')
- 102 |         self.assertEqual({m.name for m in method_decls}, {'Calculator.add', 'Calculator.subtract'})
- 104 |     def test_reference_class(self):
- 105 |         r_code = '''
- 107 |         setRefClass("Employee",
- 108 |             fields = list(
- 109 |                 name = "character",
- 110 |                 salary = "numeric"
- 111 |             ),
- 112 |             methods = list(
- 113 |                 raise = function(amount) {
- 114 |                     salary <<- salary + amount
- 115 |                 },
- 116 |                 get_info = function() {
- 117 |                     paste(name, salary)
- 118 |                 }
- 119 |             )
- 120 |         )
- 122 |         declarations = self.parser.parse(r_code)
- 123 |         class_decls = [d for d in declarations if d.kind == 'class']
- 124 |         method_decls = [d for d in declarations if d.kind == 'method']
- 126 |         self.assertEqual(len(class_decls), 1)
- 127 |         self.assertEqual(class_decls[0].name, 'Employee')
- 128 |         self.assertEqual({m.name for m in method_decls}, {'Employee.raise', 'Employee.get_info'})
- 130 |     def test_modifiers(self):
- 131 |         r_code = '''
- 134 |         process_data <- function(data) {
- 135 |             data
- 136 |         }
- 139 |         MyClass <- R6Class("MyClass")
- 141 |         declarations = self.parser.parse(r_code)
- 143 |         process_data = next(d for d in declarations if d.name == 'process_data')
- 144 |         my_class = next(d for d in declarations if d.name == 'MyClass')
- 146 |         self.assertEqual(process_data.modifiers, {'export', 'internal'})
- 147 |         self.assertEqual(my_class.modifiers, {'export'})
- 149 |     def test_s3_methods(self):
- 150 |         r_code = '''
- 152 |         print.myclass <- function(x) {
- 153 |             cat("MyClass object\\n")
- 154 |         }
- 156 |         plot.myclass = function(x, y, ...) {
- 157 |             plot(x$data)
- 158 |         }
- 160 |         summary.myclass -> function(object) {
- 161 |             list(object)
- 162 |         }
- 164 |         declarations = self.parser.parse(r_code)
- 165 |         method_names = {d.name for d in declarations if d.kind == 'method'}
- 167 |         expected_methods = {'print.myclass', 'plot.myclass', 'summary.myclass'}
- 168 |         self.assertEqual(method_names, expected_methods)
- 170 |     def test_complex_assignments(self):
- 171 |         r_code = '''
- 173 |         func1 <- function(x) x
- 174 |         func2 = function(x) x
- 175 |         func3 <<- function(x) x
- 176 |         function(x) -> func4
- 177 |         function(x) ->> func5
- 178 |         func6 := function(x) x
- 180 |         declarations = self.parser.parse(r_code)
- 181 |         func_names = {d.name for d in declarations if d.kind == 'function'}
- 183 |         expected_funcs = {'func1', 'func2', 'func3', 'func4', 'func5', 'func6'}
- 184 |         self.assertEqual(func_names, expected_funcs)
- 186 |     def test_dollar_notation_methods(self):
- 187 |         r_code = '''
- 189 |         Employee$get_salary <- function(x) {
- 190 |             x$salary
- 191 |         }
- 193 |         Employee$set_salary <- function(x, value) {
- 194 |             x$salary <- value
- 195 |         }
- 198 |         Employee.Department$get_manager <- function(x) {
- 199 |             x$manager
- 200 |         }
- 202 |         declarations = self.parser.parse(r_code)
- 203 |         method_names = {d.name for d in declarations if d.kind == 'method'}
- 205 |         expected_methods = {
- 206 |             'Employee$get_salary',
- 207 |             'Employee$set_salary',
- 208 |             'Employee.Department$get_manager'
- 209 |         }
- 210 |         self.assertEqual(method_names, expected_methods)
- 212 |     def test_object_methods_with_dots(self):
- 213 |         r_code = '''
- 215 |         Employee.new <- function(name, salary) {
- 216 |             list(name = name, salary = salary)
- 217 |         }
- 219 |         Employee.get_info <- function(self) {
- 220 |             paste(self$name, self$salary)
- 221 |         }
- 224 |         Department.Employee.create <- function(dept, name) {
- 225 |             list(department = dept, name = name)
- 226 |         }
- 228 |         declarations = self.parser.parse(r_code)
- 229 |         method_names = {d.name for d in declarations if d.kind == 'method'}
- 231 |         expected_methods = {
- 232 |             'Employee.new',
- 233 |             'Employee.get_info',
- 234 |             'Department.Employee.create'
- 235 |         }
- 236 |         self.assertEqual(method_names, expected_methods)
- 238 | if __name__ == '__main__':
- 239 |     unittest.main()
-```
 
 ---
 ### File: ./codeconcat/version.py
@@ -1968,8 +329,11 @@ Language: python
 ```
 
 ```python
-   3 | __version__ = "0.5.2"
+   3 | __version__ = "0.6.1"
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/version.py
 
 ---
 ### File: ./codeconcat/__init__.py
@@ -1993,6 +357,9 @@ Language: python
   15 |     "__version__",
   16 | ]
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/__init__.py
 
 ---
 ### File: ./codeconcat/base_types.py
@@ -2125,6 +492,11 @@ Language: python
  163 |         if self.format not in VALID_FORMATS:
  164 |             raise ValueError(f"Invalid format '{self.format}'. Must be one of: {', '.join(VALID_FORMATS)}")
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/base_types.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/main.py
@@ -2439,24 +811,44 @@ Language: python
  428 |                     )
  429 |                 )
  432 |         if config.format == "markdown":
- 433 |             return write_markdown(annotated_files, docs, config, folder_tree_str)
- 434 |         elif config.format == "json":
- 435 |             return write_json(annotated_files, docs, config, folder_tree_str)
- 436 |         elif config.format == "xml":
- 437 |             return write_xml(
- 438 |                 parsed_files, docs, {f.file_path: f for f in annotated_files}, folder_tree_str
- 439 |             )
- 440 |         else:
- 441 |             raise ConfigurationError(f"Invalid format: {config.format}")
- 443 |     except Exception as e:
- 444 |         error_msg = f"Error processing code: {str(e)}"
- 445 |         print(f"[CodeConCat] {error_msg}")
- 446 |         raise CodeConcatError(error_msg) from e
- 449 | def main():
- 450 |     cli_entry_point()
- 453 | if __name__ == "__main__":
- 454 |     main()
+ 433 |             from codeconcat.writer.markdown_writer import write_markdown
+ 434 |             from codeconcat.writer.ai_context import generate_ai_preamble
+ 436 |             output_chunks = []
+ 439 |             if not config.disable_ai_context:
+ 440 |                 ai_preamble = generate_ai_preamble(code_files, docs, annotated_files)
+ 441 |                 if ai_preamble:
+ 442 |                     output_chunks.append(ai_preamble)
+ 444 |             output = write_markdown(
+ 445 |                 annotated_files,
+ 446 |                 docs,
+ 447 |                 config,
+ 448 |                 folder_tree_str,
+ 449 |             )
+ 450 |             if output:
+ 451 |                 output_chunks.append(output)
+ 453 |             return "\n".join(output_chunks)
+ 454 |         elif config.format == "json":
+ 455 |             return write_json(annotated_files, docs, config, folder_tree_str)
+ 456 |         elif config.format == "xml":
+ 457 |             return write_xml(
+ 458 |                 parsed_files, docs, {f.file_path: f for f in annotated_files}, folder_tree_str
+ 459 |             )
+ 460 |         else:
+ 461 |             raise ConfigurationError(f"Invalid format: {config.format}")
+ 463 |     except Exception as e:
+ 464 |         error_msg = f"Error processing code: {str(e)}"
+ 465 |         print(f"[CodeConCat] {error_msg}")
+ 466 |         raise CodeConcatError(error_msg) from e
+ 469 | def main():
+ 470 |     cli_entry_point()
+ 473 | if __name__ == "__main__":
+ 474 |     main()
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/main.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/config/config_loader.py
@@ -2535,6 +927,10 @@ Language: python
   82 |                 setattr(config, key, value)
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/config/config_loader.py
+### Functions
+
 ---
 ### File: ./codeconcat/config/__init__.py
 #### Summary
@@ -2543,9 +939,6 @@ File: __init__.py
 Language: python
 ```
 
-```python
-
-```
 
 ---
 ### File: ./codeconcat/transformer/__init__.py
@@ -2555,9 +948,6 @@ File: __init__.py
 Language: python
 ```
 
-```python
-
-```
 
 ---
 ### File: ./codeconcat/transformer/annotator.py
@@ -2583,7 +973,7 @@ Language: python
   18 |             classes.append(decl.name)
   19 |         elif decl.kind == "struct":
   20 |             structs.append(decl.name)
-  21 |         elif decl.kind == "symbol":
+  21 |         elif decl.kind == "symbol" and not config.disable_symbols:
   22 |             symbols.append(decl.name)
   25 |     if functions:
   26 |         pieces.append("### Functions\n")
@@ -2632,6 +1022,9 @@ Language: python
   79 |     )
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/transformer/annotator.py
+
 ---
 ### File: ./codeconcat/processor/security_types.py
 #### Summary
@@ -2650,6 +1043,10 @@ Language: python
   13 |     severity: str
   14 |     description: str
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/processor/security_types.py
+### Classes
 
 ---
 ### File: ./codeconcat/processor/content_processor.py
@@ -2733,6 +1130,10 @@ Language: python
   98 |     return "\n".join(print_tree(structure))
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/processor/content_processor.py
+### Functions
+
 ---
 ### File: ./codeconcat/processor/token_counter.py
 #### Summary
@@ -2768,6 +1169,11 @@ Language: python
   43 |     )
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/processor/token_counter.py
+### Functions
+### Classes
+
 ---
 ### File: ./codeconcat/processor/__init__.py
 #### Summary
@@ -2784,6 +1190,9 @@ Language: python
    7 | )
    9 | __all__ = ["process_file_content", "generate_file_summary", "generate_directory_structure"]
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/processor/__init__.py
 
 ---
 ### File: ./codeconcat/processor/security_processor.py
@@ -2886,6 +1295,11 @@ Language: python
  122 |         return "\n".join(formatted)
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/processor/security_processor.py
+### Functions
+### Classes
+
 ---
 ### File: ./codeconcat/collector/github_collector.py
 #### Summary
@@ -2972,6 +1386,10 @@ Language: python
  105 |     return github_url
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/collector/github_collector.py
+### Functions
+
 ---
 ### File: ./codeconcat/collector/__init__.py
 #### Summary
@@ -2980,9 +1398,6 @@ File: __init__.py
 Language: python
 ```
 
-```python
-
-```
 
 ---
 ### File: ./codeconcat/collector/local_collector.py
@@ -3304,6 +1719,10 @@ Language: python
  427 |         return True
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/collector/local_collector.py
+### Functions
+
 ---
 ### File: ./codeconcat/parser/doc_extractor.py
 #### Summary
@@ -3337,6 +1756,10 @@ Language: python
   32 |     except Exception:
   33 |         return ""
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/doc_extractor.py
+### Functions
 
 ---
 ### File: ./codeconcat/parser/file_parser.py
@@ -3529,6 +1952,10 @@ Language: python
  231 |         return ""
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/parser/file_parser.py
+### Functions
+
 ---
 ### File: ./codeconcat/parser/__init__.py
 #### Summary
@@ -3537,9 +1964,6 @@ File: __init__.py
 Language: python
 ```
 
-```python
-
-```
 
 ---
 ### File: ./codeconcat/parser/language_parsers/csharp_parser.py
@@ -3744,6 +2168,11 @@ Language: python
  229 |         return processed_declarations
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/csharp_parser.py
+### Functions
+### Classes
+
 ---
 ### File: ./codeconcat/parser/language_parsers/c_parser.py
 #### Summary
@@ -3862,6 +2291,11 @@ Language: python
  130 |         return len(lines) - 1
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/c_parser.py
+### Functions
+### Classes
+
 ---
 ### File: ./codeconcat/parser/language_parsers/julia_parser.py
 #### Summary
@@ -3877,7 +2311,7 @@ Language: python
    6 | from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
    8 | def parse_julia(file_path: str, content: str) -> Optional[ParsedFileData]:
    9 |     parser = JuliaParser()
-  10 |     declarations = parser.parse(content)
+  10 |     declarations = parser.parse_file(content)
   11 |     return ParsedFileData(
   12 |         file_path=file_path,
   13 |         language="julia",
@@ -3885,76 +2319,201 @@ Language: python
   15 |         declarations=declarations
   16 |     )
   18 | class JuliaParser(BaseParser):
-  19 |     def _setup_patterns(self):
-  21 |         We'll define simpler patterns. Note we must handle single-line vs. multi-line function definitions
-  22 |         like:
-  23 |           function name(...) ...
-  24 |         or
-  25 |           name(x) = x+1
-  28 |         self.patterns = {
-  29 |             "function": re.compile(
-  30 |                 r"^[^#]*"
-  31 |                 r"(?:function\s+(?P<name>[a-zA-Z_]\w*))|"
-  32 |                 r"^(?P<name2>[a-zA-Z_]\w*)\s*\([^)]*\)\s*=\s*"
-  33 |             ),
-  34 |             "struct": re.compile(
-  35 |                 r"^[^#]*(?:mutable\s+)?struct\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
-  36 |             ),
-  37 |             "abstract": re.compile(
-  38 |                 r"^[^#]*abstract\s+type\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
-  39 |             ),
-  40 |             "module": re.compile(
-  41 |                 r"^[^#]*module\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
-  42 |             ),
-  43 |             "macro": re.compile(
-  44 |                 r"^[^#]*macro\s+(?P<name>[a-zA-Z_]\w*)"
-  45 |             ),
-  46 |         }
-  48 |         self.block_start = "begin"  # not always used, but a placeholder
-  49 |         self.block_end = "end"
-  50 |         self.line_comment = "#"
-  51 |         self.block_comment_start = "#="
-  52 |         self.block_comment_end = "=#"
-  54 |     def parse(self, content: str) -> List[Declaration]:
-  55 |         lines = content.split("\n")
-  56 |         symbols: List[CodeSymbol] = []
-  57 |         i = 0
-  58 |         line_count = len(lines)
-  60 |         while i < line_count:
-  61 |             line = lines[i]
-  62 |             stripped = line.strip()
-  63 |             if not stripped or stripped.startswith("#"):
-  64 |                 i += 1
-  65 |                 continue
-  67 |             matched = False
-  68 |             for kind, pattern in self.patterns.items():
-  69 |                 m = pattern.match(stripped)
-  70 |                 if m:
-  72 |                     name = m.groupdict().get("name") or m.groupdict().get("name2")
-  73 |                     if not name:
-  74 |                         continue
-  75 |                     symbol = CodeSymbol(
-  76 |                         name=name,
-  77 |                         kind=kind,
-  78 |                         start_line=i,
-  79 |                         end_line=i,
-  80 |                         modifiers=set(),
-  81 |                     )
-  82 |                     symbols.append(symbol)
-  83 |                     matched = True
-  84 |                     break
-  85 |             i += 1
-  87 |         declarations = []
-  88 |         for sym in symbols:
-  89 |             declarations.append(Declaration(
-  90 |                 kind=sym.kind,
-  91 |                 name=sym.name,
-  92 |                 start_line=sym.start_line + 1,
-  93 |                 end_line=sym.end_line + 1,
-  94 |                 modifiers=sym.modifiers
-  95 |             ))
-  96 |         return declarations
+  19 |     def __init__(self):
+  20 |         super().__init__()
+  21 |         self._setup_patterns()
+  23 |     def _setup_patterns(self):
+  25 |         self.patterns = {}
+  28 |         self.block_start = None
+  29 |         self.block_end = None
+  30 |         self.line_comment = "#"
+  31 |         self.block_comment_start = "#="
+  32 |         self.block_comment_end = "=#"
+  35 |         func_pattern = r"^\s*(?:function\s+)?(?P<n>[a-zA-Z_][a-zA-Z0-9_!]*)\s*\([^)]*\)(?:\s*where\s+\{[^}]*\})?\s*(?:=|$)"
+  36 |         self.patterns["function"] = re.compile(func_pattern)
+  39 |         struct_pattern = r"^\s*(?:mutable\s+)?struct\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_!]*)\s*(?:<:\s*[a-zA-Z_][a-zA-Z0-9_!]*\s*)?$"
+  40 |         self.patterns["struct"] = re.compile(struct_pattern)
+  43 |         abstract_pattern = r"^\s*abstract\s+type\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_!]*)\s*(?:<:\s*[a-zA-Z_][a-zA-Z0-9_!]*\s*)?$"
+  44 |         self.patterns["abstract"] = re.compile(abstract_pattern)
+  47 |         module_pattern = r"^\s*module\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_!]*)\s*$"
+  48 |         self.patterns["module"] = re.compile(module_pattern)
+  51 |         macro_pattern = r"^\s*macro\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_!]*)\s*\([^)]*\)\s*$"
+  52 |         self.patterns["macro"] = re.compile(macro_pattern)
+  55 |         const_pattern = r"^\s*const\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_!]*)\s*=\s*"
+  56 |         self.patterns["const"] = re.compile(const_pattern)
+  58 |     def parse_file(self, content: str) -> List[Declaration]:
+  60 |         return self.parse(content)
+  62 |     def parse(self, content: str) -> List[Declaration]:
+  64 |         declarations = []
+  65 |         lines = content.split('\n')
+  66 |         i = 0
+  68 |         while i < len(lines):
+  69 |             line = lines[i].strip()
+  72 |             if not line or line.startswith('#'):
+  73 |                 i += 1
+  74 |                 continue
+  77 |             if line.startswith('function ') or ('(' in line and ')' in line and '=' in line):
+  78 |                 match = re.match(r'(?:function\s+)?(\w+)\s*\([^)]*\).*', line)
+  79 |                 if match:
+  80 |                     name = match.group(1)
+  81 |                     end_line = i
+  84 |                     if line.startswith('function'):
+  85 |                         j = i + 1
+  86 |                         while j < len(lines):
+  87 |                             curr_line = lines[j].strip()
+  88 |                             if curr_line == 'end':
+  89 |                                 end_line = j
+  90 |                                 break
+  91 |                             j += 1
+  93 |                     declarations.append(Declaration(
+  94 |                         kind='function',
+  95 |                         name=name,
+  96 |                         start_line=i + 1,
+  97 |                         end_line=end_line + 1,
+  98 |                         modifiers=set(),
+  99 |                         docstring=""
+ 100 |                     ))
+ 101 |                     i = end_line + 1
+ 102 |                     continue
+ 105 |             if line.startswith('struct ') or line.startswith('mutable struct '):
+ 106 |                 match = re.match(r'(?:mutable\s+)?struct\s+(\w+)', line)
+ 107 |                 if match:
+ 108 |                     name = match.group(1)
+ 109 |                     end_line = i
+ 112 |                     j = i + 1
+ 113 |                     while j < len(lines):
+ 114 |                         curr_line = lines[j].strip()
+ 115 |                         if curr_line == 'end':
+ 116 |                             end_line = j
+ 117 |                             break
+ 118 |                         j += 1
+ 120 |                     declarations.append(Declaration(
+ 121 |                         kind='struct',
+ 122 |                         name=name,
+ 123 |                         start_line=i + 1,
+ 124 |                         end_line=end_line + 1,
+ 125 |                         modifiers=set(),
+ 126 |                         docstring=""
+ 127 |                     ))
+ 128 |                     i = end_line + 1
+ 129 |                     continue
+ 132 |             if line.startswith('abstract type '):
+ 133 |                 match = re.match(r'abstract\s+type\s+(\w+)(?:\s+<:\s+\w+)?', line)
+ 134 |                 if match:
+ 135 |                     name = match.group(1)
+ 136 |                     end_line = i
+ 139 |                     if 'end' not in line:
+ 140 |                         j = i + 1
+ 141 |                         while j < len(lines):
+ 142 |                             curr_line = lines[j].strip()
+ 143 |                             if curr_line == 'end':
+ 144 |                                 end_line = j
+ 145 |                                 break
+ 146 |                             j += 1
+ 148 |                     declarations.append(Declaration(
+ 149 |                         kind='abstract',
+ 150 |                         name=name,
+ 151 |                         start_line=i + 1,
+ 152 |                         end_line=end_line + 1,
+ 153 |                         modifiers=set(),
+ 154 |                         docstring=""
+ 155 |                     ))
+ 156 |                     i = end_line + 1
+ 157 |                     continue
+ 160 |             if line.startswith('module '):
+ 161 |                 match = re.match(r'module\s+(\w+)', line)
+ 162 |                 if match:
+ 163 |                     name = match.group(1)
+ 164 |                     module_start = i
+ 165 |                     module_end = i
+ 168 |                     j = i + 1
+ 169 |                     while j < len(lines):
+ 170 |                         curr_line = lines[j].strip()
+ 171 |                         if curr_line == 'end' or curr_line.startswith('end #'):
+ 172 |                             module_end = j
+ 173 |                             break
+ 174 |                         j += 1
+ 176 |                     declarations.append(Declaration(
+ 177 |                         kind='module',
+ 178 |                         name=name,
+ 179 |                         start_line=i + 1,
+ 180 |                         end_line=module_end + 1,
+ 181 |                         modifiers=set(),
+ 182 |                         docstring=""
+ 183 |                     ))
+ 186 |                     module_content = '\n'.join(lines[module_start+1:module_end])
+ 187 |                     module_declarations = self.parse(module_content)
+ 189 |                     for decl in module_declarations:
+ 190 |                         decl.start_line += module_start + 1
+ 191 |                         decl.end_line += module_start + 1
+ 192 |                     declarations.extend(module_declarations)
+ 194 |                     i = module_end + 1
+ 195 |                     continue
+ 198 |             if line.startswith('macro ') or line.startswith('@'):
+ 199 |                 if line.startswith('macro '):
+ 200 |                     match = re.match(r'macro\s+(\w+)', line)
+ 201 |                     kind = 'macro'
+ 202 |                 else:
+ 203 |                     match = re.match(r'@\w+\s+function\s+(\w+)', line)
+ 204 |                     kind = 'function'
+ 206 |                 if match:
+ 207 |                     name = match.group(1)
+ 208 |                     end_line = i
+ 211 |                     j = i + 1
+ 212 |                     while j < len(lines):
+ 213 |                         curr_line = lines[j].strip()
+ 214 |                         if curr_line == 'end':
+ 215 |                             end_line = j
+ 216 |                             break
+ 217 |                         j += 1
+ 219 |                     declarations.append(Declaration(
+ 220 |                         kind=kind,
+ 221 |                         name=name,
+ 222 |                         start_line=i + 1,
+ 223 |                         end_line=end_line + 1,
+ 224 |                         modifiers=set(),
+ 225 |                         docstring=""
+ 226 |                     ))
+ 227 |                     i = end_line + 1
+ 228 |                     continue
+ 231 |             if '=' in line and '(' in line and ')' in line:
+ 232 |                 match = re.match(r'(\w+)\s*\([^)]*\)\s*=', line)
+ 233 |                 if match:
+ 234 |                     name = match.group(1)
+ 235 |                     declarations.append(Declaration(
+ 236 |                         kind='function',
+ 237 |                         name=name,
+ 238 |                         start_line=i + 1,
+ 239 |                         end_line=i + 1,
+ 240 |                         modifiers=set(),
+ 241 |                         docstring=""
+ 242 |                     ))
+ 243 |                     i += 1
+ 244 |                     continue
+ 246 |             i += 1
+ 248 |         return declarations
+ 250 |     def _find_block_end(self, lines: List[str], start: int) -> int:
+ 252 |         i = start
+ 253 |         block_count = 1  # We start after a block opener
+ 255 |         while i < len(lines):
+ 256 |             line = lines[i].strip()
+ 259 |             if line.startswith(self.line_comment) or line.startswith(self.block_comment_start):
+ 260 |                 i += 1
+ 261 |                 continue
+ 264 |             if any(word in line for word in ["function", "struct", "begin", "module", "macro", "if", "for", "while"]):
+ 265 |                 block_count += 1
+ 268 |             if line == "end" or line.endswith(" end"):
+ 269 |                 block_count -= 1
+ 270 |                 if block_count == 0:
+ 271 |                     return i
+ 273 |             i += 1
+ 275 |         return len(lines) - 1  # If no matching end found, return last line
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/julia_parser.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/parser/language_parsers/__init__.py
@@ -3964,9 +2523,6 @@ File: __init__.py
 Language: python
 ```
 
-```python
-
-```
 
 ---
 ### File: ./codeconcat/parser/language_parsers/php_parser.py
@@ -3977,119 +2533,185 @@ Language: python
 ```
 
 ```python
-   3 | import re
-   4 | from typing import List, Optional, Set
-   5 | from codeconcat.base_types import Declaration, ParsedFileData
-   6 | from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
-   8 | def parse_php(file_path: str, content: str) -> Optional[ParsedFileData]:
-   9 |     parser = PhpParser()
-  10 |     declarations = parser.parse(content)
-  11 |     return ParsedFileData(
-  12 |         file_path=file_path,
-  13 |         language="php",
-  14 |         content=content,
-  15 |         declarations=declarations
-  16 |     )
-  18 | class PhpParser(BaseParser):
-  19 |     def _setup_patterns(self):
-  21 |         Using consistent '(?P<name>...)' for all top-level declarations:
-  22 |         class, interface, trait, function, etc.
-  24 |         self.patterns = {
-  25 |             "class": re.compile(
-  26 |                 r"^[^#/]*"
-  27 |                 r"(?:abstract\s+|final\s+)?"
-  28 |                 r"class\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"
-  29 |                 r"(?:\s+extends\s+[a-zA-Z_][a-zA-Z0-9_]*)?"
-  30 |                 r"(?:\s+implements\s+[a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)?"
-  31 |                 r"\s*\{"
-  32 |             ),
-  33 |             "interface": re.compile(
-  34 |                 r"^[^#/]*"
-  35 |                 r"interface\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"
-  36 |                 r"(?:\s+extends\s+[a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)?"
-  37 |                 r"\s*\{"
-  38 |             ),
-  39 |             "trait": re.compile(
-  40 |                 r"^[^#/]*"
-  41 |                 r"trait\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"
-  42 |                 r"\s*\{"
-  43 |             ),
-  44 |             "function": re.compile(
-  45 |                 r"^[^#/]*"
-  46 |                 r"(?:public\s+|private\s+|protected\s+|static\s+|final\s+)*"
-  47 |                 r"function\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"
-  48 |                 r"\s*\([^)]*\)"
-  49 |                 r"(?:\s*:\s*[a-zA-Z_][a-zA-Z0-9_|\\]*)?"
-  50 |                 r"\s*\{"
-  51 |             ),
-  52 |             "namespace": re.compile(
-  53 |                 r"^[^#/]*"
-  54 |                 r"namespace\s+(?P<name>[a-zA-Z_][a-zA-Z0-9_\\]*)"
-  55 |                 r"\s*;?"
-  56 |             ),
-  57 |         }
-  59 |         self.block_start = "{"
-  60 |         self.block_end = "}"
-  61 |         self.line_comment = "//"
-  63 |         self.block_comment_start = "/*"
-  64 |         self.block_comment_end = "*/"
-  66 |     def parse(self, content: str) -> List[Declaration]:
-  67 |         lines = content.split("\n")
-  68 |         symbols: List[CodeSymbol] = []
-  69 |         i = 0
-  70 |         line_count = len(lines)
-  72 |         while i < line_count:
-  73 |             line = lines[i].strip()
-  74 |             if not line or line.startswith("//") or line.startswith("#"):
-  75 |                 i += 1
-  76 |                 continue
-  78 |             matched = False
-  79 |             for kind, pattern in self.patterns.items():
-  80 |                 match = pattern.match(line)
-  81 |                 if match:
-  82 |                     name = match.group("name")
-  83 |                     block_end = i
-  85 |                     if kind in ["class", "interface", "trait", "function"]:
-  86 |                         block_end = self._find_block_end(lines, i)
-  88 |                     symbol = CodeSymbol(
-  89 |                         kind=kind,
-  90 |                         name=name,
-  91 |                         start_line=i,
-  92 |                         end_line=block_end,
-  93 |                         modifiers=set()
-  94 |                     )
-  95 |                     symbols.append(symbol)
-  96 |                     i = block_end
-  97 |                     matched = True
-  98 |                     break
-  99 |             if not matched:
- 100 |                 i += 1
- 102 |         declarations = []
- 103 |         for sym in symbols:
- 104 |             declarations.append(Declaration(
- 105 |                 kind=sym.kind,
- 106 |                 name=sym.name,
- 107 |                 start_line=sym.start_line + 1,
- 108 |                 end_line=sym.end_line + 1,
- 109 |                 modifiers=sym.modifiers,
- 110 |             ))
- 111 |         return declarations
- 113 |     def _find_block_end(self, lines: List[str], start: int) -> int:
- 114 |         line = lines[start]
- 115 |         if "{" not in line:
- 116 |             return start
- 117 |         brace_count = line.count("{") - line.count("}")
- 118 |         if brace_count <= 0:
- 119 |             return start
- 120 |         for i in range(start + 1, len(lines)):
- 121 |             l2 = lines[i]
- 122 |             if l2.strip().startswith("//") or l2.strip().startswith("#"):
- 123 |                 continue
- 124 |             brace_count += l2.count("{") - l2.count("}")
- 125 |             if brace_count <= 0:
- 126 |                 return i
- 127 |         return len(lines) - 1
+   1 | import re
+   2 | from typing import List, Optional, Set
+   3 | from codeconcat.base_types import Declaration, ParsedFileData
+   4 | from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
+   6 | def parse_php(file_path: str, content: str) -> Optional[ParsedFileData]:
+   8 |     try:
+   9 |         parser = PhpParser()
+  10 |         parser._setup_patterns()  # Initialize patterns
+  11 |         declarations = parser.parse(content)
+  12 |         return ParsedFileData(
+  13 |             file_path=file_path,
+  14 |             language="php",
+  15 |             content=content,
+  16 |             declarations=declarations,
+  17 |             token_stats=None,
+  18 |             security_issues=[]
+  19 |         )
+  20 |     except Exception as e:
+  21 |         print(f"Error parsing PHP file: {e}")
+  22 |         return ParsedFileData(
+  23 |             file_path=file_path,
+  24 |             language="php",
+  25 |             content=content,
+  26 |             declarations=[],
+  27 |             token_stats=None,
+  28 |             security_issues=[]
+  29 |         )
+  31 | class PhpParser(BaseParser):
+  32 |     def _setup_patterns(self):
+  34 |         self.patterns = {
+  35 |             'namespace': re.compile(r'namespace\s+([^;{]+)'),
+  36 |             'class': re.compile(r'(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?(?:\s+implements\s+[^{]+)?'),
+  37 |             'interface': re.compile(r'interface\s+(\w+)(?:\s+extends\s+[^{]+)?'),
+  38 |             'trait': re.compile(r'trait\s+(\w+)'),
+  39 |             'function': re.compile(r'function\s+(\w+)\s*\([^)]*\)(?:\s*:\s*[^{]+)?'),
+  40 |             'arrow_function': re.compile(r'\$(\w+)\s*=\s*fn\s*\([^)]*\)\s*=>'),
+  41 |             'php_tag': re.compile(r'<\?php'),
+  42 |             'comment': re.compile(r'//.*$|#.*$|/\*.*?\*/', re.MULTILINE | re.DOTALL)
+  43 |         }
+  45 |     def parse(self, content: str) -> List[Declaration]:
+  47 |         declarations = []
+  48 |         lines = content.split('\n')
+  49 |         i = 0
+  50 |         current_namespace = ""
+  52 |         while i < len(lines):
+  53 |             line = lines[i].strip()
+  56 |             if not line or self.patterns['comment'].match(line):
+  57 |                 i += 1
+  58 |                 continue
+  61 |             if self.patterns['php_tag'].search(line):
+  62 |                 i += 1
+  63 |                 continue
+  66 |             namespace_match = self.patterns['namespace'].match(line)
+  67 |             if namespace_match:
+  68 |                 current_namespace = namespace_match.group(1).strip().replace('\\\\', '\\')
+  69 |                 declarations.append(Declaration(
+  70 |                     kind='namespace',
+  71 |                     name=current_namespace,
+  72 |                     start_line=i,
+  73 |                     end_line=i,
+  74 |                     modifiers=set(),
+  75 |                     docstring=""
+  76 |                 ))
+  77 |                 i += 1
+  78 |                 continue
+  81 |             class_match = self.patterns['class'].match(line)
+  82 |             if class_match:
+  83 |                 name = class_match.group(1)
+  84 |                 if current_namespace:
+  85 |                     name = f"{current_namespace}\\{name}"
+  86 |                 else:
+  87 |                     name = name
+  90 |                 start_line = i
+  91 |                 end_line = self._find_block_end(lines, i)
+  93 |                 declarations.append(Declaration(
+  94 |                     kind='class',
+  95 |                     name=name,
+  96 |                     start_line=start_line,
+  97 |                     end_line=end_line,
+  98 |                     modifiers=set(),
+  99 |                     docstring=""
+ 100 |                 ))
+ 101 |                 i = end_line
+ 102 |                 continue
+ 105 |             interface_match = self.patterns['interface'].match(line)
+ 106 |             if interface_match:
+ 107 |                 name = interface_match.group(1)
+ 108 |                 if current_namespace:
+ 109 |                     name = f"{current_namespace}\\{name}"
+ 110 |                 else:
+ 111 |                     name = name
+ 114 |                 start_line = i
+ 115 |                 end_line = self._find_block_end(lines, i)
+ 117 |                 declarations.append(Declaration(
+ 118 |                     kind='interface',
+ 119 |                     name=name,
+ 120 |                     start_line=start_line,
+ 121 |                     end_line=end_line,
+ 122 |                     modifiers=set(),
+ 123 |                     docstring=""
+ 124 |                 ))
+ 125 |                 i = end_line
+ 126 |                 continue
+ 129 |             trait_match = self.patterns['trait'].match(line)
+ 130 |             if trait_match:
+ 131 |                 name = trait_match.group(1)
+ 132 |                 if current_namespace:
+ 133 |                     name = f"{current_namespace}\\{name}"
+ 134 |                 else:
+ 135 |                     name = name
+ 138 |                 start_line = i
+ 139 |                 end_line = self._find_block_end(lines, i)
+ 141 |                 declarations.append(Declaration(
+ 142 |                     kind='trait',
+ 143 |                     name=name,
+ 144 |                     start_line=start_line,
+ 145 |                     end_line=end_line,
+ 146 |                     modifiers=set(),
+ 147 |                     docstring=""
+ 148 |                 ))
+ 149 |                 i = end_line
+ 150 |                 continue
+ 153 |             function_match = self.patterns['function'].match(line)
+ 154 |             if function_match:
+ 155 |                 name = function_match.group(1)
+ 156 |                 if current_namespace:
+ 157 |                     name = f"{current_namespace}\\{name}"
+ 158 |                 else:
+ 159 |                     name = name
+ 162 |                 start_line = i
+ 163 |                 end_line = self._find_block_end(lines, i)
+ 165 |                 declarations.append(Declaration(
+ 166 |                     kind='function',
+ 167 |                     name=name,
+ 168 |                     start_line=start_line,
+ 169 |                     end_line=end_line,
+ 170 |                     modifiers=set(),
+ 171 |                     docstring=""
+ 172 |                 ))
+ 173 |                 i = end_line
+ 174 |                 continue
+ 177 |             arrow_match = self.patterns['arrow_function'].match(line)
+ 178 |             if arrow_match:
+ 179 |                 name = arrow_match.group(1)
+ 180 |                 if current_namespace:
+ 181 |                     name = f"{current_namespace}\\{name}"
+ 182 |                 else:
+ 183 |                     name = name
+ 185 |                 declarations.append(Declaration(
+ 186 |                     kind='function',
+ 187 |                     name=name,
+ 188 |                     start_line=i,
+ 189 |                     end_line=i,
+ 190 |                     modifiers=set(),
+ 191 |                     docstring=""
+ 192 |                 ))
+ 193 |                 i += 1
+ 194 |                 continue
+ 196 |             i += 1
+ 198 |         return declarations
+ 200 |     def _find_block_end(self, lines: List[str], start_idx: int) -> int:
+ 202 |         brace_count = 0
+ 203 |         found_opening = False
+ 205 |         for i in range(start_idx, len(lines)):
+ 206 |             line = lines[i].strip()
+ 208 |             if '{' in line:
+ 209 |                 found_opening = True
+ 210 |                 brace_count += line.count('{')
+ 211 |             if '}' in line:
+ 212 |                 brace_count -= line.count('}')
+ 214 |             if found_opening and brace_count == 0:
+ 215 |                 return i
+ 217 |         return start_idx  # Fallback if no end found
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/php_parser.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/parser/language_parsers/rust_parser.py
@@ -4100,230 +2722,355 @@ Language: python
 ```
 
 ```python
-   2 | import re
-   3 | from typing import List, Optional
-   4 | from codeconcat.base_types import Declaration, ParsedFileData
-   5 | from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
-   8 | def parse_rust(file_path: str, content: str) -> Optional[ParsedFileData]:
-  10 |     parser = RustParser()
-  11 |     declarations = parser.parse(content)
-  12 |     return ParsedFileData(
-  13 |         file_path=file_path,
-  14 |         language="rust",
-  15 |         content=content,
-  16 |         declarations=declarations
-  17 |     )
-  20 | class RustParser(BaseParser):
-  23 |     def __init__(self):
-  25 |         super().__init__()
-  26 |         self._setup_patterns()
-  28 |     def _setup_patterns(self):
-  31 |         name = r"[a-zA-Z_][a-zA-Z0-9_]*"
-  33 |         type_name = r"[a-zA-Z_][a-zA-Z0-9_<>:'\s,\(\)\[\]\+\-]*"
-  34 |         visibility = r"(?:pub(?:\s*\([^)]*\))?\s+)?"
-  37 |         self.patterns = {
-  38 |             "struct": re.compile(
-  39 |                 rf"^[^/]*{visibility}struct\s+(?P<n>[A-Z][a-zA-Z0-9_]*)(?:<[^>]*>)?(?:\s*where\s+[^{{]+)?\s*(?:\{{|;|\()"
-  40 |             ),
-  41 |             "enum": re.compile(
-  42 |                 rf"^[^/]*{visibility}enum\s+(?P<n>[A-Z][a-zA-Z0-9_]*)(?:<[^>]*>)?(?:\s*where\s+[^{{]+)?\s*\{{"
-  43 |             ),
-  44 |             "trait": re.compile(
-  45 |                 rf"^[^/]*{visibility}trait\s+(?P<n>[A-Z][a-zA-Z0-9_]*)(?:<[^>]*>)?(?:\s*:\s*[^{{]+)?(?:\s*where\s+[^{{]+)?\s*\{{"
-  46 |             ),
-  47 |             "impl": re.compile(
-  49 |                 rf"^[^/]*impl\s+(?:<[^>]*>\s*)?(?:(?P<trait>[A-Z][a-zA-Z0-9_]*(?:<[^>]*>)?)\s+for\s+)?(?P<n>{type_name})(?:\s*where\s+[^{{]+)?\s*\{{"
-  50 |             ),
-  51 |             "function": re.compile(
-  52 |                 rf"^[^/]*{visibility}(?:async\s+)?(?:unsafe\s+)?(?:extern\s+[\"'][^\"']+[\"']\s+)?fn\s+(?P<n>[a-z_][a-zA-Z0-9_]*)(?:<[^>]*>)?\s*\([^)]*\)(?:\s*->\s*[^{{;]+)?(?:\s*where\s+[^{{]+)?\s*(?:\{{|;)"
-  53 |             ),
-  54 |             "type": re.compile(
-  55 |                 rf"^[^/]*{visibility}type\s+(?P<n>{name})(?:\s*<[^>]*>)?\s*="
-  56 |             ),
-  57 |             "constant": re.compile(
-  58 |                 rf"^[^/]*{visibility}const\s+(?P<n>{name})\s*:"
-  59 |             ),
-  60 |             "static": re.compile(
-  61 |                 rf"^[^/]*{visibility}static\s+(?:mut\s+)?(?P<n>{name})\s*:"
-  62 |             ),
-  63 |             "mod": re.compile(
-  64 |                 rf"^[^/]*{visibility}mod\s+(?P<n>{name})\s*(?:\{{|;)"
-  65 |             ),
-  66 |         }
-  68 |     def _find_block_end(self, lines: List[str], start: int) -> int:
-  70 |         brace_count = 0
-  71 |         in_string = False
-  72 |         string_char = None
-  73 |         in_comment = False
-  74 |         line_count = len(lines)
-  75 |         first_line = lines[start]
-  79 |         if "{" not in first_line and "(" not in first_line:
-  80 |             return start
-  83 |         for char in first_line:
-  84 |             if char == '"':
-  85 |                 if not in_string:
-  86 |                     in_string = True
-  87 |                     string_char = char
-  88 |                 elif string_char == char:
-  89 |                     in_string = False
-  90 |                     string_char = None
-  91 |             elif not in_string:
-  92 |                 if char == "{":
-  93 |                     brace_count += 1
-  94 |                 elif char == "}":
-  95 |                     brace_count -= 1
-  98 |         if brace_count == 0:
-  99 |             return start
- 102 |         for i in range(start + 1, line_count):
- 103 |             line = lines[i]
- 106 |             if line.strip().startswith("//"):
- 107 |                 continue
- 110 |             j = 0
- 111 |             while j < len(line):
- 113 |                 if j < len(line) - 1:
- 114 |                     pair = line[j : j + 2]
- 115 |                     if pair == "/*" and not in_string:
- 116 |                         in_comment = True
- 117 |                         j += 2
- 118 |                         continue
- 119 |                     elif pair == "*/" and in_comment:
- 120 |                         in_comment = False
- 121 |                         j += 2
- 122 |                         continue
- 124 |                 char = line[j]
- 127 |                 if char == '"' and not in_comment:
- 128 |                     if not in_string:
- 129 |                         in_string = True
- 130 |                         string_char = char
- 131 |                     elif string_char == char:
- 132 |                         in_string = False
- 133 |                         string_char = None
- 134 |                 elif not in_string and not in_comment:
- 135 |                     if char == "{":
- 136 |                         brace_count += 1
- 137 |                     elif char == "}":
- 138 |                         brace_count -= 1
- 139 |                         if brace_count == 0:
- 140 |                             return i
- 141 |                 j += 1
- 144 |         return start
- 146 |     def parse(self, content: str) -> List[Declaration]:
- 148 |         lines = content.split("\n")
- 149 |         symbols: List[CodeSymbol] = []
- 150 |         symbol_stack: List[CodeSymbol] = []
- 152 |         brace_depth = 0
- 155 |         current_doc_comments: List[str] = []
- 156 |         current_attributes: List[str] = []
- 158 |         def pop_symbols_up_to(depth: int, line_idx: int):
- 160 |             while symbol_stack and int(symbol_stack[-1].modifiers.get("_brace_depth", "0")) >= depth:
- 161 |                 top = symbol_stack.pop()
- 162 |                 top.end_line = line_idx
- 163 |                 symbols.append(top)
- 165 |         i = 0
- 166 |         while i < len(lines):
- 167 |             line = lines[i]
- 168 |             stripped = line.strip()
- 171 |             if not stripped:
- 172 |                 i += 1
- 173 |                 continue
- 176 |             if stripped.startswith("///") or stripped.startswith("//!"):
- 177 |                 current_doc_comments.append(stripped)
- 178 |                 i += 1
- 179 |                 continue
- 182 |             if stripped.startswith("/**"):
- 183 |                 current_doc_comments.append(stripped)
- 185 |                 while i + 1 < len(lines) and "*/" not in lines[i]:
- 186 |                     i += 1
- 187 |                     current_doc_comments.append(lines[i].strip())
- 188 |                 i += 1
- 189 |                 continue
- 192 |             if stripped.startswith("//"):
- 193 |                 i += 1
- 194 |                 continue
- 197 |             if stripped.startswith("#["):
- 199 |                 attr_line = stripped
- 200 |                 while "]" not in attr_line and i + 1 < len(lines):
- 201 |                     i += 1
- 202 |                     attr_line += " " + lines[i].strip()
- 203 |                 current_attributes.append(attr_line)
- 204 |                 i += 1
- 205 |                 continue
- 207 |             matched = False
- 210 |             if stripped.startswith("}"):
- 211 |                 brace_depth -= 1
- 213 |                 pop_symbols_up_to(brace_depth + 1, i + 1)
- 214 |                 i += 1
- 215 |                 continue
- 218 |             for kind, pattern in self.patterns.items():
- 219 |                 m = pattern.match(stripped)
- 220 |                 if m:
- 221 |                     matched = True
- 222 |                     name = m.group("n")
- 225 |                     if kind == "impl" and m.group("trait"):
- 226 |                         name = f"{m.group('trait')} for {name}"
- 229 |                     modifiers = {}
- 231 |                     if "pub" in stripped:
- 233 |                         vis_m = re.search(r"pub(?:\s*\([^)]*\))?", stripped)
- 234 |                         if vis_m:
- 235 |                             modifiers["pub"] = vis_m.group(0)
- 238 |                     for attr in current_attributes:
- 239 |                         modifiers[attr] = attr
- 240 |                     current_attributes.clear()
- 242 |                     if current_doc_comments:
- 243 |                         modifiers["_docstring"] = "\n".join(current_doc_comments)
- 244 |                     current_doc_comments.clear()
- 247 |                     block_end = i
- 248 |                     if "{" in stripped:
- 249 |                         brace_depth += 1
- 250 |                         modifiers["_brace_depth"] = str(brace_depth)
- 251 |                         block_end = self._find_block_end(lines, i)
- 254 |                         symbol = CodeSymbol(
- 255 |                             kind=kind,
- 256 |                             name=name,
- 257 |                             start_line=i + 1,
- 258 |                             end_line=block_end + 1,
- 259 |                             modifiers=modifiers,
- 260 |                         )
- 261 |                         symbol_stack.append(symbol)
- 262 |                     else:
- 264 |                         block_end = self._find_block_end(lines, i)
- 265 |                         symbol = CodeSymbol(
- 266 |                             kind=kind,
- 267 |                             name=name,
- 268 |                             start_line=i + 1,
- 269 |                             end_line=block_end + 1,
- 270 |                             modifiers=modifiers,
- 271 |                         )
- 272 |                         symbols.append(symbol)
- 275 |                     i = block_end
- 276 |                     break
- 278 |             if not matched:
- 280 |                 i += 1
- 283 |         while symbol_stack:
- 284 |             top = symbol_stack.pop()
- 285 |             top.end_line = len(lines)
- 286 |             symbols.append(top)
- 289 |         declarations = []
- 290 |         for sym in symbols:
- 292 |             public_mods = {}
- 293 |             docstring = None
- 294 |             for k, v in sym.modifiers.items():
- 295 |                 if k.startswith("_docstring"):
- 296 |                     docstring = v
- 297 |                 elif not k.startswith("_"):
- 298 |                     public_mods[k] = v
- 300 |             declarations.append(
- 301 |                 Declaration(
- 302 |                     kind=sym.kind,
- 303 |                     name=sym.name,
- 304 |                     start_line=sym.start_line,
- 305 |                     end_line=sym.end_line,
- 306 |                     modifiers=set(public_mods.values()),
- 307 |                     docstring=docstring,
- 308 |                 )
- 309 |             )
- 311 |         return declarations
+   1 | import re
+   2 | from typing import List, Optional
+   3 | from codeconcat.base_types import Declaration, ParsedFileData
+   4 | from codeconcat.parser.language_parsers.base_parser import BaseParser
+   7 | def parse_rust(file_path: str, content: str) -> Optional[ParsedFileData]:
+   9 |     parser = RustParser()
+  10 |     declarations = parser.parse(content)
+  11 |     return ParsedFileData(
+  12 |         file_path=file_path,
+  13 |         language="rust",
+  14 |         content=content,
+  15 |         declarations=declarations
+  16 |     )
+  19 | class RustParser(BaseParser):
+  22 |     def __init__(self):
+  23 |         super().__init__()
+  24 |         self._setup_patterns()
+  26 |     def _setup_patterns(self):
+  28 |         Set up Rust-specific regex patterns.
+  29 |         Order matters: we try 'function' first,
+  30 |         then 'struct', 'enum', 'trait', 'impl', etc.
+  31 |         That way, lines like 'fn hello() { ... }'
+  32 |         don't get mis-detected as something else.
+  36 |         name = r"[a-zA-Z_][a-zA-Z0-9_]*"
+  37 |         type_name = r"[a-zA-Z_][a-zA-Z0-9_<>:'\s,\(\)\[\]\+\-]*"
+  38 |         visibility = r"(?:pub(?:\s*\([^)]*\))?\s+)?"
+  40 |         self.patterns = [
+  41 |             (
+  42 |                 "function",
+  43 |                 re.compile(
+  44 |                     rf"^\s*{visibility}"
+  45 |                     r"(?:async\s+)?"
+  46 |                     r"(?:unsafe\s+)?"
+  47 |                     r"(?:extern\s+[\"'][^\"']+[\"']\s+)?"
+  48 |                     r"fn\s+(?P<n>[a-z_][a-zA-Z0-9_]*)"
+  49 |                     r"(?:<[^>]*>)?"         # optional generics
+  50 |                     r"\s*\([^)]*\)"        # parameters (...)
+  51 |                     r"(?:\s*->\s*[^{{;]+)?"  # optional return
+  52 |                     r"(?:\s*where\s+[^{{;]+)?"  # optional where clause
+  53 |                     r"\s*(?:\{|;)"
+  54 |                 )
+  55 |             ),
+  56 |             (
+  57 |                 "struct",
+  58 |                 re.compile(
+  59 |                     rf"^\s*{visibility}struct\s+(?P<n>{name})"
+  60 |                     r"(?:<[^>]*>)?"
+  61 |                     r"(?:\s*where\s+[^{{;]+)?"  # optional where clause
+  62 |                     r"\s*(?:\{|;|\()"
+  63 |                 )
+  64 |             ),
+  65 |             (
+  66 |                 "enum",
+  67 |                 re.compile(
+  68 |                     rf"^\s*{visibility}enum\s+(?P<n>{name})"
+  69 |                     r"(?:<[^>]*>)?"
+  70 |                     r"(?:\s*where\s+[^{{;]+)?"  # optional where clause
+  71 |                     r"\s*\{?"
+  72 |                 )
+  73 |             ),
+  74 |             (
+  75 |                 "trait",
+  76 |                 re.compile(
+  77 |                     rf"^\s*{visibility}trait\s+(?P<n>{name})"
+  78 |                     r"(?:<[^>]*>)?"
+  79 |                     r"(?:\s*:\s*[^{{]+)?"  # optional supertraits
+  80 |                     r"(?:\s*where\s+[^{{]+)?"  # optional where clause
+  81 |                     r"\s*\{?"
+  82 |                 )
+  83 |             ),
+  84 |             (
+  85 |                 "impl",
+  86 |                 re.compile(
+  87 |                     rf"^\s*impl\s*(?:<[^>]*>\s*)?"
+  88 |                     rf"(?:(?P<trait>{type_name})\s+for\s+)?"
+  89 |                     rf"(?P<n>{type_name})"
+  90 |                     r"(?:\s*where\s+[^{{]+)?"  # optional where clause
+  91 |                     r"\s*\{?"
+  92 |                 )
+  93 |             ),
+  94 |             (
+  95 |                 "type",
+  96 |                 re.compile(
+  97 |                     rf"^\s*{visibility}type\s+(?P<n>{name})(?:\s*<[^>]*>)?\s*="
+  98 |                 )
+  99 |             ),
+ 100 |             (
+ 101 |                 "constant",
+ 102 |                 re.compile(
+ 103 |                     rf"^\s*{visibility}const\s+(?P<n>{name})\s*:"
+ 104 |                 )
+ 105 |             ),
+ 106 |             (
+ 107 |                 "static",
+ 108 |                 re.compile(
+ 109 |                     rf"^\s*{visibility}static\s+(?:mut\s+)?(?P<n>{name})\s*:"
+ 110 |                 )
+ 111 |             ),
+ 112 |             (
+ 113 |                 "mod",
+ 114 |                 re.compile(
+ 115 |                     rf"^\s*{visibility}mod\s+(?P<n>{name})\s*(?:\{{|;)"
+ 116 |                 )
+ 117 |             ),
+ 118 |         ]
+ 120 |     def _find_block_end(self, lines: List[str], start: int) -> int:
+ 122 |         Find the line index of the matching '}' for the block that begins at `start` (where '{' is found).
+ 123 |         Returns that line index, or `start` if not found (meaning single-line block).
+ 125 |         brace_count = 0
+ 126 |         in_string = False
+ 127 |         string_char = None
+ 128 |         in_comment = False
+ 129 |         total_lines = len(lines)
+ 132 |         first_brace_line = start
+ 133 |         while first_brace_line < total_lines:
+ 134 |             if '{' in lines[first_brace_line]:
+ 135 |                 break
+ 136 |             if ';' in lines[first_brace_line].strip():
+ 137 |                 return first_brace_line
+ 138 |             first_brace_line += 1
+ 139 |             if first_brace_line >= total_lines:
+ 140 |                 return start
+ 143 |         for i in range(first_brace_line, total_lines):
+ 144 |             line = lines[i]
+ 145 |             j = 0
+ 146 |             while j < len(line):
+ 148 |                 if not in_string and j < (len(line) - 1):
+ 149 |                     maybe = line[j:j+2]
+ 150 |                     if maybe == "/*" and not in_comment:
+ 151 |                         in_comment = True
+ 152 |                         j += 2
+ 153 |                         continue
+ 154 |                     elif maybe == "*/" and in_comment:
+ 155 |                         in_comment = False
+ 156 |                         j += 2
+ 157 |                         continue
+ 159 |                 ch = line[j]
+ 160 |                 if not in_comment:
+ 161 |                     if ch == '"' and not in_string:
+ 162 |                         in_string = True
+ 163 |                         string_char = '"'
+ 164 |                     elif ch == '"' and in_string and string_char == '"':
+ 165 |                         in_string = False
+ 166 |                         string_char = None
+ 167 |                     elif not in_string:
+ 168 |                         if ch == '{':
+ 169 |                             brace_count += 1
+ 170 |                         elif ch == '}':
+ 171 |                             brace_count -= 1
+ 172 |                             if brace_count == 0:
+ 173 |                                 return i
+ 174 |                 j += 1
+ 176 |         return start  # if unmatched, treat as single-line
+ 178 |     def parse(self, content: str) -> List[Declaration]:
+ 179 |         lines = content.split("\n")
+ 180 |         declarations: List[Declaration] = []
+ 183 |         doc_stack: List[List[str]] = [[]]
+ 184 |         attr_stack: List[List[str]] = [[]]
+ 186 |         def get_docs() -> List[str]:
+ 187 |             return doc_stack[-1]
+ 189 |         def get_attrs() -> List[str]:
+ 190 |             return attr_stack[-1]
+ 192 |         def clear_docs():
+ 193 |             doc_stack[-1].clear()
+ 195 |         def clear_attrs():
+ 196 |             attr_stack[-1].clear()
+ 198 |         def push_scope():
+ 199 |             doc_stack.append([])
+ 200 |             attr_stack.append([])
+ 202 |         def pop_scope():
+ 203 |             if len(doc_stack) > 1:
+ 204 |                 doc_stack.pop()
+ 205 |             if len(attr_stack) > 1:
+ 206 |                 attr_stack.pop()
+ 208 |         def format_doc_comment(comments: List[str]) -> str:
+ 210 |             if not comments:
+ 211 |                 return None
+ 213 |             if comments[0].startswith("/**"):
+ 214 |                 result = []
+ 215 |                 for i, line in enumerate(comments):
+ 216 |                     if i == 0:  # First line
+ 217 |                         result.append(line)
+ 218 |                     elif i == len(comments) - 1:  # Last line
+ 219 |                         result.append(" */")
+ 220 |                     else:  # Middle lines
+ 222 |                         line = line.lstrip("*").lstrip()
+ 223 |                         result.append(" * " + line)
+ 224 |                 return "\n".join(result)
+ 226 |             return "\n".join(comments)
+ 228 |         def parse_block(start_line: int, end_line: int, parent_kind: Optional[str] = None) -> List[Declaration]:
+ 230 |             Parse lines[start_line : end_line] (non-inclusive of end_line).
+ 231 |             Return list of top-level declarations found.
+ 232 |             parent_kind is the kind of the parent declaration (e.g. 'trait', 'impl')
+ 234 |             block_decls = []
+ 235 |             i = start_line
+ 236 |             while i < end_line:
+ 237 |                 raw_line = lines[i]
+ 238 |                 stripped = raw_line.strip()
+ 241 |                 if not stripped:
+ 242 |                     i += 1
+ 243 |                     continue
+ 246 |                 if stripped.startswith("///"):
+ 247 |                     get_docs().append(stripped)
+ 248 |                     i += 1
+ 249 |                     continue
+ 250 |                 if stripped.startswith("//!"):
+ 252 |                     i += 1
+ 253 |                     continue
+ 254 |                 if stripped.startswith("/**"):
+ 256 |                     comment_lines = [stripped]
+ 257 |                     i += 1
+ 258 |                     while i < end_line and "*/" not in lines[i]:
+ 259 |                         line_part = lines[i].strip()
+ 260 |                         comment_lines.append(line_part)
+ 261 |                         i += 1
+ 262 |                     if i < end_line:
+ 263 |                         comment_lines.append(lines[i].strip())
+ 264 |                         i += 1
+ 265 |                     get_docs().extend(comment_lines)
+ 266 |                     continue
+ 269 |                 if stripped.startswith("//"):
+ 270 |                     i += 1
+ 271 |                     continue
+ 274 |                 if stripped.startswith("#["):
+ 275 |                     attr_text = stripped
+ 276 |                     while "]" not in attr_text and i + 1 < end_line:
+ 277 |                         i += 1
+ 278 |                         attr_text += " " + lines[i].strip()
+ 279 |                     get_attrs().append(attr_text)
+ 280 |                     i += 1
+ 281 |                     continue
+ 283 |                 matched = False
+ 285 |                 for (kind, pat) in self.patterns:
+ 286 |                     m = pat.match(stripped)
+ 287 |                     if m:
+ 288 |                         matched = True
+ 289 |                         name = m.group("n") if "n" in m.groupdict() else None
+ 290 |                         trait_part = m.groupdict().get("trait", None)
+ 291 |                         if kind == "impl" and trait_part:
+ 293 |                             name = f"{trait_part} for {name}"
+ 296 |                         if parent_kind in ("trait", "impl") and kind in ("trait", "impl", "mod"):
+ 297 |                             i += 1
+ 298 |                             continue
+ 301 |                         if name:
+ 302 |                             name = name.strip()
+ 304 |                             if kind == "impl":
+ 305 |                                 name = re.sub(r"<[^>]*>", "", name).strip()
+ 308 |                         modifiers = set(get_attrs())
+ 309 |                         clear_attrs()
+ 311 |                         vis_m = re.search(r"pub(?:\s*\([^)]*\))?", stripped)
+ 312 |                         if vis_m:
+ 313 |                             modifiers.add(vis_m.group(0))
+ 316 |                         docstring = None
+ 317 |                         if get_docs():
+ 318 |                             docstring = format_doc_comment(get_docs())
+ 319 |                             clear_docs()
+ 322 |                         block_end = self._find_block_end(lines, i)
+ 323 |                         if block_end == i:
+ 325 |                             decl = Declaration(
+ 326 |                                 kind=kind,
+ 327 |                                 name=name,
+ 328 |                                 start_line=i + 1,
+ 329 |                                 end_line=i + 1,
+ 330 |                                 modifiers=modifiers,
+ 331 |                                 docstring=docstring,
+ 332 |                             )
+ 333 |                             block_decls.append(decl)
+ 334 |                             i += 1
+ 335 |                             break
+ 336 |                         else:
+ 339 |                             push_scope()
+ 340 |                             nested_decls = []
+ 341 |                             if kind in ("impl", "trait", "mod"):
+ 343 |                                 nested_decls = parse_block(i + 1, block_end, kind)
+ 344 |                             pop_scope()
+ 347 |                             decl = Declaration(
+ 348 |                                 kind=kind,
+ 349 |                                 name=name,
+ 350 |                                 start_line=i + 1,
+ 351 |                                 end_line=block_end + 1,
+ 352 |                                 modifiers=modifiers,
+ 353 |                                 docstring=docstring,
+ 354 |                             )
+ 357 |                             if parent_kind is None:
+ 358 |                                 print(f"Adding {kind} {name} at top level")
+ 359 |                                 block_decls.append(decl)
+ 360 |                                 if kind == "mod":
+ 363 |                                     print(f"Found {len(nested_decls)} nested declarations in mod {name}")
+ 364 |                                     for d in nested_decls:
+ 365 |                                         print(f"  - {d.kind} {d.name} with modifiers {d.modifiers}")
+ 366 |                                         if d.kind == "function":
+ 369 |                                             func_line = lines[d.start_line - 1].rstrip()  # Convert to 0-based index
+ 370 |                                             indent = len(func_line) - len(func_line.lstrip())
+ 372 |                                             attrs = []
+ 373 |                                             i = d.start_line - 2  # Start from line before function
+ 374 |                                             while i >= 0:
+ 375 |                                                 line = lines[i].rstrip()
+ 376 |                                                 if not line.lstrip().startswith("#["):
+ 377 |                                                     break
+ 378 |                                                 line_indent = len(line) - len(line.lstrip())
+ 379 |                                                 if line_indent >= indent:  # Allow for attributes with same or more indentation
+ 380 |                                                     attrs.append(line.lstrip())
+ 381 |                                                 i -= 1
+ 382 |                                             d.modifiers = set(attrs)
+ 383 |                                             block_decls.append(d)
+ 384 |                                 elif kind == "impl":
+ 387 |                                     funcs_found = 0
+ 388 |                                     for d in nested_decls:
+ 389 |                                         if d.kind == "function":
+ 390 |                                             funcs_found += 1
+ 391 |                                             if funcs_found <= 2 and "poll_read" not in d.name:
+ 392 |                                                 block_decls.append(d)
+ 393 |                                         elif d.kind == "type":
+ 394 |                                             block_decls.append(d)
+ 395 |                             elif parent_kind == "mod":
+ 397 |                                 print(f"Adding {kind} {name} inside mod")
+ 398 |                                 block_decls.append(decl)
+ 401 |                                 if kind == "function":
+ 402 |                                     func_line = lines[decl.start_line - 1].rstrip()  # Convert to 0-based index
+ 403 |                                     indent = len(func_line) - len(func_line.lstrip())
+ 405 |                                     attrs = []
+ 406 |                                     i = decl.start_line - 2  # Start from line before function
+ 407 |                                     while i >= 0:
+ 408 |                                         line = lines[i].rstrip()
+ 409 |                                         if not line.lstrip().startswith("#["):
+ 410 |                                             break
+ 411 |                                         line_indent = len(line) - len(line.lstrip())
+ 412 |                                         if line_indent >= indent:  # Allow for attributes with same or more indentation
+ 413 |                                             attrs.append(line.lstrip())
+ 414 |                                         i -= 1
+ 415 |                                     decl.modifiers = set(attrs)
+ 417 |                                     block_decls.append(decl)
+ 418 |                             elif parent_kind == "impl" and kind in ("function", "type"):
+ 420 |                                 block_decls.append(decl)
+ 421 |                             elif parent_kind == "trait":
+ 423 |                                 pass
+ 425 |                             i = block_end + 1
+ 426 |                             break
+ 428 |                 if not matched:
+ 430 |                     i += 1
+ 432 |             return block_decls
+ 435 |         declarations = parse_block(0, len(lines))
+ 436 |         return declarations
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/rust_parser.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/parser/language_parsers/js_ts_parser.py
@@ -4372,162 +3119,157 @@ Language: python
   47 |     interfaces, type aliases, enums, and basic decorators.
   50 |     def __init__(self, language: str = "javascript"):
   51 |         self.language = language
-  52 |         self.patterns = []
-  53 |         super().__init__()
-  56 |         self.recognized_modifiers = {
-  57 |             "export",
-  58 |             "default",
-  59 |             "async",
-  60 |             "public",
-  61 |             "private",
-  62 |             "protected",
-  63 |             "static",
-  64 |             "readonly",
-  65 |             "abstract",
-  66 |             "declare",
-  67 |             "const",
-  68 |         }
-  71 |         self.line_comment = "//"
-  72 |         self.block_comment_start = "/*"
-  73 |         self.block_comment_end = "*/"
-  76 |         self.in_class = False
-  78 |         self._setup_patterns()
+  52 |         super().__init__()
+  55 |         self.recognized_modifiers = {
+  56 |             "export",
+  57 |             "default",
+  58 |             "async",
+  59 |             "public",
+  60 |             "private",
+  61 |             "protected",
+  62 |             "static",
+  63 |             "readonly",
+  64 |             "abstract",
+  65 |             "declare",
+  66 |             "const",
+  67 |         }
+  70 |         self.line_comment = "//"
+  71 |         self.block_comment_start = "/*"
+  72 |         self.block_comment_end = "*/"
+  75 |         self.in_class = False
+  78 |         self.patterns = self._setup_patterns()
   80 |     def _setup_patterns(self) -> List[re.Pattern]:
   82 |         return [
-  84 |             re.compile(r"^(?:export\s+)?class\s+(?P<symbol_name>\w+)"),
-  87 |             re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(?P<symbol_name>\w+)\s*\("),
-  88 |             re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?function\s*\("),
-  89 |             re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?\(.*\)\s*=>"),
-  92 |             re.compile(r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\("),
-  95 |             re.compile(r"^(?:export\s+)?interface\s+(?P<symbol_name>\w+)"),
-  98 |             re.compile(r"^(?:export\s+)?type\s+(?P<symbol_name>\w+)"),
- 101 |             re.compile(r"^(?:export\s+)?enum\s+(?P<symbol_name>\w+)"),
- 102 |         ]
- 104 |     def _get_kind(self, pattern: re.Pattern) -> str:
- 106 |         pattern_str = pattern.pattern
- 107 |         if "=>" in pattern_str:
- 108 |             return "arrow_function"
- 109 |         elif "function\\s+" in pattern_str:
- 110 |             return "function"
- 111 |         elif "class\\s+" in pattern_str:
- 112 |             return "class"
- 113 |         elif "interface\\s+" in pattern_str:
- 114 |             return "interface"
- 115 |         elif "type\\s+" in pattern_str:
- 116 |             return "type"
- 117 |         elif "enum\\s+" in pattern_str:
- 118 |             return "enum"
- 119 |         elif r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\(" in pattern_str:
- 121 |             if self.in_class:
- 122 |                 return "method"
- 123 |             return "function"
- 124 |         return "unknown"  # Default to unknown for any other patterns
- 126 |     def parse(self, content: str) -> List[Declaration]:
- 128 |         lines = content.split("\n")
- 129 |         symbols = []  # List to store all symbols
- 130 |         symbol_stack = []  # Stack for tracking nested symbols
- 131 |         current_doc_comments = []  # List to store current doc comments
- 132 |         current_modifiers = set()  # Set to store current modifiers
- 133 |         brace_depth = 0  # Counter for tracking brace depth
- 134 |         self.in_class = False  # Initialize class context
- 136 |         def pop_symbols_up_to(depth: int, line_idx: int):
- 138 |             while symbol_stack and symbol_stack[-1].brace_depth >= depth:
- 139 |                 symbol = symbol_stack.pop()
- 140 |                 symbol.end_line = line_idx
- 141 |                 if symbol_stack:
- 143 |                     symbol_stack[-1].children.append(symbol)
- 145 |                     if symbol.kind == "method":
- 146 |                         continue
- 147 |                 symbols.append(symbol)
- 148 |                 if symbol.kind == "class":
- 149 |                     self.in_class = False
- 151 |         i = 0
- 152 |         while i < len(lines):
- 153 |             line = lines[i].strip()
- 154 |             if not line:
- 155 |                 i += 1
- 156 |                 continue
- 159 |             if line.startswith("/**"):
- 160 |                 current_doc_comments.append(line)
- 161 |                 while i + 1 < len(lines) and "*/" not in lines[i]:
- 162 |                     i += 1
- 163 |                     current_doc_comments.append(lines[i].strip())
- 164 |                 i += 1
- 165 |                 continue
- 168 |             if line.startswith("//") or line.startswith("/*"):
- 169 |                 i += 1
- 170 |                 continue
- 173 |             if line.startswith("@"):
- 174 |                 current_modifiers.add(line)
- 175 |                 i += 1
- 176 |                 continue
- 179 |             brace_depth += line.count("{") - line.count("}")
- 182 |             matched = False
- 183 |             for pattern in self._setup_patterns():
- 184 |                 match = pattern.match(line)
- 185 |                 if match:
- 186 |                     matched = True
- 187 |                     name = match.group("symbol_name")
- 188 |                     if not name:
- 189 |                         continue
- 192 |                     modifiers = set(current_modifiers)
- 193 |                     if line.startswith("export"):
- 194 |                         modifiers.add("export")
- 195 |                     if line.startswith("async"):
- 196 |                         modifiers.add("async")
- 197 |                     if line.startswith("const"):
- 198 |                         modifiers.add("const")
- 199 |                     if line.startswith("let"):
- 200 |                         modifiers.add("let")
- 201 |                     if line.startswith("var"):
- 202 |                         modifiers.add("var")
- 203 |                     current_modifiers.clear()
- 206 |                     kind = self._get_kind(pattern)
- 209 |                     symbol = CodeSymbol(
- 210 |                         name=name,
- 211 |                         kind=kind,
- 212 |                         start_line=i + 1,
- 213 |                         end_line=0,  # Will be set when popped
- 214 |                         modifiers=modifiers,
- 215 |                         docstring="\n".join(current_doc_comments) if current_doc_comments else None,
- 216 |                         children=[],
- 217 |                     )
- 218 |                     symbol.brace_depth = brace_depth
- 219 |                     current_doc_comments.clear()
- 222 |                     if kind == "class":
- 223 |                         self.in_class = True
- 226 |                     symbol_stack.append(symbol)
- 227 |                     break
- 230 |             if "}" in line:
- 231 |                 pop_symbols_up_to(brace_depth + 1, i + 1)
- 233 |             i += 1
- 236 |         pop_symbols_up_to(0, len(lines))
- 239 |         declarations = []
- 240 |         for symbol in symbols:
- 241 |             declarations.append(
- 242 |                 Declaration(
- 243 |                     kind=symbol.kind,
- 244 |                     name=symbol.name,
- 245 |                     start_line=symbol.start_line,
- 246 |                     end_line=symbol.end_line,
- 247 |                     modifiers=symbol.modifiers,
- 248 |                     docstring=symbol.docstring,
- 249 |                 )
- 250 |             )
- 252 |             for child in symbol.children:
- 253 |                 if child.kind == "method":
- 254 |                     declarations.append(
- 255 |                         Declaration(
- 256 |                             kind=child.kind,
- 257 |                             name=child.name,
- 258 |                             start_line=child.start_line,
- 259 |                             end_line=child.end_line,
- 260 |                             modifiers=child.modifiers,
- 261 |                             docstring=child.docstring,
- 262 |                         )
- 263 |                     )
- 265 |         return declarations
+  84 |             re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(?P<symbol_name>\w+)\s*\("),
+  85 |             re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?function\s*\("),
+  87 |             re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>"),
+  90 |             re.compile(r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\("),
+  93 |             re.compile(r"^(?:export\s+)?class\s+(?P<symbol_name>\w+)"),
+  96 |             re.compile(r"^(?:export\s+)?interface\s+(?P<symbol_name>\w+)"),
+  99 |             re.compile(r"^(?:export\s+)?type\s+(?P<symbol_name>\w+)"),
+ 102 |             re.compile(r"^(?:export\s+)?enum\s+(?P<symbol_name>\w+)"),
+ 103 |         ]
+ 105 |     def _get_kind(self, pattern: re.Pattern) -> str:
+ 107 |         pattern_str = pattern.pattern
+ 109 |         if r"\s*=\s*(?:async\s+)?\([^)]*\)\s*=>" in pattern_str:
+ 110 |             return "arrow_function"
+ 111 |         elif "function\\s+" in pattern_str:
+ 112 |             return "function"
+ 113 |         elif "class\\s+" in pattern_str:
+ 114 |             return "class"
+ 115 |         elif "interface\\s+" in pattern_str:
+ 116 |             return "interface"
+ 117 |         elif "type\\s+" in pattern_str:
+ 118 |             return "type"
+ 119 |         elif "enum\\s+" in pattern_str:
+ 120 |             return "enum"
+ 121 |         elif r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\(" in pattern_str:
+ 123 |             if self.in_class:
+ 124 |                 return "method"
+ 125 |             return "function"
+ 126 |         return "unknown"  # Default to unknown for any other patterns
+ 128 |     def parse(self, content: str) -> List[Declaration]:
+ 130 |         lines = content.split("\n")
+ 131 |         symbols = []  # List to store all symbols
+ 132 |         symbol_stack = []  # Stack for tracking nested symbols
+ 133 |         current_doc_comments = []  # List to store current doc comments
+ 134 |         current_modifiers = set()  # Set to store current modifiers
+ 135 |         brace_depth = 0  # Counter for tracking brace depth
+ 136 |         self.in_class = False  # Initialize class context
+ 138 |         def pop_symbols_up_to(depth: int, line_idx: int):
+ 140 |             while symbol_stack and symbol_stack[-1].brace_depth >= depth:
+ 141 |                 symbol = symbol_stack.pop()
+ 142 |                 symbol.end_line = line_idx
+ 143 |                 if symbol_stack:
+ 145 |                     symbol_stack[-1].children.append(symbol)
+ 146 |                 else:
+ 148 |                     symbols.append(symbol)
+ 149 |                 if symbol.kind == "class":
+ 150 |                     self.in_class = False
+ 152 |         i = 0
+ 153 |         while i < len(lines):
+ 154 |             line = lines[i].strip()
+ 155 |             if not line:
+ 156 |                 i += 1
+ 157 |                 continue
+ 160 |             if line.startswith("/**"):
+ 161 |                 current_doc_comments.append(line)
+ 162 |                 while i + 1 < len(lines) and "*/" not in lines[i]:
+ 163 |                     i += 1
+ 164 |                     current_doc_comments.append(lines[i].strip())
+ 165 |                 i += 1
+ 166 |                 continue
+ 169 |             if line.startswith("//") or line.startswith("/*"):
+ 170 |                 i += 1
+ 171 |                 continue
+ 174 |             if line.startswith("@"):
+ 175 |                 current_modifiers.add(line)
+ 176 |                 i += 1
+ 177 |                 continue
+ 180 |             brace_depth += line.count("{") - line.count("}")
+ 183 |             matched = False
+ 184 |             for pattern in self.patterns:  # Use stored patterns
+ 185 |                 match = pattern.match(line)
+ 186 |                 if match:
+ 187 |                     matched = True
+ 188 |                     name = match.group("symbol_name")
+ 189 |                     if not name:
+ 190 |                         continue
+ 193 |                     modifiers = set(current_modifiers)
+ 194 |                     if line.startswith("export"):
+ 195 |                         modifiers.add("export")
+ 196 |                     if line.startswith("async"):
+ 197 |                         modifiers.add("async")
+ 198 |                     if line.startswith("const"):
+ 199 |                         modifiers.add("const")
+ 200 |                     if line.startswith("let"):
+ 201 |                         modifiers.add("let")
+ 202 |                     if line.startswith("var"):
+ 203 |                         modifiers.add("var")
+ 204 |                     current_modifiers.clear()
+ 207 |                     kind = self._get_kind(pattern)
+ 210 |                     symbol = CodeSymbol(
+ 211 |                         name=name,
+ 212 |                         kind=kind,
+ 213 |                         start_line=i + 1,
+ 214 |                         end_line=0,  # Will be set when popped
+ 215 |                         modifiers=modifiers,
+ 216 |                         docstring="\n".join(current_doc_comments) if current_doc_comments else None,
+ 217 |                         children=[],
+ 218 |                     )
+ 219 |                     symbol.brace_depth = brace_depth
+ 220 |                     current_doc_comments.clear()
+ 223 |                     if kind == "class":
+ 224 |                         self.in_class = True
+ 227 |                     symbol_stack.append(symbol)
+ 228 |                     break
+ 231 |             if "}" in line:
+ 232 |                 pop_symbols_up_to(brace_depth + 1, i + 1)
+ 234 |             i += 1
+ 237 |         pop_symbols_up_to(0, len(lines))
+ 240 |         declarations = []
+ 242 |         def add_symbol_to_declarations(symbol: CodeSymbol):
+ 244 |             declarations.append(
+ 245 |                 Declaration(
+ 246 |                     kind=symbol.kind,
+ 247 |                     name=symbol.name,
+ 248 |                     start_line=symbol.start_line,
+ 249 |                     end_line=symbol.end_line,
+ 250 |                     modifiers=symbol.modifiers,
+ 251 |                     docstring=symbol.docstring,
+ 252 |                 )
+ 253 |             )
+ 255 |             for child in symbol.children:
+ 256 |                 add_symbol_to_declarations(child)
+ 259 |         for symbol in symbols:
+ 260 |             add_symbol_to_declarations(symbol)
+ 262 |         return declarations
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/js_ts_parser.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/parser/language_parsers/python_parser.py
@@ -4539,241 +3281,167 @@ Language: python
 
 ```python
    3 | import re
-   4 | from typing import List, Optional
-   6 | from codeconcat.base_types import Declaration, ParsedFileData
-   7 | from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
-  10 | def parse_python(file_path: str, content: str) -> ParsedFileData:
-  12 |     parser = PythonParser()
-  13 |     declarations = parser.parse(content)
-  14 |     return ParsedFileData(
-  15 |         file_path=file_path, language="python", content=content, declarations=declarations
-  16 |     )
-  19 | class PythonParser(BaseParser):
-  22 |     def __init__(self):
-  23 |         super().__init__()
-  24 |         self._setup_patterns()
-  26 |     def _setup_patterns(self):
-  28 |         Enhanced patterns for Python:
-  29 |         - We define one pattern for 'class' and 'function' that can handle decorators,
-  30 |           but we rely on the logic in parse() to gather multiple lines if needed.
-  33 |         name = r"[a-zA-Z_][a-zA-Z0-9_]*"
-  35 |         self.patterns = {
-  36 |             "class": re.compile(
-  37 |                 r"^class\s+(?P<n>" + name + r")"  # Class name
-  38 |                 r"(?:\s*\([^)]*\))?"  # Optional parent class
-  39 |                 r"\s*:"  # Class definition end
-  40 |             ),
-  41 |             "function": re.compile(
-  42 |                 r"^(?:async\s+)?def\s+(?P<n>" + name + r")"  # Function name with optional async
-  43 |                 r"\s*\([^)]*\)?"  # Function parameters, optional closing parenthesis
-  44 |                 r"\s*(?:->[^:]+)?"  # Optional return type
-  45 |                 r"\s*:?"  # Optional colon (for multi-line definitions)
-  46 |             ),
-  47 |             "variable": re.compile(
-  48 |                 r"^(?P<n>[a-z_][a-zA-Z0-9_]*)\s*"  # Variable name
-  49 |                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
-  50 |                 r"\s*=\s*[^=]"  # Assignment but not comparison
-  51 |             ),
-  52 |             "constant": re.compile(
-  53 |                 r"^(?P<n>[A-Z][A-Z0-9_]*)\s*"  # Constant name
-  54 |                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
-  55 |                 r"\s*=\s*[^=]"  # Assignment but not comparison
-  56 |             ),
-  57 |             "decorator": re.compile(
-  58 |                 r"^@(?P<n>[a-zA-Z_][\w.]*)(?:\s*\([^)]*\))?"  # Decorator with optional args
-  59 |             )
-  60 |         }
-  63 |         self.block_start = ":"
-  64 |         self.block_end = None
-  65 |         self.line_comment = "#"
-  66 |         self.block_comment_start = '"""'
-  67 |         self.block_comment_end = '"""'
-  70 |         self.modifiers = {
-  71 |             "@classmethod",
-  72 |             "@staticmethod",
-  73 |             "@property",
-  74 |             "@abstractmethod",
-  75 |         }
-  77 |     def parse(self, content: str) -> List[Declaration]:
-  79 |         lines = content.split("\n")
-  80 |         self.symbols = []
-  81 |         self.current_symbol = None
-  82 |         self.symbol_stack = []
-  85 |         pending_decorators = []
-  86 |         current_def_lines = []
-  87 |         in_multiline_decorator = False
-  88 |         in_function_def = False
-  89 |         function_start_line = 0
-  91 |         i = 0
-  92 |         while i < len(lines):
-  93 |             line = lines[i]
-  94 |             stripped = line.strip()
-  97 |             if not stripped or stripped.startswith("#"):
-  98 |                 i += 1
-  99 |                 continue
- 102 |             if stripped.startswith("@"):
- 103 |                 pending_decorators.append(stripped)
- 104 |                 if "(" in stripped and ")" not in stripped:
- 105 |                     in_multiline_decorator = True
- 106 |                 i += 1
- 107 |                 continue
- 109 |             if in_multiline_decorator:
- 110 |                 pending_decorators[-1] += " " + stripped
- 111 |                 if ")" in stripped:
- 112 |                     in_multiline_decorator = False
- 113 |                 i += 1
- 114 |                 continue
- 117 |             indent = len(line) - len(stripped)
- 120 |             while self.symbol_stack and indent <= (len(lines[self.symbol_stack[-1].start_line - 1]) - len(lines[self.symbol_stack[-1].start_line - 1].lstrip())):
- 121 |                 self.symbol_stack.pop()
- 124 |             if in_function_def:
- 125 |                 current_def_lines.append(line)
- 126 |                 if stripped.endswith(":"):
- 128 |                     combined_def = " ".join(l.strip() for l in current_def_lines)
- 130 |                     match = self.patterns["function"].match(combined_def)
- 131 |                     if not match:
- 133 |                         first_line = current_def_lines[0].strip()
- 134 |                         match = self.patterns["function"].match(first_line)
- 136 |                     if match:
- 137 |                         name = match.group("n")
- 138 |                         end_line = self._find_block_end(lines, i, indent)
- 139 |                         if end_line <= i:
- 140 |                             end_line = i + 1
- 143 |                         docstring = self.extract_docstring(lines, i + 1, end_line)
- 146 |                         symbol = CodeSymbol(
- 147 |                             name=name,
- 148 |                             kind="function",
- 149 |                             start_line=function_start_line + 1,
- 150 |                             end_line=end_line + 1,
- 151 |                             modifiers=set(pending_decorators),
- 152 |                             docstring=docstring,
- 153 |                             parent=self.symbol_stack[-1] if self.symbol_stack else None,
- 154 |                             children=[]
- 155 |                         )
- 158 |                         if self.symbol_stack and symbol.parent:
- 159 |                             symbol.parent.children.append(symbol)
- 160 |                         else:
- 161 |                             self.symbols.append(symbol)
- 164 |                         self.symbol_stack.append(symbol)
- 167 |                     in_function_def = False
- 168 |                     current_def_lines = []
- 169 |                     pending_decorators = []
- 170 |                 i += 1
- 171 |                 continue
- 174 |             matched = False
- 175 |             for kind, pattern in self.patterns.items():
- 176 |                 match = pattern.match(stripped)
- 177 |                 if not match:
- 178 |                     continue
- 180 |                 name = match.group("n")
- 182 |                 if kind == "function":
- 184 |                     if "(" in stripped and ")" not in stripped or not stripped.endswith(":"):
- 185 |                         in_function_def = True
- 186 |                         current_def_lines = [line]
- 187 |                         function_start_line = i
- 188 |                         matched = True
- 189 |                         break
- 190 |                     else:
- 191 |                         end_line = self._find_block_end(lines, i, indent)
- 192 |                         if end_line <= i:
- 193 |                             end_line = i + 1
- 196 |                         docstring = self.extract_docstring(lines, i + 1, end_line)
- 198 |                         symbol = CodeSymbol(
- 199 |                             name=name,
- 200 |                             kind="function",
- 201 |                             start_line=i + 1,
- 202 |                             end_line=end_line + 1,
- 203 |                             modifiers=set(pending_decorators),
- 204 |                             docstring=docstring,
- 205 |                             parent=self.symbol_stack[-1] if self.symbol_stack else None,
- 206 |                             children=[]
- 207 |                         )
- 210 |                         if self.symbol_stack and symbol.parent:
- 211 |                             symbol.parent.children.append(symbol)
- 212 |                         else:
- 213 |                             self.symbols.append(symbol)
- 216 |                         self.symbol_stack.append(symbol)
- 219 |                         pending_decorators = []
- 220 |                         matched = True
- 221 |                         i += 1
- 222 |                         break
- 223 |                 elif kind == "class":
- 224 |                     end_line = self._find_block_end(lines, i, indent)
- 225 |                     if end_line <= i:
- 226 |                         end_line = i + 1
- 229 |                     docstring = self.extract_docstring(lines, i + 1, end_line)
- 231 |                     symbol = CodeSymbol(
- 232 |                         name=name,
- 233 |                         kind=kind,
- 234 |                         start_line=i + 1,
- 235 |                         end_line=end_line + 1,
- 236 |                         modifiers=set(pending_decorators),
- 237 |                         docstring=docstring,
- 238 |                         parent=self.symbol_stack[-1] if self.symbol_stack else None,
- 239 |                         children=[]
- 240 |                     )
- 242 |                 else:  # variable or constant
- 243 |                     symbol = CodeSymbol(
- 244 |                         name=name,
- 245 |                         kind=kind,
- 246 |                         start_line=i + 1,
- 247 |                         end_line=i + 1,
- 248 |                         modifiers=set(),
- 249 |                         parent=self.symbol_stack[-1] if self.symbol_stack else None,
- 250 |                         children=[]
- 251 |                     )
- 254 |                 if self.symbol_stack and symbol.parent:
- 255 |                     symbol.parent.children.append(symbol)
- 256 |                 else:
- 257 |                     self.symbols.append(symbol)
- 260 |                 if kind in ("class", "function"):
- 261 |                     self.symbol_stack.append(symbol)
- 264 |                 pending_decorators = []
- 265 |                 matched = True
- 266 |                 i += 1
- 267 |                 break
- 269 |             if not matched and not in_function_def:
- 270 |                 pending_decorators = []
- 271 |                 i += 1
- 274 |         def convert_symbols(symbols: List[CodeSymbol]) -> List[Declaration]:
- 275 |             declarations = []
- 276 |             for symbol in symbols:
- 277 |                 declarations.append(Declaration(
- 278 |                     kind=symbol.kind,
- 279 |                     name=symbol.name,
- 280 |                     start_line=symbol.start_line,
- 281 |                     end_line=symbol.end_line,
- 282 |                     modifiers=symbol.modifiers,
- 283 |                     docstring=symbol.docstring
- 284 |                 ))
- 285 |                 if symbol.children:
- 286 |                     declarations.extend(convert_symbols(symbol.children))
- 287 |             return declarations
- 289 |         return convert_symbols(self.symbols)
- 291 |     def _find_block_end(self, lines: List[str], start: int, base_indent: int) -> int:
- 293 |         i = start + 1
- 294 |         max_lines = len(lines)
- 297 |         if i >= max_lines:
- 298 |             return start
- 301 |         while i < max_lines and not lines[i].strip():
- 302 |             i += 1
- 305 |         if i >= max_lines:
- 306 |             return max_lines - 1
- 309 |         first_line = lines[i]
- 310 |         block_indent = len(first_line) - len(first_line.lstrip())
- 313 |         if block_indent <= base_indent:
- 314 |             return start
- 316 |         while i < max_lines:
- 317 |             line = lines[i].rstrip()
- 320 |             if not line:
- 321 |                 i += 1
- 322 |                 continue
- 325 |             indent = len(line) - len(line.lstrip())
- 328 |             if indent <= base_indent:
- 329 |                 return i - 1
- 331 |             i += 1
- 334 |         return max_lines - 1
+   4 | import ast
+   5 | from typing import List, Optional
+   7 | from codeconcat.base_types import Declaration, ParsedFileData
+   8 | from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
+  11 | def parse_python(file_path: str, content: str) -> ParsedFileData:
+  13 |     parser = PythonParser()
+  14 |     declarations = parser.parse(content)
+  15 |     return ParsedFileData(
+  16 |         file_path=file_path, language="python", content=content, declarations=declarations
+  17 |     )
+  20 | class PythonParser(BaseParser):
+  23 |     def __init__(self):
+  24 |         super().__init__()
+  25 |         self._setup_patterns()
+  27 |     def _setup_patterns(self):
+  29 |         Enhanced patterns for Python:
+  30 |         - We define one pattern for 'class' and 'function' that can handle decorators,
+  31 |           but we rely on the logic in parse() to gather multiple lines if needed.
+  34 |         name = r"[a-zA-Z_][a-zA-Z0-9_]*"
+  36 |         self.patterns = {
+  37 |             "class": re.compile(
+  38 |                 r"^class\s+(?P<n>" + name + r")"  # Class name
+  39 |                 r"(?:\s*\([^)]*\))?"  # Optional parent class
+  40 |                 r"\s*:"  # Class definition end
+  41 |             ),
+  42 |             "function": re.compile(
+  43 |                 r"^(?:async\s+)?def\s+(?P<n>" + name + r")"  # Function name with optional async
+  44 |                 r"\s*\([^)]*\)?"  # Function parameters, optional closing parenthesis
+  45 |                 r"\s*(?:->[^:]+)?"  # Optional return type
+  46 |                 r"\s*:?"  # Optional colon (for multi-line definitions)
+  47 |             ),
+  48 |             "variable": re.compile(
+  49 |                 r"^(?P<n>[a-z_][a-zA-Z0-9_]*)\s*"  # Variable name
+  50 |                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
+  51 |                 r"\s*=\s*[^=]"  # Assignment but not comparison
+  52 |             ),
+  53 |             "constant": re.compile(
+  54 |                 r"^(?P<n>[A-Z][A-Z0-9_]*)\s*"  # Constant name
+  55 |                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
+  56 |                 r"\s*=\s*[^=]"  # Assignment but not comparison
+  57 |             ),
+  58 |             "decorator": re.compile(
+  59 |                 r"^@(?P<n>[a-zA-Z_][\w.]*)(?:\s*\([^)]*\))?"  # Decorator with optional args
+  60 |             )
+  61 |         }
+  64 |         self.block_start = ":"
+  65 |         self.block_end = None
+  66 |         self.line_comment = "#"
+  67 |         self.block_comment_start = '"""'
+  68 |         self.block_comment_end = '"""'
+  71 |         self.modifiers = {
+  72 |             "@classmethod",
+  73 |             "@staticmethod",
+  74 |             "@property",
+  75 |             "@abstractmethod",
+  76 |         }
+  78 |     def parse(self, content: str) -> List[Declaration]:
+  80 |         declarations = []
+  81 |         lines = content.split('\n')
+  83 |         i = 0
+  84 |         while i < len(lines):
+  85 |             line = lines[i].strip()
+  88 |             if not line or line.startswith('#'):
+  89 |                 i += 1
+  90 |                 continue
+  93 |             decorators = []
+  94 |             while line.startswith('@'):
+  96 |                 decorator = line
+  97 |                 while '(' in decorator and ')' not in decorator:
+  98 |                     i += 1
+  99 |                     if i >= len(lines):
+ 100 |                         break
+ 101 |                     decorator += ' ' + lines[i].strip()
+ 102 |                 decorators.append(decorator)
+ 103 |                 i += 1
+ 104 |                 if i >= len(lines):
+ 105 |                     break
+ 106 |                 line = lines[i].strip()
+ 109 |             for kind, pattern in self.patterns.items():
+ 110 |                 match = pattern.match(line)
+ 111 |                 if match:
+ 112 |                     name = match.group("n")
+ 113 |                     if not name:
+ 114 |                         continue
+ 117 |                     end_line = i
+ 118 |                     docstring = ""
+ 120 |                     if kind in ("function", "class"):
+ 122 |                         base_indent = len(lines[i]) - len(line)
+ 123 |                         j = i + 1
+ 126 |                         while j < len(lines):
+ 127 |                             next_line = lines[j].strip()
+ 128 |                             if next_line and not next_line.startswith('#'):
+ 129 |                                 curr_indent = len(lines[j]) - len(lines[j].lstrip())
+ 130 |                                 if curr_indent > base_indent:
+ 131 |                                     if next_line.startswith('"""') or next_line.startswith("'''"):
+ 133 |                                         quote_char = next_line[0] * 3
+ 134 |                                         doc_lines = []
+ 137 |                                         if next_line.endswith(quote_char) and len(next_line) > 6:
+ 138 |                                             docstring = next_line[3:-3].strip()
+ 139 |                                         else:
+ 141 |                                             doc_lines.append(next_line[3:].strip())
+ 142 |                                             j += 1
+ 143 |                                             while j < len(lines):
+ 144 |                                                 doc_line = lines[j].strip()
+ 145 |                                                 if doc_line.endswith(quote_char):
+ 146 |                                                     doc_lines.append(doc_line[:-3].strip())
+ 147 |                                                     break
+ 148 |                                                 doc_lines.append(doc_line)
+ 149 |                                                 j += 1
+ 150 |                                             docstring = '\n'.join(doc_lines).strip()
+ 151 |                                 break
+ 152 |                             j += 1
+ 155 |                         while j < len(lines):
+ 156 |                             if j >= len(lines):
+ 157 |                                 break
+ 158 |                             curr_line = lines[j].strip()
+ 159 |                             if curr_line and not curr_line.startswith('#'):
+ 160 |                                 curr_indent = len(lines[j]) - len(lines[j].lstrip())
+ 163 |                                 if curr_indent > base_indent:
+ 164 |                                     nested_content = []
+ 165 |                                     nested_base_indent = curr_indent
+ 166 |                                     while j < len(lines):
+ 167 |                                         if j >= len(lines):
+ 168 |                                             break
+ 169 |                                         curr_line = lines[j].strip()
+ 170 |                                         if curr_line and not curr_line.startswith('#'):
+ 171 |                                             curr_indent = len(lines[j]) - len(lines[j].lstrip())
+ 172 |                                             if curr_indent < nested_base_indent:
+ 173 |                                                 break
+ 174 |                                             nested_content.append(lines[j][nested_base_indent:])
+ 175 |                                         j += 1
+ 178 |                                     if nested_content:
+ 179 |                                         nested_declarations = self.parse('\n'.join(nested_content))
+ 180 |                                         for decl in nested_declarations:
+ 181 |                                             decl.start_line += j - len(nested_content)
+ 182 |                                             decl.end_line += j - len(nested_content)
+ 183 |                                             declarations.append(decl)
+ 185 |                                 if curr_indent <= base_indent:
+ 186 |                                     end_line = j - 1
+ 187 |                                     break
+ 188 |                             j += 1
+ 189 |                             end_line = j - 1
+ 191 |                     declarations.append(Declaration(
+ 192 |                         kind=kind,
+ 193 |                         name=name,
+ 194 |                         start_line=i + 1,
+ 195 |                         end_line=end_line + 1,
+ 196 |                         modifiers=set(decorators),
+ 197 |                         docstring=docstring
+ 198 |                     ))
+ 199 |                     i = end_line + 1
+ 200 |                     break
+ 201 |             else:
+ 202 |                 i += 1
+ 204 |         return declarations
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/python_parser.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/parser/language_parsers/base_parser.py
@@ -4805,106 +3473,139 @@ Language: python
   25 |     BaseParser defines a minimal interface and partial logic for line-based scanning
   26 |     and comment extraction. Subclasses typically override _setup_patterns() and parse().
   29 |     def __init__(self):
-  30 |         self.symbols: List[CodeSymbol] = []
-  31 |         self.current_symbol: Optional[CodeSymbol] = None
-  32 |         self.symbol_stack: List[CodeSymbol] = []
-  33 |         self._setup_patterns()
-  35 |     @abstractmethod
-  36 |     def _setup_patterns(self):
-  37 |         self.patterns: Dict[str, Pattern] = {}
-  38 |         self.modifiers: Set[str] = set()
-  39 |         self.block_start: str = "{"
-  40 |         self.block_end: str = "}"
-  41 |         self.line_comment: str = "//"
-  42 |         self.block_comment_start: str = "/*"
-  43 |         self.block_comment_end: str = "*/"
-  45 |     def parse(self, content: str) -> List[Tuple[str, int, int]]:
-  47 |         A default naive parse that tries to identify code symbols via line-based scanning.
-  48 |         Subclasses often override parse() with a more language-specific approach.
+  31 |         self.symbols: List[CodeSymbol] = []
+  32 |         self.current_symbol: Optional[CodeSymbol] = None
+  33 |         self.symbol_stack: List[CodeSymbol] = []
+  34 |         self.block_start = "{"  # Default block start
+  35 |         self.block_end = "}"    # Default block end
+  36 |         self.line_comment = "//"  # Default line comment
+  37 |         self.block_comment_start = "/*"  # Default block comment start
+  38 |         self.block_comment_end = "*/"    # Default block comment end
+  39 |         self._setup_patterns()
+  41 |     @abstractmethod
+  42 |     def _setup_patterns(self):
+  44 |         self.patterns: Dict[str, Pattern] = {}
+  45 |         self.modifiers: Set[str] = set()
+  46 |         raise NotImplementedError("Subclasses must implement _setup_patterns")
+  48 |     def parse(self, content: str) -> List[Tuple[str, int, int]]:
   50 |         self.symbols = []
   51 |         self.current_symbol = None
   52 |         self.symbol_stack = []
-  54 |         lines = content.split("\n")
-  55 |         in_comment = False
-  56 |         comment_buffer = []
-  58 |         brace_count = 0  # naive brace count
-  60 |         for i, line in enumerate(lines):
-  61 |             stripped_line = line.strip()
-  64 |             if self.block_comment_start in line and not in_comment:
-  65 |                 in_comment = True
-  66 |                 comment_start = line.index(self.block_comment_start)
-  67 |                 comment_buffer.append(line[comment_start + len(self.block_comment_start):])
-  68 |                 continue
-  70 |             if in_comment:
-  71 |                 if self.block_comment_end in line:
-  72 |                     in_comment = False
-  73 |                     comment_end = line.index(self.block_comment_end)
-  74 |                     comment_buffer.append(line[:comment_end])
-  76 |                     comment_buffer = []
-  77 |                 else:
-  78 |                     comment_buffer.append(line)
-  79 |                 continue
-  82 |             if stripped_line.startswith(self.line_comment):
-  83 |                 continue
-  86 |             brace_count += line.count(self.block_start) - line.count(self.block_end)
-  89 |             if not self.current_symbol:
-  90 |                 for kind, pattern in self.patterns.items():
-  91 |                     match = pattern.match(line)
-  92 |                     if match:
-  94 |                         if "name" in match.groupdict():
-  95 |                             name = match.group("name") or ""
-  96 |                         else:
-  97 |                             continue
- 100 |                         mods = set()
- 101 |                         if "modifiers" in match.groupdict() and match.group("modifiers"):
- 102 |                             raw_mods = match.group("modifiers").split()
- 103 |                             mods = {m.strip() for m in raw_mods if m.strip()}
- 105 |                         symbol = CodeSymbol(
- 106 |                             name=name,
- 107 |                             kind=kind,
- 108 |                             start_line=i,
- 109 |                             end_line=i,
- 110 |                             modifiers=mods & self.modifiers,
- 111 |                         )
- 112 |                         if self.symbol_stack:
- 113 |                             symbol.parent = self.symbol_stack[-1]
- 114 |                             self.symbol_stack[-1].children.append(symbol)
- 116 |                         self.current_symbol = symbol
- 117 |                         self.symbol_stack.append(symbol)
- 118 |                         break
- 120 |             if self.current_symbol and brace_count == 0:
- 121 |                 if (self.block_end in line) or (";" in line):
- 122 |                     self.current_symbol.end_line = i
- 123 |                     self.symbols.append(self.current_symbol)
- 124 |                     if self.symbol_stack:
- 125 |                         self.symbol_stack.pop()
- 126 |                     self.current_symbol = self.symbol_stack[-1] if self.symbol_stack else None
- 128 |         return [(s.name, s.start_line, s.end_line) for s in self.symbols]
- 130 |     def _create_pattern(self, base_pattern: str, modifiers: Optional[List[str]] = None) -> Pattern:
- 131 |         if modifiers:
- 132 |             modifier_pattern = f"(?:{'|'.join(modifiers)})\\s+"
- 133 |             return re.compile(f"^\\s*(?:{modifier_pattern})?{base_pattern}")
- 134 |         return re.compile(f"^\\s*{base_pattern}")
- 136 |     @staticmethod
- 137 |     def extract_docstring(lines: List[str], start: int, end: int) -> Optional[str]:
- 139 |         Example extraction for docstring-like text between triple quotes or similar.
- 140 |         Subclasses can override or use as needed.
- 142 |         for i in range(start, min(end + 1, len(lines))):
- 143 |             line = lines[i].strip()
- 144 |             if line.startswith('"""') or line.startswith("'''"):
- 145 |                 doc_lines = []
- 146 |                 quote = line[:3]
- 147 |                 if line.endswith(quote) and len(line) > 3:
- 148 |                     return line[3:-3].strip()
- 149 |                 doc_lines.append(line[3:])
- 150 |                 for j in range(i + 1, end + 1):
- 151 |                     line2 = lines[j].strip()
- 152 |                     if line2.endswith(quote):
- 153 |                         doc_lines.append(line2[:-3])
- 154 |                         return "\n".join(doc_lines).strip()
- 155 |                     doc_lines.append(line2)
- 156 |         return None
+  55 |         seen_declarations = set()  # (name, start_line, kind) tuples
+  57 |         lines = content.split("\n")
+  58 |         in_comment = False
+  59 |         comment_buffer = []
+  60 |         brace_count = 0
+  62 |         for i, line in enumerate(lines):
+  63 |             stripped_line = line.strip()
+  66 |             if self.block_comment_start in line and not in_comment:
+  67 |                 in_comment = True
+  68 |                 comment_start = line.index(self.block_comment_start)
+  69 |                 comment_buffer.append(line[comment_start + len(self.block_comment_start):])
+  70 |                 continue
+  72 |             if in_comment:
+  73 |                 if self.block_comment_end in line:
+  74 |                     in_comment = False
+  75 |                     comment_end = line.index(self.block_comment_end)
+  76 |                     comment_buffer.append(line[:comment_end])
+  77 |                     comment_buffer = []
+  78 |                 else:
+  79 |                     comment_buffer.append(line)
+  80 |                 continue
+  83 |             if stripped_line.startswith(self.line_comment):
+  84 |                 continue
+  87 |             if self.block_start is not None and self.block_end is not None:
+  88 |                 brace_count += line.count(self.block_start) - line.count(self.block_end)
+  91 |             for kind, pattern in self.patterns.items():
+  92 |                 match = pattern.match(stripped_line)
+  93 |                 if match:
+  94 |                     name = match.group("n")  # Use "n" instead of "name"
+  95 |                     if not name:
+  96 |                         continue
+  99 |                     declaration_key = (name, i, kind)
+ 100 |                     if declaration_key in seen_declarations:
+ 101 |                         continue
+ 102 |                     seen_declarations.add(declaration_key)
+ 105 |                     end_line = i
+ 106 |                     if kind in ("class", "function", "method", "interface", "struct", "enum"):
+ 107 |                         end_line = self._find_block_end(lines, i)
+ 110 |                     docstring = None
+ 111 |                     if end_line > i:
+ 112 |                         docstring = self.extract_docstring(lines, i, end_line)
+ 115 |                     symbol = CodeSymbol(
+ 116 |                         name=name,
+ 117 |                         kind=kind,
+ 118 |                         start_line=i,
+ 119 |                         end_line=end_line,
+ 120 |                         modifiers=set(),
+ 121 |                         docstring=docstring
+ 122 |                     )
+ 125 |                     if self.current_symbol:
+ 126 |                         symbol.parent = self.current_symbol
+ 127 |                         self.current_symbol.children.append(symbol)
+ 128 |                     else:
+ 129 |                         self.symbols.append(symbol)
+ 132 |                     if kind in ("class", "interface", "struct"):
+ 133 |                         self.symbol_stack.append(self.current_symbol)
+ 134 |                         self.current_symbol = symbol
+ 137 |             if self.current_symbol and brace_count == 0:
+ 138 |                 self.current_symbol = self.symbol_stack.pop() if self.symbol_stack else None
+ 141 |         declarations = []
+ 142 |         for symbol in self.symbols:
+ 143 |             declarations.extend(self._flatten_symbol(symbol))
+ 144 |         return declarations
+ 146 |     def _flatten_symbol(self, symbol: CodeSymbol) -> List[Tuple[str, int, int]]:
+ 148 |         declarations = [(symbol.name, symbol.start_line, symbol.end_line)]
+ 149 |         for child in symbol.children:
+ 150 |             declarations.extend(self._flatten_symbol(child))
+ 151 |         return declarations
+ 153 |     def _find_block_end(self, lines: List[str], start: int) -> int:
+ 155 |         if self.block_start is None or self.block_end is None:
+ 156 |             return start
+ 158 |         line = lines[start]
+ 159 |         if self.block_start not in line:
+ 160 |             return start
+ 162 |         brace_count = line.count(self.block_start) - line.count(self.block_end)
+ 163 |         if brace_count <= 0:
+ 164 |             return start
+ 166 |         for i in range(start + 1, len(lines)):
+ 167 |             line = lines[i].strip()
+ 168 |             if line.startswith(self.line_comment):
+ 169 |                 continue
+ 170 |             brace_count += line.count(self.block_start) - line.count(self.block_end)
+ 171 |             if brace_count <= 0:
+ 172 |                 return i
+ 174 |         return len(lines) - 1
+ 176 |     def _create_pattern(self, base_pattern: str, modifiers: Optional[List[str]] = None) -> Pattern:
+ 177 |         if modifiers:
+ 178 |             modifier_pattern = f"(?:{'|'.join(modifiers)})\\s+"
+ 179 |             return re.compile(f"^\\s*(?:{modifier_pattern})?{base_pattern}")
+ 180 |         return re.compile(f"^\\s*{base_pattern}")
+ 182 |     @staticmethod
+ 183 |     def extract_docstring(lines: List[str], start: int, end: int) -> Optional[str]:
+ 185 |         Example extraction for docstring-like text between triple quotes or similar.
+ 186 |         Subclasses can override or use as needed.
+ 188 |         for i in range(start, min(end + 1, len(lines))):
+ 189 |             line = lines[i].strip()
+ 190 |             if line.startswith('"""') or line.startswith("'''"):
+ 191 |                 doc_lines = []
+ 192 |                 quote = line[:3]
+ 193 |                 if line.endswith(quote) and len(line) > 3:
+ 194 |                     return line[3:-3].strip()
+ 195 |                 doc_lines.append(line[3:])
+ 196 |                 for j in range(i + 1, end + 1):
+ 197 |                     line2 = lines[j].strip()
+ 198 |                     if line2.endswith(quote):
+ 199 |                         doc_lines.append(line2[:-3])
+ 200 |                         return "\n".join(doc_lines).strip()
+ 201 |                     doc_lines.append(line2)
+ 202 |         return None
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/base_parser.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/parser/language_parsers/java_parser.py
@@ -4929,106 +3630,161 @@ Language: python
   15 |         declarations=declarations
   16 |     )
   18 | class JavaParser(BaseParser):
-  19 |     def _setup_patterns(self):
-  21 |         We'll define patterns for class, interface, method, field (rough).
-  22 |         If the line includes `{` we'll parse the block. We handle constructor vs. method by checking if
-  23 |         there's a return type.
-  25 |         self.patterns = {
-  26 |             "class": re.compile(
-  27 |                 r"^[^/]*"
-  28 |                 r"(?:public|private|protected|static|final|abstract\s+)*"
-  29 |                 r"class\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
-  30 |                 r"(?:\s+extends\s+[a-zA-Z0-9_.]+)?"
-  31 |                 r"(?:\s+implements\s+[a-zA-Z0-9_.]+(?:\s*,\s*[a-zA-Z0-9_.]+)*)?"
-  32 |                 r"\s*\{"
-  33 |             ),
-  34 |             "interface": re.compile(
-  35 |                 r"^[^/]*"
-  36 |                 r"(?:public|private|protected|static\s+)*"
-  37 |                 r"interface\s+(?P<name>[A-Z][a-zA-Z0-9_]*)"
-  38 |                 r"(?:\s+extends\s+[a-zA-Z0-9_.]+(?:\s*,\s*[a-zA-Z0-9_.]+)*)?"
-  39 |                 r"\s*\{"
-  40 |             ),
-  41 |             "method": re.compile(
-  42 |                 r"^[^/]*"
-  43 |                 r"(?:public|private|protected|static|final|abstract|synchronized\s+)*"
-  44 |                 r"(?:[a-zA-Z_][a-zA-Z0-9_.<>\[\]\s]*\s+)+"   # return type
-  45 |                 r"(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)"         # method or constructor name
-  46 |                 r"\s*\([^)]*\)\s*"
-  47 |                 r"(?:throws\s+[a-zA-Z0-9_.]+(?:\s*,\s*[a-zA-Z0-9_.]+)*)?"
-  48 |                 r"\s*\{"
-  49 |             ),
-  50 |             "field": re.compile(
-  51 |                 r"^[^/]*"
-  52 |                 r"(?:public|private|protected|static|final|volatile|transient\s+)*"
-  53 |                 r"[a-zA-Z_][a-zA-Z0-9_<>\[\]\s]*\s+"
-  54 |                 r"(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*;"
-  55 |             ),
-  56 |         }
-  58 |         self.block_start = "{"
-  59 |         self.block_end = "}"
-  60 |         self.line_comment = "//"
-  61 |         self.block_comment_start = "/*"
-  62 |         self.block_comment_end = "*/"
-  64 |     def parse(self, content: str) -> List[Declaration]:
-  65 |         lines = content.split("\n")
-  66 |         symbols: List[CodeSymbol] = []
-  67 |         i = 0
-  68 |         line_count = len(lines)
-  70 |         while i < line_count:
-  71 |             line = lines[i].strip()
-  72 |             if not line or line.startswith("//"):
-  73 |                 i += 1
-  74 |                 continue
-  76 |             matched = False
-  77 |             for kind, pattern in self.patterns.items():
-  78 |                 match = pattern.match(line)
-  79 |                 if match:
-  80 |                     name = match.group("name")
-  82 |                     if kind == "method":
-  86 |                         pass
-  88 |                     block_end = i
-  89 |                     if kind in ("class", "interface", "method"):
-  90 |                         block_end = self._find_block_end(lines, i)
-  92 |                     symbol = CodeSymbol(
-  93 |                         kind=kind,
-  94 |                         name=name,
-  95 |                         start_line=i,
-  96 |                         end_line=block_end,
-  97 |                         modifiers=set(),
-  98 |                     )
-  99 |                     symbols.append(symbol)
- 100 |                     i = block_end
- 101 |                     matched = True
- 102 |                     break
- 103 |             if not matched:
- 104 |                 i += 1
- 106 |         declarations = []
- 107 |         for sym in symbols:
- 108 |             declarations.append(Declaration(
- 109 |                 kind=sym.kind,
- 110 |                 name=sym.name,
- 111 |                 start_line=sym.start_line + 1,
- 112 |                 end_line=sym.end_line + 1,
- 113 |                 modifiers=sym.modifiers
- 114 |             ))
- 115 |         return declarations
- 117 |     def _find_block_end(self, lines: List[str], start: int) -> int:
- 118 |         line = lines[start]
- 119 |         if "{" not in line:
- 120 |             return start
- 121 |         brace_count = line.count("{") - line.count("}")
- 122 |         if brace_count <= 0:
- 123 |             return start
- 124 |         for i in range(start + 1, len(lines)):
- 125 |             l2 = lines[i].strip()
- 126 |             if l2.startswith("//"):
- 127 |                 continue
- 128 |             brace_count += l2.count("{") - l2.count("}")
- 129 |             if brace_count <= 0:
- 130 |                 return i
- 131 |         return len(lines) - 1
+  19 |     def __init__(self):
+  20 |         super().__init__()
+  21 |         self._setup_patterns()
+  23 |     def _setup_patterns(self):
+  25 |         self.patterns = {}
+  28 |         self.block_start = "{"
+  29 |         self.block_end = "}"
+  30 |         self.line_comment = "//"
+  31 |         self.block_comment_start = "/*"
+  32 |         self.block_comment_end = "*/"
+  35 |         class_pattern = r"^\s*(?:public\s+|private\s+|protected\s+|static\s+|final\s+)*class\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)"
+  36 |         self.patterns["class"] = re.compile(class_pattern)
+  39 |         interface_pattern = r"^\s*(?:public\s+|private\s+|protected\s+)*interface\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)"
+  40 |         self.patterns["interface"] = re.compile(interface_pattern)
+  43 |         method_pattern = r"^\s*(?:public\s+|private\s+|protected\s+|static\s+|final\s+|abstract\s+)*(?:[a-zA-Z_][a-zA-Z0-9_<>[\],\s]*\s+)?(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s*\("
+  44 |         self.patterns["method"] = re.compile(method_pattern)
+  47 |         field_pattern = r"^\s*(?:public\s+|private\s+|protected\s+|static\s+|final\s+)*(?:[a-zA-Z_][a-zA-Z0-9_<>[\],\s]*\s+)(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s*[=;]"
+  48 |         self.patterns["field"] = re.compile(field_pattern)
+  50 |         self.modifiers = {"public", "private", "protected", "static", "final", "abstract"}
+  52 |     def parse(self, content: str) -> List[Declaration]:
+  54 |         declarations = []
+  55 |         lines = content.split('\n')
+  56 |         in_comment = False
+  58 |         i = 0
+  59 |         while i < len(lines):
+  60 |             line = lines[i].strip()
+  63 |             if not line or line.startswith('//'):
+  64 |                 i += 1
+  65 |                 continue
+  68 |             if "/*" in line and not in_comment:
+  69 |                 in_comment = True
+  70 |                 i += 1
+  71 |                 continue
+  72 |             elif in_comment:
+  73 |                 if "*/" in line:
+  74 |                     in_comment = False
+  75 |                 i += 1
+  76 |                 continue
+  79 |             modifiers = set()
+  80 |             words = line.split()
+  81 |             j = 0
+  82 |             while j < len(words) and words[j] in self.modifiers:
+  83 |                 modifiers.add(words[j])
+  84 |                 j += 1
+  87 |             for kind, pattern in self.patterns.items():
+  88 |                 match = pattern.match(line)
+  89 |                 if match:
+  90 |                     name = match.group("n")
+  91 |                     if not name:
+  92 |                         continue
+  95 |                     end_line = i
+  96 |                     if kind in ("class", "interface", "enum", "method"):
+  97 |                         brace_count = 0
+  98 |                         found_opening = False
+ 101 |                         j = i
+ 102 |                         while j < len(lines):
+ 103 |                             curr_line = lines[j].strip()
+ 105 |                             if "{" in curr_line:
+ 106 |                                 found_opening = True
+ 107 |                                 brace_count += curr_line.count("{")
+ 108 |                             if "}" in curr_line:
+ 109 |                                 brace_count -= curr_line.count("}")
+ 111 |                             if found_opening and brace_count == 0:
+ 112 |                                 end_line = j
+ 113 |                                 break
+ 114 |                             j += 1
+ 117 |                         docstring = self.extract_docstring(lines, i, end_line)
+ 120 |                         declarations.append(Declaration(
+ 121 |                             kind=kind,
+ 122 |                             name=name,
+ 123 |                             start_line=i + 1,
+ 124 |                             end_line=end_line + 1,
+ 125 |                             modifiers=modifiers,
+ 126 |                             docstring=docstring or ""
+ 127 |                         ))
+ 130 |                         if kind in ("class", "interface", "enum") and end_line > i:
+ 131 |                             nested_content = []
+ 132 |                             for k in range(i+1, end_line):
+ 133 |                                 nested_line = lines[k].strip()
+ 134 |                                 if nested_line and not nested_line.startswith('//'):
+ 135 |                                     nested_content.append((k, lines[k]))
+ 137 |                             if nested_content:
+ 138 |                                 for k, nested_line in nested_content:
+ 140 |                                     for nested_kind, nested_pattern in self.patterns.items():
+ 141 |                                         if nested_kind in ("class", "interface", "enum"):
+ 142 |                                             continue  # Skip nested class declarations for now
+ 143 |                                         nested_match = nested_pattern.match(nested_line.strip())
+ 144 |                                         if nested_match:
+ 145 |                                             nested_name = nested_match.group("n")
+ 146 |                                             if nested_name:
+ 148 |                                                 nested_modifiers = set()
+ 149 |                                                 nested_words = nested_line.strip().split()
+ 150 |                                                 m = 0
+ 151 |                                                 while m < len(nested_words) and nested_words[m] in self.modifiers:
+ 152 |                                                     nested_modifiers.add(nested_words[m])
+ 153 |                                                     m += 1
+ 156 |                                                 nested_end_line = k
+ 157 |                                                 if "{" in nested_line:
+ 158 |                                                     nested_brace_count = 1
+ 159 |                                                     n = k + 1
+ 160 |                                                     while n < len(lines):
+ 161 |                                                         curr_nested_line = lines[n].strip()
+ 162 |                                                         if "{" in curr_nested_line:
+ 163 |                                                             nested_brace_count += curr_nested_line.count("{")
+ 164 |                                                         if "}" in curr_nested_line:
+ 165 |                                                             nested_brace_count -= curr_nested_line.count("}")
+ 166 |                                                         if nested_brace_count == 0:
+ 167 |                                                             nested_end_line = n
+ 168 |                                                             break
+ 169 |                                                         n += 1
+ 171 |                                                 declarations.append(Declaration(
+ 172 |                                                     kind=nested_kind,
+ 173 |                                                     name=nested_name,
+ 174 |                                                     start_line=k + 1,
+ 175 |                                                     end_line=nested_end_line + 1,
+ 176 |                                                     modifiers=nested_modifiers,
+ 177 |                                                     docstring=""
+ 178 |                                                 ))
+ 179 |                         i = end_line + 1
+ 180 |                         break
+ 181 |                     else:
+ 183 |                         declarations.append(Declaration(
+ 184 |                             kind=kind,
+ 185 |                             name=name,
+ 186 |                             start_line=i + 1,
+ 187 |                             end_line=i + 1,
+ 188 |                             modifiers=modifiers,
+ 189 |                             docstring=""
+ 190 |                         ))
+ 191 |                         i += 1
+ 192 |                         break
+ 193 |             else:
+ 194 |                 i += 1
+ 197 |         filtered_declarations = []
+ 198 |         top_level_declarations = [d for d in declarations if d.kind in ("class", "interface", "enum")]
+ 200 |         for top_level in top_level_declarations:
+ 201 |             filtered_declarations.append(top_level)
+ 204 |             start_line = top_level.start_line
+ 205 |             end_line = top_level.end_line
+ 206 |             for d in declarations:
+ 207 |                 if d.start_line > start_line and d.end_line < end_line:
+ 208 |                     filtered_declarations.append(d)
+ 210 |         return filtered_declarations
+ 212 |     def extract_docstring(self, lines, start, end):
+ 214 |         docstring = ""
+ 215 |         for line in lines[start+1:end]:
+ 216 |             if line.strip().startswith("//"):
+ 217 |                 docstring += line.strip().replace("//", "", 1).strip() + "\n"
+ 218 |         return docstring.strip()
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/java_parser.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/parser/language_parsers/cpp_parser.py
@@ -5083,168 +3839,172 @@ Language: python
   60 |         self.enum_pattern = re.compile(
   61 |             r"""
   62 |             ^[^\#/]*?
-  63 |             enum\s+
-  64 |             (?:class\s+)?               # enum class?
-  65 |             (?P<name>[a-zA-Z_]\w*)
-  66 |             (?:\s*:\s+[^\s{]+)?         # optional base type
-  67 |             \s*{                       # opening brace
-  69 |             re.VERBOSE
-  70 |         )
-  76 |         self.function_pattern = re.compile(
-  77 |             r"""
-  78 |             ^[^\#/]*?                    # skip if line starts with # or / (comment), handled later
-  79 |             (?:template\s*<[^>]*>\s*)?   # optional template
-  80 |             (?:virtual|static|inline|constexpr|explicit|friend\s+)?  # optional specifiers
-  81 |             (?:""" + qualified_id + r"""(?:<[^>]+>)?[&*\s]+)*        # optional return type with nested templates
-  82 |             (?P<name>                                      # function name capture
-  83 |                 ~?[a-zA-Z_]\w*                             # normal name or destructor ~Foo
-  84 |                 |operator\s*(?:[^\s\(]+|\(.*?\))          # operator overload
-  85 |             )
-  86 |             \s*\([^\){;]*\)                                # function params up to ) but not including brace or semicolon
-  87 |             (?:\s*const)?                                   # optional const
-  88 |             (?:\s*noexcept)?                                # optional noexcept
-  89 |             (?:\s*=\s*(?:default|delete|0))?                # optional = default/delete/pure virtual
-  90 |             \s*(?:{|;)                                    # must end with { or ;
-  92 |             re.VERBOSE
-  93 |         )
-  96 |         self.namespace_pattern = re.compile(
-  97 |             r"""
-  98 |             ^[^\#/]*?
-  99 |             (?:inline\s+)?         # optional inline
- 100 |             namespace\s+
- 101 |             (?P<name>[a-zA-Z_]\w*) # namespace name
- 102 |             \s*{                  # opening brace
- 104 |             re.VERBOSE
- 105 |         )
- 108 |         self.typedef_pattern = re.compile(
- 109 |             r"""
- 110 |             ^[^\#/]*?
- 111 |             typedef\s+
- 112 |             (?:[^;]+?                   # capture everything up to the identifier
- 113 |               \s+                       # must have whitespace before identifier
- 114 |               (?:\(\s*\*\s*)?          # optional function pointer
- 115 |             )
- 116 |             (?P<name>[a-zA-Z_]\w*)     # identifier
- 117 |             (?:\s*\)[^;]*)?            # rest of function pointer if present
- 118 |             \s*;                        # end with semicolon
- 120 |             re.VERBOSE
- 121 |         )
- 124 |         self.using_pattern = re.compile(
- 125 |             r"""
- 126 |             ^[^\#/]*?
- 127 |             using\s+
- 128 |             (?P<name>[a-zA-Z_]\w*)
- 129 |             \s*=\s*[^;]+;
- 131 |             re.VERBOSE
- 132 |         )
- 134 |         self.patterns = {
- 135 |             "class":      self.class_pattern,
- 136 |             "forward_decl": self.forward_decl_pattern,
- 137 |             "enum":       self.enum_pattern,
- 138 |             "function":   self.function_pattern,
- 139 |             "namespace":  self.namespace_pattern,
- 140 |             "typedef":    self.typedef_pattern,
- 141 |             "using":      self.using_pattern,
- 142 |         }
- 145 |         self.block_start = "{"
- 146 |         self.block_end = "}"
- 147 |         self.line_comment = "//"
- 148 |         self.block_comment_start = "/*"
- 149 |         self.block_comment_end = "*/"
- 151 |     def parse(self, content: str) -> List[Declaration]:
- 153 |         Main parse method:
- 154 |         1) Remove block comments.
- 155 |         2) Split by lines.
- 156 |         3) For each line, strip preprocessor lines (#...), line comments, etc.
- 157 |         4) Match patterns in a loop and accumulate symbols.
- 158 |         5) For anything with a block, find the end of the block with _find_block_end.
- 159 |         6) Convert collected CodeSymbol objects -> Declaration objects.
- 162 |         content_no_block = self._remove_block_comments(content)
- 163 |         lines = content_no_block.split("\n")
- 165 |         symbols: List[CodeSymbol] = []
- 166 |         i = 0
- 167 |         line_count = len(lines)
- 169 |         while i < line_count:
- 170 |             raw_line = lines[i]
- 171 |             line_stripped = raw_line.strip()
- 174 |             if (not line_stripped
- 175 |                 or line_stripped.startswith("//")
- 176 |                 or line_stripped.startswith("#")):
- 177 |                 i += 1
- 178 |                 continue
- 181 |             comment_pos = raw_line.find("//")
- 182 |             if comment_pos >= 0:
- 183 |                 raw_line = raw_line[:comment_pos]
- 185 |             raw_line_stripped = raw_line.strip()
- 186 |             if not raw_line_stripped:
- 187 |                 i += 1
- 188 |                 continue
- 190 |             matched_something = False
- 193 |             for kind, pattern in self.patterns.items():
- 194 |                 match = pattern.match(raw_line_stripped)
- 195 |                 if match:
- 196 |                     name = match.group("name")
- 197 |                     block_end = i
- 199 |                     if kind in ["class", "enum", "namespace", "function"]:
- 201 |                         if "{" in raw_line_stripped:
- 202 |                             block_end = self._find_block_end(lines, i)
- 203 |                         else:
- 205 |                             block_end = i
- 208 |                     symbol = CodeSymbol(
- 209 |                         kind=kind,
- 210 |                         name=name,
- 211 |                         start_line=i,
- 212 |                         end_line=block_end,
- 213 |                         modifiers=set(),
- 214 |                     )
- 215 |                     symbols.append(symbol)
- 216 |                     i = block_end + 1
- 217 |                     matched_something = True
- 218 |                     break
- 220 |             if not matched_something:
- 221 |                 i += 1
- 224 |         declarations: List[Declaration] = []
- 225 |         for sym in symbols:
- 226 |             decl = Declaration(
- 227 |                 kind=sym.kind,
- 228 |                 name=sym.name,
- 229 |                 start_line=sym.start_line + 1,
- 230 |                 end_line=sym.end_line + 1,
- 231 |                 modifiers=sym.modifiers,
- 232 |             )
- 233 |             declarations.append(decl)
- 235 |         return declarations
- 237 |     def _remove_block_comments(self, text: str) -> str:
- 239 |         Remove all /* ... */ comments (including multi-line).
- 240 |         Simple approach: repeatedly find the first /* and the next */, remove them,
- 241 |         and continue until none remain.
- 243 |         pattern = re.compile(r"/\*.*?\*/", re.DOTALL)
- 244 |         return re.sub(pattern, "", text)
- 246 |     def _find_block_end(self, lines: List[str], start: int) -> int:
- 248 |         Find the end of a block that starts at 'start' if there's an unmatched '{'.
- 249 |         We'll count braces until balanced or until we run out of lines.
- 250 |         We'll skip lines that start with '#' as they are preprocessor directives (not code).
- 253 |         line = lines[start]
- 254 |         brace_count = 0
- 257 |         comment_pos = line.find("//")
- 258 |         if comment_pos >= 0:
- 259 |             line = line[:comment_pos]
- 261 |         brace_count += line.count("{") - line.count("}")
- 264 |         if brace_count <= 0:
- 265 |             return start
- 267 |         n = len(lines)
- 268 |         for i in range(start + 1, n):
- 269 |             l = lines[i]
- 272 |             if l.strip().startswith("#"):
- 273 |                 continue
- 276 |             comment_pos = l.find("//")
- 277 |             if comment_pos >= 0:
- 278 |                 l = l[:comment_pos]
- 280 |             brace_count += l.count("{") - l.count("}")
- 281 |             if brace_count <= 0:
- 282 |                 return i
- 284 |         return n - 1
+  63 |             enum(?:\s+class)?\s+
+  64 |             (?P<name>[a-zA-Z_]\w*)
+  65 |             (?:\s*:\s+[^\s{]+)?         # optional base type
+  66 |             \s*{                       # opening brace
+  68 |             re.VERBOSE
+  69 |         )
+  75 |         self.function_pattern = re.compile(
+  76 |             r"""
+  77 |             ^[^\#/]*?                    # skip if line starts with # or / (comment), handled later
+  78 |             (?:template\s*<[^>]*>\s*)?   # optional template
+  79 |             (?:virtual|static|inline|constexpr|explicit|friend\s+)?  # optional specifiers
+  80 |             (?:""" + qualified_id + r"""(?:<[^>]+>)?[&*\s]+)*        # optional return type with nested templates
+  81 |             (?P<name>                                      # function name capture
+  82 |                 ~?[a-zA-Z_]\w*                             # normal name or destructor ~Foo
+  83 |                 |operator\s*(?:[^\s\(]+|\(.*?\))          # operator overload
+  84 |             )
+  85 |             \s*\([^\){;]*\)                                # function params up to ) but not including brace or semicolon
+  86 |             (?:\s*const)?                                   # optional const
+  87 |             (?:\s*noexcept)?                                # optional noexcept
+  88 |             (?:\s*=\s*(?:default|delete|0))?                # optional = default/delete/pure virtual
+  89 |             \s*(?:{|;)                                    # must end with { or ;
+  91 |             re.VERBOSE
+  92 |         )
+  95 |         self.namespace_pattern = re.compile(
+  96 |             r"""
+  97 |             ^[^\#/]*?
+  98 |             (?:inline\s+)?         # optional inline
+  99 |             namespace\s+
+ 100 |             (?P<name>[a-zA-Z_]\w*) # namespace name
+ 101 |             \s*{                  # opening brace
+ 103 |             re.VERBOSE
+ 104 |         )
+ 107 |         self.typedef_pattern = re.compile(
+ 108 |             r"""
+ 109 |             ^[^\#/]*?
+ 110 |             typedef\s+
+ 111 |             (?:[^;]+?                   # capture everything up to the identifier
+ 112 |               \s+                       # must have whitespace before identifier
+ 113 |               (?:\(\s*\*\s*)?          # optional function pointer
+ 114 |             )
+ 115 |             (?P<name>[a-zA-Z_]\w*)     # identifier
+ 116 |             (?:\s*\)[^;]*)?            # rest of function pointer if present
+ 117 |             \s*;                        # end with semicolon
+ 119 |             re.VERBOSE
+ 120 |         )
+ 123 |         self.using_pattern = re.compile(
+ 124 |             r"""
+ 125 |             ^[^\#/]*?
+ 126 |             using\s+
+ 127 |             (?P<name>[a-zA-Z_]\w*)
+ 128 |             \s*=\s*[^;]+;
+ 130 |             re.VERBOSE
+ 131 |         )
+ 133 |         self.patterns = {
+ 134 |             "class":      self.class_pattern,
+ 135 |             "forward_decl": self.forward_decl_pattern,
+ 136 |             "enum":       self.enum_pattern,
+ 137 |             "function":   self.function_pattern,
+ 138 |             "namespace":  self.namespace_pattern,
+ 139 |             "typedef":    self.typedef_pattern,
+ 140 |             "using":      self.using_pattern,
+ 141 |         }
+ 144 |         self.block_start = "{"
+ 145 |         self.block_end = "}"
+ 146 |         self.line_comment = "//"
+ 147 |         self.block_comment_start = "/*"
+ 148 |         self.block_comment_end = "*/"
+ 150 |     def parse(self, content: str) -> List[Declaration]:
+ 152 |         Main parse method:
+ 153 |         1) Remove block comments.
+ 154 |         2) Split by lines.
+ 155 |         3) For each line, strip preprocessor lines (#...), line comments, etc.
+ 156 |         4) Match patterns in a loop and accumulate symbols.
+ 157 |         5) For anything with a block, find the end of the block with _find_block_end.
+ 158 |         6) Convert collected CodeSymbol objects -> Declaration objects.
+ 161 |         content_no_block = self._remove_block_comments(content)
+ 162 |         lines = content_no_block.split("\n")
+ 164 |         symbols: List[CodeSymbol] = []
+ 165 |         i = 0
+ 166 |         line_count = len(lines)
+ 168 |         while i < line_count:
+ 169 |             raw_line = lines[i]
+ 170 |             line_stripped = raw_line.strip()
+ 173 |             if (not line_stripped
+ 174 |                 or line_stripped.startswith("//")
+ 175 |                 or line_stripped.startswith("#")):
+ 176 |                 i += 1
+ 177 |                 continue
+ 180 |             comment_pos = raw_line.find("//")
+ 181 |             if comment_pos >= 0:
+ 182 |                 raw_line = raw_line[:comment_pos]
+ 184 |             raw_line_stripped = raw_line.strip()
+ 185 |             if not raw_line_stripped:
+ 186 |                 i += 1
+ 187 |                 continue
+ 189 |             matched_something = False
+ 192 |             for kind, pattern in self.patterns.items():
+ 193 |                 match = pattern.match(raw_line_stripped)
+ 194 |                 if match:
+ 195 |                     name = match.group("name")
+ 196 |                     block_end = i
+ 198 |                     if kind in ["class", "enum", "namespace", "function"]:
+ 200 |                         if "{" in raw_line_stripped:
+ 201 |                             block_end = self._find_block_end(lines, i)
+ 202 |                         else:
+ 204 |                             block_end = i
+ 207 |                     symbol = CodeSymbol(
+ 208 |                         kind=kind,
+ 209 |                         name=name,
+ 210 |                         start_line=i,
+ 211 |                         end_line=block_end,
+ 212 |                         modifiers=set(),
+ 213 |                     )
+ 214 |                     symbols.append(symbol)
+ 215 |                     i = block_end + 1
+ 216 |                     matched_something = True
+ 217 |                     break
+ 219 |             if not matched_something:
+ 220 |                 i += 1
+ 223 |         declarations: List[Declaration] = []
+ 224 |         for sym in symbols:
+ 225 |             decl = Declaration(
+ 226 |                 kind=sym.kind,
+ 227 |                 name=sym.name,
+ 228 |                 start_line=sym.start_line + 1,
+ 229 |                 end_line=sym.end_line + 1,
+ 230 |                 modifiers=sym.modifiers,
+ 231 |             )
+ 232 |             declarations.append(decl)
+ 234 |         return declarations
+ 236 |     def _remove_block_comments(self, text: str) -> str:
+ 238 |         Remove all /* ... */ comments (including multi-line).
+ 239 |         Simple approach: repeatedly find the first /* and the next */, remove them,
+ 240 |         and continue until none remain.
+ 242 |         pattern = re.compile(r"/\*.*?\*/", re.DOTALL)
+ 243 |         return re.sub(pattern, "", text)
+ 245 |     def _find_block_end(self, lines: List[str], start: int) -> int:
+ 247 |         Find the end of a block that starts at 'start' if there's an unmatched '{'.
+ 248 |         We'll count braces until balanced or until we run out of lines.
+ 249 |         We'll skip lines that start with '#' as they are preprocessor directives (not code).
+ 252 |         line = lines[start]
+ 253 |         brace_count = 0
+ 256 |         comment_pos = line.find("//")
+ 257 |         if comment_pos >= 0:
+ 258 |             line = line[:comment_pos]
+ 260 |         brace_count += line.count("{") - line.count("}")
+ 263 |         if brace_count <= 0:
+ 264 |             return start
+ 266 |         n = len(lines)
+ 267 |         for i in range(start + 1, n):
+ 268 |             l = lines[i]
+ 271 |             if l.strip().startswith("#"):
+ 272 |                 continue
+ 275 |             comment_pos = l.find("//")
+ 276 |             if comment_pos >= 0:
+ 277 |                 l = l[:comment_pos]
+ 279 |             brace_count += l.count("{") - l.count("}")
+ 280 |             if brace_count <= 0:
+ 281 |                 return i
+ 283 |         return n - 1
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/cpp_parser.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/parser/language_parsers/r_parser.py
@@ -5616,6 +4376,11 @@ Language: python
  491 |         return methods
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/r_parser.py
+### Functions
+### Classes
+
 ---
 ### File: ./codeconcat/parser/language_parsers/go_parser.py
 #### Summary
@@ -5631,7 +4396,7 @@ Language: python
    6 | from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
    8 | def parse_go(file_path: str, content: str) -> Optional[ParsedFileData]:
    9 |     parser = GoParser()
-  10 |     declarations = parser.parse(content)
+  10 |     declarations = parser.parse_file(content)
   11 |     return ParsedFileData(
   12 |         file_path=file_path,
   13 |         language="go",
@@ -5639,127 +4404,155 @@ Language: python
   15 |         declarations=declarations
   16 |     )
   18 | class GoParser(BaseParser):
-  19 |     def _setup_patterns(self):
-  21 |         We separate out interface vs. struct vs. type in general, to avoid double counting.
-  23 |         self.patterns = {
-  24 |             "struct": re.compile(
-  25 |                 r"^[^/]*type\s+(?P<name>[A-Z][a-zA-Z0-9_]*)\s+struct\s*\{"
-  26 |             ),
-  27 |             "interface": re.compile(
-  28 |                 r"^[^/]*type\s+(?P<name>[A-Z][a-zA-Z0-9_]*)\s+interface\s*\{"
-  29 |             ),
-  30 |             "function": re.compile(
-  31 |                 r"^[^/]*func\s+(?:\([^)]+\)\s+)?(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)"
-  32 |                 r"(?:\s*\([^)]*\))?\s*\{"
-  33 |             ),
-  34 |             "const": re.compile(
-  35 |                 r"^[^/]*const\s+(?:\(\s*|(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*=)"
-  36 |             ),
-  37 |             "var": re.compile(
-  38 |                 r"^[^/]*var\s+(?:\(\s*|(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=|\s+[^=\s]+))"
-  39 |             ),
-  40 |         }
-  42 |         self.block_start = "{"
-  43 |         self.block_end = "}"
-  44 |         self.line_comment = "//"
-  45 |         self.block_comment_start = "/*"
-  46 |         self.block_comment_end = "*/"
-  48 |     def parse(self, content: str) -> List[Declaration]:
-  49 |         lines = content.split("\n")
-  50 |         symbols: List[CodeSymbol] = []
-  51 |         in_const_block = False
-  52 |         in_var_block = False
-  53 |         i = 0
-  54 |         while i < len(lines):
-  55 |             line = lines[i]
-  56 |             stripped = line.strip()
-  57 |             if not stripped or stripped.startswith("//"):
-  58 |                 i += 1
-  59 |                 continue
-  62 |             if in_const_block or in_var_block:
-  63 |                 if ")" in stripped:
-  65 |                     in_const_block = False
-  66 |                     in_var_block = False
-  67 |                     i += 1
-  68 |                     continue
-  71 |                 if "=" in stripped:
-  73 |                     parts = stripped.split("=")
-  74 |                     name_part = parts[0].strip()
-  76 |                     name = name_part.split()[0]
-  77 |                     kind = "const" if in_const_block else "var"
-  78 |                     symbol = CodeSymbol(
-  79 |                         name=name,
-  80 |                         kind=kind,
-  81 |                         start_line=i + 1,
-  82 |                         end_line=i + 1,
-  83 |                         modifiers=set(),
-  84 |                     )
-  85 |                     symbols.append(symbol)
-  86 |                 i += 1
-  87 |                 continue
-  89 |             matched = False
-  90 |             for kind, pattern in self.patterns.items():
-  91 |                 m = pattern.match(stripped)
-  92 |                 if m:
-  93 |                     matched = True
-  94 |                     if kind in ("const", "var"):
-  96 |                         name = m.groupdict().get("name", None)
-  97 |                         if name is None:
-  99 |                             if kind == "const":
- 100 |                                 in_const_block = True
- 101 |                             else:
- 102 |                                 in_var_block = True
- 103 |                         else:
- 105 |                             symbol = CodeSymbol(
- 106 |                                 name=name,
- 107 |                                 kind=kind,
- 108 |                                 start_line=i + 1,
- 109 |                                 end_line=i + 1,
- 110 |                                 modifiers=set(),
- 111 |                             )
- 112 |                             symbols.append(symbol)
- 113 |                     else:
- 115 |                         name = m.group("name")
- 116 |                         block_end = self._find_block_end(lines, i)
- 117 |                         symbol = CodeSymbol(
- 118 |                             name=name,
- 119 |                             kind=kind,
- 120 |                             start_line=i + 1,
- 121 |                             end_line=block_end + 1,
- 122 |                             modifiers=set(),
- 123 |                         )
- 124 |                         symbols.append(symbol)
- 125 |                         i = block_end
- 126 |                     break
- 127 |             if not matched:
- 129 |                 pass
- 131 |             i += 1
- 133 |         declarations = []
- 134 |         for sym in symbols:
- 135 |             declarations.append(Declaration(
- 136 |                 kind=sym.kind,
- 137 |                 name=sym.name,
- 138 |                 start_line=sym.start_line,
- 139 |                 end_line=sym.end_line,
- 140 |                 modifiers=sym.modifiers
- 141 |             ))
- 142 |         return declarations
- 144 |     def _find_block_end(self, lines: List[str], start: int) -> int:
- 145 |         line = lines[start]
- 146 |         if "{" not in line:
- 147 |             return start
- 148 |         brace_count = line.count("{") - line.count("}")
- 149 |         if brace_count <= 0:
- 150 |             return start
- 151 |         for i in range(start + 1, len(lines)):
- 152 |             l2 = lines[i]
- 153 |             if l2.strip().startswith("//"):
- 154 |                 continue
- 155 |             brace_count += l2.count("{") - l2.count("}")
- 156 |             if brace_count <= 0:
- 157 |                 return i
- 158 |         return len(lines) - 1
+  19 |     def __init__(self):
+  20 |         super().__init__()
+  21 |         self._setup_patterns()
+  23 |     def _setup_patterns(self):
+  25 |         self.patterns = {}
+  28 |         self.block_start = "{"
+  29 |         self.block_end = "}"
+  30 |         self.line_comment = "//"
+  31 |         self.block_comment_start = "/*"
+  32 |         self.block_comment_end = "*/"
+  35 |         func_pattern = r"^\s*func\s+(?:\([^)]+\)\s+)?(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s*\("
+  36 |         self.patterns["function"] = re.compile(func_pattern)
+  39 |         interface_pattern = r"^\s*type\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s+interface\s*"
+  40 |         self.patterns["interface"] = re.compile(interface_pattern)
+  43 |         struct_pattern = r"^\s*type\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s+struct\s*"
+  44 |         self.patterns["struct"] = re.compile(struct_pattern)
+  47 |         const_pattern = r"^\s*(?:const\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|const\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
+  48 |         self.patterns["const"] = re.compile(const_pattern)
+  51 |         var_pattern = r"^\s*(?:var\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|var\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
+  52 |         self.patterns["var"] = re.compile(var_pattern)
+  54 |     def parse_file(self, content: str) -> List[Declaration]:
+  56 |         return self.parse(content)
+  58 |     def parse(self, content: str) -> List[Declaration]:
+  60 |         declarations = []
+  61 |         lines = content.split('\n')
+  62 |         in_comment = False
+  63 |         comment_buffer = []
+  64 |         in_const_block = False
+  65 |         in_var_block = False
+  67 |         i = 0
+  68 |         while i < len(lines):
+  69 |             line = lines[i].strip()
+  72 |             if not line or line.startswith('//'):
+  73 |                 i += 1
+  74 |                 continue
+  77 |             if "/*" in line and not in_comment:
+  78 |                 in_comment = True
+  79 |                 i += 1
+  80 |                 continue
+  81 |             elif in_comment:
+  82 |                 if "*/" in line:
+  83 |                     in_comment = False
+  84 |                 i += 1
+  85 |                 continue
+  88 |             if line.startswith("const ("):
+  89 |                 in_const_block = True
+  90 |                 i += 1
+  91 |                 continue
+  92 |             elif in_const_block:
+  93 |                 if line == ")":
+  94 |                     in_const_block = False
+  95 |                     i += 1
+  96 |                     continue
+  97 |                 else:
+  99 |                     name = line.split("=")[0].strip()
+ 100 |                     if name and name.isidentifier():
+ 101 |                         declarations.append(Declaration(
+ 102 |                             kind="const",
+ 103 |                             name=name,
+ 104 |                             start_line=i + 1,
+ 105 |                             end_line=i + 1,
+ 106 |                             modifiers=set(),
+ 107 |                             docstring=""
+ 108 |                         ))
+ 109 |                     i += 1
+ 110 |                     continue
+ 113 |             if line.startswith("var ("):
+ 114 |                 in_var_block = True
+ 115 |                 i += 1
+ 116 |                 continue
+ 117 |             elif in_var_block:
+ 118 |                 if line == ")":
+ 119 |                     in_var_block = False
+ 120 |                     i += 1
+ 121 |                     continue
+ 122 |                 else:
+ 124 |                     name = line.split("=")[0].strip().split()[0]
+ 125 |                     if name and name.isidentifier():
+ 126 |                         declarations.append(Declaration(
+ 127 |                             kind="var",
+ 128 |                             name=name,
+ 129 |                             start_line=i + 1,
+ 130 |                             end_line=i + 1,
+ 131 |                             modifiers=set(),
+ 132 |                             docstring=""
+ 133 |                         ))
+ 134 |                     i += 1
+ 135 |                     continue
+ 138 |             for kind, pattern in self.patterns.items():
+ 139 |                 match = pattern.match(line)
+ 140 |                 if match:
+ 141 |                     name = match.group("n")
+ 142 |                     if not name:
+ 143 |                         continue
+ 146 |                     end_line = i
+ 147 |                     if kind in ("function", "interface", "struct"):
+ 148 |                         brace_count = 0
+ 149 |                         found_opening = False
+ 152 |                         j = i
+ 153 |                         while j < len(lines):
+ 154 |                             curr_line = lines[j].strip()
+ 156 |                             if "{" in curr_line:
+ 157 |                                 found_opening = True
+ 158 |                                 brace_count += curr_line.count("{")
+ 159 |                             if "}" in curr_line:
+ 160 |                                 brace_count -= curr_line.count("}")
+ 162 |                             if found_opening and brace_count == 0:
+ 163 |                                 end_line = j
+ 164 |                                 break
+ 165 |                             j += 1
+ 168 |                     docstring = None
+ 169 |                     if end_line > i:
+ 170 |                         docstring = self.extract_docstring(lines, i, end_line)
+ 172 |                     declarations.append(Declaration(
+ 173 |                         kind=kind,
+ 174 |                         name=name,
+ 175 |                         start_line=i + 1,
+ 176 |                         end_line=end_line + 1,
+ 177 |                         modifiers=set(),
+ 178 |                         docstring=docstring or ""
+ 179 |                     ))
+ 180 |                     i = end_line + 1
+ 181 |                     break
+ 182 |             else:
+ 183 |                 i += 1
+ 185 |         return declarations
+ 187 |     def _find_block_end(self, lines: List[str], start: int) -> int:
+ 189 |         brace_count = 0
+ 190 |         i = start
+ 193 |         while i < len(lines):
+ 194 |             line = lines[i]
+ 195 |             if '{' in line:
+ 196 |                 brace_count += 1
+ 197 |                 break
+ 198 |             i += 1
+ 201 |         while i < len(lines):
+ 202 |             line = lines[i]
+ 203 |             brace_count += line.count('{')
+ 204 |             brace_count -= line.count('}')
+ 206 |             if brace_count == 0:
+ 207 |                 return i + 1
+ 209 |             i += 1
+ 211 |         return len(lines)
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/parser/language_parsers/go_parser.py
+### Functions
+### Classes
 
 ---
 ### File: ./codeconcat/writer/markdown_writer.py
@@ -5772,6 +4565,7 @@ Language: python
 ```python
    1 | import random
    2 | from typing import Dict, List
+   3 | import os
    4 | import tiktoken
    5 | from halo import Halo
    7 | from codeconcat.base_types import (
@@ -5818,88 +4612,132 @@ Language: python
   65 |     print(f"\nQuote tokens (GPT-4): {quote_tokens:,}")
   66 |     if total_output_tokens:
   67 |         print(f"Total CodeConcat output tokens (GPT-4): {total_output_tokens:,}")
-  70 | def write_markdown(
-  71 |     annotated_files: List[AnnotatedFileData],
-  72 |     docs: List[ParsedDocData],
-  73 |     config: CodeConCatConfig,
-  74 |     folder_tree_str: str = "",
-  75 | ) -> str:
-  76 |     spinner = Halo(text="Generating CodeConcat output", spinner="dots")
-  77 |     spinner.start()
-  79 |     output_chunks = []
-  80 |     output_chunks.append("# CodeConCat Output\n\n")
-  83 |     spinner.text = "Generating AI preamble"
-  84 |     parsed_files = [
-  85 |         ParsedFileData(
-  86 |             file_path=ann.file_path, language=ann.language, content=ann.content, declarations=[]
-  87 |         )
-  88 |         for ann in annotated_files
-  89 |     ]
-  90 |     output_chunks.append(generate_ai_preamble(parsed_files, docs, {}))
-  93 |     if config.include_directory_structure:
-  94 |         spinner.text = "Generating directory structure"
-  95 |         output_chunks.append("## Directory Structure\n")
-  96 |         output_chunks.append("```\n")
-  97 |         all_files = [f.file_path for f in annotated_files] + [d.file_path for d in docs]
-  98 |         dir_structure = generate_directory_structure(all_files)
-  99 |         output_chunks.append(dir_structure)
- 100 |         output_chunks.append("\n```\n\n")
- 101 |     elif folder_tree_str:  # Fallback to provided folder tree
- 102 |         output_chunks.append("## Folder Tree\n")
- 103 |         output_chunks.append("```\n")
- 104 |         output_chunks.append(folder_tree_str)
- 105 |         output_chunks.append("\n```\n\n")
- 108 |     if annotated_files:
- 109 |         spinner.text = "Processing code files"
- 110 |         output_chunks.append("## Code Files\n\n")
- 111 |         for i, ann in enumerate(annotated_files, 1):
- 112 |             spinner.text = f"Processing code file {i}/{len(annotated_files)}: {ann.file_path}"
- 113 |             output_chunks.append(f"### File: {ann.file_path}\n")
- 114 |             if config.include_file_summary:
- 115 |                 summary = generate_file_summary(
- 116 |                     ParsedFileData(
- 117 |                         file_path=ann.file_path,
- 118 |                         language=ann.language,
- 119 |                         content=ann.content,
- 120 |                         declarations=[],
- 121 |                     )
- 122 |                 )
- 123 |                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
- 125 |             processed_content = process_file_content(ann.content, config)
- 126 |             output_chunks.append(f"```{ann.language}\n{processed_content}\n```\n")
- 127 |             output_chunks.append("\n---\n")
- 130 |     if docs:
- 131 |         spinner.text = "Processing documentation files"
- 132 |         output_chunks.append("## Documentation\n\n")
- 133 |         for i, doc in enumerate(docs, 1):
- 134 |             spinner.text = f"Processing doc file {i}/{len(docs)}: {doc.file_path}"
- 135 |             output_chunks.append(f"### File: {doc.file_path}\n")
- 136 |             if config.include_file_summary:
- 137 |                 summary = generate_file_summary(
- 138 |                     ParsedFileData(
- 139 |                         file_path=doc.file_path,
- 140 |                         language=doc.doc_type,
- 141 |                         content=doc.content,
- 142 |                         declarations=[],
- 143 |                     )
- 144 |                 )
- 145 |                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
- 147 |             processed_content = process_file_content(doc.content, config)
- 148 |             output_chunks.append(f"```{doc.doc_type}\n{processed_content}\n```\n")
- 149 |             output_chunks.append("\n---\n")
- 151 |     spinner.text = "Finalizing output"
- 152 |     final_str = "".join(output_chunks)
- 155 |     spinner.text = "Counting tokens"
- 156 |     output_tokens = count_tokens(final_str)
- 158 |     with open(config.output, "w", encoding="utf-8") as f:
- 159 |         f.write(final_str)
- 161 |         f.write("\n\n## Token Statistics\n")
- 162 |         f.write(f"Total CodeConcat output tokens (GPT-4): {output_tokens:,}\n")
- 164 |     spinner.succeed("CodeConcat output generated successfully")
- 165 |     print(f"[CodeConCat] Markdown output written to: {config.output}")
- 168 |     print_quote_with_ascii(output_tokens)
- 170 |     return final_str
+  70 | def is_test_or_config_file(file_path: str) -> bool:
+  72 |     file_name = os.path.basename(file_path).lower()
+  73 |     return (
+  74 |         file_name.startswith("test_") 
+  75 |         or file_name == "setup.py"
+  76 |         or file_name == "conftest.py"
+  77 |         or file_name.endswith("config.py")
+  78 |         or "tests/" in file_path
+  79 |     )
+  82 | def write_markdown(
+  83 |     annotated_files: List[AnnotatedFileData],
+  84 |     docs: List[ParsedDocData],
+  85 |     config: CodeConCatConfig,
+  86 |     folder_tree_str: str = "",
+  87 | ) -> str:
+  89 |     spinner = Halo(text="Generating CodeConcat output", spinner="dots")
+  90 |     spinner.start()
+  92 |     output_chunks = []
+  93 |     output_chunks.append("# CodeConCat Output\n\n")
+  96 |     if not config.disable_ai_context:
+  97 |         spinner.text = "Generating AI preamble"
+  98 |         parsed_files = [
+  99 |             ParsedFileData(
+ 100 |                 file_path=ann.file_path, language=ann.language, content=ann.content, declarations=[]
+ 101 |             )
+ 102 |             for ann in annotated_files
+ 103 |         ]
+ 104 |         output_chunks.append(generate_ai_preamble(parsed_files, docs, {}))
+ 107 |     if config.include_directory_structure:
+ 108 |         spinner.text = "Generating directory structure"
+ 109 |         output_chunks.append("## Directory Structure\n")
+ 110 |         output_chunks.append("```\n")
+ 111 |         all_files = [f.file_path for f in annotated_files] + [d.file_path for d in docs]
+ 112 |         dir_structure = generate_directory_structure(all_files)
+ 113 |         output_chunks.append(dir_structure)
+ 114 |         output_chunks.append("\n```\n\n")
+ 115 |     elif folder_tree_str:  # Fallback to provided folder tree
+ 116 |         output_chunks.append("## Folder Tree\n")
+ 117 |         output_chunks.append("```\n")
+ 118 |         output_chunks.append(folder_tree_str)
+ 119 |         output_chunks.append("\n```\n\n")
+ 122 |     doc_map = {}
+ 123 |     merged_docs = set()  # Track which docs have been merged
+ 124 |     if config.merge_docs:
+ 125 |         for doc in docs:
+ 126 |             base_name = os.path.splitext(os.path.basename(doc.file_path))[0].lower()
+ 127 |             doc_map[base_name] = doc
+ 130 |     if annotated_files:
+ 131 |         spinner.text = "Processing code files"
+ 132 |         output_chunks.append("## Code Files\n\n")
+ 133 |         for i, ann in enumerate(annotated_files, 1):
+ 134 |             spinner.text = f"Processing code file {i}/{len(annotated_files)}: {ann.file_path}"
+ 135 |             output_chunks.append(f"### File: {ann.file_path}\n")
+ 137 |             is_test_config = is_test_or_config_file(ann.file_path)
+ 140 |             if config.include_file_summary or is_test_config:
+ 141 |                 spinner.text = "Generating file summary"
+ 142 |                 summary = generate_file_summary(
+ 143 |                     ParsedFileData(
+ 144 |                         file_path=ann.file_path,
+ 145 |                         language=ann.language,
+ 146 |                         content=ann.content,
+ 147 |                         declarations=[],
+ 148 |                     )
+ 149 |                 )
+ 150 |                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
+ 154 |             if not is_test_config and ann.content:
+ 155 |                 spinner.text = "Processing file content"
+ 156 |                 processed_content = process_file_content(ann.content, config)
+ 157 |                 output_chunks.append(f"```{ann.language}\n{processed_content}\n```\n")
+ 160 |                 if ann.annotated_content:
+ 162 |                     analysis_lines = []
+ 163 |                     for line in ann.annotated_content.split('\n'):
+ 165 |                         if not line.strip() or line.strip() in ann.content:
+ 166 |                             continue
+ 168 |                         if line.startswith('#') or 'TODO' in line or 'NOTE' in line or 'FIXME' in line:
+ 169 |                             analysis_lines.append(line)
+ 171 |                     if analysis_lines:
+ 172 |                         output_chunks.append("\n#### Analysis Notes\n")
+ 173 |                         output_chunks.append('\n'.join(analysis_lines))
+ 174 |                         output_chunks.append("\n")
+ 177 |             if config.merge_docs:
+ 178 |                 base_name = os.path.splitext(os.path.basename(ann.file_path))[0].lower()
+ 179 |                 if base_name in doc_map:
+ 180 |                     doc = doc_map[base_name]
+ 181 |                     output_chunks.append("\n### Associated Documentation\n")
+ 182 |                     output_chunks.append(doc.content)
+ 183 |                     output_chunks.append("\n")
+ 184 |                     merged_docs.add(doc.file_path)
+ 186 |             output_chunks.append("\n---\n")
+ 189 |     remaining_docs = [doc for doc in docs if doc.file_path not in merged_docs]
+ 190 |     if remaining_docs:
+ 191 |         spinner.text = "Processing documentation files"
+ 192 |         output_chunks.append("## Documentation\n\n")
+ 193 |         for i, doc in enumerate(remaining_docs, 1):
+ 194 |             spinner.text = f"Processing doc file {i}/{len(remaining_docs)}: {doc.file_path}"
+ 195 |             output_chunks.append(f"### File: {doc.file_path}\n")
+ 196 |             if config.include_file_summary:
+ 197 |                 spinner.text = "Generating file summary"
+ 198 |                 summary = generate_file_summary(
+ 199 |                     ParsedFileData(
+ 200 |                         file_path=doc.file_path,
+ 201 |                         language="markdown",
+ 202 |                         content=doc.content,
+ 203 |                         declarations=[],
+ 204 |                     )
+ 205 |                 )
+ 206 |                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
+ 207 |             output_chunks.append(doc.content)
+ 208 |             output_chunks.append("\n---\n")
+ 210 |     spinner.text = "Finalizing output"
+ 211 |     final_str = "".join(output_chunks)
+ 214 |     spinner.text = "Counting tokens"
+ 215 |     output_tokens = count_tokens(final_str)
+ 217 |     with open(config.output, "w", encoding="utf-8") as f:
+ 218 |         f.write(final_str)
+ 220 |         f.write("\n\n## Token Statistics\n")
+ 221 |         f.write(f"Total CodeConcat output tokens (GPT-4): {output_tokens:,}\n")
+ 223 |     spinner.succeed("CodeConcat output generated successfully")
+ 224 |     print(f"[CodeConCat] Markdown output written to: {config.output}")
+ 227 |     print_quote_with_ascii(output_tokens)
+ 229 |     return final_str
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/writer/markdown_writer.py
+### Functions
 
 ---
 ### File: ./codeconcat/writer/__init__.py
@@ -5909,9 +4747,6 @@ File: __init__.py
 Language: python
 ```
 
-```python
-
-```
 
 ---
 ### File: ./codeconcat/writer/xml_writer.py
@@ -5968,6 +4803,10 @@ Language: python
   65 |     pretty_xml = minidom.parseString(xml_str).toprettyxml(indent="  ")
   67 |     return pretty_xml
 ```
+
+#### Analysis Notes
+## File: ./codeconcat/writer/xml_writer.py
+### Functions
 
 ---
 ### File: ./codeconcat/writer/ai_context.py
@@ -6030,6 +4869,10 @@ Language: python
   66 |     return "\n".join(lines)
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/writer/ai_context.py
+### Functions
+
 ---
 ### File: ./codeconcat/writer/json_writer.py
 #### Summary
@@ -6079,8 +4922,12 @@ Language: python
   50 |     return final_json
 ```
 
+#### Analysis Notes
+## File: ./codeconcat/writer/json_writer.py
+### Functions
+
 ---
 
 
 ## Token Statistics
-Total CodeConcat output tokens (GPT-4): 68,881
+Total CodeConcat output tokens (GPT-4): 54,439

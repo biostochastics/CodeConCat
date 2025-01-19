@@ -16,7 +16,7 @@ There are many ways you can contribute to CodeConcat:
 
 1. **Fork the Repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/codeconcat.git
+   git clone https://github.com/biostochastics/codeconcat.git
    cd codeconcat
    ```
 

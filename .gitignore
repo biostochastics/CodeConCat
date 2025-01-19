@@ -50,7 +50,7 @@ coverage/
 # CodeConCat Temp
 # ---------------------------
 codeconcat_github_*
-
+code_concat_output.md
 # ---------------------------
 # Local config or secrets (Optional)
 # ---------------------------
