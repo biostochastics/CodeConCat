@@ -1,18 +1,20 @@
 """C# code parser for CodeConcat."""
 
 import re
-from typing import List, Optional, Set
+from typing import List, Optional
 
-from codeconcat.base_types import Declaration, ParsedFileData
-from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
+from codeconcat.parser.language_parsers.base_parser import BaseParser, Declaration, ParseResult
 
 
-def parse_csharp_code(file_path: str, content: str) -> Optional[ParsedFileData]:
+def parse_csharp_code(file_path: str, content: str) -> Optional[ParseResult]:
     """Parse C# code and return declarations."""
     parser = CSharpParser()
     declarations = parser.parse(content)
-    return ParsedFileData(
-        file_path=file_path, language="csharp", content=content, declarations=declarations
+    return ParseResult(
+        file_path=file_path,
+        language="csharp",
+        content=content,
+        declarations=declarations,
     )
 
 
@@ -117,7 +119,7 @@ class CSharpParser(BaseParser):
     def parse(self, content: str) -> List[Declaration]:
         """Parse C# code to identify classes, methods, properties, and other constructs."""
         lines = content.split("\n")
-        symbols: List[CodeSymbol] = []
+        symbols: List[Declaration] = []
         i = 0
 
         in_block = False
@@ -168,13 +170,11 @@ class CSharpParser(BaseParser):
                         # Handle one-line definitions
                         if ";" in line:
                             symbols.append(
-                                CodeSymbol(
-                                    name=block_name,
-                                    kind=kind,
-                                    start_line=i,
-                                    end_line=i,
-                                    modifiers=set(),
-                                    parent=None,
+                                Declaration(
+                                    block_kind,
+                                    block_name,
+                                    i + 1,
+                                    i + 1,
                                 )
                             )
                             in_block = False
@@ -190,13 +190,11 @@ class CSharpParser(BaseParser):
                                         brace_count = 1
                                     elif ";" in next_line:
                                         symbols.append(
-                                            CodeSymbol(
-                                                name=block_name,
-                                                kind=kind,
-                                                start_line=i,
-                                                end_line=j,
-                                                modifiers=set(),
-                                                parent=None,
+                                            Declaration(
+                                                block_kind,
+                                                block_name,
+                                                i + 1,
+                                                j + 1,
                                             )
                                         )
                                         in_block = False
@@ -210,31 +208,15 @@ class CSharpParser(BaseParser):
             # Check if block ends
             if in_block and brace_count == 0 and ("}" in line or ";" in line):
                 symbols.append(
-                    CodeSymbol(
-                        name=block_name,
-                        kind=block_kind,
-                        start_line=block_start,
-                        end_line=i,
-                        modifiers=set(),
-                        parent=None,
+                    Declaration(
+                        block_kind,
+                        block_name,
+                        block_start + 1,
+                        i + 1,
                     )
                 )
                 in_block = False
 
             i += 1
 
-        # Process declarations
-        processed_declarations = []
-        seen_names = set()
-
-        # First pass: add all declarations
-        for symbol in symbols:
-            if symbol.name not in seen_names:
-                processed_declarations.append(
-                    Declaration(
-                        symbol.kind, symbol.name, symbol.start_line + 1, symbol.end_line + 1
-                    )
-                )
-                seen_names.add(symbol.name)
-
-        return processed_declarations
+        return symbols

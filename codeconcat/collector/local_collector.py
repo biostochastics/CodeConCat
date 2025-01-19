@@ -125,7 +125,9 @@ def get_gitignore_spec(root_path: str) -> PathSpec:
 
     if os.path.exists(gitignore_path):
         with open(gitignore_path, "r") as f:
-            patterns = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+            patterns = [
+                line.strip() for line in f if line.strip() and not line.startswith("#")
+            ]
 
     # Add common patterns that should always be ignored
     patterns.extend(
@@ -178,7 +180,9 @@ def should_include_file(
                 return False
 
     if config.include_paths:
-        return any(fnmatch.fnmatch(rel_path, pattern) for pattern in config.include_paths)
+        return any(
+            fnmatch.fnmatch(rel_path, pattern) for pattern in config.include_paths
+        )
 
     return True
 
@@ -207,7 +211,9 @@ def collect_local_files(root_path: str, config: CodeConCatConfig):
             # Process files in parallel
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
-                futures.append(executor.submit(process_file, file_path, config, gitignore_spec))
+                futures.append(
+                    executor.submit(process_file, file_path, config, gitignore_spec)
+                )
 
         # Collect results, filtering out None values
         results = [f.result() for f in futures if f.result()]

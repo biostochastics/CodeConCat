@@ -98,7 +98,9 @@ class TestRParser(unittest.TestCase):
 
         self.assertEqual(len(class_decls), 1)
         self.assertEqual(class_decls[0].name, "Calculator")
-        self.assertEqual({m.name for m in method_decls}, {"Calculator.add", "Calculator.subtract"})
+        self.assertEqual(
+            {m.name for m in method_decls}, {"Calculator.add", "Calculator.subtract"}
+        )
 
     def test_reference_class(self):
         r_code = """
@@ -124,7 +126,9 @@ class TestRParser(unittest.TestCase):
 
         self.assertEqual(len(class_decls), 1)
         self.assertEqual(class_decls[0].name, "Employee")
-        self.assertEqual({m.name for m in method_decls}, {"Employee.raise", "Employee.get_info"})
+        self.assertEqual(
+            {m.name for m in method_decls}, {"Employee.raise", "Employee.get_info"}
+        )
 
     def test_modifiers(self):
         r_code = """
@@ -227,7 +231,11 @@ class TestRParser(unittest.TestCase):
         declarations = self.parser.parse(r_code)
         method_names = {d.name for d in declarations if d.kind == "method"}
 
-        expected_methods = {"Employee.new", "Employee.get_info", "Department.Employee.create"}
+        expected_methods = {
+            "Employee.new",
+            "Employee.get_info",
+            "Department.Employee.create",
+        }
         self.assertEqual(method_names, expected_methods)
 
 

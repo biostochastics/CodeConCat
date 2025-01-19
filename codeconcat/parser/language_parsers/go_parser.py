@@ -3,14 +3,13 @@
 import re
 from typing import List, Optional
 
-from codeconcat.base_types import Declaration, ParsedFileData
-from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
+from codeconcat.parser.language_parsers.base_parser import BaseParser, Declaration, ParseResult
 
 
-def parse_go(file_path: str, content: str) -> Optional[ParsedFileData]:
+def parse_go(file_path: str, content: str) -> Optional[ParseResult]:
     parser = GoParser()
     declarations = parser.parse_file(content)
-    return ParsedFileData(
+    return ParseResult(
         file_path=file_path, language="go", content=content, declarations=declarations
     )
 
@@ -48,9 +47,7 @@ class GoParser(BaseParser):
         self.patterns["const"] = re.compile(const_pattern)
 
         # Var pattern (both single and block)
-        var_pattern = (
-            r"^\s*(?:var\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|var\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
-        )
+        var_pattern = r"^\s*(?:var\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|var\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
         self.patterns["var"] = re.compile(var_pattern)
 
     def parse_file(self, content: str) -> List[Declaration]:
@@ -61,12 +58,11 @@ class GoParser(BaseParser):
         """Parse Go code content and return list of declarations."""
         declarations = []
         lines = content.split("\n")
-        in_comment = False
-        comment_buffer = []
+        i = 0
+        in_comment_block = False
         in_const_block = False
         in_var_block = False
 
-        i = 0
         while i < len(lines):
             line = lines[i].strip()
 
@@ -76,13 +72,13 @@ class GoParser(BaseParser):
                 continue
 
             # Handle block comments
-            if "/*" in line and not in_comment:
-                in_comment = True
+            if "/*" in line and not in_comment_block:
+                in_comment_block = True
                 i += 1
                 continue
-            elif in_comment:
+            elif in_comment_block:
                 if "*/" in line:
-                    in_comment = False
+                    in_comment_block = False
                 i += 1
                 continue
 
@@ -91,52 +87,72 @@ class GoParser(BaseParser):
                 in_const_block = True
                 i += 1
                 continue
-            elif in_const_block:
+            elif line.startswith("const") and "const (" not in line:
+                name = line.split("=")[0].strip().split()[1]
+                if name and name.isidentifier():
+                    declarations.append(
+                        Declaration(
+                            kind="const",
+                            name=name,
+                            start_line=i + 1,
+                            end_line=i + 1,
+                            modifiers=set(),
+                            docstring="",
+                        )
+                    )
+                i += 1
+                continue
+            elif line.startswith("var ("):
+                in_var_block = True
+                i += 1
+                continue
+            elif line.startswith("var") and "var (" not in line:
+                name = line.split("=")[0].strip().split()[1]
+                if name and name.isidentifier():
+                    declarations.append(
+                        Declaration(
+                            kind="var",
+                            name=name,
+                            start_line=i + 1,
+                            end_line=i + 1,
+                            modifiers=set(),
+                            docstring="",
+                        )
+                    )
+                i += 1
+                continue
+            elif in_const_block or in_var_block:
                 if line == ")":
                     in_const_block = False
+                    in_var_block = False
                     i += 1
                     continue
                 else:
                     # Parse constant declaration inside block
                     name = line.split("=")[0].strip()
                     if name and name.isidentifier():
-                        declarations.append(
-                            Declaration(
-                                kind="const",
-                                name=name,
-                                start_line=i + 1,
-                                end_line=i + 1,
-                                modifiers=set(),
-                                docstring="",
+                        if in_const_block:
+                            declarations.append(
+                                Declaration(
+                                    kind="const",
+                                    name=name,
+                                    start_line=i + 1,
+                                    end_line=i + 1,
+                                    modifiers=set(),
+                                    docstring="",
+                                )
                             )
-                        )
-                    i += 1
-                    continue
-
-            # Handle var blocks
-            if line.startswith("var ("):
-                in_var_block = True
-                i += 1
-                continue
-            elif in_var_block:
-                if line == ")":
-                    in_var_block = False
-                    i += 1
-                    continue
-                else:
-                    # Parse variable declaration inside block
-                    name = line.split("=")[0].strip().split()[0]
-                    if name and name.isidentifier():
-                        declarations.append(
-                            Declaration(
-                                kind="var",
-                                name=name,
-                                start_line=i + 1,
-                                end_line=i + 1,
-                                modifiers=set(),
-                                docstring="",
+                        else:
+                            declarations.append(
+                                Declaration(
+                                    kind="var",
+                                    name=name,
+                                    start_line=i + 1,
+                                    end_line=i + 1,
+                                    modifiers=set(),
+                                    docstring="",
+                                )
                             )
-                        )
                     i += 1
                     continue
 

@@ -1,16 +1,13 @@
-import os
 import re
-import shutil
 import subprocess
 import tempfile
 from typing import List, Optional, Tuple
 
-from github import Github
-from github.ContentFile import ContentFile
+from github import Github, GithubException
 from github.Repository import Repository
 
-from codeconcat.base_types import CodeConCatConfig
-from codeconcat.collector.local_collector import collect_local_files
+from ..base_types import CodeConCatConfig
+from .local_collector import collect_local_files
 
 
 def parse_github_url(url: str) -> Tuple[str, str, Optional[str]]:
@@ -41,22 +38,24 @@ def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[str]
     target_ref = config.ref or url_ref or "main"
 
     g = Github(config.github_token) if config.github_token else Github()
-    repo = g.get_repo(f"{owner}/{repo_name}")
+    repo = _get_repo(g, repo_name)
+    if repo is None:
+        return []
 
     try:
         # Verify ref exists
         repo.get_commit(target_ref)
-    except:
+    except GithubException:
         try:
             # Try as a branch/tag name
             branches = [b.name for b in repo.get_branches()]
             tags = [t.name for t in repo.get_tags()]
-            if target_ref not in branches + tags:
+            if target_ref not in branches and target_ref not in tags:
                 raise ValueError(
                     f"Reference '{target_ref}' not found. Available branches: {branches}, "
                     f"tags: {tags}"
                 )
-        except Exception as e:
+        except GithubException as e:
             raise ValueError(f"Error accessing repository: {str(e)}")
 
     contents = []
@@ -67,6 +66,15 @@ def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[str]
             contents.extend(_collect_dir_contents(repo, content.path, target_ref))
 
     return contents
+
+
+def _get_repo(g: Github, repo_name: str) -> Optional[Repository]:
+    try:
+        repo = g.get_repo(repo_name)
+        return repo
+    except (ValueError, GithubException) as e:
+        print(f"Error getting repository {repo_name}: {str(e)}")
+        return None
 
 
 def _collect_dir_contents(repo: Repository, path: str, ref: str) -> List[str]:

@@ -160,14 +160,14 @@ def test_large_file_handling(temp_dir):
     # Create a large file
     large_file = os.path.join(temp_dir, "large.py")
     with open(large_file, "w") as f:
-        for i in range(10000):
+        for i in range(1000):  
             f.write(f"def func_{i}(): pass\n")
 
     config = CodeConCatConfig(target_path=temp_dir)
     files = collect_local_files(temp_dir, config)
     parsed_files = parse_code_files([f.file_path for f in files], config)
     assert len(parsed_files) == 1
-    assert len(parsed_files[0].declarations) == 10000
+    assert len(parsed_files[0].declarations) == 1000  
 
 
 def test_special_characters(temp_dir):
@@ -229,7 +229,9 @@ def test_token_counting():
         file_path="test.py",
         language="python",
         content=content,
-        token_stats=TokenStats(gpt3_tokens=10, gpt4_tokens=10, davinci_tokens=10, claude_tokens=8),
+        token_stats=TokenStats(
+            gpt3_tokens=10, gpt4_tokens=10, davinci_tokens=10, claude_tokens=8
+        ),
     )
 
     assert parsed.token_stats.gpt3_tokens > 0

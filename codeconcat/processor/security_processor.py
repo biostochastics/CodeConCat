@@ -1,9 +1,9 @@
 """Security processor for detecting potential secrets and sensitive information."""
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import List
 
-from codeconcat.processor.security_types import SecurityIssue
+from ..base_types import SecurityIssue
 
 
 class SecurityProcessor:
@@ -23,7 +23,10 @@ class SecurityProcessor:
             r'(?i)(?:github|gh)[_\-\s]*(?:token|key)["\'\s:=]+[A-Za-z0-9_\-]{36,}',
             "GitHub Token",
         ),
-        "generic_api_key": (r'(?i)api[_\-\s]*key["\'\s:=]+[A-Za-z0-9_\-]{16,}', "API Key"),
+        "generic_api_key": (
+            r'(?i)api[_\-\s]*key["\'\s:=]+[A-Za-z0-9_\-]{16,}',
+            "API Key",
+        ),
         "generic_secret": (
             r'(?i)(?:secret|token|key|password|pwd)["\'\s:=]+[A-Za-z0-9_\-]{16,}',
             "Generic Secret",
@@ -97,7 +100,9 @@ class SecurityProcessor:
         """Mask sensitive data in the line with asterisks."""
 
         def mask_match(match):
-            return match.group()[:4] + "*" * (len(match.group()) - 8) + match.group()[-4:]
+            return (
+                match.group()[:4] + "*" * (len(match.group()) - 8) + match.group()[-4:]
+            )
 
         return re.sub(pattern, mask_match, line)
 

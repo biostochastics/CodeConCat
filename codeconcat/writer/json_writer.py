@@ -23,10 +23,7 @@ def write_json(
                 "type": "code",
                 "file_path": ann.file_path,
                 "language": ann.language,
-                "content": ann.content,
-                "annotated_content": ann.annotated_content,
-                "summary": ann.summary,
-                "tags": ann.tags,
+                "content": ann.annotated_content,
             }
         )
 

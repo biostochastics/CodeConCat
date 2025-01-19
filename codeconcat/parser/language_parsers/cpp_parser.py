@@ -3,234 +3,132 @@
 import re
 from typing import List, Optional
 
-from codeconcat.base_types import Declaration, ParsedFileData
-from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
+from codeconcat.base_types import ParseResult
+from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol, Declaration
 
 
-def parse_cpp_code(file_path: str, content: str) -> Optional[ParsedFileData]:
+def parse_cpp_code(file_path: str, content: str) -> Optional[ParseResult]:
     parser = CppParser()
     declarations = parser.parse(content)
-    return ParsedFileData(
+    return ParseResult(
         file_path=file_path, language="cpp", content=content, declarations=declarations
     )
 
 
 # For backward compatibility
-def parse_cpp(file_path: str, content: str) -> Optional[ParsedFileData]:
+def parse_cpp(file_path: str, content: str) -> Optional[ParseResult]:
     return parse_cpp_code(file_path, content)
 
 
 class CppParser(BaseParser):
+    """C++ code parser."""
+
     def __init__(self):
+        """Initialize C++ parser with regex patterns."""
         super().__init__()
-        self._setup_patterns()
-
-    def _setup_patterns(self):
-        """
-        Define the main regex patterns for classes, structs, enums, functions,
-        namespaces, typedefs, usings, and forward declarations.
-        """
-
-        identifier = r"[a-zA-Z_]\w*"
-        qualified_id = rf"(?:{identifier}::)*{identifier}"
-
-        # Class or struct with a brace => actual definition
-        self.class_pattern = re.compile(
-            r"""
-            ^[^\#/]*?                    # skip if line starts with # or / (comment), handled later
-            (?:template\s*<[^>]*>\s*)?   # optional template
-            (?:class|struct)\s+
-            (?P<name>[a-zA-Z_]\w*)       # capture the class/struct name
-            (?:\s*:[^{]*)?              # optional inheritance, up to but not including brace
-            \s*{                       # opening brace
-            """,
-            re.VERBOSE,
-        )
-
-        # Forward declaration of class/struct/union/enum without a brace => ends with semicolon
-        self.forward_decl_pattern = re.compile(
-            r"""
-            ^[^\#/]*?
-            (?:class|struct|union|enum)\s+
-            (?P<name>[a-zA-Z_]\w*)\s*;
-            """,
-            re.VERBOSE,
-        )
-
-        # Enum definition (including "enum class Foo {" or "enum Foo : <type> {")
-        self.enum_pattern = re.compile(
-            r"""
-            ^[^\#/]*?
-            enum(?:\s+class)?\s+
-            (?P<name>[a-zA-Z_]\w*)
-            (?:\s*:\s+[^\s{]+)?         # optional base type
-            \s*{                       # opening brace
-            """,
-            re.VERBOSE,
-        )
-
-        # Function pattern
-        # Includes optional specs (static, virtual, inline, constexpr, explicit, friend)
-        # Optional return types with nested templates, qualifiers, pointers, refs, etc.
-        # Then a function name or operator..., then params, optional const/noexcept, then { or ;.
-        self.function_pattern = re.compile(
-            r"""
-            ^[^\#/]*?                    # skip if line starts with # or / (comment), handled later
-            (?:template\s*<[^>]*>\s*)?   # optional template
-            (?:virtual|static|inline|constexpr|explicit|friend\s+)?  # optional specifiers
-            (?:"""
-            + qualified_id
-            + r"""(?:<[^>]+>)?[&*\s]+)*        # optional return type with nested templates
-            (?P<name>                                      # function name capture
-                ~?[a-zA-Z_]\w*                             # normal name or destructor ~Foo
-                |operator\s*(?:[^\s\(]+|\(.*?\))          # operator overload
-            )
-            \s*\([^\){;]*\)                                # function params up to ) but not including brace or semicolon
-            (?:\s*const)?                                   # optional const
-            (?:\s*noexcept)?                                # optional noexcept
-            (?:\s*=\s*(?:default|delete|0))?                # optional = default/delete/pure virtual
-            \s*(?:{|;)                                    # must end with { or ;
-            """,
-            re.VERBOSE,
-        )
-
-        # Namespace pattern. Also handle "inline namespace" optionally
-        self.namespace_pattern = re.compile(
-            r"""
-            ^[^\#/]*?
-            (?:inline\s+)?         # optional inline
-            namespace\s+
-            (?P<name>[a-zA-Z_]\w*) # namespace name
-            \s*{                  # opening brace
-            """,
-            re.VERBOSE,
-        )
-
-        # typedef pattern
-        self.typedef_pattern = re.compile(
-            r"""
-            ^[^\#/]*?
-            typedef\s+
-            (?:[^;]+?                   # capture everything up to the identifier
-              \s+                       # must have whitespace before identifier
-              (?:\(\s*\*\s*)?          # optional function pointer
-            )
-            (?P<name>[a-zA-Z_]\w*)     # identifier
-            (?:\s*\)[^;]*)?            # rest of function pointer if present
-            \s*;                        # end with semicolon
-            """,
-            re.VERBOSE,
-        )
-
-        # using Foo = ...
-        self.using_pattern = re.compile(
-            r"""
-            ^[^\#/]*?
-            using\s+
-            (?P<name>[a-zA-Z_]\w*)
-            \s*=\s*[^;]+;
-            """,
-            re.VERBOSE,
-        )
-
         self.patterns = {
-            "class": self.class_pattern,
-            "forward_decl": self.forward_decl_pattern,
-            "enum": self.enum_pattern,
-            "function": self.function_pattern,
-            "namespace": self.namespace_pattern,
-            "typedef": self.typedef_pattern,
-            "using": self.using_pattern,
+            "namespace": re.compile(r"^namespace\s+(?P<name>\w+)"),
+            "class": re.compile(r"^(?:class|struct)\s+(?P<name>\w+)"),
+            "function": re.compile(r"^(?:[\w:]+\s+)?(?P<name>[\w~]+)\s*\([^)]*\)"),
+            "typedef": re.compile(
+                r"^typedef\s+"  # typedef keyword
+                r"(?:"
+                r"(?:(?:const\s+)?[^;]+?\s+\*?\s*\(\s*\*\s*(?P<fname>\w+)\s*\)\s*\([^)]*\))|"  # Function pointer
+                r"(?:(?:const\s+)?[^;]+?\s+(?P<tname>\w+))"  # Regular typedef
+                r")\s*;",
+                re.MULTILINE | re.DOTALL
+            ),
+            "using": re.compile(r"^using\s+(?P<name>\w+)\s*="),
+            "enum": re.compile(r"^enum(?:\s+class)?\s+(?P<name>\w+)"),
         }
 
-        # Block delimiters, etc.
-        self.block_start = "{"
-        self.block_end = "}"
         self.line_comment = "//"
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
 
     def parse(self, content: str) -> List[Declaration]:
-        """
-        Main parse method:
-        1) Remove block comments.
-        2) Split by lines.
-        3) For each line, strip preprocessor lines (#...), line comments, etc.
-        4) Match patterns in a loop and accumulate symbols.
-        5) For anything with a block, find the end of the block with _find_block_end.
-        6) Convert collected CodeSymbol objects -> Declaration objects.
-        """
-        # Remove block comments
-        content_no_block = self._remove_block_comments(content)
-        lines = content_no_block.split("\n")
-
-        symbols: List[CodeSymbol] = []
+        """Parse C++ code and return declarations."""
+        declarations = []
+        lines = content.split("\n")
         i = 0
-        line_count = len(lines)
+        current_namespace = None
 
-        while i < line_count:
-            raw_line = lines[i]
-            line_stripped = raw_line.strip()
+        while i < len(lines):
+            line = lines[i].strip()
 
-            # Skip lines that are empty, pure comment, or preprocessor (#)
-            if not line_stripped or line_stripped.startswith("//") or line_stripped.startswith("#"):
+            # Skip empty lines and comments
+            if not line or line.startswith("//") or line.startswith("/*"):
                 i += 1
                 continue
 
-            # Also remove inline // comment if any
-            comment_pos = raw_line.find("//")
-            if comment_pos >= 0:
-                raw_line = raw_line[:comment_pos]
-
-            raw_line_stripped = raw_line.strip()
-            if not raw_line_stripped:
-                i += 1
-                continue
-
-            matched_something = False
-
-            # Try each pattern in order
+            # Try each pattern
             for kind, pattern in self.patterns.items():
-                match = pattern.match(raw_line_stripped)
+                match = pattern.match(line)
                 if match:
-                    name = match.group("name")
-                    block_end = i
-                    # For these kinds, we do brace-based block scanning
-                    if kind in ["class", "enum", "namespace", "function"]:
-                        # If it ends with '{', find block end
-                        if "{" in raw_line_stripped:
-                            block_end = self._find_block_end(lines, i)
-                        else:
-                            # No brace => presumably forward-decl or prototypes
-                            block_end = i
+                    name = None
+                    if kind == "typedef":
+                        name = match.group("fname") or match.group("tname")
+                        if not name:
+                            i += 1
+                            continue
+                    else:
+                        name = match.group("name")
+                        if not name:
+                            continue
 
-                    # forward_decl, typedef, using don't have braces
-                    symbol = CodeSymbol(
+                    # Handle namespaces
+                    if kind == "namespace":
+                        current_namespace = name
+                        decl = Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i + 1,
+                            end_line=i + 1,
+                            modifiers=set(),
+                            docstring="",
+                            children=[]
+                        )
+                        declarations.append(decl)
+                        i += 1
+                        break
+
+                    # Add namespace prefix to name if in a namespace
+                    if current_namespace and kind not in ["typedef", "using"]:
+                        name = f"{current_namespace}::{name}"
+
+                    # Find end line
+                    end_line = i
+                    if "{" in line:
+                        brace_count = 1
+                        j = i + 1
+                        while j < len(lines):
+                            curr_line = lines[j].strip()
+                            if "{" in curr_line:
+                                brace_count += curr_line.count("{")
+                            if "}" in curr_line:
+                                brace_count -= curr_line.count("}")
+                                if brace_count == 0:
+                                    end_line = j
+                                    break
+                            j += 1
+                    elif ";" in line:
+                        end_line = i
+
+                    # Create declaration
+                    decl = Declaration(
                         kind=kind,
                         name=name,
-                        start_line=i,
-                        end_line=block_end,
+                        start_line=i + 1,
+                        end_line=end_line + 1,
                         modifiers=set(),
+                        docstring="",
+                        children=[]
                     )
-                    symbols.append(symbol)
-                    i = block_end + 1
-                    matched_something = True
+
+                    declarations.append(decl)
+                    i = end_line
                     break
-
-            if not matched_something:
-                i += 1
-
-        # Convert symbols to Declaration objects
-        declarations: List[Declaration] = []
-        for sym in symbols:
-            decl = Declaration(
-                kind=sym.kind,
-                name=sym.name,
-                start_line=sym.start_line + 1,
-                end_line=sym.end_line + 1,
-                modifiers=sym.modifiers,
-            )
-            declarations.append(decl)
+            i += 1
 
         return declarations
 
@@ -282,3 +180,19 @@ class CppParser(BaseParser):
                 return i
         # Not found => return last line
         return n - 1
+
+    def _find_class_start(self, lines: List[str], start_line: int, class_type: str, name: str) -> int:
+        """
+        Find the line number where the class definition starts
+        """
+        for line_num, line_content in enumerate(lines[start_line:], start=start_line):
+            if re.match(rf"\s*{class_type}\s+{name}\b", line_content):
+                return line_num
+
+    def _find_namespace_start(self, lines: List[str], start_line: int, name: str) -> int:
+        """
+        Find the line number where the namespace definition starts
+        """
+        for line_num, line_content in enumerate(lines[start_line:], start=start_line):
+            if re.match(rf"\s*namespace\s+{name}\b", line_content):
+                return line_num

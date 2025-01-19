@@ -39,5 +39,7 @@ def get_token_stats(text: str) -> TokenStats:
         gpt3_tokens=count_tokens(text, "gpt-3.5-turbo"),
         gpt4_tokens=count_tokens(text, "gpt-4"),
         davinci_tokens=count_tokens(text, "text-davinci-003"),
-        claude_tokens=int(len(text.encode("utf-8")) / 4),  # Rough approximation for Claude
+        claude_tokens=int(
+            len(text.encode("utf-8")) / 4
+        ),  # Rough approximation for Claude
     )

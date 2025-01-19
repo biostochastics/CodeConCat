@@ -33,7 +33,12 @@ def test_annotate_with_declarations():
                 docstring=None,
             ),
             Declaration(
-                kind="class", name="Test", start_line=2, end_line=2, modifiers=set(), docstring=None
+                kind="class",
+                name="Test",
+                start_line=2,
+                end_line=2,
+                modifiers=set(),
+                docstring=None,
             ),
         ],
     )
@@ -80,7 +85,12 @@ def test_annotate_with_symbols():
         content="x = 1",
         declarations=[
             Declaration(
-                kind="symbol", name="x", start_line=1, end_line=1, modifiers=set(), docstring=None
+                kind="symbol",
+                name="x",
+                start_line=1,
+                end_line=1,
+                modifiers=set(),
+                docstring=None,
             )
         ],
     )
@@ -100,10 +110,20 @@ def test_disable_symbols():
         content="x = 1\ny = 2\ndef test(): pass",
         declarations=[
             Declaration(
-                kind="symbol", name="x", start_line=1, end_line=1, modifiers=set(), docstring=None
+                kind="symbol",
+                name="x",
+                start_line=1,
+                end_line=1,
+                modifiers=set(),
+                docstring=None,
             ),
             Declaration(
-                kind="symbol", name="y", start_line=2, end_line=2, modifiers=set(), docstring=None
+                kind="symbol",
+                name="y",
+                start_line=2,
+                end_line=2,
+                modifiers=set(),
+                docstring=None,
             ),
             Declaration(
                 kind="function",

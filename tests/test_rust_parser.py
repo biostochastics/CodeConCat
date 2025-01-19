@@ -1,7 +1,5 @@
 """Tests for Rust parser."""
 
-import pytest
-
 from codeconcat.parser.language_parsers.rust_parser import parse_rust
 
 
@@ -196,7 +194,10 @@ struct Point {
 
     person = next(d for d in result.declarations if d.name == "Person")
     assert person.kind == "struct"
-    assert person.docstring == "/// A person in the system\n/// with multiple lines of docs"
+    assert (
+        person.docstring
+        == "/// A person in the system\n/// with multiple lines of docs"
+    )
 
     point = next(d for d in result.declarations if d.name == "Point")
     assert point.kind == "struct"
@@ -310,6 +311,9 @@ struct Generic<T>(T);
     visibility = next(d for d in result.declarations if d.name == "Visibility")
     assert visibility.kind == "struct"
     assert "pub(crate)" in visibility.modifiers
+
+    generic = next(d for d in result.declarations if d.name == "Generic")
+    assert generic.kind == "struct"
 
 
 def test_parse_rust_trait_functions():

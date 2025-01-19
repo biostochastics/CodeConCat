@@ -1,16 +1,16 @@
 # file: codeconcat/parser/language_parsers/c_parser.py
 
 import re
-from typing import List, Optional, Set
+from typing import List, Optional
 
-from codeconcat.base_types import Declaration, ParsedFileData
+from codeconcat.base_types import ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
 
-def parse_c_code(file_path: str, content: str) -> Optional[ParsedFileData]:
+def parse_c_code(file_path: str, content: str) -> Optional[ParseResult]:
     parser = CParser()
     declarations = parser.parse(content)
-    return ParsedFileData(
+    return ParseResult(
         file_path=file_path, language="c", content=content, declarations=declarations
     )
 
@@ -53,7 +53,7 @@ class CParser(BaseParser):
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
 
-    def parse(self, content: str) -> List[Declaration]:
+    def parse(self, content: str) -> List[CodeSymbol]:
         lines = content.split("\n")
         symbols: List[CodeSymbol] = []
         line_count = len(lines)
@@ -85,21 +85,16 @@ class CParser(BaseParser):
                     symbols.append(symbol)
                     i = block_end  # skip to block_end
                     break
+            else:
+                if "struct" in line:
+                    print(f"No matching pattern found for struct declaration")
+                elif "function" in line:
+                    print(f"No matching pattern found for function declaration")
+                elif "enum" in line:
+                    print(f"No matching pattern found for enum declaration")
             i += 1
 
-        # Convert to Declaration
-        declarations = []
-        for sym in symbols:
-            declarations.append(
-                Declaration(
-                    kind=sym.kind,
-                    name=sym.name,
-                    start_line=sym.start_line + 1,
-                    end_line=sym.end_line + 1,
-                    modifiers=sym.modifiers,
-                )
-            )
-        return declarations
+        return symbols
 
     def _find_block_end(self, lines: List[str], start: int) -> int:
         """

@@ -57,7 +57,9 @@ def generate_ai_preamble(
 
     # Add file listing
     for file in code_files:
-        annotation = file_annotations.get(file.file_path, AnnotatedFileData(file.file_path, "", []))
+        annotation = file_annotations.get(
+            file.file_path, AnnotatedFileData(file.file_path, "", [])
+        )
         if annotation.summary:
             lines.append(f"- `{file.file_path}`: {annotation.summary}")
 

@@ -1,16 +1,15 @@
 import os
 import random
-from typing import Dict, List
-
-import tiktoken
+from typing import List
 from halo import Halo
+import tiktoken
 
-from codeconcat.base_types import (
-    PROGRAMMING_QUOTES,
+from ..base_types import (
     AnnotatedFileData,
     CodeConCatConfig,
     ParsedDocData,
     ParsedFileData,
+    PROGRAMMING_QUOTES,
 )
 from codeconcat.processor.content_processor import (
     generate_directory_structure,
@@ -26,7 +25,9 @@ def count_tokens(text: str) -> int:
         encoder = tiktoken.get_encoding("cl100k_base")
         return len(encoder.encode(text))
     except Exception as e:
-        print(f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count")
+        print(
+            f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count"
+        )
         return len(text.split())
 
 
@@ -50,7 +51,9 @@ def print_quote_with_ascii(total_output_tokens: int = None):
     current_line = "|  "
     for word in words:
         if len(current_line) + len(word) + 1 > width - 2:
-            output_lines.append(current_line + " " * (width - len(current_line) - 1) + "|")
+            output_lines.append(
+                current_line + " " * (width - len(current_line) - 1) + "|"
+            )
             current_line = "|  " + word
         else:
             if current_line == "|  ":
@@ -98,7 +101,9 @@ def write_markdown(
         spinner.text = "Generating AI preamble"
         parsed_files = [
             ParsedFileData(
-                file_path=ann.file_path, language=ann.language, content=ann.content, declarations=[]
+                file_path=ann.file_path,
+                language=ann.language,
+                content=ann.annotated_content,
             )
             for ann in annotated_files
         ]
@@ -132,7 +137,9 @@ def write_markdown(
         spinner.text = "Processing code files"
         output_chunks.append("## Code Files\n\n")
         for i, ann in enumerate(annotated_files, 1):
-            spinner.text = f"Processing code file {i}/{len(annotated_files)}: {ann.file_path}"
+            spinner.text = (
+                f"Processing code file {i}/{len(annotated_files)}: {ann.file_path}"
+            )
             output_chunks.append(f"### File: {ann.file_path}\n")
 
             is_test_config = is_test_or_config_file(ann.file_path)
@@ -144,8 +151,7 @@ def write_markdown(
                     ParsedFileData(
                         file_path=ann.file_path,
                         language=ann.language,
-                        content=ann.content,
-                        declarations=[],
+                        content=ann.annotated_content,
                     )
                 )
                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
@@ -197,7 +203,9 @@ def write_markdown(
         spinner.text = "Processing documentation files"
         output_chunks.append("## Documentation\n\n")
         for i, doc in enumerate(remaining_docs, 1):
-            spinner.text = f"Processing doc file {i}/{len(remaining_docs)}: {doc.file_path}"
+            spinner.text = (
+                f"Processing doc file {i}/{len(remaining_docs)}: {doc.file_path}"
+            )
             output_chunks.append(f"### File: {doc.file_path}\n")
             if config.include_file_summary:
                 spinner.text = "Generating file summary"
@@ -206,7 +214,7 @@ def write_markdown(
                         file_path=doc.file_path,
                         language="markdown",
                         content=doc.content,
-                        declarations=[],
+                        declarations=[]
                     )
                 )
                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")

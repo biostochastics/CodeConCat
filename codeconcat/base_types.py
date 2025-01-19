@@ -6,7 +6,7 @@ Holds data classes and typed structures used throughout CodeConCat.
 
 # Rename this file to base_types.py to avoid conflict with Python's types module
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 PROGRAMMING_QUOTES = [
     '"Clean code always looks like it was written by someone who cares." - Robert C. Martin',
@@ -59,10 +59,21 @@ class Declaration:
     end_line: int
     modifiers: Set[str] = field(default_factory=set)
     docstring: str = ""
+    children: List["Declaration"] = field(default_factory=list)
 
     def __post_init__(self):
         """Initialize a declaration."""
         pass
+
+
+@dataclass
+class ParseResult:
+    """Result of parsing a code file."""
+
+    file_path: str
+    language: str
+    content: str
+    declarations: List[Declaration]
 
 
 @dataclass
@@ -143,7 +154,9 @@ class CodeConCatConfig:
     exclude_paths: List[str] = field(default_factory=list)
     extract_docs: bool = False
     merge_docs: bool = False
-    doc_extensions: List[str] = field(default_factory=lambda: [".md", ".rst", ".txt", ".rmd"])
+    doc_extensions: List[str] = field(
+        default_factory=lambda: [".md", ".rst", ".txt", ".rmd"]
+    )
     custom_extension_map: Dict[str, str] = field(default_factory=dict)
     output: str = "code_concat_output.md"
     format: str = "markdown"

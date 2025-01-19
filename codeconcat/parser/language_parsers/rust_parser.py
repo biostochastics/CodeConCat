@@ -89,9 +89,15 @@ class RustParser(BaseParser):
                     r"\s*\{?"
                 ),
             ),
-            ("type", re.compile(rf"^\s*{visibility}type\s+(?P<n>{name})(?:\s*<[^>]*>)?\s*=")),
+            (
+                "type",
+                re.compile(rf"^\s*{visibility}type\s+(?P<n>{name})(?:\s*<[^>]*>)?\s*="),
+            ),
             ("constant", re.compile(rf"^\s*{visibility}const\s+(?P<n>{name})\s*:")),
-            ("static", re.compile(rf"^\s*{visibility}static\s+(?:mut\s+)?(?P<n>{name})\s*:")),
+            (
+                "static",
+                re.compile(rf"^\s*{visibility}static\s+(?:mut\s+)?(?P<n>{name})\s*:"),
+            ),
             ("mod", re.compile(rf"^\s*{visibility}mod\s+(?P<n>{name})\s*(?:\{{|;)")),
         ]
 
@@ -273,7 +279,11 @@ class RustParser(BaseParser):
                             name = f"{trait_part} for {name}"
 
                         # Skip nested declarations in certain contexts
-                        if parent_kind in ("trait", "impl") and kind in ("trait", "impl", "mod"):
+                        if parent_kind in ("trait", "impl") and kind in (
+                            "trait",
+                            "impl",
+                            "mod",
+                        ):
                             i += 1
                             continue
 
@@ -344,22 +354,30 @@ class RustParser(BaseParser):
                                         f"Found {len(nested_decls)} nested declarations in mod {name}"
                                     )
                                     for d in nested_decls:
-                                        print(f"  - {d.kind} {d.name} with modifiers {d.modifiers}")
+                                        print(
+                                            f"  - {d.kind} {d.name} with modifiers {d.modifiers}"
+                                        )
                                         if d.kind == "function":
                                             # For nested functions in modules, we need to capture their own attributes
                                             # Find the indentation level of the function
                                             func_line = lines[
                                                 d.start_line - 1
                                             ].rstrip()  # Convert to 0-based index
-                                            indent = len(func_line) - len(func_line.lstrip())
+                                            indent = len(func_line) - len(
+                                                func_line.lstrip()
+                                            )
                                             # Look for attributes at the same indentation level
                                             attrs = []
-                                            i = d.start_line - 2  # Start from line before function
+                                            i = (
+                                                d.start_line - 2
+                                            )  # Start from line before function
                                             while i >= 0:
                                                 line = lines[i].rstrip()
                                                 if not line.lstrip().startswith("#["):
                                                     break
-                                                line_indent = len(line) - len(line.lstrip())
+                                                line_indent = len(line) - len(
+                                                    line.lstrip()
+                                                )
                                                 if (
                                                     line_indent >= indent
                                                 ):  # Allow for attributes with same or more indentation
@@ -374,7 +392,10 @@ class RustParser(BaseParser):
                                     for d in nested_decls:
                                         if d.kind == "function":
                                             funcs_found += 1
-                                            if funcs_found <= 2 and "poll_read" not in d.name:
+                                            if (
+                                                funcs_found <= 2
+                                                and "poll_read" not in d.name
+                                            ):
                                                 block_decls.append(d)
                                         elif d.kind == "type":
                                             block_decls.append(d)
@@ -391,7 +412,9 @@ class RustParser(BaseParser):
                                     indent = len(func_line) - len(func_line.lstrip())
                                     # Look for attributes at the same indentation level
                                     attrs = []
-                                    i = decl.start_line - 2  # Start from line before function
+                                    i = (
+                                        decl.start_line - 2
+                                    )  # Start from line before function
                                     while i >= 0:
                                         line = lines[i].rstrip()
                                         if not line.lstrip().startswith("#["):

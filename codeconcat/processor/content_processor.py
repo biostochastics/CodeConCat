@@ -1,10 +1,11 @@
 """Content processing module for CodeConcat."""
 
 import os
-from typing import List
+from typing import List, Optional
 
-from codeconcat.base_types import CodeConCatConfig, ParsedFileData, SecurityIssue
-from codeconcat.processor.token_counter import TokenStats
+from ..base_types import AnnotatedFileData, CodeConCatConfig, Declaration, ParsedFileData
+from .security_processor import SecurityProcessor
+from .token_counter import count_tokens
 
 
 def process_file_content(content: str, config: CodeConCatConfig) -> str:

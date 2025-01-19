@@ -1,26 +1,24 @@
+import logging
 import os
-from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
-from codeconcat.base_types import CodeConCatConfig, ParsedFileData
-from codeconcat.parser.language_parsers.base_parser import BaseParser
-from codeconcat.parser.language_parsers.c_parser import parse_c_code
-from codeconcat.parser.language_parsers.cpp_parser import parse_cpp_code
-from codeconcat.parser.language_parsers.csharp_parser import parse_csharp_code
-from codeconcat.parser.language_parsers.go_parser import parse_go
-from codeconcat.parser.language_parsers.java_parser import parse_java
-from codeconcat.parser.language_parsers.js_ts_parser import parse_javascript_or_typescript
-from codeconcat.parser.language_parsers.julia_parser import parse_julia
-from codeconcat.parser.language_parsers.php_parser import parse_php
-from codeconcat.parser.language_parsers.python_parser import parse_python
-from codeconcat.parser.language_parsers.r_parser import parse_r
-from codeconcat.parser.language_parsers.rust_parser import parse_rust
-from codeconcat.processor.token_counter import get_token_stats
+from codeconcat.base_types import Declaration, ParseResult, ParsedFileData
+from .language_parsers.c_parser import parse_c_code
+from .language_parsers.cpp_parser import parse_cpp_code
+from .language_parsers.csharp_parser import parse_csharp_code
+from .language_parsers.go_parser import parse_go
+from .language_parsers.java_parser import parse_java
+from .language_parsers.js_ts_parser import parse_javascript_or_typescript
+from .language_parsers.julia_parser import parse_julia
+from .language_parsers.php_parser import parse_php
+from .language_parsers.python_parser import parse_python
+from .language_parsers.r_parser import parse_r
+from .language_parsers.rust_parser import parse_rust
 
 
 @lru_cache(maxsize=100)
-def _parse_single_file(file_path: str, language: str) -> Optional[ParsedFileData]:
+def _parse_single_file(file_path: str, language: str) -> Optional[ParseResult]:
     """
     Parse a single file with caching. This function is memoized to improve performance
     when the same file is processed multiple times.
@@ -30,7 +28,7 @@ def _parse_single_file(file_path: str, language: str) -> Optional[ParsedFileData
         language: Programming language of the file
 
     Returns:
-        ParsedFileData if successful, None if parsing failed
+        ParseResult if successful, None if parsing failed
 
     Note:
         The function is cached based on file_path and language. The cache is cleared
@@ -40,33 +38,32 @@ def _parse_single_file(file_path: str, language: str) -> Optional[ParsedFileData
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             content = f.read()
 
-        if language == "python":
-            return parse_python(file_path, content)
-        elif language in ["javascript", "typescript"]:
-            return parse_javascript_or_typescript(file_path, content, language)
-        elif language == "c":
-            return parse_c_code(file_path, content)
-        elif language == "cpp":
-            return parse_cpp_code(file_path, content)
-        elif language == "csharp":
-            return parse_csharp_code(file_path, content)
-        elif language == "go":
-            return parse_go(file_path, content)
-        elif language == "java":
-            return parse_java(file_path, content)
-        elif language == "julia":
-            return parse_julia(file_path, content)
-        elif language == "php":
-            return parse_php(file_path, content)
-        elif language == "r":
-            return parse_r(file_path, content)
-        elif language == "rust":
-            return parse_rust(file_path, content)
-        else:
+        parse_func = {
+            "python": parse_python,
+            "javascript": lambda x, y: parse_javascript_or_typescript(x, y, "javascript"),
+            "typescript": lambda x, y: parse_javascript_or_typescript(x, y, "typescript"),
+            "c": parse_c_code,
+            "cpp": parse_cpp_code,
+            "csharp": parse_csharp_code,
+            "go": parse_go,
+            "java": parse_java,
+            "julia": parse_julia,
+            "php": parse_php,
+            "r": parse_r,
+            "rust": parse_rust,
+        }.get(language)
+
+        if not parse_func:
             raise ValueError(f"Unsupported language: {language}")
+
+        try:
+            return parse_func(file_path, content)
+        except Exception:
+            logging.error(f"Error parsing file {file_path}")
+            return None
 
     except UnicodeDecodeError:
         raise ValueError(
@@ -76,7 +73,9 @@ def _parse_single_file(file_path: str, language: str) -> Optional[ParsedFileData
         raise RuntimeError(f"Error parsing {file_path}: {str(e)}")
 
 
-def parse_code_files(file_paths: List[str], config: CodeConCatConfig) -> List[ParsedFileData]:
+def parse_code_files(
+    file_paths: List[str], config: Dict
+) -> List[ParsedFileData]:
     """
     Parse multiple code files with improved error handling and caching.
 
@@ -105,7 +104,13 @@ def parse_code_files(file_paths: List[str], config: CodeConCatConfig) -> List[Pa
             # Parse file with caching
             parsed_file = _parse_single_file(file_path, language)
             if parsed_file:
-                parsed_files.append(parsed_file)
+                # Convert ParseResult to ParsedFileData
+                parsed_files.append(ParsedFileData(
+                    file_path=parsed_file.file_path,
+                    language=parsed_file.language,
+                    content=parsed_file.content,
+                    declarations=parsed_file.declarations
+                ))
 
         except FileNotFoundError as e:
             errors.append(f"File not found: {file_path}")

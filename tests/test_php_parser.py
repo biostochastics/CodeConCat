@@ -162,7 +162,9 @@ class UserController {
     assert user.kind == "class"
     assert user.start_line == 4
 
-    controllers_ns = next(d for d in result.declarations if d.name == "App\\Controllers")
+    controllers_ns = next(
+        d for d in result.declarations if d.name == "App\\Controllers"
+    )
     assert controllers_ns.kind == "namespace"
     assert controllers_ns.start_line == 9
 

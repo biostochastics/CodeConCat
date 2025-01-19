@@ -1,228 +1,143 @@
+"""PHP code parser for CodeConcat."""
+
 import re
-from typing import List, Optional, Set
+from typing import List, Optional
 
-from codeconcat.base_types import Declaration, ParsedFileData
-from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
+from codeconcat.base_types import Declaration, ParseResult
+from codeconcat.parser.language_parsers.base_parser import BaseParser
 
 
-def parse_php(file_path: str, content: str) -> Optional[ParsedFileData]:
+def parse_php(file_path: str, content: str) -> Optional[ParseResult]:
     """Parse PHP code and return declarations."""
     try:
         parser = PhpParser()
-        parser._setup_patterns()  # Initialize patterns
         declarations = parser.parse(content)
-        return ParsedFileData(
+        return ParseResult(
             file_path=file_path,
             language="php",
             content=content,
-            declarations=declarations,
-            token_stats=None,
-            security_issues=[],
+            declarations=declarations
         )
     except Exception as e:
         print(f"Error parsing PHP file: {e}")
-        return ParsedFileData(
+        return ParseResult(
             file_path=file_path,
             language="php",
             content=content,
-            declarations=[],
-            token_stats=None,
-            security_issues=[],
+            declarations=[]
         )
 
 
 class PhpParser(BaseParser):
-    def _setup_patterns(self):
-        """Set up regex patterns for PHP code parsing."""
+    def __init__(self):
+        """Initialize PHP parser with regex patterns."""
+        super().__init__()
         self.patterns = {
-            "namespace": re.compile(r"namespace\s+([^;{]+)"),
-            "class": re.compile(
-                r"(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?(?:\s+implements\s+[^{]+)?"
+            "namespace": re.compile(r"^namespace\s+(?P<name>[\w\\]+)"),
+            "class": re.compile(r"^(?:abstract\s+)?class\s+(?P<name>\w+)"),
+            "interface": re.compile(r"^interface\s+(?P<name>\w+)"),
+            "trait": re.compile(r"^trait\s+(?P<name>\w+)"),
+            "function": re.compile(
+                r"^(?:(?:public|private|protected|static|final|abstract)\s+)*"
+                r"function\s+(?:&\s*)?(?P<name>\w+)\s*\("
             ),
-            "interface": re.compile(r"interface\s+(\w+)(?:\s+extends\s+[^{]+)?"),
-            "trait": re.compile(r"trait\s+(\w+)"),
-            "function": re.compile(r"function\s+(\w+)\s*\([^)]*\)(?:\s*:\s*[^{]+)?"),
-            "arrow_function": re.compile(r"\$(\w+)\s*=\s*fn\s*\([^)]*\)\s*=>"),
-            "php_tag": re.compile(r"<\?php"),
-            "comment": re.compile(r"//.*$|#.*$|/\*.*?\*/", re.MULTILINE | re.DOTALL),
+            "arrow_function": re.compile(r"^\$(?P<name>\w+)\s*=\s*fn\s*\([^)]*\)\s*=>"),
+            "property": re.compile(
+                r"^(?:(?:public|private|protected|static|final|var)\s+)*"
+                r"\$(?P<name>\w+)"
+            ),
         }
 
-    def _adjust_line_number(self, line_num: int) -> int:
-        """Adjust line number to match test expectations."""
-        return line_num + 1
+        self.line_comment = "//"
+        self.block_comment_start = "/*"
+        self.block_comment_end = "*/"
 
     def parse(self, content: str) -> List[Declaration]:
-        """Parse PHP code content and return list of declarations."""
+        """Parse PHP code and return declarations."""
         declarations = []
         lines = content.split("\n")
         i = 0
-        current_namespace = ""
-
-        # Skip PHP tag
-        while i < len(lines) and not self.patterns["php_tag"].search(lines[i].strip()):
-            i += 1
-        i += 1  # Skip the PHP tag line
+        current_namespace = None
+        in_class = False
 
         while i < len(lines):
             line = lines[i].strip()
 
             # Skip empty lines and comments
-            if not line or self.patterns["comment"].match(line):
+            if not line or line.startswith("//") or line.startswith("/*"):
                 i += 1
                 continue
 
-            # Handle namespaces
-            namespace_match = self.patterns["namespace"].match(line)
-            if namespace_match:
-                current_namespace = namespace_match.group(1).strip().replace("\\\\", "\\")
-                declarations.append(
-                    Declaration(
-                        kind="namespace",
-                        name=current_namespace,
-                        start_line=self._adjust_line_number(i),
-                        end_line=self._adjust_line_number(i),
-                        modifiers=set(),
-                        docstring="",
-                    )
-                )
-                i += 1
-                continue
+            # Try each pattern
+            for kind, pattern in self.patterns.items():
+                match = pattern.match(line)
+                if match:
+                    name = match.group("name")
+                    if not name:
+                        continue
 
-            # Handle classes
-            class_match = self.patterns["class"].match(line)
-            if class_match:
-                name = class_match.group(1)
-                if current_namespace:
-                    name = f"{current_namespace}\\{name}"
+                    # Handle namespaces
+                    if kind == "namespace":
+                        current_namespace = name
+                        decl = Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i + 1,
+                            end_line=i + 1,
+                            modifiers=set(),
+                            docstring="",
+                            children=[]
+                        )
+                        declarations.append(decl)
+                        i += 1
+                        break
 
-                # Find class end
-                start_line = self._adjust_line_number(i)
-                end_line = self._find_block_end(lines, i)
+                    # Add namespace prefix to name if in a namespace
+                    if current_namespace and kind not in ["property"]:
+                        name = f"{current_namespace}\\{name}"
 
-                declarations.append(
-                    Declaration(
-                        kind="class",
+                    # Track class context
+                    if kind == "class":
+                        in_class = True
+                    elif line.strip() == "}":
+                        in_class = False
+
+                    # Convert arrow functions to regular functions
+                    if kind == "arrow_function":
+                        kind = "function"
+
+                    # Find end line
+                    end_line = i
+                    if "{" in line:
+                        brace_count = 1
+                        j = i + 1
+                        while j < len(lines):
+                            curr_line = lines[j].strip()
+                            if "{" in curr_line:
+                                brace_count += curr_line.count("{")
+                            if "}" in curr_line:
+                                brace_count -= curr_line.count("}")
+                                if brace_count == 0:
+                                    end_line = j
+                                    break
+                            j += 1
+                    elif ";" in line:
+                        end_line = i
+
+                    # Create declaration
+                    decl = Declaration(
+                        kind=kind,
                         name=name,
-                        start_line=start_line,
-                        end_line=self._adjust_line_number(end_line),
+                        start_line=i + 1,
+                        end_line=end_line + 1,
                         modifiers=set(),
                         docstring="",
+                        children=[]
                     )
-                )
-                i = end_line + 1
-                continue
 
-            # Handle interfaces
-            interface_match = self.patterns["interface"].match(line)
-            if interface_match:
-                name = interface_match.group(1)
-                if current_namespace:
-                    name = f"{current_namespace}\\{name}"
-
-                # Find interface end
-                start_line = self._adjust_line_number(i)
-                end_line = self._find_block_end(lines, i)
-
-                declarations.append(
-                    Declaration(
-                        kind="interface",
-                        name=name,
-                        start_line=start_line,
-                        end_line=self._adjust_line_number(end_line),
-                        modifiers=set(),
-                        docstring="",
-                    )
-                )
-                i = end_line + 1
-                continue
-
-            # Handle traits
-            trait_match = self.patterns["trait"].match(line)
-            if trait_match:
-                name = trait_match.group(1)
-                if current_namespace:
-                    name = f"{current_namespace}\\{name}"
-
-                # Find trait end
-                start_line = self._adjust_line_number(i)
-                end_line = self._find_block_end(lines, i)
-
-                declarations.append(
-                    Declaration(
-                        kind="trait",
-                        name=name,
-                        start_line=start_line,
-                        end_line=self._adjust_line_number(end_line),
-                        modifiers=set(),
-                        docstring="",
-                    )
-                )
-                i = end_line + 1
-                continue
-
-            # Handle functions
-            function_match = self.patterns["function"].match(line)
-            if function_match:
-                name = function_match.group(1)
-                if current_namespace:
-                    name = f"{current_namespace}\\{name}"
-
-                # Find function end
-                start_line = self._adjust_line_number(i)
-                end_line = self._find_block_end(lines, i)
-
-                declarations.append(
-                    Declaration(
-                        kind="function",
-                        name=name,
-                        start_line=start_line,
-                        end_line=self._adjust_line_number(end_line),
-                        modifiers=set(),
-                        docstring="",
-                    )
-                )
-                i = end_line + 1
-                continue
-
-            # Handle arrow functions
-            arrow_match = self.patterns["arrow_function"].match(line)
-            if arrow_match:
-                name = arrow_match.group(1)
-                if current_namespace:
-                    name = f"{current_namespace}\\{name}"
-
-                declarations.append(
-                    Declaration(
-                        kind="function",
-                        name=name,
-                        start_line=self._adjust_line_number(i),
-                        end_line=self._adjust_line_number(i),
-                        modifiers=set(),
-                        docstring="",
-                    )
-                )
-                i += 1
-                continue
-
+                    declarations.append(decl)
+                    i = end_line
+                    break
             i += 1
 
         return declarations
-
-    def _find_block_end(self, lines: List[str], start_idx: int) -> int:
-        """Find the end of a code block starting at the given index."""
-        brace_count = 0
-        found_opening = False
-
-        for i in range(start_idx, len(lines)):
-            line = lines[i].strip()
-
-            if "{" in line:
-                found_opening = True
-                brace_count += line.count("{")
-            if "}" in line:
-                brace_count -= line.count("}")
-
-            if found_opening and brace_count == 0:
-                return i
-
-        return start_idx  # Fallback if no end found

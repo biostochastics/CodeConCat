@@ -1,20 +1,23 @@
 """JavaScript/TypeScript code parser for CodeConcat."""
 
 import re
-from typing import List, Optional, Set
+from typing import List, Optional
 
-from codeconcat.base_types import Declaration, ParsedFileData
+from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser
 
 
 def parse_javascript_or_typescript(
     file_path: str, content: str, language: str = "javascript"
-) -> Optional[ParsedFileData]:
+) -> Optional[ParseResult]:
     """Parse JavaScript or TypeScript code and return declarations."""
     parser = JstsParser(language)
     declarations = parser.parse(content)
-    return ParsedFileData(
-        file_path=file_path, language=language, content=content, declarations=declarations
+    return ParseResult(
+        file_path=file_path,
+        language=language,
+        content=content,
+        declarations=declarations,
     )
 
 
@@ -25,7 +28,7 @@ class CodeSymbol:
         kind: str,
         start_line: int,
         end_line: int,
-        modifiers: Set[str],
+        modifiers: set,
         docstring: Optional[str],
         children: List["CodeSymbol"],
     ):
@@ -36,7 +39,9 @@ class CodeSymbol:
         self.modifiers = modifiers
         self.docstring = docstring
         self.children = children
-        self.brace_depth = 0  # Current nesting depth at the time this symbol was "opened"
+        self.brace_depth = (
+            0  # Current nesting depth at the time this symbol was "opened"
+        )
 
 
 class JstsParser(BaseParser):
@@ -80,7 +85,9 @@ class JstsParser(BaseParser):
         """Set up regex patterns for parsing JavaScript/TypeScript code."""
         return [
             # Function patterns (must come before class patterns)
-            re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(?P<symbol_name>\w+)\s*\("),
+            re.compile(
+                r"^(?:export\s+)?(?:async\s+)?function\s+(?P<symbol_name>\w+)\s*\("
+            ),
             re.compile(
                 r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?function\s*\("
             ),
@@ -211,7 +218,11 @@ class JstsParser(BaseParser):
                         start_line=i + 1,
                         end_line=0,  # Will be set when popped
                         modifiers=modifiers,
-                        docstring="\n".join(current_doc_comments) if current_doc_comments else None,
+                        docstring=(
+                            "\n".join(current_doc_comments)
+                            if current_doc_comments
+                            else None
+                        ),
                         children=[],
                     )
                     symbol.brace_depth = brace_depth
