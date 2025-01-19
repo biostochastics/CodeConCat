@@ -1,23 +1,16 @@
 """Tests for the annotator module."""
 
 import pytest
-from codeconcat.base_types import (
-    CodeConCatConfig,
-    ParsedFileData,
-    Declaration
-)
+from codeconcat.base_types import CodeConCatConfig, ParsedFileData, Declaration
 from codeconcat.transformer.annotator import annotate
 
 
 def test_annotate_empty_file():
     parsed_data = ParsedFileData(
-        file_path="/path/to/empty.py",
-        language="python",
-        content="",
-        declarations=[]
+        file_path="/path/to/empty.py", language="python", content="", declarations=[]
     )
     config = CodeConCatConfig()
-    
+
     result = annotate(parsed_data, config)
     assert result.summary == "No declarations found"
     assert result.tags == ["python"]
@@ -36,20 +29,15 @@ def test_annotate_with_declarations():
                 start_line=1,
                 end_line=1,
                 modifiers=set(),
-                docstring=None
+                docstring=None,
             ),
             Declaration(
-                kind="class",
-                name="Test",
-                start_line=2,
-                end_line=2,
-                modifiers=set(),
-                docstring=None
-            )
-        ]
+                kind="class", name="Test", start_line=2, end_line=2, modifiers=set(), docstring=None
+            ),
+        ],
     )
     config = CodeConCatConfig()
-    
+
     result = annotate(parsed_data, config)
     assert "1 functions, 1 classes" in result.summary
     assert set(result.tags) == {"has_functions", "has_classes", "python"}
@@ -71,12 +59,12 @@ def test_annotate_with_structs():
                 start_line=1,
                 end_line=1,
                 modifiers=set(),
-                docstring=None
+                docstring=None,
             )
-        ]
+        ],
     )
     config = CodeConCatConfig()
-    
+
     result = annotate(parsed_data, config)
     assert "1 structs" in result.summary
     assert set(result.tags) == {"has_structs", "cpp"}
@@ -91,17 +79,12 @@ def test_annotate_with_symbols():
         content="x = 1",
         declarations=[
             Declaration(
-                kind="symbol",
-                name="x",
-                start_line=1,
-                end_line=1,
-                modifiers=set(),
-                docstring=None
+                kind="symbol", name="x", start_line=1, end_line=1, modifiers=set(), docstring=None
             )
-        ]
+        ],
     )
     config = CodeConCatConfig()
-    
+
     result = annotate(parsed_data, config)
     assert "1 symbols" in result.summary
     assert set(result.tags) == {"has_symbols", "python"}
@@ -116,20 +99,10 @@ def test_disable_symbols():
         content="x = 1\ny = 2\ndef test(): pass",
         declarations=[
             Declaration(
-                kind="symbol",
-                name="x",
-                start_line=1,
-                end_line=1,
-                modifiers=set(),
-                docstring=None
+                kind="symbol", name="x", start_line=1, end_line=1, modifiers=set(), docstring=None
             ),
             Declaration(
-                kind="symbol",
-                name="y",
-                start_line=2,
-                end_line=2,
-                modifiers=set(),
-                docstring=None
+                kind="symbol", name="y", start_line=2, end_line=2, modifiers=set(), docstring=None
             ),
             Declaration(
                 kind="function",
@@ -137,11 +110,11 @@ def test_disable_symbols():
                 start_line=3,
                 end_line=3,
                 modifiers=set(),
-                docstring=None
-            )
-        ]
+                docstring=None,
+            ),
+        ],
     )
-    
+
     # Test with symbols enabled (default)
     config = CodeConCatConfig(disable_symbols=False)
     result = annotate(parsed_data, config)
@@ -150,7 +123,7 @@ def test_disable_symbols():
     assert "- y" in result.annotated_content
     assert "### Functions" in result.annotated_content
     assert "- test" in result.annotated_content
-    
+
     # Test with symbols disabled
     config = CodeConCatConfig(disable_symbols=True)
     result = annotate(parsed_data, config)

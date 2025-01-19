@@ -11,10 +11,7 @@ def parse_csharp_code(file_path: str, content: str) -> Optional[ParsedFileData]:
     parser = CSharpParser()
     declarations = parser.parse(content)
     return ParsedFileData(
-        file_path=file_path,
-        language="csharp",
-        content=content,
-        declarations=declarations
+        file_path=file_path, language="csharp", content=content, declarations=declarations
     )
 
 
@@ -35,51 +32,62 @@ class CSharpParser(BaseParser):
 
         self.patterns = {
             "class": re.compile(
-                r"^\s*" + modifiers + class_modifiers +  # Access and class modifiers
-                r"class\s+" +  # class keyword
-                r"(?P<class_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Class name
+                r"^\s*"
+                + modifiers
+                + class_modifiers  # Access and class modifiers
+                + r"class\s+"  # class keyword
+                + r"(?P<class_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Class name
             ),
             "interface": re.compile(
-                r"^\s*" + modifiers +  # Access modifiers
-                r"interface\s+" +  # interface keyword
-                r"(?P<interface_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Interface name
+                r"^\s*"
+                + modifiers  # Access modifiers
+                + r"interface\s+"  # interface keyword
+                + r"(?P<interface_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Interface name
             ),
             "method": re.compile(
-                r"^\s*" + modifiers + method_modifiers +  # Access and method modifiers
-                r"(?:async\s+)?" +  # Optional async
-                type_pattern +  # Return type
-                r"(?P<method_name>[a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)"  # Method name and args
+                r"^\s*"
+                + modifiers
+                + method_modifiers  # Access and method modifiers
+                + r"(?:async\s+)?"  # Optional async
+                + type_pattern  # Return type
+                + r"(?P<method_name>[a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)"  # Method name and args
             ),
             "property": re.compile(
-                r"^\s*" + modifiers + method_modifiers +  # Access and property modifiers
-                type_pattern +  # Property type
-                r"(?P<property_name>[a-zA-Z_][a-zA-Z0-9_]*)\s*{\s*(?:get|set)"  # Property name
+                r"^\s*"
+                + modifiers
+                + method_modifiers  # Access and property modifiers
+                + type_pattern  # Property type
+                + r"(?P<property_name>[a-zA-Z_][a-zA-Z0-9_]*)\s*{\s*(?:get|set)"  # Property name
             ),
             "enum": re.compile(
-                r"^\s*" + modifiers +  # Access modifiers
-                r"enum\s+" +  # enum keyword
-                r"(?P<enum_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Enum name
+                r"^\s*"
+                + modifiers  # Access modifiers
+                + r"enum\s+"  # enum keyword
+                + r"(?P<enum_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Enum name
             ),
             "struct": re.compile(
-                r"^\s*" + modifiers +  # Access modifiers
-                r"struct\s+" +  # struct keyword
-                r"(?P<struct_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Struct name
+                r"^\s*"
+                + modifiers  # Access modifiers
+                + r"struct\s+"  # struct keyword
+                + r"(?P<struct_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Struct name
             ),
             "delegate": re.compile(
-                r"^\s*" + modifiers +  # Access modifiers
-                r"delegate\s+" +  # delegate keyword
-                type_pattern +  # Return type
-                r"(?P<delegate_name>[a-zA-Z_][a-zA-Z0-9_]*)\s*\("  # Delegate name
+                r"^\s*"
+                + modifiers  # Access modifiers
+                + r"delegate\s+"  # delegate keyword
+                + type_pattern  # Return type
+                + r"(?P<delegate_name>[a-zA-Z_][a-zA-Z0-9_]*)\s*\("  # Delegate name
             ),
             "event": re.compile(
-                r"^\s*" + modifiers +  # Access modifiers
-                r"event\s+" +  # event keyword
-                type_pattern +  # Event type
-                r"(?P<event_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Event name
+                r"^\s*"
+                + modifiers  # Access modifiers
+                + r"event\s+"  # event keyword
+                + type_pattern  # Event type
+                + r"(?P<event_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Event name
             ),
             "namespace": re.compile(
-                r"^\s*namespace\s+" +  # namespace keyword
-                r"(?P<namespace_name>[a-zA-Z_][a-zA-Z0-9_.]*)"  # Namespace name
+                r"^\s*namespace\s+"  # namespace keyword
+                + r"(?P<namespace_name>[a-zA-Z_][a-zA-Z0-9_.]*)"  # Namespace name
             ),
         }
 
@@ -217,12 +225,14 @@ class CSharpParser(BaseParser):
         # Process declarations
         processed_declarations = []
         seen_names = set()
-        
+
         # First pass: add all declarations
         for symbol in symbols:
             if symbol.name not in seen_names:
                 processed_declarations.append(
-                    Declaration(symbol.kind, symbol.name, symbol.start_line + 1, symbol.end_line + 1)
+                    Declaration(
+                        symbol.kind, symbol.name, symbol.start_line + 1, symbol.end_line + 1
+                    )
                 )
                 seen_names.add(symbol.name)
 

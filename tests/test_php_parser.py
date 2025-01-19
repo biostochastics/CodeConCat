@@ -33,11 +33,11 @@ class Employee extends Person {
     result = parse_php("test.php", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     person = next(d for d in result.declarations if d.name == "Person")
     assert person.kind == "class"
     assert person.start_line == 2
-    
+
     employee = next(d for d in result.declarations if d.name == "Employee")
     assert employee.kind == "class"
     assert employee.start_line == 15
@@ -57,11 +57,11 @@ interface Writable {
     result = parse_php("test.php", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     readable = next(d for d in result.declarations if d.name == "Readable")
     assert readable.kind == "interface"
     assert readable.start_line == 2
-    
+
     writable = next(d for d in result.declarations if d.name == "Writable")
     assert writable.kind == "interface"
     assert writable.start_line == 6
@@ -90,11 +90,11 @@ trait Timestampable {
     result = parse_php("test.php", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     logger = next(d for d in result.declarations if d.name == "Logger")
     assert logger.kind == "trait"
     assert logger.start_line == 2
-    
+
     timestampable = next(d for d in result.declarations if d.name == "Timestampable")
     assert timestampable.kind == "trait"
     assert timestampable.start_line == 10
@@ -117,15 +117,15 @@ $multiply = fn($x, $y) => $x * $y;
     result = parse_php("test.php", code)
     assert result is not None
     assert len(result.declarations) == 3
-    
+
     hello = next(d for d in result.declarations if d.name == "hello")
     assert hello.kind == "function"
     assert hello.start_line == 2
-    
+
     add = next(d for d in result.declarations if d.name == "add")
     assert add.kind == "function"
     assert add.start_line == 6
-    
+
     multiply = next(d for d in result.declarations if d.name == "multiply")
     assert multiply.kind == "function"
     assert multiply.start_line == 10
@@ -152,19 +152,19 @@ class UserController {
     result = parse_php("test.php", code)
     assert result is not None
     assert len(result.declarations) == 4
-    
+
     models_ns = next(d for d in result.declarations if d.name == "App\\Models")
     assert models_ns.kind == "namespace"
     assert models_ns.start_line == 2
-    
+
     user = next(d for d in result.declarations if d.name == "User")
     assert user.kind == "class"
     assert user.start_line == 4
-    
+
     controllers_ns = next(d for d in result.declarations if d.name == "App\\Controllers")
     assert controllers_ns.kind == "namespace"
     assert controllers_ns.start_line == 9
-    
+
     controller = next(d for d in result.declarations if d.name == "UserController")
     assert controller.kind == "class"
     assert controller.start_line == 11

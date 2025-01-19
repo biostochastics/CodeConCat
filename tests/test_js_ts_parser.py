@@ -172,7 +172,7 @@ export function outer() {
     # 3. InnerClass (lines 3..7)
     # 4. method (lines 4..6) as a separate "method" symbol if the parser captures it at top level
 
-    # The parser’s logic sets end_line when each block closes. 
+    # The parser’s logic sets end_line when each block closes.
     # We'll check we have at least the top-level function and the nested function.
     # Because the code also recognizes class and method, we might end up with 4 declarations.
     assert len(parsed.declarations) >= 3

@@ -71,7 +71,7 @@ def is_test_or_config_file(file_path: str) -> bool:
     """Check if a file is a test or configuration file."""
     file_name = os.path.basename(file_path).lower()
     return (
-        file_name.startswith("test_") 
+        file_name.startswith("test_")
         or file_name == "setup.py"
         or file_name == "conftest.py"
         or file_name.endswith("config.py")
@@ -133,9 +133,9 @@ def write_markdown(
         for i, ann in enumerate(annotated_files, 1):
             spinner.text = f"Processing code file {i}/{len(annotated_files)}: {ann.file_path}"
             output_chunks.append(f"### File: {ann.file_path}\n")
-            
+
             is_test_config = is_test_or_config_file(ann.file_path)
-            
+
             # Add file summary if enabled or if it's a test/config file
             if config.include_file_summary or is_test_config:
                 spinner.text = "Generating file summary"
@@ -160,17 +160,22 @@ def write_markdown(
                 if ann.annotated_content:
                     # Extract only the analysis parts that aren't in the original content
                     analysis_lines = []
-                    for line in ann.annotated_content.split('\n'):
+                    for line in ann.annotated_content.split("\n"):
                         # Skip lines that are just code snippets
                         if not line.strip() or line.strip() in ann.content:
                             continue
                         # Keep analysis comments and insights
-                        if line.startswith('#') or 'TODO' in line or 'NOTE' in line or 'FIXME' in line:
+                        if (
+                            line.startswith("#")
+                            or "TODO" in line
+                            or "NOTE" in line
+                            or "FIXME" in line
+                        ):
                             analysis_lines.append(line)
-                    
+
                     if analysis_lines:
                         output_chunks.append("\n#### Analysis Notes\n")
-                        output_chunks.append('\n'.join(analysis_lines))
+                        output_chunks.append("\n".join(analysis_lines))
                         output_chunks.append("\n")
 
             # If merge_docs is enabled, try to find and merge related doc content

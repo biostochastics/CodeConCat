@@ -145,10 +145,10 @@ def determine_language(file_path: str) -> Optional[str]:
     # Skip R project-specific files
     r_specific_files = {
         "DESCRIPTION",  # R package description
-        "NAMESPACE",    # R package namespace
-        ".Rproj",      # RStudio project file
-        "configure",    # R package configuration
-        "configure.win",# R package Windows configuration
+        "NAMESPACE",  # R package namespace
+        ".Rproj",  # RStudio project file
+        "configure",  # R package configuration
+        "configure.win",  # R package Windows configuration
     }
     if basename in r_specific_files:
         return None

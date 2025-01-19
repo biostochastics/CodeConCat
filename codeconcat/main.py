@@ -434,13 +434,13 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
             from codeconcat.writer.ai_context import generate_ai_preamble
 
             output_chunks = []
-            
+
             # Only generate AI preamble if not disabled
             if not config.disable_ai_context:
                 ai_preamble = generate_ai_preamble(code_files, docs, annotated_files)
                 if ai_preamble:
                     output_chunks.append(ai_preamble)
-            
+
             output = write_markdown(
                 annotated_files,
                 docs,
@@ -449,7 +449,7 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
             )
             if output:
                 output_chunks.append(output)
-                
+
             return "\n".join(output_chunks)
         elif config.format == "json":
             return write_json(annotated_files, docs, config, folder_tree_str)

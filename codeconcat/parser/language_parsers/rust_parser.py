@@ -9,10 +9,7 @@ def parse_rust(file_path: str, content: str) -> Optional[ParsedFileData]:
     parser = RustParser()
     declarations = parser.parse(content)
     return ParsedFileData(
-        file_path=file_path,
-        language="rust",
-        content=content,
-        declarations=declarations
+        file_path=file_path, language="rust", content=content, declarations=declarations
     )
 
 
@@ -46,12 +43,12 @@ class RustParser(BaseParser):
                     r"(?:unsafe\s+)?"
                     r"(?:extern\s+[\"'][^\"']+[\"']\s+)?"
                     r"fn\s+(?P<n>[a-z_][a-zA-Z0-9_]*)"
-                    r"(?:<[^>]*>)?"         # optional generics
-                    r"\s*\([^)]*\)"        # parameters (...)
+                    r"(?:<[^>]*>)?"  # optional generics
+                    r"\s*\([^)]*\)"  # parameters (...)
                     r"(?:\s*->\s*[^{{;]+)?"  # optional return
                     r"(?:\s*where\s+[^{{;]+)?"  # optional where clause
                     r"\s*(?:\{|;)"
-                )
+                ),
             ),
             (
                 "struct",
@@ -60,7 +57,7 @@ class RustParser(BaseParser):
                     r"(?:<[^>]*>)?"
                     r"(?:\s*where\s+[^{{;]+)?"  # optional where clause
                     r"\s*(?:\{|;|\()"
-                )
+                ),
             ),
             (
                 "enum",
@@ -69,7 +66,7 @@ class RustParser(BaseParser):
                     r"(?:<[^>]*>)?"
                     r"(?:\s*where\s+[^{{;]+)?"  # optional where clause
                     r"\s*\{?"
-                )
+                ),
             ),
             (
                 "trait",
@@ -79,7 +76,7 @@ class RustParser(BaseParser):
                     r"(?:\s*:\s*[^{{]+)?"  # optional supertraits
                     r"(?:\s*where\s+[^{{]+)?"  # optional where clause
                     r"\s*\{?"
-                )
+                ),
             ),
             (
                 "impl",
@@ -89,32 +86,12 @@ class RustParser(BaseParser):
                     rf"(?P<n>{type_name})"
                     r"(?:\s*where\s+[^{{]+)?"  # optional where clause
                     r"\s*\{?"
-                )
+                ),
             ),
-            (
-                "type",
-                re.compile(
-                    rf"^\s*{visibility}type\s+(?P<n>{name})(?:\s*<[^>]*>)?\s*="
-                )
-            ),
-            (
-                "constant",
-                re.compile(
-                    rf"^\s*{visibility}const\s+(?P<n>{name})\s*:"
-                )
-            ),
-            (
-                "static",
-                re.compile(
-                    rf"^\s*{visibility}static\s+(?:mut\s+)?(?P<n>{name})\s*:"
-                )
-            ),
-            (
-                "mod",
-                re.compile(
-                    rf"^\s*{visibility}mod\s+(?P<n>{name})\s*(?:\{{|;)"
-                )
-            ),
+            ("type", re.compile(rf"^\s*{visibility}type\s+(?P<n>{name})(?:\s*<[^>]*>)?\s*=")),
+            ("constant", re.compile(rf"^\s*{visibility}const\s+(?P<n>{name})\s*:")),
+            ("static", re.compile(rf"^\s*{visibility}static\s+(?:mut\s+)?(?P<n>{name})\s*:")),
+            ("mod", re.compile(rf"^\s*{visibility}mod\s+(?P<n>{name})\s*(?:\{{|;)")),
         ]
 
     def _find_block_end(self, lines: List[str], start: int) -> int:
@@ -131,9 +108,9 @@ class RustParser(BaseParser):
         # Find the first line with an opening brace
         first_brace_line = start
         while first_brace_line < total_lines:
-            if '{' in lines[first_brace_line]:
+            if "{" in lines[first_brace_line]:
                 break
-            if ';' in lines[first_brace_line].strip():
+            if ";" in lines[first_brace_line].strip():
                 return first_brace_line
             first_brace_line += 1
             if first_brace_line >= total_lines:
@@ -146,7 +123,7 @@ class RustParser(BaseParser):
             while j < len(line):
                 # check for block comment start/end
                 if not in_string and j < (len(line) - 1):
-                    maybe = line[j:j+2]
+                    maybe = line[j : j + 2]
                     if maybe == "/*" and not in_comment:
                         in_comment = True
                         j += 2
@@ -165,9 +142,9 @@ class RustParser(BaseParser):
                         in_string = False
                         string_char = None
                     elif not in_string:
-                        if ch == '{':
+                        if ch == "{":
                             brace_count += 1
-                        elif ch == '}':
+                        elif ch == "}":
                             brace_count -= 1
                             if brace_count == 0:
                                 return i
@@ -225,7 +202,9 @@ class RustParser(BaseParser):
             # For /// comments
             return "\n".join(comments)
 
-        def parse_block(start_line: int, end_line: int, parent_kind: Optional[str] = None) -> List[Declaration]:
+        def parse_block(
+            start_line: int, end_line: int, parent_kind: Optional[str] = None
+        ) -> List[Declaration]:
             """
             Parse lines[start_line : end_line] (non-inclusive of end_line).
             Return list of top-level declarations found.
@@ -282,7 +261,7 @@ class RustParser(BaseParser):
 
                 matched = False
                 # Try patterns in order:
-                for (kind, pat) in self.patterns:
+                for kind, pat in self.patterns:
                     m = pat.match(stripped)
                     if m:
                         matched = True
@@ -360,13 +339,17 @@ class RustParser(BaseParser):
                                 if kind == "mod":
                                     # For mod blocks, include both the mod and its nested declarations
                                     # Always add all nested declarations at the top level
-                                    print(f"Found {len(nested_decls)} nested declarations in mod {name}")
+                                    print(
+                                        f"Found {len(nested_decls)} nested declarations in mod {name}"
+                                    )
                                     for d in nested_decls:
                                         print(f"  - {d.kind} {d.name} with modifiers {d.modifiers}")
                                         if d.kind == "function":
                                             # For nested functions in modules, we need to capture their own attributes
                                             # Find the indentation level of the function
-                                            func_line = lines[d.start_line - 1].rstrip()  # Convert to 0-based index
+                                            func_line = lines[
+                                                d.start_line - 1
+                                            ].rstrip()  # Convert to 0-based index
                                             indent = len(func_line) - len(func_line.lstrip())
                                             # Look for attributes at the same indentation level
                                             attrs = []
@@ -376,7 +359,9 @@ class RustParser(BaseParser):
                                                 if not line.lstrip().startswith("#["):
                                                     break
                                                 line_indent = len(line) - len(line.lstrip())
-                                                if line_indent >= indent:  # Allow for attributes with same or more indentation
+                                                if (
+                                                    line_indent >= indent
+                                                ):  # Allow for attributes with same or more indentation
                                                     attrs.append(line.lstrip())
                                                 i -= 1
                                             d.modifiers = set(attrs)
@@ -399,7 +384,9 @@ class RustParser(BaseParser):
                                 # For nested functions in modules, we need to capture their own attributes
                                 # Find the indentation level of the function
                                 if kind == "function":
-                                    func_line = lines[decl.start_line - 1].rstrip()  # Convert to 0-based index
+                                    func_line = lines[
+                                        decl.start_line - 1
+                                    ].rstrip()  # Convert to 0-based index
                                     indent = len(func_line) - len(func_line.lstrip())
                                     # Look for attributes at the same indentation level
                                     attrs = []
@@ -409,7 +396,9 @@ class RustParser(BaseParser):
                                         if not line.lstrip().startswith("#["):
                                             break
                                         line_indent = len(line) - len(line.lstrip())
-                                        if line_indent >= indent:  # Allow for attributes with same or more indentation
+                                        if (
+                                            line_indent >= indent
+                                        ):  # Allow for attributes with same or more indentation
                                             attrs.append(line.lstrip())
                                         i -= 1
                                     decl.modifiers = set(attrs)

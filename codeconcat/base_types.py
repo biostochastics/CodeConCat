@@ -27,6 +27,7 @@ PROGRAMMING_QUOTES = [
 
 VALID_FORMATS = {"markdown", "json", "xml"}
 
+
 @dataclass
 class SecurityIssue:
     """Represents a detected security issue in the code."""
@@ -161,4 +162,6 @@ class CodeConCatConfig:
     def __post_init__(self):
         """Validate configuration after initialization."""
         if self.format not in VALID_FORMATS:
-            raise ValueError(f"Invalid format '{self.format}'. Must be one of: {', '.join(VALID_FORMATS)}")
+            raise ValueError(
+                f"Invalid format '{self.format}'. Must be one of: {', '.join(VALID_FORMATS)}"
+            )

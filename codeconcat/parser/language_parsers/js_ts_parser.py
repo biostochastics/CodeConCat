@@ -7,15 +7,14 @@ from codeconcat.base_types import Declaration, ParsedFileData
 from codeconcat.parser.language_parsers.base_parser import BaseParser
 
 
-def parse_javascript_or_typescript(file_path: str, content: str, language: str = "javascript") -> Optional[ParsedFileData]:
+def parse_javascript_or_typescript(
+    file_path: str, content: str, language: str = "javascript"
+) -> Optional[ParsedFileData]:
     """Parse JavaScript or TypeScript code and return declarations."""
     parser = JstsParser(language)
     declarations = parser.parse(content)
     return ParsedFileData(
-        file_path=file_path,
-        language=language,
-        content=content,
-        declarations=declarations
+        file_path=file_path, language=language, content=content, declarations=declarations
     )
 
 
@@ -42,8 +41,8 @@ class CodeSymbol:
 
 class JstsParser(BaseParser):
     """
-    JavaScript/TypeScript language parser with improved brace-handling and 
-    arrow-function detection. Supports classes, functions, methods, arrow functions, 
+    JavaScript/TypeScript language parser with improved brace-handling and
+    arrow-function detection. Supports classes, functions, methods, arrow functions,
     interfaces, type aliases, enums, and basic decorators.
     """
 
@@ -82,22 +81,21 @@ class JstsParser(BaseParser):
         return [
             # Function patterns (must come before class patterns)
             re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(?P<symbol_name>\w+)\s*\("),
-            re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?function\s*\("),
+            re.compile(
+                r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?function\s*\("
+            ),
             # Arrow function pattern
-            re.compile(r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>"),
-            
+            re.compile(
+                r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>"
+            ),
             # Method patterns (inside class)
             re.compile(r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\("),
-            
             # Class patterns
             re.compile(r"^(?:export\s+)?class\s+(?P<symbol_name>\w+)"),
-            
             # Interface patterns (TypeScript)
             re.compile(r"^(?:export\s+)?interface\s+(?P<symbol_name>\w+)"),
-            
             # Type alias patterns (TypeScript)
             re.compile(r"^(?:export\s+)?type\s+(?P<symbol_name>\w+)"),
-            
             # Enum patterns (TypeScript)
             re.compile(r"^(?:export\s+)?enum\s+(?P<symbol_name>\w+)"),
         ]
@@ -238,7 +236,7 @@ class JstsParser(BaseParser):
 
         # Convert symbols to declarations
         declarations = []
-        
+
         def add_symbol_to_declarations(symbol: CodeSymbol):
             """Helper function to recursively add symbols and their children to declarations."""
             declarations.append(
@@ -254,7 +252,7 @@ class JstsParser(BaseParser):
             # Add child declarations recursively
             for child in symbol.children:
                 add_symbol_to_declarations(child)
-        
+
         # Process each top-level symbol
         for symbol in symbols:
             add_symbol_to_declarations(symbol)

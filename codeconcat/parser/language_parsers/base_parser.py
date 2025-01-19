@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Pattern, Set, Tuple
 
+
 @dataclass
 class CodeSymbol:
     name: str
@@ -20,6 +21,7 @@ class CodeSymbol:
         if self.children is None:
             self.children = []
 
+
 class BaseParser(ABC):
     """
     BaseParser defines a minimal interface and partial logic for line-based scanning
@@ -32,10 +34,10 @@ class BaseParser(ABC):
         self.current_symbol: Optional[CodeSymbol] = None
         self.symbol_stack: List[CodeSymbol] = []
         self.block_start = "{"  # Default block start
-        self.block_end = "}"    # Default block end
+        self.block_end = "}"  # Default block end
         self.line_comment = "//"  # Default line comment
         self.block_comment_start = "/*"  # Default block comment start
-        self.block_comment_end = "*/"    # Default block comment end
+        self.block_comment_end = "*/"  # Default block comment end
         self._setup_patterns()
 
     @abstractmethod
@@ -50,7 +52,7 @@ class BaseParser(ABC):
         self.symbols = []
         self.current_symbol = None
         self.symbol_stack = []
-        
+
         # Track seen declarations to avoid duplicates
         seen_declarations = set()  # (name, start_line, kind) tuples
 
@@ -66,7 +68,7 @@ class BaseParser(ABC):
             if self.block_comment_start in line and not in_comment:
                 in_comment = True
                 comment_start = line.index(self.block_comment_start)
-                comment_buffer.append(line[comment_start + len(self.block_comment_start):])
+                comment_buffer.append(line[comment_start + len(self.block_comment_start) :])
                 continue
 
             if in_comment:
@@ -118,7 +120,7 @@ class BaseParser(ABC):
                         start_line=i,
                         end_line=end_line,
                         modifiers=set(),
-                        docstring=docstring
+                        docstring=docstring,
                     )
 
                     # Handle symbol hierarchy

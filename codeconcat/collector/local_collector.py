@@ -169,8 +169,10 @@ def should_include_file(
         for pattern in config.exclude_paths:
             # Check if any part of the path matches the pattern
             path_parts = Path(rel_path).parts
-            if any(fnmatch.fnmatch(os.path.join(*path_parts[:i+1]), pattern) 
-                  for i in range(len(path_parts))):
+            if any(
+                fnmatch.fnmatch(os.path.join(*path_parts[: i + 1]), pattern)
+                for i in range(len(path_parts))
+            ):
                 return False
 
     if config.include_paths:

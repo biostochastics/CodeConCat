@@ -7,15 +7,14 @@ from typing import List, Optional, Set, Dict
 from codeconcat.base_types import Declaration, ParsedFileData
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
+
 def parse_r(file_path: str, content: str) -> Optional[ParsedFileData]:
     parser = RParser()
     declarations = parser.parse(content)
     return ParsedFileData(
-        file_path=file_path,
-        language="r",
-        content=content,
-        declarations=declarations
+        file_path=file_path, language="r", content=content, declarations=declarations
     )
+
 
 class RParser(BaseParser):
     """
@@ -135,7 +134,7 @@ class RParser(BaseParser):
         merged_lines = self._merge_multiline_assignments(raw_lines, also_for_classes=True)
         # Parse the resulting lines
         symbols = self._parse_block(merged_lines, 0, len(merged_lines))
-        
+
         # Convert symbols to Declarations (unique by (kind, name, start_line, end_line)).
         declarations = []
         seen = set()
@@ -217,7 +216,7 @@ class RParser(BaseParser):
                 symbols.append(sym)
 
                 # Recursively parse inside the function body for nested items
-                nested_lines = lines[start_blk+1 : end_blk+1]
+                nested_lines = lines[start_blk + 1 : end_blk + 1]
                 if end_blk >= start_blk:
                     nested_syms = self._parse_block(nested_lines, 0, len(nested_lines))
                     symbols.extend(nested_syms)
@@ -246,7 +245,7 @@ class RParser(BaseParser):
                     sym.kind = "class"
 
                 # Recursively parse the function body for nested definitions
-                nested_lines = lines[start_blk+1 : end_blk+1]
+                nested_lines = lines[start_blk + 1 : end_blk + 1]
                 if end_blk >= start_blk:
                     nested_syms = self._parse_block(nested_lines, 0, len(nested_lines))
                     symbols.extend(nested_syms)
@@ -280,7 +279,7 @@ class RParser(BaseParser):
                     symbols.extend(methods)
 
                 # Also parse nested lines in case there are normal function definitions inside the class body
-                nested_lines = lines[i+1 : cls_end+1]
+                nested_lines = lines[i + 1 : cls_end + 1]
                 nested_syms = self._parse_block(nested_lines, 0, len(nested_lines))
                 symbols.extend(nested_syms)
 
@@ -310,7 +309,9 @@ class RParser(BaseParser):
 
         return symbols
 
-    def _merge_multiline_assignments(self, raw_lines: List[str], also_for_classes: bool=False) -> List[str]:
+    def _merge_multiline_assignments(
+        self, raw_lines: List[str], also_for_classes: bool = False
+    ) -> List[str]:
         """
         Fix for cases like:
           complex_func <- # comment
@@ -341,7 +342,13 @@ class RParser(BaseParser):
                     if next_strip.startswith("function"):
                         # Remove any trailing comment from the first line
                         base_line = re.sub(r"#.*$", "", line).rstrip()
-                        new_line = base_line + " " + " ".join(l.strip() for l in comment_lines) + " " + raw_lines[j].lstrip()
+                        new_line = (
+                            base_line
+                            + " "
+                            + " ".join(l.strip() for l in comment_lines)
+                            + " "
+                            + raw_lines[j].lstrip()
+                        )
                         merged.append(new_line)
                         i = j + 1
                         continue
@@ -350,7 +357,13 @@ class RParser(BaseParser):
                         if any(x in next_strip for x in ["R6Class(", "setRefClass(", "setClass("]):
                             # Remove any trailing comment from the first line
                             base_line = re.sub(r"#.*$", "", line).rstrip()
-                            new_line = base_line + " " + " ".join(l.strip() for l in comment_lines) + " " + raw_lines[j].lstrip()
+                            new_line = (
+                                base_line
+                                + " "
+                                + " ".join(l.strip() for l in comment_lines)
+                                + " "
+                                + raw_lines[j].lstrip()
+                            )
                             merged.append(new_line)
                             i = j + 1
                             continue
@@ -366,7 +379,7 @@ class RParser(BaseParser):
         """
         line = lines[start_idx]
         # If there's no '{' in this line, it's a one-liner
-        if '{' not in line:
+        if "{" not in line:
             return start_idx, start_idx
 
         brace_count = line.count("{") - line.count("}")
@@ -383,15 +396,15 @@ class RParser(BaseParser):
             end_idx = len(lines) - 1
         return start_idx, end_idx
 
-    def _function_defines_s3(self, lines: List[str], start_idx: int, end_idx: int, fname: str) -> bool:
+    def _function_defines_s3(
+        self, lines: List[str], start_idx: int, end_idx: int, fname: str
+    ) -> bool:
         """
         Check if between start_idx and end_idx there's 'class(...) <- "fname"'
         or something that sets 'class(...)' to the same name, indicating an S3 constructor.
         """
-        pattern = re.compile(
-            rf'class\s*\(\s*[^\)]*\)\s*(?:<<?-|=)\s*["\']{re.escape(fname)}["\']'
-        )
-        for idx in range(start_idx, min(end_idx+1, len(lines))):
+        pattern = re.compile(rf'class\s*\(\s*[^\)]*\)\s*(?:<<?-|=)\s*["\']{re.escape(fname)}["\']')
+        for idx in range(start_idx, min(end_idx + 1, len(lines))):
             if pattern.search(lines[idx]):
                 return True
         return False
@@ -422,7 +435,9 @@ class RParser(BaseParser):
 
         return (start_idx, min(j, len(lines) - 1))
 
-    def _parse_r6_methods(self, lines: List[str], start_idx: int, end_idx: int, class_name: str) -> List[CodeSymbol]:
+    def _parse_r6_methods(
+        self, lines: List[str], start_idx: int, end_idx: int, class_name: str
+    ) -> List[CodeSymbol]:
         """
         Inside R6Class("class_name", public=list(...), private=list(...)), parse:
            methodName = function(...) { ... }
@@ -430,22 +445,19 @@ class RParser(BaseParser):
         Ignore fields like 'value = 0'.
         """
         methods = []
-        block = lines[start_idx:end_idx+1]
+        block = lines[start_idx : end_idx + 1]
         combined = "\n".join(block)
 
         # Find all method declarations
-        method_pattern = re.compile(
-            r'([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{',
-            re.MULTILINE
-        )
+        method_pattern = re.compile(r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE)
 
         # Find all matches in the text
         for match in method_pattern.finditer(combined):
             method_name = match.group(1)
             if method_name not in ["fields", "methods"]:  # Exclude these special names
                 full_name = f"{class_name}.{method_name}"
-                start_line = start_idx + combined[:match.start()].count("\n")
-                end_line = start_idx + combined[:match.end()].count("\n")
+                start_line = start_idx + combined[: match.start()].count("\n")
+                end_line = start_idx + combined[: match.end()].count("\n")
                 methods.append(
                     CodeSymbol(
                         name=full_name,
@@ -457,28 +469,27 @@ class RParser(BaseParser):
                 )
         return methods
 
-    def _parse_refclass_methods(self, lines: List[str], start_idx: int, end_idx: int, class_name: str) -> List[CodeSymbol]:
+    def _parse_refclass_methods(
+        self, lines: List[str], start_idx: int, end_idx: int, class_name: str
+    ) -> List[CodeSymbol]:
         """
         For setRefClass("Employee", fields=list(...), methods=list(...)), parse methodName = function(...).
         We'll produce "Employee.methodName".
         """
         methods = []
-        block = lines[start_idx:end_idx+1]
+        block = lines[start_idx : end_idx + 1]
         combined = "\n".join(block)
 
         # Find all method declarations
-        method_pattern = re.compile(
-            r'([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{',
-            re.MULTILINE
-        )
+        method_pattern = re.compile(r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE)
 
         # Find all matches in the text
         for match in method_pattern.finditer(combined):
             method_name = match.group(1)
             if method_name not in ["fields", "methods"]:  # Exclude these special names
                 full_name = f"{class_name}.{method_name}"
-                start_line = start_idx + combined[:match.start()].count("\n")
-                end_line = start_idx + combined[:match.end()].count("\n")
+                start_line = start_idx + combined[: match.start()].count("\n")
+                end_line = start_idx + combined[: match.end()].count("\n")
                 methods.append(
                     CodeSymbol(
                         name=full_name,

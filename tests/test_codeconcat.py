@@ -240,10 +240,12 @@ def test_disable_ai_context(temp_dir):
     # Create test files
     code_file = os.path.join(temp_dir, "main.py")
     with open(code_file, "w") as f:
-        f.write("""
+        f.write(
+            """
 def main():
     print("Hello, World!")
-""")
+"""
+        )
 
     config = CodeConCatConfig(target_path=temp_dir)
     files = collect_local_files(temp_dir, config)
@@ -251,15 +253,18 @@ def main():
     assert len(parsed_files) == 1
     assert len(parsed_files[0].declarations) == 1
 
+
 def test_merge_docs(temp_dir):
     # Create test files
     code_file = os.path.join(temp_dir, "main.py")
     with open(code_file, "w") as f:
-        f.write("""
+        f.write(
+            """
 def main():
     \"\"\"Main function.\"\"\"
     print("Hello, World!")
-""")
+"""
+        )
 
     config = CodeConCatConfig(target_path=temp_dir)
     files = collect_local_files(temp_dir, config)

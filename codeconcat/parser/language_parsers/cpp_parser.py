@@ -5,19 +5,19 @@ from typing import List, Optional
 from codeconcat.base_types import Declaration, ParsedFileData
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
+
 def parse_cpp_code(file_path: str, content: str) -> Optional[ParsedFileData]:
     parser = CppParser()
     declarations = parser.parse(content)
     return ParsedFileData(
-        file_path=file_path,
-        language="cpp",
-        content=content,
-        declarations=declarations
+        file_path=file_path, language="cpp", content=content, declarations=declarations
     )
+
 
 # For backward compatibility
 def parse_cpp(file_path: str, content: str) -> Optional[ParsedFileData]:
     return parse_cpp_code(file_path, content)
+
 
 class CppParser(BaseParser):
     def __init__(self):
@@ -43,7 +43,7 @@ class CppParser(BaseParser):
             (?:\s*:[^{]*)?              # optional inheritance, up to but not including brace
             \s*{                       # opening brace
             """,
-            re.VERBOSE
+            re.VERBOSE,
         )
 
         # Forward declaration of class/struct/union/enum without a brace => ends with semicolon
@@ -53,7 +53,7 @@ class CppParser(BaseParser):
             (?:class|struct|union|enum)\s+
             (?P<name>[a-zA-Z_]\w*)\s*;
             """,
-            re.VERBOSE
+            re.VERBOSE,
         )
 
         # Enum definition (including "enum class Foo {" or "enum Foo : <type> {")
@@ -65,7 +65,7 @@ class CppParser(BaseParser):
             (?:\s*:\s+[^\s{]+)?         # optional base type
             \s*{                       # opening brace
             """,
-            re.VERBOSE
+            re.VERBOSE,
         )
 
         # Function pattern
@@ -77,7 +77,9 @@ class CppParser(BaseParser):
             ^[^\#/]*?                    # skip if line starts with # or / (comment), handled later
             (?:template\s*<[^>]*>\s*)?   # optional template
             (?:virtual|static|inline|constexpr|explicit|friend\s+)?  # optional specifiers
-            (?:""" + qualified_id + r"""(?:<[^>]+>)?[&*\s]+)*        # optional return type with nested templates
+            (?:"""
+            + qualified_id
+            + r"""(?:<[^>]+>)?[&*\s]+)*        # optional return type with nested templates
             (?P<name>                                      # function name capture
                 ~?[a-zA-Z_]\w*                             # normal name or destructor ~Foo
                 |operator\s*(?:[^\s\(]+|\(.*?\))          # operator overload
@@ -88,7 +90,7 @@ class CppParser(BaseParser):
             (?:\s*=\s*(?:default|delete|0))?                # optional = default/delete/pure virtual
             \s*(?:{|;)                                    # must end with { or ;
             """,
-            re.VERBOSE
+            re.VERBOSE,
         )
 
         # Namespace pattern. Also handle "inline namespace" optionally
@@ -100,7 +102,7 @@ class CppParser(BaseParser):
             (?P<name>[a-zA-Z_]\w*) # namespace name
             \s*{                  # opening brace
             """,
-            re.VERBOSE
+            re.VERBOSE,
         )
 
         # typedef pattern
@@ -116,7 +118,7 @@ class CppParser(BaseParser):
             (?:\s*\)[^;]*)?            # rest of function pointer if present
             \s*;                        # end with semicolon
             """,
-            re.VERBOSE
+            re.VERBOSE,
         )
 
         # using Foo = ...
@@ -127,17 +129,17 @@ class CppParser(BaseParser):
             (?P<name>[a-zA-Z_]\w*)
             \s*=\s*[^;]+;
             """,
-            re.VERBOSE
+            re.VERBOSE,
         )
 
         self.patterns = {
-            "class":      self.class_pattern,
+            "class": self.class_pattern,
             "forward_decl": self.forward_decl_pattern,
-            "enum":       self.enum_pattern,
-            "function":   self.function_pattern,
-            "namespace":  self.namespace_pattern,
-            "typedef":    self.typedef_pattern,
-            "using":      self.using_pattern,
+            "enum": self.enum_pattern,
+            "function": self.function_pattern,
+            "namespace": self.namespace_pattern,
+            "typedef": self.typedef_pattern,
+            "using": self.using_pattern,
         }
 
         # Block delimiters, etc.
@@ -170,9 +172,7 @@ class CppParser(BaseParser):
             line_stripped = raw_line.strip()
 
             # Skip lines that are empty, pure comment, or preprocessor (#)
-            if (not line_stripped
-                or line_stripped.startswith("//")
-                or line_stripped.startswith("#")):
+            if not line_stripped or line_stripped.startswith("//") or line_stripped.startswith("#"):
                 i += 1
                 continue
 

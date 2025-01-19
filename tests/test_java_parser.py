@@ -33,11 +33,11 @@ class Employee extends Person {
     result = parse_java("test.java", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     person = next(d for d in result.declarations if d.name == "Person")
     assert person.kind == "class"
     assert person.start_line == 2
-    
+
     employee = next(d for d in result.declarations if d.name == "Employee")
     assert employee.kind == "class"
     assert employee.start_line == 15
@@ -57,11 +57,11 @@ interface Writable {
     result = parse_java("test.java", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     readable = next(d for d in result.declarations if d.name == "Readable")
     assert readable.kind == "interface"
     assert readable.start_line == 2
-    
+
     writable = next(d for d in result.declarations if d.name == "Writable")
     assert writable.kind == "interface"
     assert writable.start_line == 6
@@ -87,19 +87,19 @@ public class Calculator {
     result = parse_java("test.java", code)
     assert result is not None
     assert len(result.declarations) == 4
-    
+
     calc = next(d for d in result.declarations if d.name == "Calculator")
     assert calc.kind == "class"
     assert calc.start_line == 2
-    
+
     add = next(d for d in result.declarations if d.name == "add")
     assert add.kind == "method"
     assert add.start_line == 3
-    
+
     multiply = next(d for d in result.declarations if d.name == "multiply")
     assert multiply.kind == "method"
     assert multiply.start_line == 7
-    
+
     log = next(d for d in result.declarations if d.name == "log")
     assert log.kind == "method"
     assert log.start_line == 11
@@ -117,19 +117,19 @@ public class Constants {
     result = parse_java("test.java", code)
     assert result is not None
     assert len(result.declarations) == 4
-    
+
     constants = next(d for d in result.declarations if d.name == "Constants")
     assert constants.kind == "class"
     assert constants.start_line == 2
-    
+
     max_value = next(d for d in result.declarations if d.name == "MAX_VALUE")
     assert max_value.kind == "field"
     assert max_value.start_line == 3
-    
+
     prefix = next(d for d in result.declarations if d.name == "prefix")
     assert prefix.kind == "field"
     assert prefix.start_line == 4
-    
+
     debug = next(d for d in result.declarations if d.name == "debug")
     assert debug.kind == "field"
     assert debug.start_line == 5

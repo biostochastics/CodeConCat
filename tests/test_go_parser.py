@@ -20,11 +20,11 @@ func add(x, y int) int {
     result = parse_go("test.go", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     hello_func = next(d for d in result.declarations if d.name == "hello")
     assert hello_func.kind == "function"
     assert hello_func.start_line == 4
-    
+
     add_func = next(d for d in result.declarations if d.name == "add")
     assert add_func.kind == "function"
     assert add_func.start_line == 8
@@ -48,11 +48,11 @@ type Employee struct {
     result = parse_go("test.go", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     person = next(d for d in result.declarations if d.name == "Person")
     assert person.kind == "struct"
     assert person.start_line == 4
-    
+
     employee = next(d for d in result.declarations if d.name == "Employee")
     assert employee.kind == "struct"
     assert employee.start_line == 9
@@ -74,11 +74,11 @@ type Writer interface {
     result = parse_go("test.go", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     reader = next(d for d in result.declarations if d.name == "Reader")
     assert reader.kind == "interface"
     assert reader.start_line == 4
-    
+
     writer = next(d for d in result.declarations if d.name == "Writer")
     assert writer.kind == "interface"
     assert writer.start_line == 8
@@ -102,19 +102,19 @@ var (
     result = parse_go("test.go", code)
     assert result is not None
     assert len(result.declarations) == 4
-    
+
     max_items = next(d for d in result.declarations if d.name == "MaxItems")
     assert max_items.kind == "const"
     assert max_items.start_line == 5
-    
+
     min_items = next(d for d in result.declarations if d.name == "MinItems")
     assert min_items.kind == "const"
     assert min_items.start_line == 6
-    
+
     debug = next(d for d in result.declarations if d.name == "Debug")
     assert debug.kind == "var"
     assert debug.start_line == 10
-    
+
     count = next(d for d in result.declarations if d.name == "Count")
     assert count.kind == "var"
     assert count.start_line == 11

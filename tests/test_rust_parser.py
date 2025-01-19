@@ -22,15 +22,15 @@ async fn fetch_data() -> Result<String, Error> {
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 3
-    
+
     hello = next(d for d in result.declarations if d.name == "hello")
     assert hello.kind == "function"
     assert hello.start_line == 2
-    
+
     add = next(d for d in result.declarations if d.name == "add")
     assert add.kind == "function"
     assert add.start_line == 6
-    
+
     fetch = next(d for d in result.declarations if d.name == "fetch_data")
     assert fetch.kind == "function"
     assert fetch.start_line == 10
@@ -52,11 +52,11 @@ struct Point<T> {
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     person = next(d for d in result.declarations if d.name == "Person")
     assert person.kind == "struct"
     assert person.start_line == 2
-    
+
     point = next(d for d in result.declarations if d.name == "Point")
     assert point.kind == "struct"
     assert point.start_line == 7
@@ -78,11 +78,11 @@ enum Result<T, E> {
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     option = next(d for d in result.declarations if d.name == "Option")
     assert option.kind == "enum"
     assert option.start_line == 2
-    
+
     result_enum = next(d for d in result.declarations if d.name == "Result")
     assert result_enum.kind == "enum"
     assert result_enum.start_line == 7
@@ -103,11 +103,11 @@ trait Debug {
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     display = next(d for d in result.declarations if d.name == "Display")
     assert display.kind == "trait"
     assert display.start_line == 2
-    
+
     debug = next(d for d in result.declarations if d.name == "Debug")
     assert debug.kind == "trait"
     assert debug.start_line == 6
@@ -131,19 +131,19 @@ impl<T> Point<T> {
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 4
-    
+
     person_impl = next(d for d in result.declarations if d.name == "Person")
     assert person_impl.kind == "impl"
     assert person_impl.start_line == 2
-    
+
     new_fn = next(d for d in result.declarations if d.name == "new")
     assert new_fn.kind == "function"
     assert new_fn.start_line == 3
-    
+
     point_impl = next(d for d in result.declarations if d.name == "Point")
     assert point_impl.kind == "impl"
     assert point_impl.start_line == 8
-    
+
     origin_fn = next(d for d in result.declarations if d.name == "origin")
     assert origin_fn.kind == "function"
     assert origin_fn.start_line == 9
@@ -192,11 +192,11 @@ struct Point {
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     person = next(d for d in result.declarations if d.name == "Person")
     assert person.kind == "struct"
     assert person.docstring == "/// A person in the system\n/// with multiple lines of docs"
-    
+
     point = next(d for d in result.declarations if d.name == "Point")
     assert point.kind == "struct"
     assert point.docstring == "/** A point in 2D space\n * with coordinates\n */"
@@ -229,16 +229,16 @@ struct Config {
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 5
-    
+
     data = next(d for d in result.declarations if d.name == "Data")
     assert data.kind == "struct"
     assert "#[derive(Debug, Clone)]" in data.modifiers
     assert "#[repr(C)]" in data.modifiers
-    
+
     tests = next(d for d in result.declarations if d.name == "tests")
     assert tests.kind == "mod"
     assert "#[cfg(test)]" in tests.modifiers
-    
+
     config = next(d for d in result.declarations if d.name == "Config")
     assert config.kind == "struct"
     assert any("cfg_attr" in m for m in config.modifiers)
@@ -270,14 +270,14 @@ impl dyn AsyncRead + Send {
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 6
-    
+
     iter_impl = next(d for d in result.declarations if "Iterator for MyIter" in d.name)
     assert iter_impl.kind == "impl"
     assert iter_impl.start_line == 2
-    
+
     debug_impl = next(d for d in result.declarations if "Debug for Point" in d.name)
     assert debug_impl.kind == "impl"
-    
+
     async_impl = next(d for d in result.declarations if "AsyncRead + Send" in d.name)
     assert async_impl.kind == "impl"
 
@@ -298,14 +298,14 @@ struct Generic<T>(T);
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 5
-    
+
     unit = next(d for d in result.declarations if d.name == "Unit")
     assert unit.kind == "struct"
     assert "pub" in unit.modifiers
-    
+
     tuple = next(d for d in result.declarations if d.name == "Tuple")
     assert tuple.kind == "struct"
-    
+
     visibility = next(d for d in result.declarations if d.name == "Visibility")
     assert visibility.kind == "struct"
     assert "pub(crate)" in visibility.modifiers
@@ -333,10 +333,10 @@ trait Handler {
     result = parse_rust("test.rs", code)
     assert result is not None
     assert len(result.declarations) == 2
-    
+
     service = next(d for d in result.declarations if d.name == "Service")
     assert service.kind == "trait"
     assert "pub" in service.modifiers
-    
+
     handler = next(d for d in result.declarations if d.name == "Handler")
     assert handler.kind == "trait"

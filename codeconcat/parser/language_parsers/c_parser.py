@@ -5,15 +5,14 @@ from typing import List, Optional, Set
 from codeconcat.base_types import Declaration, ParsedFileData
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
+
 def parse_c_code(file_path: str, content: str) -> Optional[ParsedFileData]:
     parser = CParser()
     declarations = parser.parse(content)
     return ParsedFileData(
-        file_path=file_path,
-        language="c",
-        content=content,
-        declarations=declarations
+        file_path=file_path, language="c", content=content, declarations=declarations
     )
+
 
 class CParser(BaseParser):
     def _setup_patterns(self):
@@ -31,15 +30,9 @@ class CParser(BaseParser):
                 rf"{type_pattern}\s+"
                 rf"(?P<name>[a-zA-Z_]\w*)\s*\([^;{{]*"
             ),
-            "struct": re.compile(
-                rf"^[^#/]*struct\s+(?P<name>[a-zA-Z_]\w*)"
-            ),
-            "union": re.compile(
-                rf"^[^#/]*union\s+(?P<name>[a-zA-Z_]\w*)"
-            ),
-            "enum": re.compile(
-                rf"^[^#/]*enum\s+(?P<name>[a-zA-Z_]\w*)"
-            ),
+            "struct": re.compile(rf"^[^#/]*struct\s+(?P<name>[a-zA-Z_]\w*)"),
+            "union": re.compile(rf"^[^#/]*union\s+(?P<name>[a-zA-Z_]\w*)"),
+            "enum": re.compile(rf"^[^#/]*enum\s+(?P<name>[a-zA-Z_]\w*)"),
             "typedef": re.compile(
                 r"^[^#/]*typedef\s+"
                 r"(?:struct|union|enum)?\s*"
@@ -49,9 +42,7 @@ class CParser(BaseParser):
                 r"(?:\s*\))?"
                 r"\s*(?:\([^)]*\))?\s*;"
             ),
-            "define": re.compile(
-                r"^[^#/]*#define\s+(?P<name>[A-Z_][A-Z0-9_]*)"
-            ),
+            "define": re.compile(r"^[^#/]*#define\s+(?P<name>[A-Z_][A-Z0-9_]*)"),
         }
 
         # For braces
@@ -98,13 +89,15 @@ class CParser(BaseParser):
         # Convert to Declaration
         declarations = []
         for sym in symbols:
-            declarations.append(Declaration(
-                kind=sym.kind,
-                name=sym.name,
-                start_line=sym.start_line + 1,
-                end_line=sym.end_line + 1,
-                modifiers=sym.modifiers
-            ))
+            declarations.append(
+                Declaration(
+                    kind=sym.kind,
+                    name=sym.name,
+                    start_line=sym.start_line + 1,
+                    end_line=sym.end_line + 1,
+                    modifiers=sym.modifiers,
+                )
+            )
         return declarations
 
     def _find_block_end(self, lines: List[str], start: int) -> int:
