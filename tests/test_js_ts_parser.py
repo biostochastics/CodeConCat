@@ -1,4 +1,5 @@
 import pytest
+
 from codeconcat.parser.language_parsers.js_ts_parser import parse_javascript_or_typescript
 
 

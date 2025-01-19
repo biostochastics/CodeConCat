@@ -3,7 +3,8 @@
 # file: codeconcat/parser/language_parsers/r_parser.py
 
 import re
-from typing import List, Optional, Set, Dict
+from typing import Dict, List, Optional, Set
+
 from codeconcat.base_types import Declaration, ParsedFileData
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 

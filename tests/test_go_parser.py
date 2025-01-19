@@ -1,6 +1,7 @@
 """Tests for Go parser."""
 
 import pytest
+
 from codeconcat.parser.language_parsers.go_parser import parse_go
 
 

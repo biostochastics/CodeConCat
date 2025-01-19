@@ -1,6 +1,7 @@
 """Tests for Python code parser."""
 
 import unittest
+
 from codeconcat.parser.language_parsers.python_parser import PythonParser, parse_python
 
 

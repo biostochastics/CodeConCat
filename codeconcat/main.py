@@ -430,8 +430,8 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
 
         # Generate output in requested format
         if config.format == "markdown":
-            from codeconcat.writer.markdown_writer import write_markdown
             from codeconcat.writer.ai_context import generate_ai_preamble
+            from codeconcat.writer.markdown_writer import write_markdown
 
             output_chunks = []
 

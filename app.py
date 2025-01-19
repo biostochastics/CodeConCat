@@ -1,7 +1,9 @@
+from typing import List, Optional
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
-from codeconcat import run_codeconcat_in_memory, CodeConCatConfig
+
+from codeconcat import CodeConCatConfig, run_codeconcat_in_memory
 
 app = FastAPI(
     title="CodeConCat API",

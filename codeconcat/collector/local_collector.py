@@ -3,11 +3,13 @@ import logging
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
 from pathlib import Path
-from codeconcat.base_types import CodeConCatConfig, ParsedFileData
+from typing import List
+
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
+
+from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 
 # Set up logging
 logger = logging.getLogger(__name__)

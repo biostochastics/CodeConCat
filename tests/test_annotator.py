@@ -1,7 +1,8 @@
 """Tests for the annotator module."""
 
 import pytest
-from codeconcat.base_types import CodeConCatConfig, ParsedFileData, Declaration
+
+from codeconcat.base_types import CodeConCatConfig, Declaration, ParsedFileData
 from codeconcat.transformer.annotator import annotate
 
 

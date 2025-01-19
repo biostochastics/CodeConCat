@@ -1,4 +1,5 @@
 import re
+
 from codeconcat.version import __version__
 
 

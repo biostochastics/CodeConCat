@@ -1,17 +1,18 @@
 """Tests for the content processor module."""
 
 import pytest
+
 from codeconcat.base_types import (
     CodeConCatConfig,
-    ParsedFileData,
-    TokenStats,
-    SecurityIssue,
     Declaration,
+    ParsedFileData,
+    SecurityIssue,
+    TokenStats,
 )
 from codeconcat.processor.content_processor import (
-    process_file_content,
-    generate_file_summary,
     generate_directory_structure,
+    generate_file_summary,
+    process_file_content,
 )
 
 

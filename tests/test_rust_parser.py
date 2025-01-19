@@ -1,6 +1,7 @@
 """Tests for Rust parser."""
 
 import pytest
+
 from codeconcat.parser.language_parsers.rust_parser import parse_rust
 
 

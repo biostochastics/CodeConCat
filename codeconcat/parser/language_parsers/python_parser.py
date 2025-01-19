@@ -1,7 +1,7 @@
 """Python code parser for CodeConcat."""
 
-import re
 import ast
+import re
 from typing import List, Optional
 
 from codeconcat.base_types import Declaration, ParsedFileData

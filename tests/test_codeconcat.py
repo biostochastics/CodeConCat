@@ -1,8 +1,10 @@
 import os
-import time
 import tempfile
-import pytest
+import time
 from unittest.mock import Mock, patch
+
+import pytest
+
 from codeconcat.base_types import (
     CodeConCatConfig,
     Declaration,
@@ -13,8 +15,8 @@ from codeconcat.base_types import (
 from codeconcat.collector.local_collector import collect_local_files, should_include_file
 from codeconcat.parser.file_parser import parse_code_files
 from codeconcat.parser.language_parsers.python_parser import parse_python
-from codeconcat.transformer.annotator import annotate
 from codeconcat.processor.security_processor import SecurityProcessor
+from codeconcat.transformer.annotator import annotate
 from codeconcat.writer.markdown_writer import write_markdown
 
 
@@ -277,6 +279,7 @@ def main():
 if __name__ == "__main__":
     # Run tests with coverage when executing the file directly
     import sys
+
     import pytest
 
     sys.exit(pytest.main(["-v", "--cov=codeconcat", __file__]))

@@ -1,6 +1,7 @@
 """Tests for PHP parser."""
 
 import pytest
+
 from codeconcat.parser.language_parsers.php_parser import parse_php
 
 

@@ -1,6 +1,7 @@
 """Tests for Java parser."""
 
 import pytest
+
 from codeconcat.parser.language_parsers.java_parser import parse_java
 
 

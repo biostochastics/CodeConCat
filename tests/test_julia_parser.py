@@ -1,6 +1,7 @@
 """Tests for Julia parser."""
 
 import pytest
+
 from codeconcat.parser.language_parsers.julia_parser import parse_julia
 
 

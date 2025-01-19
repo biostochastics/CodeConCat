@@ -1,6 +1,7 @@
+import os
 import random
 from typing import Dict, List
-import os
+
 import tiktoken
 from halo import Halo
 

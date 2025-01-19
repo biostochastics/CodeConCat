@@ -1,6 +1,7 @@
 """Tests for C++ code parser."""
 
 import unittest
+
 from codeconcat.parser.language_parsers.cpp_parser import CppParser
 
 
