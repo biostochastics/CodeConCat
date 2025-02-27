@@ -30,6 +30,10 @@
   - Added support for `.R`, `.Rs`, `.rs`, and `.RScript` extensions
   - Case-insensitive extension matching for R files
   - Auto-exclude `.Rcheck`, `.Rhistory`, and `.RData` files
+- 🔧 Improved test file handling:
+  - Better detection and display of test file content
+  - Clear indication when test files are empty
+  - Support for various test file naming patterns
 
 ### Changed
 - ♻️ Refactored GitHub collector:
@@ -42,7 +46,9 @@
   - Added comprehensive examples
 
 ### Fixed
+- 🐛 Fixed issue where test file content was not being displayed in output
 - 🐛 Fixed GitHub collector tests
+- 🔧 Improved test file handling to show full content while maintaining summaries
 - 🔧 Fixed file filtering in local collector
 - 📄 Fixed documentation formatting and links
 

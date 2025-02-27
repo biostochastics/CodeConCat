@@ -156,9 +156,8 @@ def write_markdown(
                 )
                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
 
-            # For test/config files, only show summary
-            # For implementation files, show full content
-            if not is_test_config and ann.content:
+            # For test/config files, show content as well
+            if ann.content:
                 spinner.text = "Processing file content"
                 processed_content = process_file_content(ann.content, config)
                 output_chunks.append(f"```{ann.language}\n{processed_content}\n```\n")

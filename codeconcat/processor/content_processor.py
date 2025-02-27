@@ -10,6 +10,15 @@ from .token_counter import count_tokens
 
 def process_file_content(content: str, config: CodeConCatConfig) -> str:
     """Process file content according to configuration options."""
+    # Don't return empty content for test files
+    if not content.strip() and (
+        "/tests/" in config.target_path or 
+        config.target_path.startswith("test_") or 
+        config.target_path.endswith("_test.R") or
+        config.target_path.endswith("_tests.R")
+    ):
+        return "# Empty test file"
+        
     lines = content.split("\n")
     processed_lines = []
 
