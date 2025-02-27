@@ -49,8 +49,6 @@ pip install -e ".[web]"
 pip install -e ".[all]"
 ```
 
-Note: CodeConCat will be available on PyPI soon. For now, please install from source as shown above.
-
 ### Command Line Interface (CLI)
 
 The CLI is the simplest way to use CodeConCat. Here are common usage patterns:

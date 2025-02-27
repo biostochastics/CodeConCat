@@ -34,6 +34,14 @@ DEFAULT_EXCLUDES = [
     "**/.git/**",  # Match contents of .git directory anywhere in tree
     ".gitignore",
     "**/.gitignore",
+    # R Specific
+    ".Rcheck/",
+    "**/.Rcheck/",
+    "**/.Rcheck/**",
+    ".Rhistory",
+    "**/.Rhistory",
+    ".RData",
+    "**/.RData",
     # OS and Editor Files
     ".DS_Store",
     "**/.DS_Store",
@@ -409,8 +417,13 @@ def ext_map(ext: str, config: CodeConCatConfig) -> str:
         "ts": "typescript",
         "tsx": "typescript",
         "mjs": "javascript",
-        # Other languages
+        # R
         "r": "r",
+        "R": "r",
+        "rs": "r",
+        "Rs": "r",
+        "RScript": "r",
+        # Other languages
         "jl": "julia",
         "cpp": "cpp",
         "hpp": "cpp",

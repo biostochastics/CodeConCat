@@ -26,34 +26,34 @@ class PythonParser(BaseParser):
         """Initialize Python parser with regex patterns."""
         super().__init__()
         # Allow any Unicode letter/number in identifiers
-        name_pattern = r'[^\W\d][\w]*(?:_[\w]*)*'  # Simplified pattern that works with all Unicode
+        name_pattern = r'[^\W\d][\w\u0080-\uffff_]*'  # Allow Unicode in identifiers
         self.patterns = {
             "class": re.compile(
-                r"^(?:@[\w.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
-                r"class\s+(?P<n>" + name_pattern + r")"  # Class name
+                r"^(?:@[\w\u0080-\uffff.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
+                r"class\s+(?P<n>[^\W\d][\w\u0080-\uffff_]*)"  # Class name
                 r"(?:\s*\([^)]*\))?"  # Optional parent class
                 r"\s*:",  # Class definition end
-                re.UNICODE
+                re.UNICODE | re.MULTILINE
             ),
             "function": re.compile(
-                r"^(?:@[\w.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
-                r"(?:async\s+)?def\s+(?P<n>" + name_pattern + r")"  # Function name
+                r"^(?:@[\w\u0080-\uffff.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
+                r"(?:async\s+)?def\s+(?P<n>[^\W\d][\w\u0080-\uffff_]*)"  # Function name
                 r"(?:\s*\([^)]*?\))?"  # Function parameters (non-greedy)
                 r"\s*(?:->[^:]+)?"  # Optional return type
                 r"\s*:",  # Function end
                 re.MULTILINE | re.DOTALL | re.VERBOSE | re.UNICODE
             ),
             "constant": re.compile(
-                r"^(?P<n>[A-Z][A-Z0-9_]*)\s*"  # Constant name
+                r"^(?P<n>[A-Z][A-Z0-9_\u0080-\uffff]*)\s*"  # Constant name
                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
                 r"\s*=\s*[^=]",  # Assignment but not comparison
-                re.UNICODE
+                re.UNICODE | re.MULTILINE
             ),
             "variable": re.compile(
-                r"^(?P<n>[a-z_][\w]*)\s*"  # Variable name
+                r"^(?P<n>[a-z_\u0080-\uffff][\w\u0080-\uffff_]*)\s*"  # Variable name
                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
                 r"\s*=\s*[^=]",  # Assignment but not comparison
-                re.UNICODE
+                re.UNICODE | re.MULTILINE
             ),
         }
         self.block_start = ":"

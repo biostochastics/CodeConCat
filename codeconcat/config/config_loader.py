@@ -21,7 +21,7 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
         "include_languages": cli_args.get("include_languages", []),
         "exclude_languages": cli_args.get("exclude_languages", []),
         "include_paths": cli_args.get("include", []),
-        "exclude_paths": cli_args.get("exclude", []),
+        "exclude_paths": [x for x in cli_args.get("exclude", []) if x],  # Filter out empty strings
         "extract_docs": cli_args.get("docs", False),
         "merge_docs": cli_args.get("merge_docs", False),
         "output": cli_args.get("output", "code_concat_output.md"),

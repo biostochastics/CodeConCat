@@ -1,13 +1,20 @@
+"""GitHub repository collector for CodeConcat."""
+
 import re
 import subprocess
 import tempfile
 from typing import List, Optional, Tuple
+import os
+import shutil
+import logging
 
 from github import Github, GithubException
 from github.Repository import Repository
 
-from ..base_types import CodeConCatConfig
+from ..base_types import CodeConCatConfig, ParsedFileData
 from .local_collector import collect_local_files
+
+logger = logging.getLogger(__name__)
 
 
 def parse_github_url(url: str) -> Tuple[str, str, Optional[str]]:
@@ -31,83 +38,90 @@ def parse_github_url(url: str) -> Tuple[str, str, Optional[str]]:
     )
 
 
-def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[str]:
+def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[ParsedFileData]:
+    """
+    Collect files from a GitHub repository.
+    
+    Args:
+        github_url: GitHub repository URL or shorthand (owner/repo)
+        config: Configuration object
+        
+    Returns:
+        List[ParsedFileData]: List of parsed file data objects
+    """
     owner, repo_name, url_ref = parse_github_url(github_url)
-
+    
     # Use explicit ref if provided, otherwise use ref from URL
-    target_ref = config.ref or url_ref or "main"
-
-    g = Github(config.github_token) if config.github_token else Github()
-    repo = _get_repo(g, repo_name)
-    if repo is None:
-        return []
-
-    try:
-        # Verify ref exists
-        repo.get_commit(target_ref)
-    except GithubException:
+    target_ref = config.github_ref or url_ref or "main"
+    
+    # Create a temporary directory for cloning
+    with tempfile.TemporaryDirectory() as temp_dir:
         try:
-            # Try as a branch/tag name
-            branches = [b.name for b in repo.get_branches()]
-            tags = [t.name for t in repo.get_tags()]
-            if target_ref not in branches and target_ref not in tags:
-                raise ValueError(
-                    f"Reference '{target_ref}' not found. Available branches: {branches}, "
-                    f"tags: {tags}"
-                )
-        except GithubException as e:
-            raise ValueError(f"Error accessing repository: {str(e)}")
+            # Build clone URL with token if available
+            clone_url = build_clone_url(github_url, config.github_token)
+            
+            # Clone the repository
+            subprocess.run(
+                ["git", "clone", "--depth", "1", "--branch", target_ref, clone_url, temp_dir],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            
+            # Create a new config with temp_dir as target_path
+            github_config = CodeConCatConfig(
+                target_path=temp_dir,
+                github_url=config.github_url,
+                github_token=config.github_token,
+                github_ref=config.github_ref,
+                include_languages=config.include_languages,
+                exclude_languages=config.exclude_languages,
+                include_paths=config.include_paths,
+                exclude_paths=config.exclude_paths,
+                extract_docs=config.extract_docs,
+                merge_docs=config.merge_docs,
+                doc_extensions=config.doc_extensions,
+                custom_extension_map=config.custom_extension_map,
+                output=config.output,
+                format=config.format,
+                max_workers=config.max_workers,
+                disable_tree=config.disable_tree,
+                disable_copy=config.disable_copy,
+                disable_annotations=config.disable_annotations,
+                disable_symbols=config.disable_symbols,
+                disable_ai_context=config.disable_ai_context,
+            )
+            
+            logger.info(f"Collecting files from {temp_dir} with config: {github_config}")
+            files = collect_local_files(temp_dir, github_config)
+            logger.info(f"Found {len(files)} files")
+            return files
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error cloning repository: {e.stderr}")
+            return []
+        except Exception as e:
+            logger.error(f"Error processing GitHub repository: {e}")
+            return []
 
-    contents = []
-    for content in repo.get_contents("", ref=target_ref):
-        if content.type == "file":
-            contents.append(content.decoded_content.decode("utf-8"))
-        elif content.type == "dir":
-            contents.extend(_collect_dir_contents(repo, content.path, target_ref))
 
-    return contents
+def build_clone_url(github_url: str, token: Optional[str] = None) -> str:
+    """Build GitHub clone URL with optional token."""
+    if "/" in github_url and not github_url.startswith("http"):
+        # Convert shorthand to full URL
+        owner, repo, _ = parse_github_url(github_url)
+        github_url = f"https://github.com/{owner}/{repo}"
+    
+    if token:
+        # Insert token into URL
+        return github_url.replace("https://", f"https://{token}@")
+    return github_url
 
 
 def _get_repo(g: Github, repo_name: str) -> Optional[Repository]:
+    """Get repository object, handling potential errors."""
     try:
-        repo = g.get_repo(repo_name)
-        return repo
-    except (ValueError, GithubException) as e:
-        print(f"Error getting repository {repo_name}: {str(e)}")
+        return g.get_repo(repo_name)
+    except GithubException as e:
+        logger.error(f"Error accessing repository: {e}")
         return None
-
-
-def _collect_dir_contents(repo: Repository, path: str, ref: str) -> List[str]:
-    """Recursively collect contents from a directory."""
-    contents = []
-    for content in repo.get_contents(path, ref=ref):
-        if content.type == "file":
-            contents.append(content.decoded_content.decode("utf-8"))
-        elif content.type == "dir":
-            contents.extend(_collect_dir_contents(repo, content.path, ref))
-    return contents
-
-
-def collect_github_files_legacy(github_url: str, config: CodeConCatConfig) -> List[str]:
-    temp_dir = tempfile.mkdtemp(prefix="codeconcat_github_")
-    try:
-        clone_url = build_clone_url(github_url, config.github_token)
-        print(f"[CodeConCat] Cloning from {clone_url} into {temp_dir}")
-        subprocess.run(["git", "clone", "--depth=1", clone_url, temp_dir], check=True)
-
-        file_paths = collect_local_files(temp_dir, config)
-        return file_paths
-
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Failed to clone GitHub repo: {e}") from e
-    finally:
-        # Optionally remove the temp directory
-        # shutil.rmtree(temp_dir, ignore_errors=True)
-        pass
-
-
-def build_clone_url(github_url: str, token: str) -> str:
-    if token and "https://" in github_url:
-        parts = github_url.split("https://", 1)
-        return f"https://{token}@{parts[1]}"
-    return github_url

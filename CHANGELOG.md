@@ -12,6 +12,40 @@
          live."             /
          ________________/
 
+## [0.6.2] - 2025-02-27
+
+### Added
+- 📝 Added comprehensive documentation:
+  - New `doc_workflows.md` guide for documentation features
+  - New `security_processor.md` guide for security scanning
+  - Enhanced inline documentation across codebase
+- 🔄 Unified return types across collectors:
+  - GitHub collector now returns `ParsedFileData` objects
+  - Consistent interface between local and GitHub collectors
+- ✅ Added GitHub collector tests:
+  - URL parsing and clone URL building
+  - File collection and error handling
+  - Integration with local collector
+- 🔍 Improved R language support:
+  - Added support for `.R`, `.Rs`, `.rs`, and `.RScript` extensions
+  - Case-insensitive extension matching for R files
+  - Auto-exclude `.Rcheck`, `.Rhistory`, and `.RData` files
+
+### Changed
+- ♻️ Refactored GitHub collector:
+  - Now uses temporary directory for cloning
+  - Reuses local collector for file processing
+  - Better error handling and logging
+- 📚 Reorganized documentation structure:
+  - Moved detailed guides to `docs/` directory
+  - Simplified main README for quick start
+  - Added comprehensive examples
+
+### Fixed
+- 🐛 Fixed GitHub collector tests
+- 🔧 Fixed file filtering in local collector
+- 📄 Fixed documentation formatting and links
+
 ## [0.6.1] - 2025-01-18
 
 ### Fixed
