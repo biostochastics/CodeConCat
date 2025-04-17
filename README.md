@@ -6,10 +6,6 @@
 
 > A simple code aggregator and documentation extractor optimized for AI comprehension and collaborative workflows
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/biostochastics/codeconcat/main/codeconcat/static/logo.png" alt="CodeConCat Logo" width="200">
-</p>
-
 ## Overview
 
 CodeConCat is your semi-intelligent companion for preparing codebases. It automatically ingests, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows. The tool provides structured output with smart context generation, making it ideal for sharing code with AI assistants and collaborators.
