@@ -2,7 +2,6 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.6.4-blue)
 
-
 <p align="center">
   <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="200"/>
 </p>
@@ -115,16 +114,23 @@ codeconcat --include "*.py" "*.js" --exclude "test_*" "*.pyc"
 
 ### CLI Configuration
 
-Create a `.codeconcat.yml` configuration file for persistent settings:
+**Configuration Precedence:**
+1. CLI arguments (highest priority)
+2. `.codeconcat.yml` file in project root (or `.codeconcat.yaml`)
+3. Hardcoded defaults (lowest priority)
+
+This precedence ensures that CLI arguments always override config file values, and config file values override built-in defaults. This behavior is now robust and correct (previous bug with CLI None overriding config is fixed).
+
+Create a `.codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)` configuration file for persistent settings:
 
 ```bash
 # Initialize default configuration
-codeconcat --init
+codeconcat --init  # creates a .codeconcat.yml template file
 ```
 
-Example configuration:
+Example configuration (YAML):
 ```yaml
-# .codeconcat.yml
+# .codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)
 format: markdown
 extract_docs: true
 include_patterns:
@@ -230,7 +236,7 @@ Access the auto-generated API documentation:
 
 ## Configuration
 
-Create a `.codeconcat.yml` in your project root or use `codeconcat --init`:
+Create a `.codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)` in your project root or use `codeconcat --init  # creates a .codeconcat.yml template file`:
 
 ```yaml
 # Documentation settings
@@ -287,8 +293,14 @@ custom_extension_map:
 
 ### Configuration Priority Order
 
+1. CLI arguments (highest)
+2. Local `.codeconcat.yml` (or `.codeconcat.yaml`)
+3. Hardcoded defaults (lowest)
+
+This merging order is now robust and correct.
+
 1. Command line arguments (highest priority)
-2. Local `.codeconcat.yml` file
+2. Local `.codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)` file
 3. Default settings (lowest priority)
 
 ## Output Formats
@@ -380,8 +392,8 @@ project/
 | `--no-symbols` | `false` | Disable symbol extraction |
 | `--debug` | `false` | Enable detailed logging |
 | `--log-level` | `WARNING` | Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
-| `--init` | `false` | Initialize default configuration file |
-| `--show-config` | `false` | Display the final merged configuration and exit |
+| `--init` | `false` | Initialize a default `.codeconcat.yml` configuration file from template |
+| `--show-config` | `false` | Display the final merged configuration (after applying precedence) and exit |
 | `--sort-files` | `false` | Sort files alphabetically by path in the output |
 | `--split-output` | `1` | Split the output into X approximately equal files (requires X > 1, Markdown only) |
 | `--remove-docstrings` | `false` | Remove docstrings from the code content in the output |
@@ -481,7 +493,7 @@ The test suite includes:
 3. **Integration**:
    - Use programmatic API for tight integration
    - Use web API for loose coupling
-   - Consider using configuration files for consistency
+   - Consider using a `.codeconcat.yml` (or `.codeconcat.yaml`) configuration file for consistency and reproducibility
 
 4. **Error Handling**:
    - Always implement proper error handling
