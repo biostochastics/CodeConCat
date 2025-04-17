@@ -1,4 +1,4 @@
-# CodeConCat: Your LLM's Code Concierge 🦜
+# CodeConCat
 
 <p align="center">
   <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="200"/>
