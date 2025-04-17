@@ -3,12 +3,20 @@ from typing import List, Optional
 
 from codeconcat.base_types import Declaration, ParsedFileData
 from codeconcat.parser.language_parsers.base_parser import BaseParser
+from codeconcat.errors import LanguageParserError
 
-
-def parse_rust(file_path: str, content: str) -> Optional[ParsedFileData]:
+def parse_rust(file_path: str, content: str) -> ParsedFileData:
     """Parse Rust code and return declarations."""
     parser = RustParser()
-    declarations = parser.parse(content)
+    try:
+        declarations = parser.parse(content)
+    except Exception as e:
+        # Wrap internal parser errors in LanguageParserError
+        raise LanguageParserError(
+            message=f"Failed to parse Rust file: {e}",
+            file_path=file_path,
+            original_exception=e
+        )
     return ParsedFileData(
         file_path=file_path, language="rust", content=content, declarations=declarations
     )

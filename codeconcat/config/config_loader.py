@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict
 
 import yaml
+from pydantic import ValidationError
 
 from codeconcat.base_types import CodeConCatConfig
 
@@ -51,13 +52,14 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
 
     try:
         return CodeConCatConfig(**merged)
-    except TypeError as e:
-        logging.error(f"Failed to create config: {e}")
-        logging.error(
-            f"Available fields in CodeConCatConfig: {CodeConCatConfig.__dataclass_fields__.keys()}"
-        )
-        logging.error(f"Attempted fields: {merged.keys()}")
-        raise
+    except ValidationError as e:
+        # Provide more detailed Pydantic error messages
+        logging.error(f"Configuration validation failed:")
+        # Use e.errors() for structured details or str(e) for a formatted summary
+        logging.error(str(e))  # Log the formatted error message from Pydantic
+        # Optionally log raw data for debugging:
+        # logging.error(f"Attempted configuration data: {merged}")
+        raise  # Re-raise the exception
 
 
 def read_config_file(path: str) -> Dict[str, Any]:

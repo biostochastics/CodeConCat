@@ -2,6 +2,8 @@ import argparse
 import logging
 import os
 import sys
+import importlib.resources # Import importlib.resources
+from typing import Any, Dict, List, Optional
 
 from codeconcat.base_types import (
     AnnotatedFileData,
@@ -16,6 +18,7 @@ from codeconcat.transformer.annotator import annotate
 from codeconcat.writer.json_writer import write_json
 from codeconcat.writer.markdown_writer import write_markdown
 from codeconcat.writer.xml_writer import write_xml
+from .version import __version__  # Import version
 
 # Set up root logger
 logger = logging.getLogger("codeconcat")
@@ -50,79 +53,195 @@ def cli_entry_point():
     parser = argparse.ArgumentParser(
         prog="codeconcat",
         description="CodeConCat - An LLM-friendly code aggregator and doc extractor.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter # Improved help format
     )
 
-    parser.add_argument("target_path", nargs="?", default=".")
-    parser.add_argument(
-        "--github", help="GitHub URL or shorthand (e.g., 'owner/repo')", default=None
-    )
-    parser.add_argument(
-        "--github-token", help="GitHub personal access token", default=None
-    )
-    parser.add_argument(
-        "--ref", help="Branch, tag, or commit hash for GitHub repo", default=None
-    )
+    # --- Argument Groups ---
+    input_group = parser.add_argument_group('Input Source')
+    filter_group = parser.add_argument_group('Filtering Options')
+    output_group = parser.add_argument_group('Output Options')
+    feature_group = parser.add_argument_group('Feature Toggles')
+    processing_group = parser.add_argument_group('Processing Control')
+    misc_group = parser.add_argument_group('Miscellaneous')
+    # ----------------------
 
-    parser.add_argument("--docs", action="store_true", help="Enable doc extraction")
+    # --- Version Flag (#35) ---
     parser.add_argument(
-        "--merge-docs", action="store_true", help="Merge doc content with code output"
+        '--version',
+        action='version',
+        version=f'%(prog)s {__version__}'
     )
+    # -------------------------
 
-    parser.add_argument(
-        "--output", default="code_concat_output.md", help="Output file name"
+    # --- Input Source Group ---
+    input_group.add_argument(
+        "target_path",
+        nargs="?",
+        default=".",
+        help="Local directory path to process."
     )
-    parser.add_argument(
-        "--format",
-        choices=["markdown", "json", "xml"],
-        default="markdown",
-        help="Output format",
+    input_group.add_argument(
+        "--github",
+        help="GitHub URL or shorthand (e.g., 'owner/repo') to process instead of local path.",
+        default=None
     )
+    input_group.add_argument(
+        "--github-token",
+        help="GitHub personal access token (required for private repos).",
+        default=None
+    )
+    input_group.add_argument(
+        "--ref",
+        help="Branch, tag, or commit hash for GitHub repo.",
+        default=None
+    )
+    # --------------------------
 
-    parser.add_argument(
-        "--include", nargs="*", default=[], help="Glob patterns to include"
+    # --- Filtering Group ---
+    filter_group.add_argument(
+        "--include",
+        nargs="*",
+        default=[],
+        help="Glob patterns for files/directories to include explicitly."
     )
-    parser.add_argument(
-        "--exclude", nargs="*", default=[], help="Glob patterns to exclude"
+    filter_group.add_argument(
+        "--exclude",
+        nargs="*",
+        default=[],
+        help="Glob patterns for files/directories to exclude."
     )
-    parser.add_argument(
+    filter_group.add_argument(
         "--include-languages",
         nargs="*",
         default=[],
-        help="Only include these languages",
+        help="Only include files matching these languages (e.g., 'python', 'javascript')."
     )
-    parser.add_argument(
-        "--exclude-languages", nargs="*", default=[], help="Exclude these languages"
+    filter_group.add_argument(
+        "--exclude-languages",
+        nargs="*",
+        default=[],
+        help="Exclude files matching these languages."
     )
+    # ----------------------
 
-    parser.add_argument(
-        "--max-workers", type=int, default=4, help="Number of worker threads"
+    # --- Output Options Group ---
+    output_group.add_argument(
+        "-o", "--output",
+        default=None,
+        help="Output file path. Default: code_concat_output.<format>"
     )
-    parser.add_argument(
-        "--init", action="store_true", help="Initialize default configuration file"
+    output_group.add_argument(
+        "--format",
+        default=None, choices=["markdown", "json", "xml"],
+        help="Output format. Default: markdown"
     )
+    output_group.add_argument(
+        "--sort-files",
+        action="store_true",
+        help="Sort files alphabetically by path in the output."
+    )
+    output_group.add_argument(
+        "--split-output",
+        type=int,
+        default=1,
+        metavar="X",
+        help="Split the output into X approximately equal files (requires X > 1)."
+    )
+    # ------------------------------
 
-    parser.add_argument(
+    # --- Feature Toggles Group ---
+    feature_group.add_argument(
+        "--docs",
+        action="store_true",
+        help="Enable extraction and inclusion of separate documentation files."
+    )
+    feature_group.add_argument(
+        "--merge-docs",
+        action="store_true",
+        help="Merge documentation content directly into the main code output file."
+    )
+    feature_group.add_argument(
         "--no-tree",
         action="store_true",
-        help="Disable folder tree generation (enabled by default)",
+        help="Disable generation of the folder tree structure in the output."
     )
-    parser.add_argument(
-        "--no-copy",
+    feature_group.add_argument(
+        "--no-ai-context",
         action="store_true",
-        help="Disable copying output to clipboard (enabled by default)",
+        help="Disable the AI-friendly preamble/context generation at the start of the output."
     )
-    parser.add_argument(
-        "--no-ai-context", action="store_true", help="Disable AI context generation"
+    feature_group.add_argument(
+        "--no-annotations",
+        action="store_true",
+        help="Disable processing and inclusion of code annotations."
     )
-    parser.add_argument(
-        "--no-annotations", action="store_true", help="Disable code annotations"
+    feature_group.add_argument(
+        "--no-symbols",
+        action="store_true",
+        help="Disable extraction and listing of code symbols (functions, classes)."
     )
-    parser.add_argument(
-        "--no-symbols", action="store_true", help="Disable symbol extraction"
+    feature_group.add_argument(
+        "--remove-docstrings",
+        action="store_true",
+        help="Remove docstrings from the code content in the output."
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    # --------------------------
+
+    # --- Processing Control Group ---
+    processing_group.add_argument(
+        "--max-workers",
+        type=int,
+        default=4,
+        help="Maximum number of worker threads for parallel processing."
+    )
+    # ------------------------------
+
+    # --- Miscellaneous Group ---
+    misc_group.add_argument(
+        "--init",
+        action="store_true",
+        help="Initialize a default '.codeconcat.yml' configuration file in the current directory."
+    )
+    misc_group.add_argument(
+        "--show-config", # Added flag (#27)
+        action="store_true",
+        help="Display the final merged configuration and exit."
+    )
+    misc_group.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug logging."
+    )
+    # --------------------------
 
     args = parser.parse_args()
+
+    # Setup logging based on debug flag BEFORE any potential config loading for show-config
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(level=log_level, format='[%(levelname)s] %(message)s')
+    logger.setLevel(log_level)
+
+    # Handle initialization request
+    if args.init:
+        create_default_config()
+        logger.info("Created default configuration file: .codeconcat.yml")
+        sys.exit(0)
+
+    # Handle --show-config request (#27)
+    if args.show_config:
+        try:
+            cli_args_dict = {k: v for k, v in vars(args).items() if v is not None} # Filter out None values
+            logger.info("Loading configuration to display...")
+            # Pass only non-None CLI args to avoid overriding defaults unnecessarily
+            final_config = load_config(cli_args_dict)
+            print("--- Final Merged Configuration ---")
+            # Pydantic models have a good default string representation
+            print(final_config)
+            print("----------------------------------")
+            sys.exit(0)
+        except Exception as e:
+            logger.error(f"Error loading configuration for display: {e}")
+            sys.exit(1)
 
     # Configure logging based on debug flag
     if args.debug:
@@ -144,101 +263,115 @@ def cli_entry_point():
 
     logger.debug("Debug logging enabled")
 
-    # Handle initialization request
-    if args.init:
-        create_default_config()
-        print("[CodeConCat] Created default configuration file: .codeconcat.yml")
-        sys.exit(0)
-
     # Load config, with CLI args taking precedence
     cli_args = vars(args)
     logging.debug("CLI args: %s", cli_args)  # Debug print
     config = load_config(cli_args)
 
     try:
-        run_codeconcat(config)
-    except Exception as e:
+        # Generate the full output string
+        full_output_content = run_codeconcat(config)
+
+        # Determine final output base path
+        output_base_path = config.output
+        if output_base_path is None:
+             # Construct default if not provided via CLI or config file
+             output_base_path = f"code_concat_output.{config.format}"
+
+        num_splits = config.split_output
+        output_format = config.format
+
+        # --- Write output to file(s) --- #
+        files_written_paths = []
+        can_split = num_splits > 1 and output_format == 'markdown'
+
+        if num_splits > 1 and not can_split:
+            logger.warning(f"Output splitting requested but only supported for Markdown. Writing to single file: {output_base_path}")
+
+        if not can_split:
+            # Write to a single file
+            try:
+                with open(output_base_path, "w", encoding="utf-8") as f:
+                    f.write(full_output_content)
+                logger.info(f"Output successfully written to {output_base_path}")
+                files_written_paths.append(output_base_path)
+            except IOError as e:
+                logger.error(f"Failed to write output to {output_base_path}: {e}")
+                sys.exit(1)
+        else:
+            # Split Markdown content and write to multiple files
+            logger.info(f"Splitting Markdown output into {num_splits} files...")
+            lines = full_output_content.splitlines(keepends=True)
+            total_lines = len(lines)
+            lines_per_file = (total_lines + num_splits - 1) // num_splits # Ceiling division
+
+            base, ext = os.path.splitext(output_base_path)
+
+            for i in range(num_splits):
+                start_index = i * lines_per_file
+                end_index = min((i + 1) * lines_per_file, total_lines)
+                if start_index >= total_lines: break # Avoid empty files
+
+                chunk_content = "".join(lines[start_index:end_index])
+                split_filename = f"{base}_part_{i+1}{ext}"
+
+                try:
+                    with open(split_filename, "w", encoding="utf-8") as f:
+                        f.write(chunk_content)
+                    files_written_paths.append(split_filename)
+                except IOError as e:
+                    logger.error(f"Failed to write output chunk to {split_filename}: {e}")
+                    sys.exit(1)
+
+            logger.info(f"Output successfully split and written to: {', '.join(files_written_paths)}")
+
+        # --- Handle clipboard copy (after successful write) --- #
+        if files_written_paths and not config.disable_copy:
+             if not can_split: # Only copy if output is single file
+                try:
+                    import pyperclip
+                    pyperclip.copy(full_output_content)
+                    logger.info("Output copied to clipboard.")
+                except ImportError:
+                    logger.warning("pyperclip not installed, skipping clipboard copy.")
+                except Exception as e:
+                    logger.warning(f"Failed to copy to clipboard: {e}")
+             else:
+                logger.info("Clipboard copy skipped as output was split into multiple files.")
+
+    except CodeConcatError as e:
+        # Log known operational errors
+        logger.error(f"Operation failed: {e}")
         print(f"[CodeConCat] Error: {str(e)}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        # Log unexpected errors
+        logger.critical(f"An unexpected error occurred: {e}", exc_info=True)
+        print(f"[CodeConCat] Unexpected Error: {str(e)}", file=sys.stderr)
         sys.exit(1)
 
 
 def create_default_config():
-    """Create a default .codeconcat.yml configuration file."""
-    if os.path.exists(".codeconcat.yml"):
-        print("Configuration file already exists. Remove it first to create a new one.")
+    """Create a default .codeconcat.yml configuration file from the template."""
+    target_path = ".codeconcat.yml"
+    if os.path.exists(target_path):
+        logger.warning(f"Configuration file '{target_path}' already exists. Remove it first to create a new one.")
         return
 
-    config_content = """# CodeConCat Configuration
+    try:
+        # Read the content from the template file within the package
+        template_content = importlib.resources.read_text('codeconcat.config', 'default_config.template.yml')
 
-# Path filtering
-include_paths:
-  # Add glob patterns to include specific files/directories
-  # Example: - "src/**/*.py"
+        with open(target_path, "w") as f:
+            f.write(template_content)
 
-exclude_paths:
-  # Configuration Files
-  - "**/*.{yml,yaml}"
-  - "**/.codeconcat.yml"
-  - "**/.github/*.{yml,yaml}"
+        # Use logger instead of print
+        logger.info(f"Created default configuration file: {target_path}")
 
-  # Test files
-  - "**/tests/**"
-  - "**/test_*.py"
-  - "**/*_test.py"
-
-  # Build and cache files
-  - "**/build/**"
-  - "**/dist/**"
-  - "**/__pycache__/**"
-  - "**/*.{pyc,pyo,pyd}"
-  - "**/.pytest_cache/**"
-  - "**/.coverage"
-  - "**/htmlcov/**"
-
-  # Documentation files
-  - "**/*.{md,rst,txt}"
-  - "**/LICENSE*"
-  - "**/README*"
-
-# Language filtering
-include_languages:
-  # Add languages to include
-  # Example: - python
-
-exclude_languages:
-  # Add languages to exclude
-  # Example: - javascript
-
-# Output options
-output: code_concat_output.md
-format: markdown  # or json, xml
-
-# Feature toggles
-extract_docs: false
-merge_docs: false
-disable_tree: false
-disable_copy: false
-disable_annotations: false
-disable_symbols: false
-
-# Display options
-include_file_summary: true
-include_directory_structure: true
-remove_comments: true
-remove_empty_lines: true
-show_line_numbers: true
-
-# Advanced options
-max_workers: 4
-custom_extension_map:
-  # Map file extensions to languages
-  # Example: .jsx: javascript
-"""
-
-    with open(".codeconcat.yml", "w") as f:
-        f.write(config_content)
-
-    print("[CodeConCat] Created default configuration file: .codeconcat.yml")
+    except FileNotFoundError:
+        logger.error("Default configuration template not found within the package.")
+    except Exception as e:
+        logger.error(f"Failed to create default configuration file: {e}")
 
 
 def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
@@ -280,8 +413,8 @@ def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
     return "\n".join(lines)
 
 
-def run_codeconcat(config: CodeConCatConfig):
-    """Main execution function for CodeConCat."""
+def run_codeconcat(config: CodeConCatConfig) -> str:
+    """Main execution function for CodeConCat. Returns the generated output string."""
     try:
         # Validate configuration
         if not config.target_path:
@@ -362,6 +495,12 @@ def run_codeconcat(config: CodeConCatConfig):
         except Exception as e:
             raise FileProcessingError(f"Error during annotation: {str(e)}")
 
+        # Sort files alphabetically if requested (#31)
+        if config.sort_files:
+            logger.info("Sorting files alphabetically by path...")
+            annotated_files.sort(key=lambda f: f.file_path)
+            logger.debug("Files sorted.")
+
         # Write output in requested format
         try:
             if config.format == "markdown":
@@ -378,19 +517,8 @@ def run_codeconcat(config: CodeConCatConfig):
         except Exception as e:
             raise OutputError(f"Error generating {config.format} output: {str(e)}")
 
-        # Copy to clipboard if enabled
-        if not config.disable_copy:
-            try:
-                import pyperclip
-
-                pyperclip.copy(output)
-                print("[CodeConCat] Output copied to clipboard")
-            except ImportError:
-                print(
-                    "[CodeConCat] Warning: pyperclip not installed, skipping clipboard copy"
-                )
-            except Exception as e:
-                print(f"[CodeConCat] Warning: Failed to copy to clipboard: {str(e)}")
+        # Return the generated output string
+        return output
 
     except CodeConcatError as e:
         print(f"[CodeConCat] Error: {str(e)}")

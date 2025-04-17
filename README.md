@@ -1,43 +1,39 @@
-# 🐱 CodeConCat
+# CodeConCat: Your LLM's Code Concierge 🦜
 
-🚀 A simple code aggregator and documentation extractor 
+<p align="center">
+  <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="200"/>
+</p>
 
-CodeConCat is your semi-intelligent companion for preparing codebases. It automatically ingests/collects, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows.
+> A simple code aggregator and documentation extractor optimized for AI comprehension and collaborative workflows
 
-## ✨ Features
+<p align="center">
+  <img src="https://raw.githubusercontent.com/biostochastics/codeconcat/main/codeconcat/static/logo.png" alt="CodeConCat Logo" width="200">
+</p>
 
-- 🤖 **AI-Optimized Output**: Structured content with smart context generation
-- 📁 **Smart File Collection**: Intelligent filtering and organization of your codebase
-- 📝 **Documentation Extraction**: Automatically extract and process documentation
-- 🌳 **Directory Tree**: Visual representation of your project structure
-- 🔄 **Multiple Formats**: Output in Markdown, JSON, or XML
-- 🔍 **Language Detection**: Automatic language detection and syntax highlighting
-- 📋 **Clipboard Integration**: One-click copy to clipboard
-- 🔢 **Token Counting**: Accurate GPT-4 token counting for all processed content
-- ⏳ **Progress Tracking**: Real-time progress indication during processing
-- 🌐 **Multi-Language Support**: Minimal (!) regex-based parsing for (note that this is not an AST-based parser, and currently most tested in Python, R, and TS/JS):
-  - Python: Classes, functions, decorators, imports
-  - JavaScript/TypeScript: Classes, functions, interfaces, types, decorators
-  - Java: Classes, interfaces, enums, methods, annotations
-  - Go: Packages, interfaces, structs, functions
-  - PHP: Classes, interfaces, traits, methods
-  - Ruby: Classes, modules, methods
-  - R: Functions, S3/S4 classes, packages
-  - Julia: Functions, structs, types, modules
-  - Rust: Traits, impls, structs, enums
-  - C/C++: Classes, functions, structs, namespaces
-  - C#: Classes, interfaces, methods, properties
-- 🔌 **Programmatic API**: Use CodeConCat directly in your Python code; you are welcome
-- 🌐 **Web API**: Built-in FastAPI web server for HTTP access if for some reason you need it
+## Overview
 
-## 📖 Usage Guide
+CodeConCat is your semi-intelligent companion for preparing codebases. It automatically ingests, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows. The tool provides structured output with smart context generation, making it ideal for sharing code with AI assistants and collaborators.
 
-### Installation Options
+```python
+from codeconcat import run_codeconcat_in_memory, CodeConCatConfig
+
+# Process a codebase and get the output as a string
+config = CodeConCatConfig(
+    target_path="path/to/code",
+    format="markdown"
+)
+output = run_codeconcat_in_memory(config)
+```
+
+## Installation
 
 ```bash
 # Clone the repository
 git clone https://github.com/biostochastics/codeconcat.git
 cd codeconcat
+
+# Install dependencies
+pip install -r requirements.txt
 
 # Basic installation
 pip install -e .
@@ -49,9 +45,27 @@ pip install -e ".[web]"
 pip install -e ".[all]"
 ```
 
+## Features
+
+- **AI-Optimized Output**: Structured content with smart context generation
+- **Smart File Collection**: Intelligent filtering and organization of your codebase
+- **Documentation Extraction**: Automatically extract and process documentation
+- **Directory Tree**: Visual representation of your project structure
+- **Multiple Formats**: Output in Markdown, JSON, or XML
+- **Language Detection**: Automatic language detection and syntax highlighting
+- **Clipboard Integration**: One-click copy to clipboard
+- **Token Counting**: Accurate GPT-4 token counting for all processed content
+- **Progress Tracking**: Real-time progress indication during processing
+- **Multi-Language Support**: Regex-based parsing for multiple languages:
+  - Python, JavaScript/TypeScript, Java, Go, PHP, Ruby, R, Julia, Rust, C/C++, C#
+- **Programmatic API**: Use CodeConCat directly in your Python code
+- **Web API**: Built-in FastAPI web server for HTTP access
+
+## Usage
+
 ### Command Line Interface (CLI)
 
-The CLI is the simplest way to use CodeConCat. Here are common usage patterns:
+The CLI is the simplest way to use CodeConCat:
 
 ```bash
 # Process current directory with default settings
@@ -73,7 +87,7 @@ codeconcat --github username/repo --github-token YOUR_TOKEN
 codeconcat --include "*.py" "*.js" --exclude "test_*" "*.pyc"
 ```
 
-#### CLI Configuration
+### CLI Configuration
 
 Create a `.codeconcat.yml` configuration file for persistent settings:
 
@@ -99,7 +113,7 @@ disable_annotations: false
 
 ### Programmatic API
 
-For direct integration with Python code, use the programmatic API:
+For direct integration with Python code:
 
 ```python
 from codeconcat import run_codeconcat_in_memory, CodeConCatConfig
@@ -125,10 +139,6 @@ config = CodeConCatConfig(
     github_token=None,  # Optional: GitHub authentication
     ref=None  # Optional: GitHub branch/tag/commit
 )
-
-# Process and use the output
-output = run_codeconcat_in_memory(config)
-print(output)  # Or save to file, send to API, etc.
 
 # Error handling
 try:
@@ -191,51 +201,7 @@ Access the auto-generated API documentation:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-### Output Formats
-
-CodeConCat supports three output formats:
-
-1. **Markdown** (default):
-   - Human-readable format
-   - Syntax highlighting
-   - Directory tree visualization
-   - Documentation integration
-
-2. **JSON**:
-   - Machine-readable format
-   - Structured data for programmatic use
-   - Includes metadata and statistics
-   - Suitable for API responses
-
-3. **XML**:
-   - Traditional structured format
-   - Compatible with XML tools
-   - Includes all code metadata
-   - Good for legacy system integration
-
-### Best Practices
-
-1. **Performance**:
-   - Start with small directories to test configuration
-   - Use include/exclude patterns to limit file processing
-   - Disable tree or annotations if not needed
-
-2. **Security**:
-   - Keep GitHub tokens secure
-   - Review code before processing
-   - Check security scan results
-
-3. **Integration**:
-   - Use programmatic API for tight integration
-   - Use web API for loose coupling
-   - Consider using configuration files for consistency
-
-4. **Error Handling**:
-   - Always implement proper error handling
-   - Check return values and status codes
-   - Log errors appropriately
-
-## ⚙️ Configuration
+## Configuration
 
 Create a `.codeconcat.yml` in your project root or use `codeconcat --init`:
 
@@ -298,7 +264,7 @@ custom_extension_map:
 2. Local `.codeconcat.yml` file
 3. Default settings (lowest priority)
 
-## 🎨 Output Formats
+## Output Formats
 
 ### Markdown (Default)
 - Clean, readable format
@@ -316,28 +282,26 @@ custom_extension_map:
 - Compatible with XML tools
 - Detailed metadata
 
-## 📊 Code Summaries
-
-### Output Summaries
+## Code Summaries
 
 CodeConcat generates comprehensive summaries of your codebase:
 
-1. **File Statistics**
-   - File name and language
-   - Number of lines
-   - Number and types of declarations
-   - Line ranges for each declaration
+### File Statistics
+- File name and language
+- Number of lines
+- Number and types of declarations
+- Line ranges for each declaration
 
-2. **Directory Structure**
-   - Tree view of project layout
-   - Hierarchical file organization
-   - File grouping by type/module
+### Directory Structure
+- Tree view of project layout
+- Hierarchical file organization
+- File grouping by type/module
 
-3. **Code Declarations**
-   - Functions and classes with line numbers
-   - Methods and properties
-   - Imports and dependencies
-   - Language-specific constructs (e.g., interfaces, traits)
+### Code Declarations
+- Functions and classes with line numbers
+- Methods and properties
+- Imports and dependencies
+- Language-specific constructs (e.g., interfaces, traits)
 
 Example output:
 ```
@@ -362,41 +326,9 @@ project/
     └── test_parser.py
 ```
 
-## 🧪 Testing
+## Advanced Usage
 
-CodeConCat includes a comprehensive test suite covering unit tests, integration tests, and performance tests. To run the tests:
-
-```bash
-# Install test dependencies
-pip install -e ".[test]"
-
-# Run tests with coverage report
-pytest tests/ -v --cov=codeconcat
-
-# Or run directly using the test file
-python tests/test_codeconcat.py
-```
-
-The test suite includes:
-- Unit tests for parsers and processors
-- Integration tests for end-to-end workflows
-- Performance tests for concurrent processing
-- Edge case tests for special characters and large files
-- Security tests for sensitive data detection
-
-## 🤝 Contributing
-
-We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-
-
-## 📊 Advanced Usage
-
-### 🎯 Command Line Options
+### Command Line Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -450,22 +382,6 @@ codeconcat --github username/repo --ref v1.0.0
 
 ### File Filtering
 
-```bash
-# Include specific patterns
-codeconcat --include "**/*.{py,js,ts,java,go,php}"
-
-# Exclude patterns
-codeconcat --exclude "**/tests/**" "**/build/**"
-
-# Filter by language
-codeconcat --include-languages python javascript java
-
-# Combine filters
-codeconcat --include "**/*.py" --exclude "**/tests/**" --include-languages python
-```
-
-### File Filtering
-
 CodeConCat provides multiple ways to control which files are processed:
 
 1. **.gitignore Support**
@@ -494,7 +410,63 @@ Priority order for file filtering:
 3. Configuration file
 4. Default settings
 
+## Testing
 
-<b align="center">
-  Made with ❤️ by Sergey Kornilov for Biostochastics, LLC
-</b>
+CodeConCat includes a comprehensive test suite:
+
+```bash
+# Install test dependencies
+pip install -e ".[test]"
+
+# Run tests with coverage report
+pytest tests/ -v --cov=codeconcat
+
+# Or run directly using the test file
+python tests/test_codeconcat.py
+```
+
+The test suite includes:
+- Unit tests for parsers and processors
+- Integration tests for end-to-end workflows
+- Performance tests for concurrent processing
+- Edge case tests for special characters and large files
+- Security tests for sensitive data detection
+
+## Best Practices
+
+1. **Performance**:
+   - Start with small directories to test configuration
+   - Use include/exclude patterns to limit file processing
+   - Disable tree or annotations if not needed
+
+2. **Security**:
+   - Keep GitHub tokens secure
+   - Review code before processing
+   - Check security scan results
+
+3. **Integration**:
+   - Use programmatic API for tight integration
+   - Use web API for loose coupling
+   - Consider using configuration files for consistency
+
+4. **Error Handling**:
+   - Always implement proper error handling
+   - Check return values and status codes
+   - Parsing errors within individual files are now captured as `LanguageParserError` instances and collected, allowing the overall process to continue for other files.
+   - Log errors appropriately
+
+## Contributing
+
+We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+GitHub Issues: [https://github.com/biostochastics/codeconcat/issues](https://github.com/biostochastics/codeconcat/issues)
+
+---
+
+*Part of the [Biostochastics](https://github.com/biostochastics) collection of tools for translational science and biomarker discovery*

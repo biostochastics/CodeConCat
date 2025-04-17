@@ -59,10 +59,12 @@ def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[Pars
         try:
             # Build clone URL with token if available
             clone_url = build_clone_url(github_url, config.github_token)
-            
-            # Clone the repository
+             
+             # Clone the repository
+            clone_command = ["git", "clone", "--depth", "1", "--branch", target_ref, clone_url, temp_dir]
+            logger.info(f"Running git clone command: {' '.join(clone_command)}") # Log the command
             subprocess.run(
-                ["git", "clone", "--depth", "1", "--branch", target_ref, clone_url, temp_dir],
+                clone_command,
                 check=True,
                 capture_output=True,
                 text=True,
@@ -98,7 +100,11 @@ def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[Pars
             return files
             
         except subprocess.CalledProcessError as e:
-            logger.error(f"Error cloning repository: {e.stderr}")
+            # Log more details on error
+            logger.error(f"Error cloning repository '{repo_name}' (Return code: {e.returncode}).")
+            logger.error(f"Command run: {' '.join(e.cmd)}")
+            logger.error(f"Stderr: {e.stderr.strip()}")
+            logger.error(f"Stdout: {e.stdout.strip()}")
             return []
         except Exception as e:
             logger.error(f"Error processing GitHub repository: {e}")

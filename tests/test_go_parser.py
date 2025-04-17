@@ -3,6 +3,7 @@
 import pytest
 
 from codeconcat.parser.language_parsers.go_parser import parse_go
+from codeconcat.errors import LanguageParserError
 
 
 def test_parse_go_function():
@@ -133,6 +134,5 @@ def test_parse_go_invalid():
     code = """
 this is not valid go code
 """
-    result = parse_go("test.go", code)
-    assert result is not None
-    assert len(result.declarations) == 0
+    with pytest.raises(LanguageParserError):
+        parse_go("test.go", code)

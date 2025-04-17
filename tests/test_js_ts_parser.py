@@ -1,6 +1,7 @@
 import pytest
 
 from codeconcat.parser.language_parsers.js_ts_parser import parse_javascript_or_typescript
+from codeconcat.errors import LanguageParserError
 
 
 def test_basic_class():
@@ -228,3 +229,10 @@ def test_no_symbols():
 """
     parsed = parse_javascript_or_typescript("empty.js", content, language="javascript")
     assert len(parsed.declarations) == 0
+
+
+def test_invalid_syntax_raises_error():
+    """Test that parsing invalid JS/TS code raises LanguageParserError."""
+    invalid_code = "function invalid( {};"  # Example invalid syntax
+    with pytest.raises(LanguageParserError):
+        parse_javascript_or_typescript("invalid.js", invalid_code, language="javascript")

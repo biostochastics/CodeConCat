@@ -3,20 +3,29 @@
 import re
 from typing import List, Optional
 
+from codeconcat.errors import LanguageParserError
 from codeconcat.base_types import ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol, Declaration
 
 
-def parse_cpp_code(file_path: str, content: str) -> Optional[ParseResult]:
+def parse_cpp_code(file_path: str, content: str) -> ParseResult:
     parser = CppParser()
-    declarations = parser.parse(content)
+    try:
+        declarations = parser.parse(content)
+    except Exception as e:
+        # Wrap internal parser errors in LanguageParserError
+        raise LanguageParserError(
+            message=f"Failed to parse C++ file: {e}",
+            file_path=file_path,
+            original_exception=e
+        )
     return ParseResult(
         file_path=file_path, language="cpp", content=content, declarations=declarations
     )
 
 
 # For backward compatibility
-def parse_cpp(file_path: str, content: str) -> Optional[ParseResult]:
+def parse_cpp(file_path: str, content: str) -> ParseResult:
     return parse_cpp_code(file_path, content)
 
 
@@ -145,7 +154,6 @@ class CppParser(BaseParser):
         """
         Find the end of a block that starts at 'start' if there's an unmatched '{'.
         We'll count braces until balanced or until we run out of lines.
-        We'll skip lines that start with '#' as they are preprocessor directives (not code).
         """
         # Check if there's a brace in the start line
         line = lines[start]
@@ -165,10 +173,6 @@ class CppParser(BaseParser):
         n = len(lines)
         for i in range(start + 1, n):
             l = lines[i]
-
-            # skip preprocessor lines
-            if l.strip().startswith("#"):
-                continue
 
             # remove // inline comment
             comment_pos = l.find("//")

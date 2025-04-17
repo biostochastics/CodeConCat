@@ -12,9 +12,44 @@
          live."             /
          ________________/
 
-## [0.6.2] - 2025-02-27
+
+## NEW ENTRIES APPEAR ON TOP
+
+## [0.6.3] - 2025-04-17
 
 ### Added
+- ✨ Added `--remove-docstrings` CLI option to exclude documentation strings (Python, JS/TS/Java, C#, Rust, R) from the output.
+- Configurable Security Scanning introduced several options in .codeconcat.yml to control security scanning:
+    - `enable_security_scanning`: Globally enable/disable the scanner (defaults to true).
+    - `security_scan_severity_threshold`: Set the minimum severity level to report (e.g., "MEDIUM", defaults to "MEDIUM").
+    - `security_ignore_paths`: Specify glob patterns for files/directories to exclude from scanning (e.g., `["tests/", "**/vendor/**"]`).
+    - `security_ignore_patterns`: Define regex patterns to ignore specific matched findings based on the content of the finding.
+    - `security_custom_patterns`: Add user-defined secret detection rules (each requiring `name`, `regex`, and `severity`).
+- Added more built-in regex patterns to detect common secrets like specific GitHub token formats, Slack tokens, PEM private keys, generic passwords, etc.
+- Findings detected within common test or example directory patterns (e.g., `tests/`, `examples/`, files named `*test*`) will now have their severity automatically downgraded (e.g., CRITICAL -> HIGH, HIGH -> MEDIUM) to reduce noise from non-production secrets.
+- Added support for inline comments (`# nosec` or `# codeconcat-ignore-security`) on the same line or the preceding line to suppress security findings.
+- Enhanced AI preamble (`ai_context.py`) to include codebase complexity metrics (function count, avg length), potential entry point detection, and key file summaries.
+- Improved CLI usability (`main.py`): Added argument groups for clarity in `--help`, implemented `--version` flag, and added `--show-config` flag to display the final merged configuration.
+- Refactored default config creation (`main.py`) to use a template file (`config/default_config.template.yml`) instead of a hardcoded string.
+- Added `--sort-files` flag to alphabetically sort files by path in the final output.
+- Added `--split-output X` flag to split Markdown output into X separate files.
+
+### Changed
+- Updated language parsers (Python, Go, JS/TS, Julia, PHP, R) to raise `LanguageParserError` for syntax errors instead of failing silently or raising generic exceptions.
+- Corrected the function call to `get_token_stats` in `file_parser.py`.
+- Added unit tests for error handling in updated language parsers.
+- SecurityProcessor now raises `LanguageParserError` for invalid syntax
+- Refactored token counting to use `get_token_stats` function
+- Replaced approximate Claude token counting with accurate offline method using `transformers` (`Xenova/claude-tokenizer`).
+- Refactored file inclusion logic in `local_collector.py` into a shared `should_include_file` function to reduce duplication.
+- Enhanced configuration loading (`config_loader.py`) and definition (`base_types.py`) using Pydantic for robust validation and clearer error messages.
+- Improved C++ parser (`cpp_parser.py`) block end detection to correctly handle braces within preprocessor directives (`#if`/`#else`/`#endif`).
+- Refactored file processing logic.
+
+## [0.6.2] - 2025-04-16
+
+### Added
+
 - 📝 Added comprehensive documentation:
   - New `doc_workflows.md` guide for documentation features
   - New `security_processor.md` guide for security scanning

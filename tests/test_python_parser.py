@@ -3,6 +3,7 @@
 import unittest
 
 from codeconcat.parser.language_parsers.python_parser import PythonParser, parse_python
+from codeconcat.errors import LanguageParserError
 
 
 class TestPythonParser(unittest.TestCase):
@@ -159,6 +160,15 @@ class TestPythonParser(unittest.TestCase):
         declarations = self.parser.parse(python_code)
         func_names = {d.name for d in declarations if d.kind == "function"}
         self.assertEqual(func_names, {"outer", "inner1", "inner2"})
+
+    def test_invalid_syntax_raises_error(self):
+        """Test that parsing invalid Python code raises LanguageParserError."""
+        invalid_python_code = """
+        def invalid_func(:
+            pass
+        """
+        with self.assertRaises(LanguageParserError):
+            self.parser.parse(invalid_python_code)
 
 
 if __name__ == "__main__":

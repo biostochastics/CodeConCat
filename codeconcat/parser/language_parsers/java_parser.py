@@ -3,12 +3,21 @@
 import re
 from typing import List, Optional
 
+from codeconcat.errors import LanguageParserError
 from codeconcat.parser.language_parsers.base_parser import BaseParser, Declaration, ParseResult
 
 
-def parse_java(file_path: str, content: str) -> Optional[ParseResult]:
+def parse_java(file_path: str, content: str) -> ParseResult:
     parser = JavaParser()
-    declarations = parser.parse(content)
+    try:
+        declarations = parser.parse(content)
+    except Exception as e:
+        # Wrap internal parser errors in LanguageParserError
+        raise LanguageParserError(
+            message=f"Failed to parse Java file: {e}",
+            file_path=file_path,
+            original_exception=e
+        )
     return ParseResult(
         file_path=file_path, language="java", content=content, declarations=declarations
     )

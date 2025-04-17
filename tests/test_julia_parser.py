@@ -3,6 +3,7 @@
 import pytest
 
 from codeconcat.parser.language_parsers.julia_parser import parse_julia
+from codeconcat.errors import LanguageParserError
 
 
 def test_parse_julia_function():
@@ -153,6 +154,5 @@ def test_parse_julia_invalid():
     code = """
 this is not valid julia code
 """
-    result = parse_julia("test.jl", code)
-    assert result is not None
-    assert len(result.declarations) == 0
+    with pytest.raises(LanguageParserError):
+        parse_julia("test.jl", code)

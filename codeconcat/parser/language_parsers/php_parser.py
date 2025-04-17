@@ -5,9 +5,9 @@ from typing import List, Optional
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser
+from codeconcat.errors import LanguageParserError
 
-
-def parse_php(file_path: str, content: str) -> Optional[ParseResult]:
+def parse_php(file_path: str, content: str) -> ParseResult:
     """Parse PHP code and return declarations."""
     try:
         parser = PhpParser()
@@ -19,12 +19,11 @@ def parse_php(file_path: str, content: str) -> Optional[ParseResult]:
             declarations=declarations
         )
     except Exception as e:
-        print(f"Error parsing PHP file: {e}")
-        return ParseResult(
+        # Wrap internal parser errors in LanguageParserError
+        raise LanguageParserError(
+            message=f"Failed to parse PHP file: {e}",
             file_path=file_path,
-            language="php",
-            content=content,
-            declarations=[]
+            original_exception=e
         )
 
 

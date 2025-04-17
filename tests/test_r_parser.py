@@ -1,6 +1,7 @@
 import unittest
 
 from codeconcat.parser.language_parsers.r_parser import RParser, parse_r
+from codeconcat.errors import LanguageParserError
 
 
 class TestRParser(unittest.TestCase):
@@ -237,6 +238,14 @@ class TestRParser(unittest.TestCase):
             "Department.Employee.create",
         }
         self.assertEqual(method_names, expected_methods)
+
+    def test_invalid_syntax_raises_error(self):
+        """Test that parsing invalid R code raises LanguageParserError."""
+        invalid_r_code = """
+        invalid function(
+        """
+        with self.assertRaises(LanguageParserError):
+            self.parser.parse(invalid_r_code)
 
 
 if __name__ == "__main__":

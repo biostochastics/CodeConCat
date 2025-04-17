@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Dict
 
 import tiktoken
-
+from transformers import GPT2TokenizerFast
 
 @dataclass
 class TokenStats:
@@ -18,6 +18,9 @@ class TokenStats:
 
 # Cache for encoders to avoid recreating them
 _ENCODER_CACHE: Dict[str, tiktoken.Encoding] = {}
+
+# Load Claude tokenizer once
+_CLAUDE_TOKENIZER = GPT2TokenizerFast.from_pretrained('Xenova/claude-tokenizer')
 
 
 def get_encoder(model: str = "gpt-3.5-turbo") -> tiktoken.Encoding:
@@ -39,7 +42,5 @@ def get_token_stats(text: str) -> TokenStats:
         gpt3_tokens=count_tokens(text, "gpt-3.5-turbo"),
         gpt4_tokens=count_tokens(text, "gpt-4"),
         davinci_tokens=count_tokens(text, "text-davinci-003"),
-        claude_tokens=int(
-            len(text.encode("utf-8")) / 4
-        ),  # Rough approximation for Claude
+        claude_tokens=len(_CLAUDE_TOKENIZER.encode(text)),
     )

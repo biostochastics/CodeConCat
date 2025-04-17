@@ -1,0 +1,53 @@
+# CodeConCat Configuration
+
+# Path filtering
+include_paths:
+  # Add glob patterns to include specific files/directories
+  # Example: - "src/**/*.py"
+
+exclude_paths:
+  # Configuration Files
+  - "**/*.{yml,yaml}"
+  - "**/.codeconcat.yml"
+  # Hidden Files/Folders
+  - "**/.*"
+  # Common Dependency/Build Folders
+  - "**/node_modules/**"
+  - "**/.git/**"
+  - "**/__pycache__/**"
+  - "**/dist/**"
+  - "**/build/**"
+  # Test Files
+  - "**/*_test.py"
+  - "**/*test*.py"
+  - "**/tests/**"
+  # Large Data/Binary Files
+  - "**/*.{png,jpg,jpeg,gif,bmp,ico}"
+  - "**/*.{mp3,mp4,avi,mov}"
+  - "**/*.{pdf,zip,tar,gz,rar}"
+  - "**/*.{db,sqlite,sqlite3}"
+
+# Language Filtering
+include_languages: []
+exclude_languages: []
+
+# Feature toggles
+enable_docs: false
+merge_docs: false
+enable_ai_context: true
+enable_annotations: true
+disable_symbols: false
+remove_docstrings: false
+
+# Display options
+include_file_summary: true
+include_directory_structure: true
+remove_comments: true
+remove_empty_lines: true
+show_line_numbers: true
+
+# Advanced options
+max_workers: 4
+custom_extension_map:
+  # Map file extensions to languages
+  # Example: .jsx: javascript

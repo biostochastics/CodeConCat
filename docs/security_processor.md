@@ -52,7 +52,9 @@ print(formatted)
 
 ### 2. Integration with CodeConCat Pipeline
 
-The Security Processor is integrated into the main CodeConCat pipeline. Security issues are stored in the `security_issues` field of `ParsedFileData` objects:
+**Note:** The Security Processor is **not automatically** run by the standard `codeconcat` command-line tool. While the necessary data structures exist (`ParsedFileData.security_issues`), integrating the scan into the main pipeline requires modifying the core processing logic or using the direct API (see above).
+
+If integrated, security issues would be stored in the `security_issues` field of `ParsedFileData` objects, which are then used to generate the output. The example below shows how you might access this data if you were using the library functions directly or had customized the pipeline:
 
 ```python
 from codeconcat import run_codeconcat_in_memory, CodeConCatConfig

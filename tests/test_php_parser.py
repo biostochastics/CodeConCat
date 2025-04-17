@@ -3,6 +3,7 @@
 import pytest
 
 from codeconcat.parser.language_parsers.php_parser import parse_php
+from codeconcat.errors import LanguageParserError
 
 
 def test_parse_php_class():
@@ -185,6 +186,5 @@ def test_parse_php_invalid():
     code = """
 this is not valid php code
 """
-    result = parse_php("test.php", code)
-    assert result is not None
-    assert len(result.declarations) == 0
+    with pytest.raises(LanguageParserError):
+        parse_php("test.php", code)

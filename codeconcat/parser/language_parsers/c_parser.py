@@ -5,11 +5,20 @@ from typing import List, Optional
 
 from codeconcat.base_types import ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
+from codeconcat.errors import LanguageParserError
 
 
-def parse_c_code(file_path: str, content: str) -> Optional[ParseResult]:
+def parse_c_code(file_path: str, content: str) -> ParseResult:
     parser = CParser()
-    declarations = parser.parse(content)
+    try:
+        declarations = parser.parse(content)
+    except Exception as e:
+        # Wrap internal parser errors in LanguageParserError
+        raise LanguageParserError(
+            message=f"Failed to parse C file: {e}",
+            file_path=file_path,
+            original_exception=e
+        )
     return ParseResult(
         file_path=file_path, language="c", content=content, declarations=declarations
     )

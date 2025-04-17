@@ -5,14 +5,22 @@ from typing import List, Optional
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser
-
+from codeconcat.errors import LanguageParserError
 
 def parse_javascript_or_typescript(
     file_path: str, content: str, language: str = "javascript"
-) -> Optional[ParseResult]:
+) -> ParseResult:
     """Parse JavaScript or TypeScript code and return declarations."""
     parser = JstsParser(language)
-    declarations = parser.parse(content)
+    try:
+        declarations = parser.parse(content)
+    except Exception as e:
+        # Wrap internal parser errors in LanguageParserError
+        raise LanguageParserError(
+            message=f"Failed to parse {language.capitalize()} file: {e}",
+            file_path=file_path,
+            original_exception=e
+        )
     return ParseResult(
         file_path=file_path,
         language=language,
