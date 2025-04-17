@@ -353,7 +353,9 @@ class RustParser(BaseParser):
 
                             # Add declarations based on context
                             if parent_kind is None:
-                                print(f"Adding {kind} {name} at top level")
+                                import logging
+                                logger = logging.getLogger(__name__)
+                                logger.info(f"Adding {kind} {name} at top level")
                                 block_decls.append(decl)
                                 if kind == "mod":
                                     # For mod blocks, include both the mod and its nested declarations
@@ -362,7 +364,7 @@ class RustParser(BaseParser):
                                         f"Found {len(nested_decls)} nested declarations in mod {name}"
                                     )
                                     for d in nested_decls:
-                                        print(
+                                        logger.info(
                                             f"  - {d.kind} {d.name} with modifiers {d.modifiers}"
                                         )
                                         if d.kind == "function":
@@ -409,7 +411,7 @@ class RustParser(BaseParser):
                                             block_decls.append(d)
                             elif parent_kind == "mod":
                                 # Include all functions and nested declarations inside modules
-                                print(f"Adding {kind} {name} inside mod")
+                                logger.info(f"Adding {kind} {name} inside mod")
                                 block_decls.append(decl)
                                 # For nested functions in modules, we need to capture their own attributes
                                 # Find the indentation level of the function

@@ -2,7 +2,22 @@
 
 ## NEW ENTRIES APPEAR ON TOP
 
-## [0.6.3] - 2025-04-17
+## [0.6.4] - 2025-04-17
+
+### Added
+- Multi-stage progress bars for all major processing steps (file collection, parsing, annotation, doc extraction, output writing) using `tqdm`. Toggle with `--no-progress-bar`.
+- Markdown cross-linking: symbol summaries in Markdown now link to their definitions for easier navigation. Toggle with `--cross-link-symbols`.
+- Grouped CLI arguments for better usability.
+- Improved config loading and dynamic versioning using Hatchling (`pyproject.toml` + `version.py`).
+- Cleaned up and standardized `pyproject.toml` for modern Python packaging.
+
+### Fixed
+- Improved documentation and error messages for output writing and config handling.
+- Refactored output writing and progress logic for maintainability.
+- CLI/config improvements: grouped arguments, more helpful help output, and new flags for progress bars and cross-linking.
+
+
+## [0.6.3] - 2025-04-16
 
 ### Added
 - Added `--remove-docstrings` CLI option to exclude documentation strings (Python, JS/TS/Java, C#, Rust, R) from the output.

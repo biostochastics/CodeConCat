@@ -96,11 +96,13 @@ class CParser(BaseParser):
                     break
             else:
                 if "struct" in line:
-                    print(f"No matching pattern found for struct declaration")
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"No matching pattern found for struct declaration")
                 elif "function" in line:
-                    print(f"No matching pattern found for function declaration")
+                    logger.info(f"No matching pattern found for function declaration")
                 elif "enum" in line:
-                    print(f"No matching pattern found for enum declaration")
+                    logger.info(f"No matching pattern found for enum declaration")
             i += 1
 
         return symbols

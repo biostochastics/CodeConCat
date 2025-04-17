@@ -555,4 +555,6 @@ class RParser(BaseParser):
         return -1
 
     def _print_no_matching_pattern_found(self):
-        print("No matching pattern found in R code")  # Replace f-string with regular string
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("No matching pattern found in R code")  # Replace f-string with regular string

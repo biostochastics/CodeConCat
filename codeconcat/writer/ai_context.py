@@ -5,7 +5,6 @@ from typing import Dict, List
 
 from codeconcat.base_types import (
     AnnotatedFileData,
-    CodeElementType,
     ParsedDocData,
     ParsedFileData,
 )
@@ -26,8 +25,8 @@ def generate_ai_preamble(
         ext = file.file_path.split(".")[-1] if "." in file.file_path else "unknown"
         file_types[ext] = file_types.get(ext, 0) + 1
 
-        for element in file.elements:
-            if element.type == CodeElementType.FUNCTION:
+        for element in file.declarations:
+            if element.kind == "function":
                 total_functions += 1
                 total_function_lines += (element.end_line - element.start_line + 1)
 
@@ -54,7 +53,7 @@ def generate_ai_preamble(
     key_files_with_summaries = []
     for file in code_files:
         annotation = file_annotations.get(
-            file.file_path, AnnotatedFileData(file.file_path, "", [])
+            file.file_path, AnnotatedFileData(file.file_path, "", "", "")
         )
         if annotation.summary:
             key_files_with_summaries.append(f"- `{file.file_path}`: {annotation.summary}")

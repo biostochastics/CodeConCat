@@ -100,16 +100,15 @@ def generate_file_summary(file_data: ParsedFileData) -> str:
 
     if file_data.token_stats:
         summary.append("Token Counts:")
-        summary.append(f"  - GPT-3.5: {file_data.token_stats.gpt3_tokens:,}")
-        summary.append(f"  - GPT-4: {file_data.token_stats.gpt4_tokens:,}")
-        summary.append(f"  - Davinci: {file_data.token_stats.davinci_tokens:,}")
-        summary.append(f"  - Claude: {file_data.token_stats.claude_tokens:,}")
+        summary.append(f"  - Input: {file_data.token_stats.input_tokens:,}")
+        summary.append(f"  - Output: {file_data.token_stats.output_tokens:,}")
+        summary.append(f"  - Total: {file_data.token_stats.total_tokens:,}")
 
     if file_data.security_issues:
         summary.append("\nSecurity Issues:")
         for issue in file_data.security_issues:
-            summary.append(f"  - {issue.issue_type} (Line {issue.line_number})")
-            summary.append(f"    {issue.line_content}")
+            summary.append(f"  - {issue.rule_id} ({issue.severity.name}, Line {issue.line_number})")
+            summary.append(f"    Context: {issue.context}")
 
     if file_data.declarations:
         summary.append("\nDeclarations:")

@@ -20,6 +20,8 @@ from codeconcat.writer.markdown_writer import write_markdown
 from codeconcat.writer.xml_writer import write_xml
 from .version import __version__  # Import version
 
+logger = logging.getLogger(__name__)
+
 # Set up root logger
 logger = logging.getLogger("codeconcat")
 logger.setLevel(logging.WARNING)
@@ -149,6 +151,12 @@ def cli_entry_point():
     )
     # ------------------------------
 
+    # --- Progress Bar Toggle ---
+    feature_group.add_argument(
+        '--no-progress-bar',
+        action='store_true',
+        help='Disable progress bars (use spinner only)'
+    )
     # --- Feature Toggles Group ---
     feature_group.add_argument(
         "--docs",
@@ -212,9 +220,26 @@ def cli_entry_point():
         action="store_true",
         help="Enable debug logging."
     )
+    misc_group.add_argument(
+        "--log-level",
+        default="WARNING",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set the logging level",
+    )
+    misc_group.add_argument(
+        "--cross-link-symbols",
+        action="store_true",
+        help="Generate Markdown links between symbol summaries and their definitions."
+    )
     # --------------------------
 
     args = parser.parse_args()
+
+    # Configure logging
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.WARNING),
+        format="%(levelname)s %(name)s: %(message)s"
+    )
 
     # Setup logging based on debug flag BEFORE any potential config loading for show-config
     log_level = logging.DEBUG if args.debug else logging.INFO
@@ -234,10 +259,10 @@ def cli_entry_point():
             logger.info("Loading configuration to display...")
             # Pass only non-None CLI args to avoid overriding defaults unnecessarily
             final_config = load_config(cli_args_dict)
-            print("--- Final Merged Configuration ---")
+            logger.info("--- Final Merged Configuration ---")
             # Pydantic models have a good default string representation
-            print(final_config)
-            print("----------------------------------")
+            logger.info(str(final_config))
+            logger.info("----------------------------------")
             sys.exit(0)
         except Exception as e:
             logger.error(f"Error loading configuration for display: {e}")
@@ -342,12 +367,12 @@ def cli_entry_point():
     except CodeConcatError as e:
         # Log known operational errors
         logger.error(f"Operation failed: {e}")
-        print(f"[CodeConCat] Error: {str(e)}", file=sys.stderr)
+        logger.error(f"[CodeConCat] Error: {str(e)}")
         sys.exit(1)
     except Exception as e:
         # Log unexpected errors
         logger.critical(f"An unexpected error occurred: {e}", exc_info=True)
-        print(f"[CodeConCat] Unexpected Error: {str(e)}", file=sys.stderr)
+        logger.error(f"[CodeConCat] Unexpected Error: {str(e)}")
         sys.exit(1)
 
 
@@ -424,10 +449,23 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         # Collect files
         try:
-            if config.github_url:
-                code_files = collect_github_files(config)
+            if hasattr(config, 'no_progress_bar') and config.no_progress_bar:
+                if config.github_url:
+                    code_files = collect_github_files(config)
+                else:
+                    code_files = collect_local_files(config.target_path, config)
             else:
-                code_files = collect_local_files(config.target_path, config)
+                # Show progress bar for local collection
+                if config.github_url:
+                    code_files = collect_github_files(config)
+                else:
+                    all_files = []
+                    # We'll simulate progress by walking the directory
+                    for root, dirs, files in tqdm(os.walk(config.target_path), desc='Collecting files', unit='dir'):
+                        for f in files:
+                            all_files.append(os.path.join(root, f))
+                    # Now filter as in collect_local_files
+                    code_files = collect_local_files(config.target_path, config)
 
             if not code_files:
                 raise FileProcessingError("No files found to process")
@@ -440,11 +478,19 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             try:
                 folder_tree_str = generate_folder_tree(config.target_path, config)
             except Exception as e:
-                print(f"Warning: Failed to generate folder tree: {str(e)}")
+                logger.warning(f"Warning: Failed to generate folder tree: {str(e)}")
 
         # Parse code files
         try:
-            parsed_files = parse_code_files([f.file_path for f in code_files], config)
+            file_paths = [f.file_path for f in code_files]
+            parsed_files = []
+            if hasattr(config, 'no_progress_bar') and config.no_progress_bar:
+                parsed_files = parse_code_files(file_paths, config)
+            else:
+                for file_path in tqdm(file_paths, desc='Parsing files', unit='file'):
+                    parsed = parse_code_files([file_path], config)
+                    if parsed:
+                        parsed_files.extend(parsed)
             if not parsed_files:
                 raise FileProcessingError("No files were successfully parsed")
         except Exception as e:
@@ -454,20 +500,31 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         docs = []
         if config.extract_docs:
             try:
-                docs = extract_docs([f.file_path for f in code_files], config)
+                doc_paths = [f.file_path for f in code_files]
+                if hasattr(config, 'no_progress_bar') and config.no_progress_bar:
+                    docs = extract_docs(doc_paths, config)
+                else:
+                    docs = []
+                    for file_path in tqdm(doc_paths, desc='Extracting docs', unit='file'):
+                        extracted = extract_docs([file_path], config)
+                        if extracted:
+                            docs.extend(extracted)
             except Exception as e:
-                print(f"Warning: Failed to extract documentation: {str(e)}")
+                logger.warning(f"Warning: Failed to extract documentation: {str(e)}")
 
         # Annotate files if enabled
         try:
             annotated_files = []
             if not config.disable_annotations:
-                for file in parsed_files:
+                iterator = parsed_files
+                if not (hasattr(config, 'no_progress_bar') and config.no_progress_bar):
+                    iterator = tqdm(parsed_files, desc='Annotating files', unit='file')
+                for file in iterator:
                     try:
                         annotated = annotate(file, config)
                         annotated_files.append(annotated)
                     except Exception as e:
-                        print(f"Warning: Failed to annotate {file.file_path}: {str(e)}")
+                        logger.warning(f"Warning: Failed to annotate {file.file_path}: {str(e)}")
                         # Fall back to basic annotation
                         annotated_files.append(
                             AnnotatedFileData(
@@ -503,17 +560,34 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         # Write output in requested format
         try:
-            if config.format == "markdown":
-                output = write_markdown(annotated_files, docs, config, folder_tree_str)
-            elif config.format == "json":
-                output = write_json(annotated_files, docs, config, folder_tree_str)
-            elif config.format == "xml":
-                output = write_xml(
-                    parsed_files,
-                    docs,
-                    {f.file_path: f for f in annotated_files},
-                    folder_tree_str,
-                )
+            output = None
+            if hasattr(config, 'no_progress_bar') and config.no_progress_bar:
+                if config.format == "markdown":
+                    output = write_markdown(annotated_files, docs, config, folder_tree_str)
+                elif config.format == "json":
+                    output = write_json(annotated_files, docs, config, folder_tree_str)
+                elif config.format == "xml":
+                    output = write_xml(
+                        parsed_files,
+                        docs,
+                        {f.file_path: f for f in annotated_files},
+                        folder_tree_str,
+                    )
+            else:
+                # Show progress bar for output writing (simulate with a single step)
+                with tqdm(total=1, desc=f'Writing {config.format} output', unit='step') as pbar:
+                    if config.format == "markdown":
+                        output = write_markdown(annotated_files, docs, config, folder_tree_str)
+                    elif config.format == "json":
+                        output = write_json(annotated_files, docs, config, folder_tree_str)
+                    elif config.format == "xml":
+                        output = write_xml(
+                            parsed_files,
+                            docs,
+                            {f.file_path: f for f in annotated_files},
+                            folder_tree_str,
+                        )
+                    pbar.update(1)
         except Exception as e:
             raise OutputError(f"Error generating {config.format} output: {str(e)}")
 
@@ -521,10 +595,10 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         return output
 
     except CodeConcatError as e:
-        print(f"[CodeConCat] Error: {str(e)}")
+        logger.error(f"[CodeConCat] Error: {str(e)}")
         raise
     except Exception as e:
-        print(f"[CodeConCat] Unexpected error: {str(e)}")
+        logger.error(f"[CodeConCat] Unexpected error: {str(e)}")
         raise
 
 
@@ -566,7 +640,7 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
                     annotated = annotate(file, config)
                     annotated_files.append(annotated)
                 except Exception as e:
-                    print(f"Warning: Failed to annotate {file.file_path}: {str(e)}")
+                    logger.warning(f"Warning: Failed to annotate {file.file_path}: {str(e)}")
                     # Fall back to basic annotation
                     annotated_files.append(
                         AnnotatedFileData(
@@ -628,7 +702,7 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
 
     except Exception as e:
         error_msg = f"Error processing code: {str(e)}"
-        print(f"[CodeConCat] {error_msg}")
+        logger.error(f"[CodeConCat] {error_msg}")
         raise CodeConcatError(error_msg) from e
 
 

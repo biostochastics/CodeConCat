@@ -6,9 +6,10 @@ Holds data classes and typed structures used throughout CodeConCat.
 
 # Rename this file to base_types.py to avoid conflict with Python's types module
 from typing import Dict, List, Optional, Set, Tuple, Union
+from dataclasses import dataclass, field
 from enum import Enum
 import re
-from pydantic import BaseModel, Field, validator, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 PROGRAMMING_QUOTES = [
     '"Clean code always looks like it was written by someone who cares." - Robert C. Martin',
@@ -67,7 +68,7 @@ class CustomSecurityPattern(BaseModel):
     regex: str # User-provided regex string
     severity: str # User-provided severity (e.g., "HIGH", "MEDIUM")
 
-    @validator("severity")
+    @field_validator("severity")
     def validate_severity(cls, value):
         try:
             # Ensure severity is uppercase and exists in the enum
@@ -78,9 +79,10 @@ class CustomSecurityPattern(BaseModel):
                 f"Invalid severity '{value}'. Must be one of: {valid_severities}"
             )
 
-    @validator("regex")
+    @field_validator("regex")
     def validate_regex(cls, value):
         try:
+            # Accept special characters by default; just ensure it's a valid regex
             re.compile(value)
             return value
         except re.error as e:
@@ -208,9 +210,12 @@ class CodeConCatConfig(BaseModel):
     max_workers: int = 4
     split_output: int = 1 # Number of files to split output into
 
+    # Markdown cross-linking
+    cross_link_symbols: bool = False # Option to cross-link symbol summaries and definitions
+
     # --- Pydantic Validators --- #
 
-    @validator("format")
+    @field_validator("format")
     def validate_format(cls, value):
         if value not in VALID_FORMATS:
             raise ValueError(
@@ -218,7 +223,7 @@ class CodeConCatConfig(BaseModel):
             )
         return value
 
-    @validator("security_scan_severity_threshold")
+    @field_validator("security_scan_severity_threshold")
     def validate_severity_threshold(cls, value):
         try:
             # Ensure threshold is uppercase for enum matching
@@ -230,7 +235,7 @@ class CodeConCatConfig(BaseModel):
                 f"Must be one of: {valid_severities}"
             )
 
-    @validator("split_output")
+    @field_validator("split_output")
     def check_split_output(cls, v):
         if v < 1:
             raise ValueError("split_output must be 1 or greater")

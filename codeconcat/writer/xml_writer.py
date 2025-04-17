@@ -55,5 +55,7 @@ def write_xml(
     with open(config.output, "w", encoding="utf-8") as f:
         f.write(xml_str)
 
-    print(f"[CodeConCat] XML output written to: {config.output}")
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[CodeConCat] XML output written to: {config.output}")
     return xml_str

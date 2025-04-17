@@ -25,7 +25,9 @@ def count_tokens(text: str) -> int:
         encoder = tiktoken.get_encoding("cl100k_base")
         return len(encoder.encode(text))
     except Exception as e:
-        print(
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(
             f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count"
         )
         return len(text.split())
@@ -65,10 +67,12 @@ def print_quote_with_ascii(total_output_tokens: int = None):
     output_lines.extend([empty_line, top_border])
 
     # Print everything
-    print("\n".join(output_lines))
-    print(f"\nQuote tokens (GPT-4): {quote_tokens:,}")
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("\n".join(output_lines))
+    logger.info(f"\nQuote tokens (GPT-4): {quote_tokens:,}")
     if total_output_tokens:
-        print(f"Total CodeConcat output tokens (GPT-4): {total_output_tokens:,}")
+        logger.info(f"Total CodeConcat output tokens (GPT-4): {total_output_tokens:,}")
 
 
 def is_test_or_config_file(file_path: str) -> bool:
@@ -154,13 +158,35 @@ def write_markdown(
                         content=ann.annotated_content,
                     )
                 )
+                # If cross-linking is enabled, replace symbol names in summary with Markdown links
+                if config.cross_link_symbols and hasattr(ann, 'declarations') and ann.declarations:
+                    def make_anchor(decl):
+                        # Use file_path + kind + name for uniqueness
+                        anchor = f"symbol-{os.path.basename(ann.file_path).replace('.', '-')}-{decl.kind}-{decl.name}"
+                        return anchor
+                    summary_lines = summary.split('\n')
+                    for decl in getattr(ann, 'declarations', []):
+                        anchor = make_anchor(decl)
+                        # Replace symbol name with Markdown link in summary (simple heuristic)
+                        for i, line in enumerate(summary_lines):
+                            if decl.name in line:
+                                summary_lines[i] = line.replace(
+                                    decl.name,
+                                    f"[{decl.name}](#{anchor})"
+                                )
+                    summary = '\n'.join(summary_lines)
                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
 
             # For test/config files, show content as well
             if ann.content:
                 spinner.text = "Processing file content"
                 processed_content = process_file_content(ann.content, config)
-                output_chunks.append(f"```{ann.language}\n{processed_content}\n```\n")
+                # Add anchors for each declaration if cross-linking is enabled
+                if config.cross_link_symbols and hasattr(ann, 'declarations') and ann.declarations:
+                    for decl in ann.declarations:
+                        anchor = f"symbol-{os.path.basename(ann.file_path).replace('.', '-')}-{decl.kind}-{decl.name}"
+                        output_chunks.append(f'<a name="{anchor}"></a>\n')
+                output_chunks.append(f"```{ann.language}\n{processed_content}\n```")
 
                 # Add annotated content only if it provides additional analysis
                 if ann.annotated_content:
@@ -234,7 +260,9 @@ def write_markdown(
         f.write(f"Total CodeConcat output tokens (GPT-4): {output_tokens:,}\n")
 
     spinner.succeed("CodeConcat output generated successfully")
-    print(f"[CodeConCat] Markdown output written to: {config.output}")
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[CodeConCat] Markdown output written to: {config.output}")
 
     # Print quote with ASCII art, passing the total output tokens
     print_quote_with_ascii(output_tokens)
