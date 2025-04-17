@@ -35,6 +35,37 @@ cd codeconcat
 pip install -e .
 ```
 
+## Optional Dependencies & Extras
+
+Some features require optional dependencies. You can install them via [extras_require](https://pip.pypa.io/en/stable/topics/dependency-management/#extras-optional-dependencies):
+
+- **Clipboard Integration** (`pyperclip`): Used for copying output to the clipboard. Installed by default.
+- **Token Counting** (`tiktoken`): For accurate GPT-4 token counting.
+- **Security Scanning** (`transformers`): For advanced code security scanning (if enabled in config) and Claude tokenizer.
+
+Install with extras:
+
+```bash
+# Token counting support
+pip install -e ".[token]"
+
+# Security scanning support
+pip install -e ".[security]"
+
+# All optional features (web, token, security, test)
+pip install -e ".[all]"
+```
+
+Feature summary:
+
+| Feature             | Package        | Extra      | Installed by default? |
+|---------------------|---------------|------------|-----------------------|
+| Clipboard           | pyperclip      | (core)     | Yes                   |
+| Token counting      | tiktoken       | token      | No                    |
+| Security scanning   | transformers   | security   | No                    |
+| Web API             | fastapi, uvicorn, pydantic | web | No           |
+| Testing             | pytest, pytest-cov, etc. | test | No             |
+
 - **Versioning:** CodeConCat uses dynamic versioning managed in `codeconcat/version.py` and referenced from `pyproject.toml` using Hatchling. Always check these files for the current version.
 
 
@@ -50,6 +81,7 @@ pip install -e .
 - **Markdown Cross-Linking**: Symbol summaries in Markdown now link to their definitions for easier navigation (`--cross-link-symbols`).
 - **Token Counting**: Accurate GPT-4 token counting for all processed content
 - **Progress Tracking**: Real-time progress indication during processing (multi-stage progress bars for file collection, parsing, annotation, doc extraction, output writing; toggle with `--no-progress-bar`)
+- **Comprehensive Code Analysis**: Functions, classes, structs, and symbols are listed in the Markdown output under each file's analysis section for full visibility.
 - **Multi-Language Support**: Regex-based parsing for multiple languages:
   - Python, JavaScript/TypeScript, Java, Go, PHP, Ruby, R, Julia, Rust, C/C++, C#
 - **Programmatic API**: Use CodeConCat directly in your Python code

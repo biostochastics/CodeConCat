@@ -32,6 +32,7 @@ VALID_FORMATS = {"markdown", "json", "xml"}
 
 # --- Security Related Enums and Types ---
 
+
 class SecuritySeverity(Enum):
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
@@ -43,30 +44,39 @@ class SecuritySeverity(Enum):
     def __lt__(self, other):
         if self.__class__ is other.__class__:
             # Define the order from lowest to highest
-            order = [SecuritySeverity.INFO, SecuritySeverity.LOW, SecuritySeverity.MEDIUM, SecuritySeverity.HIGH, SecuritySeverity.CRITICAL]
+            order = [
+                SecuritySeverity.INFO,
+                SecuritySeverity.LOW,
+                SecuritySeverity.MEDIUM,
+                SecuritySeverity.HIGH,
+                SecuritySeverity.CRITICAL,
+            ]
             try:
                 return order.index(self) < order.index(other)
             except ValueError:
-                return NotImplemented # Handle cases where a value might not be in the defined order
+                return (
+                    NotImplemented  # Handle cases where a value might not be in the defined order
+                )
         return NotImplemented
 
 
 @dataclass
 class SecurityIssue:
     """Represents a potential security issue found."""
-    rule_id: str # Identifier of the rule that triggered the finding
-    description: str # Description of the potential issue
+
+    rule_id: str  # Identifier of the rule that triggered the finding
+    description: str  # Description of the potential issue
     file_path: str
     line_number: int
-    severity: SecuritySeverity # Enum for severity level
-    context: str = "" # Snippet of code around the issue
+    severity: SecuritySeverity  # Enum for severity level
+    context: str = ""  # Snippet of code around the issue
 
 
 # Pydantic model for Custom Security Patterns
 class CustomSecurityPattern(BaseModel):
-    name: str # Identifier for the rule
-    regex: str # User-provided regex string
-    severity: str # User-provided severity (e.g., "HIGH", "MEDIUM")
+    name: str  # Identifier for the rule
+    regex: str  # User-provided regex string
+    severity: str  # User-provided severity (e.g., "HIGH", "MEDIUM")
 
     @field_validator("severity")
     def validate_severity(cls, value):
@@ -75,9 +85,7 @@ class CustomSecurityPattern(BaseModel):
             return SecuritySeverity[value.upper()].name
         except KeyError:
             valid_severities = ", ".join([s.name for s in SecuritySeverity])
-            raise ValueError(
-                f"Invalid severity '{value}'. Must be one of: {valid_severities}"
-            )
+            raise ValueError(f"Invalid severity '{value}'. Must be one of: {valid_severities}")
 
     @field_validator("regex")
     def validate_regex(cls, value):
@@ -90,6 +98,7 @@ class CustomSecurityPattern(BaseModel):
 
 
 # --- Core Data Types ---
+
 
 @dataclass
 class Declaration:
@@ -177,10 +186,9 @@ class CodeConCatConfig(BaseModel):
     include_paths: List[str] = Field(default_factory=list)
     exclude_paths: List[str] = Field(default_factory=list)
     extract_docs: bool = False
+    show_skip: bool = False  # Whether to print skipped files after parsing
     merge_docs: bool = False
-    doc_extensions: List[str] = Field(
-        default_factory=lambda: [".md", ".rst", ".txt", ".rmd"]
-    )
+    doc_extensions: List[str] = Field(default_factory=lambda: [".md", ".rst", ".txt", ".rmd"])
     custom_extension_map: Dict[str, str] = Field(default_factory=dict)
     output: str = "code_concat_output.md"
     format: str = "markdown"
@@ -197,21 +205,27 @@ class CodeConCatConfig(BaseModel):
     remove_docstrings: bool = False
     show_line_numbers: bool = False
     enable_token_counting: bool = False
-    enable_security_scanning: bool = True # Default enable security scanning
-    security_scan_severity_threshold: str = "MEDIUM" # Minimum severity to report
-    security_ignore_paths: List[str] = Field(default_factory=list) # Glob patterns for files/dirs to skip
-    security_ignore_patterns: List[str] = Field(default_factory=list) # Regex for findings content to ignore
-    security_custom_patterns: List[CustomSecurityPattern] = Field(default_factory=list) # User-defined rules
+    enable_security_scanning: bool = True  # Default enable security scanning
+    security_scan_severity_threshold: str = "MEDIUM"  # Minimum severity to report
+    security_ignore_paths: List[str] = Field(
+        default_factory=list
+    )  # Glob patterns for files/dirs to skip
+    security_ignore_patterns: List[str] = Field(
+        default_factory=list
+    )  # Regex for findings content to ignore
+    security_custom_patterns: List[CustomSecurityPattern] = Field(
+        default_factory=list
+    )  # User-defined rules
 
     # Sorting
     sort_files: bool = False
 
     # Advanced options
     max_workers: int = 4
-    split_output: int = 1 # Number of files to split output into
+    split_output: int = 1  # Number of files to split output into
 
     # Markdown cross-linking
-    cross_link_symbols: bool = False # Option to cross-link symbol summaries and definitions
+    cross_link_symbols: bool = False  # Option to cross-link symbol summaries and definitions
 
     # --- Pydantic Validators --- #
 

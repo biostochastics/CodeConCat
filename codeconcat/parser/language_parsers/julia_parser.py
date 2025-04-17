@@ -14,9 +14,7 @@ def parse_julia(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse Julia file: {e}",
-            file_path=file_path,
-            original_exception=e
+            message=f"Failed to parse Julia file: {e}", file_path=file_path, original_exception=e
         )
     return ParseResult(
         file_path=file_path,
@@ -103,7 +101,7 @@ class JuliaParser(BaseParser):
                         end_line=end_line + 1,
                         modifiers=modifiers,
                         docstring="",
-                        children=[]
+                        children=[],
                     )
 
                     # Handle module declarations

@@ -28,19 +28,25 @@ def generate_ai_preamble(
         for element in file.declarations:
             if element.kind == "function":
                 total_functions += 1
-                total_function_lines += (element.end_line - element.start_line + 1)
+                total_function_lines += element.end_line - element.start_line + 1
 
     avg_function_length = (
-        round(total_function_lines / total_functions, 1)
-        if total_functions > 0
-        else 0
+        round(total_function_lines / total_functions, 1) if total_functions > 0 else 0
     )
 
     # Identify potential entry points
     common_entry_points = [
-        "main.py", "__main__.py", "app.py", "server.py", "manage.py",
-        "index.js", "server.js", "app.js",
-        "index.ts", "server.ts", "app.ts",
+        "main.py",
+        "__main__.py",
+        "app.py",
+        "server.py",
+        "manage.py",
+        "index.js",
+        "server.js",
+        "app.js",
+        "index.ts",
+        "server.ts",
+        "app.ts",
         # Add more common entry points as needed
     ]
     potential_entry_files = [

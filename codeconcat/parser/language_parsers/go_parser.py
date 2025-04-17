@@ -14,9 +14,7 @@ def parse_go(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse Go file: {e}",
-            file_path=file_path,
-            original_exception=e
+            message=f"Failed to parse Go file: {e}", file_path=file_path, original_exception=e
         )
     return ParseResult(
         file_path=file_path, language="go", content=content, declarations=declarations
@@ -56,7 +54,9 @@ class GoParser(BaseParser):
         self.patterns["const"] = re.compile(const_pattern)
 
         # Var pattern (both single and block)
-        var_pattern = r"^\s*(?:var\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|var\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
+        var_pattern = (
+            r"^\s*(?:var\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|var\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
+        )
         self.patterns["var"] = re.compile(var_pattern)
 
     def parse_file(self, content: str) -> List[Declaration]:

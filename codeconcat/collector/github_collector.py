@@ -41,35 +41,44 @@ def parse_github_url(url: str) -> Tuple[str, str, Optional[str]]:
 def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[ParsedFileData]:
     """
     Collect files from a GitHub repository.
-    
+
     Args:
         github_url: GitHub repository URL or shorthand (owner/repo)
         config: Configuration object
-        
+
     Returns:
         List[ParsedFileData]: List of parsed file data objects
     """
     owner, repo_name, url_ref = parse_github_url(github_url)
-    
+
     # Use explicit ref if provided, otherwise use ref from URL
     target_ref = config.github_ref or url_ref or "main"
-    
+
     # Create a temporary directory for cloning
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
             # Build clone URL with token if available
             clone_url = build_clone_url(github_url, config.github_token)
-             
-             # Clone the repository
-            clone_command = ["git", "clone", "--depth", "1", "--branch", target_ref, clone_url, temp_dir]
-            logger.info(f"Running git clone command: {' '.join(clone_command)}") # Log the command
+
+            # Clone the repository
+            clone_command = [
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                "--branch",
+                target_ref,
+                clone_url,
+                temp_dir,
+            ]
+            logger.info(f"Running git clone command: {' '.join(clone_command)}")  # Log the command
             subprocess.run(
                 clone_command,
                 check=True,
                 capture_output=True,
                 text=True,
             )
-            
+
             # Create a new config with temp_dir as target_path
             github_config = CodeConCatConfig(
                 target_path=temp_dir,
@@ -93,12 +102,12 @@ def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[Pars
                 disable_symbols=config.disable_symbols,
                 disable_ai_context=config.disable_ai_context,
             )
-            
+
             logger.info(f"Collecting files from {temp_dir} with config: {github_config}")
             files = collect_local_files(temp_dir, github_config)
             logger.info(f"Found {len(files)} files")
             return files
-            
+
         except subprocess.CalledProcessError as e:
             # Log more details on error
             logger.error(f"Error cloning repository '{repo_name}' (Return code: {e.returncode}).")
@@ -117,7 +126,7 @@ def build_clone_url(github_url: str, token: Optional[str] = None) -> str:
         # Convert shorthand to full URL
         owner, repo, _ = parse_github_url(github_url)
         github_url = f"https://github.com/{owner}/{repo}"
-    
+
     if token:
         # Insert token into URL
         return github_url.replace("https://", f"https://{token}@")

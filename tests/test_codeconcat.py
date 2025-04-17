@@ -13,7 +13,7 @@ from codeconcat.base_types import (
     SecurityIssue,
     SecuritySeverity,
     TokenStats,
-    AnnotatedFileData
+    AnnotatedFileData,
 )
 from codeconcat.collector.local_collector import collect_local_files, should_include_file
 from codeconcat.parser.file_parser import parse_code_files
@@ -100,6 +100,7 @@ def decorated_func():  # Function with decorator
 # Unit Tests: Security Processor Tests
 def test_security_processor():
     import re
+
     content = """
 API_KEY = "super_secret_key_12345"
 password = "password123"
@@ -131,13 +132,12 @@ password = "password123"
     assert any(issue.severity == SecuritySeverity.HIGH for issue in issues)
 
 
-
 def test_security_processor_false_positives():
     content = """
 EXAMPLE_KEY = "example_key"  # Should not trigger
 TEST_PASSWORD = "dummy_password"  # Should not trigger
 """
-    config = CodeConCatConfig() 
+    config = CodeConCatConfig()
     issues = SecurityProcessor.scan_content(content, "test.py", config)
     assert len(issues) == 0
 
@@ -188,14 +188,14 @@ def test_large_file_handling(temp_dir):
     # Create a large file
     large_file = os.path.join(temp_dir, "large.py")
     with open(large_file, "w") as f:
-        for i in range(1000):  
+        for i in range(1000):
             f.write(f"def func_{i}(): pass\n")
 
     config = CodeConCatConfig(target_path=temp_dir)
     files = collect_local_files(temp_dir, config)
     parsed_files, errors = parse_code_files([f.file_path for f in files], config)
     assert len(parsed_files) == 1
-    assert len(parsed_files[0].declarations) == 1000  
+    assert len(parsed_files[0].declarations) == 1000
 
 
 def test_special_characters(temp_dir):
@@ -257,11 +257,7 @@ def test_token_counting():
         file_path="test.py",
         language="python",
         content=content,
-        token_stats=TokenStats(
-            input_tokens=10,
-            output_tokens=20,
-            total_tokens=30
-        ),
+        token_stats=TokenStats(input_tokens=10, output_tokens=20, total_tokens=30),
     )
 
     assert parsed.token_stats.input_tokens == 10

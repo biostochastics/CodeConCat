@@ -69,11 +69,7 @@ def test_generate_file_summary():
                 docstring=None,
             )
         ],
-        token_stats=TokenStats(
-            input_tokens=100,
-            output_tokens=120,
-            total_tokens=220
-        ),
+        token_stats=TokenStats(input_tokens=100, output_tokens=120, total_tokens=220),
         security_issues=[
             SecurityIssue(
                 rule_id="hardcoded_secret",
@@ -81,7 +77,7 @@ def test_generate_file_summary():
                 file_path="/path/to/test.py",
                 line_number=3,
                 severity=SecuritySeverity.HIGH,
-                context="password = 'secret'"
+                context="password = 'secret'",
             )
         ],
     )

@@ -15,9 +15,7 @@ def parse_csharp_code(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse C# file: {e}",
-            file_path=file_path,
-            original_exception=e
+            message=f"Failed to parse C# file: {e}", file_path=file_path, original_exception=e
         )
     return ParseResult(
         file_path=file_path,

@@ -44,6 +44,7 @@ def write_json(
         f.write(final_json)
 
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info(f"[CodeConCat] JSON output written to: {config.output}")
     return final_json

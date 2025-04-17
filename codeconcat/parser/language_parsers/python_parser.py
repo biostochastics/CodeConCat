@@ -6,18 +6,21 @@ from typing import List, Optional
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser
 from codeconcat.errors import LanguageParserError
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def parse_python(file_path: str, content: str) -> ParseResult:
     """Parse Python code and return ParseResult."""
     parser = PythonParser()
+    parser.current_file_path = file_path  # Pass file path to parser instance
     try:
         declarations = parser.parse(content)
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse Python file: {e}",
-            file_path=file_path,
-            original_exception=e
+            message=f"Failed to parse Python file: {e}", file_path=file_path, original_exception=e
         )
     return ParseResult(
         file_path=file_path,
@@ -34,14 +37,14 @@ class PythonParser(BaseParser):
         """Initialize Python parser with regex patterns."""
         super().__init__()
         # Allow any Unicode letter/number in identifiers
-        name_pattern = r'[^\W\d][\w\u0080-\uffff_]*'  # Allow Unicode in identifiers
+        name_pattern = r"[^\W\d][\w\u0080-\uffff_]*"  # Allow Unicode in identifiers
         self.patterns = {
             "class": re.compile(
                 r"^(?:@[\w\u0080-\uffff.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
                 r"class\s+(?P<n>[^\W\d][\w\u0080-\uffff_]*)"  # Class name
                 r"(?:\s*\([^)]*\))?"  # Optional parent class
                 r"\s*:",  # Class definition end
-                re.UNICODE | re.MULTILINE
+                re.UNICODE | re.MULTILINE,
             ),
             "function": re.compile(
                 r"^(?:@[\w\u0080-\uffff.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
@@ -49,19 +52,19 @@ class PythonParser(BaseParser):
                 r"(?:\s*\([^)]*?\))?"  # Function parameters (non-greedy)
                 r"\s*(?:->[^:]+)?"  # Optional return type
                 r"\s*:",  # Function end
-                re.MULTILINE | re.DOTALL | re.VERBOSE | re.UNICODE
+                re.MULTILINE | re.DOTALL | re.VERBOSE | re.UNICODE,
             ),
             "constant": re.compile(
                 r"^(?P<n>[A-Z][A-Z0-9_\u0080-\uffff]*)\s*"  # Constant name
                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
                 r"\s*=\s*[^=]",  # Assignment but not comparison
-                re.UNICODE | re.MULTILINE
+                re.UNICODE | re.MULTILINE,
             ),
             "variable": re.compile(
                 r"^(?P<n>[a-z_\u0080-\uffff][\w\u0080-\uffff_]*)\s*"  # Variable name
                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
                 r"\s*=\s*[^=]",  # Assignment but not comparison
-                re.UNICODE | re.MULTILINE
+                re.UNICODE | re.MULTILINE,
             ),
         }
         self.block_start = ":"
@@ -85,7 +88,7 @@ class PythonParser(BaseParser):
         i = 0
         while i < len(lines):
             line = lines[i].strip()
-            
+
             # Skip empty lines and comments
             if not line or line.startswith("#"):
                 i += 1
@@ -131,7 +134,7 @@ class PythonParser(BaseParser):
                     if ":" in line:  # Block definition (function/class)
                         base_indent = len(lines[i]) - len(line)
                         j = i + 1
-                        
+
                         # Look for docstring
                         while j < len(lines):
                             next_line = lines[j].strip()
@@ -160,7 +163,17 @@ class PythonParser(BaseParser):
 
                         # Find block end and parse nested declarations
                         block_lines = []
+                        start_j = j  # Store starting point for safety check
                         while j < len(lines):
+                            # SAFETY CHECK: Prevent excessive looping
+                            # Increase limit if needed for very large functions/classes
+                            if j > start_j + 1000:
+                                logger.warning(
+                                    f"Python parser stopped searching for block end after 1000 lines in {self.current_file_path} starting near line {i+1}. Potential issue."
+                                )
+                                end_line = j - 1  # Mark current position as end
+                                break
+
                             curr_line = lines[j]
                             if curr_line.strip() and not curr_line.strip().startswith("#"):
                                 curr_indent = len(curr_line) - len(curr_line.lstrip())
@@ -168,7 +181,9 @@ class PythonParser(BaseParser):
                                     end_line = j - 1
                                     break
                                 elif curr_indent > base_indent:
-                                    block_lines.append(curr_line[base_indent + 4:])  # Assume 4 spaces indentation
+                                    block_lines.append(
+                                        curr_line[base_indent + 4 :]
+                                    )  # Assume 4 spaces indentation
                             j += 1
                         if j == len(lines):
                             end_line = j - 1
@@ -192,7 +207,7 @@ class PythonParser(BaseParser):
                         end_line=end_line + 1,
                         modifiers=set(decorators),
                         docstring=docstring,
-                        children=[]
+                        children=[],
                     )
                     declarations.append(decl)
                     i = end_line

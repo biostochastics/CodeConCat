@@ -6,6 +6,9 @@ from typing import List, Optional
 from codeconcat.base_types import ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 from codeconcat.errors import LanguageParserError
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def parse_c_code(file_path: str, content: str) -> ParseResult:
@@ -15,9 +18,7 @@ def parse_c_code(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse C file: {e}",
-            file_path=file_path,
-            original_exception=e
+            message=f"Failed to parse C file: {e}", file_path=file_path, original_exception=e
         )
     return ParseResult(
         file_path=file_path, language="c", content=content, declarations=declarations
@@ -96,8 +97,6 @@ class CParser(BaseParser):
                     break
             else:
                 if "struct" in line:
-                    import logging
-                    logger = logging.getLogger(__name__)
                     logger.info(f"No matching pattern found for struct declaration")
                 elif "function" in line:
                     logger.info(f"No matching pattern found for function declaration")

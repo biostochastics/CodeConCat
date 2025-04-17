@@ -13,6 +13,7 @@ state and can be shared freely.  Any additions or fixes here should remain
 free of I/O side‑effects so that the scanner can be used inside both CLI and
 library contexts.
 """
+
 from __future__ import annotations
 
 import fnmatch
@@ -24,9 +25,9 @@ from typing import Dict, List, Tuple
 from ..base_types import (
     CodeConCatConfig,
     CustomSecurityPattern,
-    SecurityIssue,
     SecuritySeverity,
 )
+from .security_types import SecurityIssue
 
 __all__ = ["SecurityProcessor"]
 
@@ -48,10 +49,12 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     # ----------------------------------------------------------------------------------
     # Define complex regex patterns as constants first using standard strings
     # ----------------------------------------------------------------------------------
-    _AWS_SECRET_KEY_REGEX = "(?i)\\baws[_\\-\\s]+secret[_\\-\\s]+(?:access[_\\-\\s]+)?key[\"\\s:=]+[\"]?([A-Za-z0-9/+=]{40})[\"\\s]?"
+    _AWS_SECRET_KEY_REGEX = '(?i)\\baws[_\\-\\s]+secret[_\\-\\s]+(?:access[_\\-\\s]+)?key["\\s:=]+["]?([A-Za-z0-9/+=]{40})["\\s]?'
     _GENERIC_API_KEY_REGEX = "(?i)\\b(?:api[_\\-\\s]*key|key[_\\-\\s]*id|secret[_\\-\\s]*key)[\"'\\s:=]+[\"']?([a-zA-Z0-9\\-._/+=]{8,})[\"']?"
-    _GENERIC_PASSWORD_REGEX = "(?i)\\b(?:password|pwd|pass)['\"\\s:=]+['\"]?([a-zA-Z0-9!@#$%^&*()_\\+-]{8,})['\"]?"
-    _AWS_SESSION_TOKEN_REGEX = "(?i)aws_session_token[\"\\s:=]+[\"]?([A-Za-z0-9/+=]{16,})[\"\\s]?"
+    _GENERIC_PASSWORD_REGEX = (
+        "(?i)\\b(?:password|pwd|pass)['\"\\s:=]+['\"]?([a-zA-Z0-9!@#$%^&*()_\\+-]{8,})['\"]?"
+    )
+    _AWS_SESSION_TOKEN_REGEX = '(?i)aws_session_token["\\s:=]+["]?([A-Za-z0-9/+=]{16,})["\\s]?'
 
     # ----------------------------------------------------------------------------------
     # Pattern definitions ----------------------------------------------------------------
@@ -147,7 +150,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             "AccountKey=[A-Za-z0-9+/=]+;EndpointSuffix=core.windows.net",
             "Azure Storage Key",
             SecuritySeverity.CRITICAL,
-        )
+        ),
         # fmt: on
     }
 
@@ -188,8 +191,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             abs_path = Path(file_path).expanduser().resolve()
         except Exception:  # pylint: disable=broad-except
             logger.warning(
-                "Could not resolve absolute path for '%s'; falling back to the "
-                "provided string.",
+                "Could not resolve absolute path for '%s'; falling back to the " "provided string.",
                 file_path,
             )
             abs_path = Path(str(file_path))
@@ -237,12 +239,11 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                             continue
                         masked_finding = cls._get_masked_finding(raw_finding)
                         issue = SecurityIssue(
-                            rule_id=rule_name,
-                            description=f"Potential {issue_type} detected.",
-                            file_path=str(abs_path),
                             line_number=lineno,
+                            line_content=line,
+                            issue_type=issue_type,
                             severity=current_severity,
-                            context=line.strip(),
+                            description=f"Potential {issue_type} detected.",
                         )
                         issues.append(issue)
                     except IndexError:
@@ -268,9 +269,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             try:
                 compiled[name] = (re.compile(raw_regex), issue_type, severity)
             except re.error as exc:
-                logger.error(
-                    "Failed to compile built-in security pattern '%s': %s", name, exc
-                )
+                logger.error("Failed to compile built-in security pattern '%s': %s", name, exc)
 
         # --- Compile and Add/Overwrite with Custom Patterns ---
         for custom in config.security_custom_patterns:
@@ -283,9 +282,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                 issue_type = custom.name
                 compiled[custom.name] = (re.compile(custom.regex), issue_type, severity)
             except re.error as exc:
-                logger.error(
-                    "Failed to compile custom security pattern '%s': %s", custom.name, exc
-                )
+                logger.error("Failed to compile custom security pattern '%s': %s", custom.name, exc)
             except KeyError:
                 logger.error(
                     "Invalid severity '%s' for custom security pattern '%s'.",
@@ -305,8 +302,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                 fnmatch.fnmatch(path_str, normalized)
                 or fnmatch.fnmatch(abs_path.name, normalized)
                 or any(
-                    fnmatch.fnmatch(parent.as_posix(), normalized)
-                    for parent in abs_path.parents
+                    fnmatch.fnmatch(parent.as_posix(), normalized) for parent in abs_path.parents
                 )
             ):
                 return True
@@ -345,22 +341,26 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     ) -> SecuritySeverity:
         """Return severity, optionally downgrading for test/example files."""
         path_lc = abs_path.as_posix().lower()
-        is_test = any(
-            token in path_lc
-            for token in (
-                "/tests/",
-                "/test/",
-                "/examples/",
-                "/example/",
+        is_test = (
+            any(
+                token in path_lc
+                for token in (
+                    "/tests/",
+                    "/test/",
+                    "/examples/",
+                    "/example/",
+                )
             )
-        ) or abs_path.name.startswith("test_") or abs_path.name.endswith(
-            (
-                "_test.py",
-                "_spec.rb",
-                ".test.js",
-                ".spec.js",
-                ".test.ts",
-                ".spec.ts",
+            or abs_path.name.startswith("test_")
+            or abs_path.name.endswith(
+                (
+                    "_test.py",
+                    "_spec.rb",
+                    ".test.js",
+                    ".spec.js",
+                    ".test.ts",
+                    ".spec.ts",
+                )
             )
         )
 
@@ -440,9 +440,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             return "Security Scan Results: No issues found."
 
         threshold = cls._resolve_threshold(config)
-        filtered: List[SecurityIssue] = [
-            issue for issue in issues if issue.severity >= threshold
-        ]
+        filtered: List[SecurityIssue] = [issue for issue in issues if issue.severity >= threshold]
         if not filtered:
             return (
                 "Security Scan Results: No issues found at or above the "

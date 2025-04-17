@@ -13,9 +13,7 @@ export class MyClass extends BaseClass {
   // some content
 }
 """
-    parsed = parse_javascript_or_typescript(
-        "MyClass.ts", content, language="typescript"
-    )
+    parsed = parse_javascript_or_typescript("MyClass.ts", content, language="typescript")
     assert len(parsed.declarations) == 1
 
     decl = parsed.declarations[0]
@@ -70,9 +68,7 @@ class MyClass {
   }
 }
 """
-    parsed = parse_javascript_or_typescript(
-        "MyClass.js", content, language="javascript"
-    )
+    parsed = parse_javascript_or_typescript("MyClass.js", content, language="javascript")
     # We expect 1 class symbol, plus 1 method symbol
     # The parser will likely produce 2 "declarations":
     # - The class at lines 1..6
@@ -209,9 +205,7 @@ export function multilineDoc() {
   return true;
 }
 """
-    parsed = parse_javascript_or_typescript(
-        "multiline.js", content, language="javascript"
-    )
+    parsed = parse_javascript_or_typescript("multiline.js", content, language="javascript")
     assert len(parsed.declarations) == 1
 
     decl = parsed.declarations[0]

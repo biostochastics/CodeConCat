@@ -15,9 +15,7 @@ def parse_cpp_code(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse C++ file: {e}",
-            file_path=file_path,
-            original_exception=e
+            message=f"Failed to parse C++ file: {e}", file_path=file_path, original_exception=e
         )
     return ParseResult(
         file_path=file_path, language="cpp", content=content, declarations=declarations
@@ -45,7 +43,7 @@ class CppParser(BaseParser):
                 r"(?:(?:const\s+)?[^;]+?\s+\*?\s*\(\s*\*\s*(?P<fname>\w+)\s*\)\s*\([^)]*\))|"  # Function pointer
                 r"(?:(?:const\s+)?[^;]+?\s+(?P<tname>\w+))"  # Regular typedef
                 r")\s*;",
-                re.MULTILINE | re.DOTALL
+                re.MULTILINE | re.DOTALL,
             ),
             "using": re.compile(r"^using\s+(?P<name>\w+)\s*="),
             "enum": re.compile(r"^enum(?:\s+class)?\s+(?P<name>\w+)"),
@@ -95,7 +93,7 @@ class CppParser(BaseParser):
                             end_line=i + 1,
                             modifiers=set(),
                             docstring="",
-                            children=[]
+                            children=[],
                         )
                         declarations.append(decl)
                         i += 1
@@ -131,7 +129,7 @@ class CppParser(BaseParser):
                         end_line=end_line + 1,
                         modifiers=set(),
                         docstring="",
-                        children=[]
+                        children=[],
                     )
 
                     declarations.append(decl)
@@ -185,7 +183,9 @@ class CppParser(BaseParser):
         # Not found => return last line
         return n - 1
 
-    def _find_class_start(self, lines: List[str], start_line: int, class_type: str, name: str) -> int:
+    def _find_class_start(
+        self, lines: List[str], start_line: int, class_type: str, name: str
+    ) -> int:
         """
         Find the line number where the class definition starts
         """

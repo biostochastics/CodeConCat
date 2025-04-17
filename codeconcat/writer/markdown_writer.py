@@ -26,10 +26,9 @@ def count_tokens(text: str) -> int:
         return len(encoder.encode(text))
     except Exception as e:
         import logging
+
         logger = logging.getLogger(__name__)
-        logger.info(
-            f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count"
-        )
+        logger.info(f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count")
         return len(text.split())
 
 
@@ -53,9 +52,7 @@ def print_quote_with_ascii(total_output_tokens: int = None):
     current_line = "|  "
     for word in words:
         if len(current_line) + len(word) + 1 > width - 2:
-            output_lines.append(
-                current_line + " " * (width - len(current_line) - 1) + "|"
-            )
+            output_lines.append(current_line + " " * (width - len(current_line) - 1) + "|")
             current_line = "|  " + word
         else:
             if current_line == "|  ":
@@ -68,6 +65,7 @@ def print_quote_with_ascii(total_output_tokens: int = None):
 
     # Print everything
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info("\n".join(output_lines))
     logger.info(f"\nQuote tokens (GPT-4): {quote_tokens:,}")
@@ -89,6 +87,7 @@ def is_test_or_config_file(file_path: str) -> bool:
 
 def write_markdown(
     annotated_files: List[AnnotatedFileData],
+    parsed_files: List[ParsedFileData],
     docs: List[ParsedDocData],
     config: CodeConCatConfig,
     folder_tree_str: str = "",
@@ -103,14 +102,6 @@ def write_markdown(
     # Add AI-friendly preamble only if enabled
     if not config.disable_ai_context:
         spinner.text = "Generating AI preamble"
-        parsed_files = [
-            ParsedFileData(
-                file_path=ann.file_path,
-                language=ann.language,
-                content=ann.annotated_content,
-            )
-            for ann in annotated_files
-        ]
         output_chunks.append(generate_ai_preamble(parsed_files, docs, {}))
 
     # Add directory structure if configured
@@ -141,9 +132,7 @@ def write_markdown(
         spinner.text = "Processing code files"
         output_chunks.append("## Code Files\n\n")
         for i, ann in enumerate(annotated_files, 1):
-            spinner.text = (
-                f"Processing code file {i}/{len(annotated_files)}: {ann.file_path}"
-            )
+            spinner.text = f"Processing code file {i}/{len(annotated_files)}: {ann.file_path}"
             output_chunks.append(f"### File: {ann.file_path}\n")
 
             is_test_config = is_test_or_config_file(ann.file_path)
@@ -159,22 +148,23 @@ def write_markdown(
                     )
                 )
                 # If cross-linking is enabled, replace symbol names in summary with Markdown links
-                if config.cross_link_symbols and hasattr(ann, 'declarations') and ann.declarations:
+                if config.cross_link_symbols and hasattr(ann, "declarations") and ann.declarations:
+
                     def make_anchor(decl):
                         # Use file_path + kind + name for uniqueness
                         anchor = f"symbol-{os.path.basename(ann.file_path).replace('.', '-')}-{decl.kind}-{decl.name}"
                         return anchor
-                    summary_lines = summary.split('\n')
-                    for decl in getattr(ann, 'declarations', []):
+
+                    summary_lines = summary.split("\n")
+                    for decl in getattr(ann, "declarations", []):
                         anchor = make_anchor(decl)
                         # Replace symbol name with Markdown link in summary (simple heuristic)
                         for i, line in enumerate(summary_lines):
                             if decl.name in line:
                                 summary_lines[i] = line.replace(
-                                    decl.name,
-                                    f"[{decl.name}](#{anchor})"
+                                    decl.name, f"[{decl.name}](#{anchor})"
                                 )
-                    summary = '\n'.join(summary_lines)
+                    summary = "\n".join(summary_lines)
                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
 
             # For test/config files, show content as well
@@ -182,33 +172,17 @@ def write_markdown(
                 spinner.text = "Processing file content"
                 processed_content = process_file_content(ann.content, config)
                 # Add anchors for each declaration if cross-linking is enabled
-                if config.cross_link_symbols and hasattr(ann, 'declarations') and ann.declarations:
+                if config.cross_link_symbols and hasattr(ann, "declarations") and ann.declarations:
                     for decl in ann.declarations:
                         anchor = f"symbol-{os.path.basename(ann.file_path).replace('.', '-')}-{decl.kind}-{decl.name}"
                         output_chunks.append(f'<a name="{anchor}"></a>\n')
                 output_chunks.append(f"```{ann.language}\n{processed_content}\n```")
 
-                # Add annotated content only if it provides additional analysis
+                # Always output the full annotated content (lists of functions/classes/etc)
                 if ann.annotated_content:
-                    # Extract only the analysis parts that aren't in the original content
-                    analysis_lines = []
-                    for line in ann.annotated_content.split("\n"):
-                        # Skip lines that are just code snippets
-                        if not line.strip() or line.strip() in ann.content:
-                            continue
-                        # Keep analysis comments and insights
-                        if (
-                            line.startswith("#")
-                            or "TODO" in line
-                            or "NOTE" in line
-                            or "FIXME" in line
-                        ):
-                            analysis_lines.append(line)
-
-                    if analysis_lines:
-                        output_chunks.append("\n#### Analysis Notes\n")
-                        output_chunks.append("\n".join(analysis_lines))
-                        output_chunks.append("\n")
+                    output_chunks.append("\n#### Analysis\n")
+                    output_chunks.append(ann.annotated_content)
+                    output_chunks.append("\n")
 
             # If merge_docs is enabled, try to find and merge related doc content
             if config.merge_docs:
@@ -228,9 +202,7 @@ def write_markdown(
         spinner.text = "Processing documentation files"
         output_chunks.append("## Documentation\n\n")
         for i, doc in enumerate(remaining_docs, 1):
-            spinner.text = (
-                f"Processing doc file {i}/{len(remaining_docs)}: {doc.file_path}"
-            )
+            spinner.text = f"Processing doc file {i}/{len(remaining_docs)}: {doc.file_path}"
             output_chunks.append(f"### File: {doc.file_path}\n")
             if config.include_file_summary:
                 spinner.text = "Generating file summary"
@@ -239,7 +211,7 @@ def write_markdown(
                         file_path=doc.file_path,
                         language="markdown",
                         content=doc.content,
-                        declarations=[]
+                        declarations=[],
                     )
                 )
                 output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
@@ -261,6 +233,7 @@ def write_markdown(
 
     spinner.succeed("CodeConcat output generated successfully")
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info(f"[CodeConCat] Markdown output written to: {config.output}")
 
