@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Pattern, Set
 from codeconcat.base_types import Declaration, ParseResult
 
+
 @dataclass
 class CodeSymbol:
     name: str
@@ -41,7 +42,7 @@ class BaseParser(ABC):
         self.patterns: Dict[str, Pattern] = {}
         self.modifiers: Set[str] = set()
         # Use Unicode word character class \w to match Unicode identifiers
-        self.identifier_pattern = re.compile(r'[\w\u0080-\uffff]+')
+        self.identifier_pattern = re.compile(r"[\w\u0080-\uffff]+")
 
     def parse(self, content: str) -> ParseResult:
         """Parse code content and return list of declarations."""
@@ -64,9 +65,7 @@ class BaseParser(ABC):
             if self.block_comment_start in line and not in_comment:
                 in_comment = True
                 comment_start = line.index(self.block_comment_start)
-                comment_buffer.append(
-                    line[comment_start + len(self.block_comment_start) :]
-                )
+                comment_buffer.append(line[comment_start + len(self.block_comment_start) :])
                 continue
 
             if in_comment:
@@ -142,9 +141,7 @@ class BaseParser(ABC):
 
             # Handle end of block
             if self.current_symbol and brace_count == 0:
-                self.current_symbol = (
-                    self.symbol_stack.pop() if self.symbol_stack else None
-                )
+                self.current_symbol = self.symbol_stack.pop() if self.symbol_stack else None
 
         # Convert symbols to tuples
         declarations = []
@@ -182,9 +179,7 @@ class BaseParser(ABC):
 
         return len(lines) - 1
 
-    def _create_pattern(
-        self, base_pattern: str, modifiers: Optional[List[str]] = None
-    ) -> Pattern:
+    def _create_pattern(self, base_pattern: str, modifiers: Optional[List[str]] = None) -> Pattern:
         if modifiers:
             modifier_pattern = f"(?:{'|'.join(modifiers)})\\s+"
             return re.compile(f"^\\s*(?:{modifier_pattern})?{base_pattern}")

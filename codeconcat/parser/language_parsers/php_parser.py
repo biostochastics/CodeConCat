@@ -7,23 +7,19 @@ from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser
 from codeconcat.errors import LanguageParserError
 
+
 def parse_php(file_path: str, content: str) -> ParseResult:
     """Parse PHP code and return declarations."""
     try:
         parser = PhpParser()
         declarations = parser.parse(content)
         return ParseResult(
-            file_path=file_path,
-            language="php",
-            content=content,
-            declarations=declarations
+            file_path=file_path, language="php", content=content, declarations=declarations
         )
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse PHP file: {e}",
-            file_path=file_path,
-            original_exception=e
+            message=f"Failed to parse PHP file: {e}", file_path=file_path, original_exception=e
         )
 
 
@@ -42,8 +38,7 @@ class PhpParser(BaseParser):
             ),
             "arrow_function": re.compile(r"^\$(?P<name>\w+)\s*=\s*fn\s*\([^)]*\)\s*=>"),
             "property": re.compile(
-                r"^(?:(?:public|private|protected|static|final|var)\s+)*"
-                r"\$(?P<name>\w+)"
+                r"^(?:(?:public|private|protected|static|final|var)\s+)*" r"\$(?P<name>\w+)"
             ),
         }
 
@@ -85,7 +80,7 @@ class PhpParser(BaseParser):
                             end_line=i + 1,
                             modifiers=set(),
                             docstring="",
-                            children=[]
+                            children=[],
                         )
                         declarations.append(decl)
                         i += 1
@@ -131,7 +126,7 @@ class PhpParser(BaseParser):
                         end_line=end_line + 1,
                         modifiers=set(),
                         docstring="",
-                        children=[]
+                        children=[],
                     )
 
                     declarations.append(decl)

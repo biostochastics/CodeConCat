@@ -1,93 +1,72 @@
+################################################################################
+# CodeConCat – project configuration
+# Tip: run `codeconcat . --show-config` to view the final merged config.
+################################################################################
+
+########################
+#  PATH FILTERING
+########################
+# 1. Any path matching `exclude_paths` is ignored.
+# 2. If `include_paths` is NOT empty, a file must match at least one of them.
+# 3. If `include_languages` is NOT empty, the file’s detected language
+#    (per ext_map) must appear in the list.
+
 exclude_paths:
-  # Next.js build artifacts and configuration
-  - "**/.next/**"  # Exclude all .next directory contents
-  - "**/next-env.d.ts"
-  - "**/next.config.*"
-  - "**/postcss.config.*"
-  - "**/tailwind.config.*"
-  - "**/*.tsbuildinfo"
-  
-  # Build artifacts and chunks
-  - "**/static/chunks/**"
-  - "**/server/chunks/**"
-  - "**/_next/**"
-  - "**/webpack-runtime.*"
-  - "**/webpack.*"
-  - "**/server-reference-manifest.*"
-  - "**/middleware-manifest.*"
-  - "**/client-reference-manifest.*"
-  - "**/BUILD_ID"
-  - "**/trace"
-  - "**/*.js.map"
-  - "**/*.css.map"
-  - "**/*.rsc"
-  - "**/*.meta"
-  - "**/*.nft.json"
-  
-  # Node modules and package files
-  - "**/node_modules/**"
-  - "**/package-lock.json"
-  - "**/yarn.lock"
-  - "**/.yarn/**"
-  - "**/.pnp.*"
-  
-  # Build directories and caches
-  - "**/cache/**"
-  - "**/dist/**"
-  - "**/build/**"
-  - "**/.turbo/**"
-  - "**/.swc/**"
-  - "**/.eslintcache"
-  - "**/.tsbuildinfo"
-  
-  # Version control
+  ## Version‑control metadata
+  - ".git/"
   - "**/.git/**"
-  - "**/.gitignore"
-  - "**/.gitmodules"
-  
-  # Environment and local files
-  - "**/.env*"
-  - "**/.venv/**"
-  - "**/venv/**"
+  - ".gitignore"
+  - ".gitmodules"
+
+  ## Build artefacts / dependency dirs
+  - "node_modules/"
+  - "**/node_modules/**"
+  - "dist/"
+  - "**/dist/**"
+  - "build/"
+  - "**/build/**"
+  - ".next/"
+  - "**/.next/**"
   - "**/__pycache__/**"
-  - "**/*.pyc"
-  
-  # IDE and editor files
-  - "**/.vscode/**"
-  - "**/.idea/**"
+
+  ## IDE/editor clutter
+  - ".vscode/**"
+  - ".idea/**"
   - "**/*.swp"
-  
-  # Test files
+  - "**/*.swo"
+
+  ## Test artefacts & coverage
+  - "coverage/"
+  - "**/coverage/**"
+  - ".pytest_cache"
   - "**/tests/**"
   - "**/test/**"
   - "**/*_test.*"
   - "**/*.test.*"
   - "**/*.spec.*"
-  
-  # Documentation
+
+  ## Docs, assets, binaries
+  - "docs/"
   - "**/docs/**"
-  - "**/doc/**"
   - "**/*.md"
   - "**/README*"
   - "**/LICENSE*"
-  
-  # Non-code assets
-  - "**/*.svg"
   - "**/*.png"
   - "**/*.jpg"
   - "**/*.jpeg"
   - "**/*.gif"
+  - "**/*.svg"
   - "**/*.ico"
+  - "**/*.pdf"
+  - "**/*.ttf"
   - "**/*.woff"
   - "**/*.woff2"
-  - "**/*.ttf"
   - "**/*.eot"
-  - "**/*.pdf"
   - "**/*.zip"
   - "**/*.tar.gz"
   - "**/*.tgz"
-  
-  # Generated and temporary files
+
+  ## Generated / minified bundles
   - "**/*.min.js"
   - "**/*.min.css"
   - "**/*.bundle.js"
@@ -96,45 +75,82 @@ exclude_paths:
   - "**/*.chunk.css"
   - "**/manifest.json"
 
-include_languages:
-  - typescript
-  - javascript
-  - python
-  - tsx
-  - jsx
+  ## Environment / secrets / venvs
+  - ".env"
+  - "**/.env"
+  - "**/.env.*"
+  - ".venv/"
+  - "venv/"
+  - "**/.venv/**"
+  - "**/venv/**"
+  - "*env"            # generic env dir (e.g. `env/`)
 
 include_paths:
-  # Source code
-  - "**/src/**/*.ts"
-  - "**/src/**/*.tsx"
-  - "**/src/**/*.js"
-  - "**/src/**/*.jsx"
-  - "**/src/**/*.py"
-  
-  # App directory (Next.js)
-  - "**/app/**/*.ts"
-  - "**/app/**/*.tsx"
-  - "**/app/**/*.js"
-  - "**/app/**/*.jsx"
-  
-  # Components
-  - "**/components/**/*.ts"
-  - "**/components/**/*.tsx"
-  - "**/components/**/*.js"
-  - "**/components/**/*.jsx"
-  
-  # Library code
-  - "**/lib/**/*.ts"
-  - "**/lib/**/*.tsx"
-  - "**/lib/**/*.js"
-  - "**/lib/**/*.jsx"
-  
-  # Package configuration (but not lock files)
-  - "**/package.json"
+  # ── Front‑end / full‑stack JS & TS ───────────────────────────────────────────
+  - "src/**/*.ts"
+  - "src/**/*.tsx"
+  - "src/**/*.js"
+  - "src/**/*.jsx"
 
-# Display Options
-include_file_summary: true
+  - "app/**/*.ts"
+  - "app/**/*.tsx"
+  - "app/**/*.js"
+  - "app/**/*.jsx"
+
+  - "components/**/*.ts"
+  - "components/**/*.tsx"
+  - "components/**/*.js"
+  - "components/**/*.jsx"
+
+  - "lib/**/*.ts"
+  - "lib/**/*.tsx"
+  - "lib/**/*.js"
+  - "lib/**/*.jsx"
+
+  # ── Python source code ───────────────────────────────────────────────────────
+  - "**/*.py"
+
+  # ── Project‑root metadata ───────────────────────────────────────────────────
+  - "package.json"
+  - "pyproject.toml"
+
+include_languages:           # must match ext_map() outputs
+  - python
+  - javascript
+  - typescript
+  - r
+  - py
+  - js
+  - tsx
+
+########################
+#  FEATURE TOGGLES
+########################
+enable_docs:         false   # pull in standalone docs (.md, .rst, etc.)
+merge_docs:          false   # merge docs into main output
+enable_ai_context:   true    # prepend AI‑friendly “preamble”
+enable_annotations:  true    # run LLM annotator
+disable_symbols:     false   # skip symbol index when true
+remove_docstrings:   true
+
+########################
+#  DISPLAY OPTIONS
+########################
+include_file_summary:        true
 include_directory_structure: true
-remove_comments: true
-remove_empty_lines: true
-show_line_numbers: true
+remove_comments:             true
+remove_empty_lines:          true
+show_line_numbers:           true
+
+########################
+#  EXECUTION CONTROLS
+########################
+max_workers: 4               # thread‑pool size (null = automatic)
+
+########################
+#  OUTPUT
+########################
+output:        output.md     # final file or base name when splitting
+format:        markdown      # markdown | json | xml
+split_output:  1             # >1 → split Markdown into N parts
+sort_files:    true          # alphabetical inside the output

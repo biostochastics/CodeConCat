@@ -14,9 +14,7 @@ def parse_java(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse Java file: {e}",
-            file_path=file_path,
-            original_exception=e
+            message=f"Failed to parse Java file: {e}", file_path=file_path, original_exception=e
         )
     return ParseResult(
         file_path=file_path, language="java", content=content, declarations=declarations
@@ -28,10 +26,18 @@ class JavaParser(BaseParser):
         """Initialize Java parser with regex patterns."""
         super().__init__()
         self.patterns = {
-            "class": re.compile(r"^(?:public\s+|private\s+|protected\s+|static\s+|final\s+|abstract\s+)*class\s+(?P<name>\w+)"),
-            "interface": re.compile(r"^(?:public\s+|private\s+|protected\s+|static\s+)*interface\s+(?P<name>\w+)"),
-            "method": re.compile(r"^(?:public\s+|private\s+|protected\s+|static\s+|final\s+|abstract\s+)*(?:[\w<>[\],\s]+\s+)?(?P<name>\w+)\s*\([^)]*\)"),
-            "field": re.compile(r"^(?:public\s+|private\s+|protected\s+|static\s+|final\s+|volatile\s+|transient\s+)*(?:[\w<>[\],\s]+\s+)(?P<name>\w+)\s*(?:=|;)"),
+            "class": re.compile(
+                r"^(?:public\s+|private\s+|protected\s+|static\s+|final\s+|abstract\s+)*class\s+(?P<name>\w+)"
+            ),
+            "interface": re.compile(
+                r"^(?:public\s+|private\s+|protected\s+|static\s+)*interface\s+(?P<name>\w+)"
+            ),
+            "method": re.compile(
+                r"^(?:public\s+|private\s+|protected\s+|static\s+|final\s+|abstract\s+)*(?:[\w<>[\],\s]+\s+)?(?P<name>\w+)\s*\([^)]*\)"
+            ),
+            "field": re.compile(
+                r"^(?:public\s+|private\s+|protected\s+|static\s+|final\s+|volatile\s+|transient\s+)*(?:[\w<>[\],\s]+\s+)(?P<name>\w+)\s*(?:=|;)"
+            ),
         }
 
     def parse(self, content: str) -> List[Declaration]:
@@ -89,7 +95,7 @@ class JavaParser(BaseParser):
                         end_line=end_line + 1,
                         modifiers=modifiers,
                         docstring="",
-                        children=[]
+                        children=[],
                     )
 
                     # For classes and interfaces, parse their members

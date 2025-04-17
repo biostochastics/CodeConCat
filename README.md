@@ -1,5 +1,8 @@
 # CodeConCat
 
+[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.6.4-blue)
+
+
 <p align="center">
   <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="200"/>
 </p>
@@ -28,18 +31,43 @@ output = run_codeconcat_in_memory(config)
 git clone https://github.com/biostochastics/codeconcat.git
 cd codeconcat
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Basic installation
+# Install in editable mode (recommended for development)
 pip install -e .
+```
 
-# Install with web API dependencies
-pip install -e ".[web]"
+## Optional Dependencies & Extras
 
-# Install with all optional dependencies
+Some features require optional dependencies. You can install them via [extras_require](https://pip.pypa.io/en/stable/topics/dependency-management/#extras-optional-dependencies):
+
+- **Clipboard Integration** (`pyperclip`): Used for copying output to the clipboard. Installed by default.
+- **Token Counting** (`tiktoken`): For accurate GPT-4 token counting.
+- **Security Scanning** (`transformers`): For advanced code security scanning (if enabled in config) and Claude tokenizer.
+
+Install with extras:
+
+```bash
+# Token counting support
+pip install -e ".[token]"
+
+# Security scanning support
+pip install -e ".[security]"
+
+# All optional features (web, token, security, test)
 pip install -e ".[all]"
 ```
+
+Feature summary:
+
+| Feature             | Package        | Extra      | Installed by default? |
+|---------------------|---------------|------------|-----------------------|
+| Clipboard           | pyperclip      | (core)     | Yes                   |
+| Token counting      | tiktoken       | token      | No                    |
+| Security scanning   | transformers   | security   | No                    |
+| Web API             | fastapi, uvicorn, pydantic | web | No           |
+| Testing             | pytest, pytest-cov, etc. | test | No             |
+
+- **Versioning:** CodeConCat uses dynamic versioning managed in `codeconcat/version.py` and referenced from `pyproject.toml` using Hatchling. Always check these files for the current version.
+
 
 ## Features
 
@@ -50,8 +78,10 @@ pip install -e ".[all]"
 - **Multiple Formats**: Output in Markdown, JSON, or XML
 - **Language Detection**: Automatic language detection and syntax highlighting
 - **Clipboard Integration**: One-click copy to clipboard
+- **Markdown Cross-Linking**: Symbol summaries in Markdown now link to their definitions for easier navigation (`--cross-link-symbols`).
 - **Token Counting**: Accurate GPT-4 token counting for all processed content
-- **Progress Tracking**: Real-time progress indication during processing
+- **Progress Tracking**: Real-time progress indication during processing (multi-stage progress bars for file collection, parsing, annotation, doc extraction, output writing; toggle with `--no-progress-bar`)
+- **Comprehensive Code Analysis**: Functions, classes, structs, and symbols are listed in the Markdown output under each file's analysis section for full visibility.
 - **Multi-Language Support**: Regex-based parsing for multiple languages:
   - Python, JavaScript/TypeScript, Java, Go, PHP, Ruby, R, Julia, Rust, C/C++, C#
 - **Programmatic API**: Use CodeConCat directly in your Python code
@@ -106,6 +136,7 @@ exclude_patterns:
 disable_tree: false
 disable_annotations: false
 ```
+
 
 ### Programmatic API
 
@@ -341,12 +372,19 @@ project/
 | `--github-token` | `None` | Personal access token for private GitHub repos |
 | `--ref` | `None` | Branch, tag, or commit hash for GitHub repos |
 | `--no-tree` | `false` | Disable folder tree generation |
+| `--no-progress-bar` | `false` | Disable progress bars (use spinner only) |
+| `--cross-link-symbols` | `false` | Enable Markdown cross-linking between symbol summaries and definitions |
 | `--no-copy` | `false` | Disable copying output to clipboard |
 | `--no-ai-context` | `false` | Disable AI context generation |
 | `--no-annotations` | `false` | Disable code annotations |
 | `--no-symbols` | `false` | Disable symbol extraction |
 | `--debug` | `false` | Enable detailed logging |
+| `--log-level` | `WARNING` | Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 | `--init` | `false` | Initialize default configuration file |
+| `--show-config` | `false` | Display the final merged configuration and exit |
+| `--sort-files` | `false` | Sort files alphabetically by path in the output |
+| `--split-output` | `1` | Split the output into X approximately equal files (requires X > 1, Markdown only) |
+| `--remove-docstrings` | `false` | Remove docstrings from the code content in the output |
 
 ### Language Support
 

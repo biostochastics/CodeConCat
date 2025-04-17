@@ -2,6 +2,7 @@ import os
 import tempfile
 import time
 from unittest.mock import Mock, patch
+import inspect
 
 import pytest
 
@@ -10,7 +11,9 @@ from codeconcat.base_types import (
     Declaration,
     ParsedFileData,
     SecurityIssue,
+    SecuritySeverity,
     TokenStats,
+    AnnotatedFileData,
 )
 from codeconcat.collector.local_collector import collect_local_files, should_include_file
 from codeconcat.parser.file_parser import parse_code_files
@@ -96,13 +99,37 @@ def decorated_func():  # Function with decorator
 
 # Unit Tests: Security Processor Tests
 def test_security_processor():
+    import re
+
     content = """
 API_KEY = "super_secret_key_12345"
 password = "password123"
 """
-    issues = SecurityProcessor.scan_content(content, "test.py")
+    print("Test content:", repr(content))
+    config = CodeConCatConfig(enable_security_scanning=True)
+    compiled_patterns = SecurityProcessor._compile_patterns(config)
+    print("Compiled patterns:", list(compiled_patterns.keys()))
+
+    for pattern_name in ["generic_password", "generic_api_key"]:
+        if pattern_name in compiled_patterns:
+            pattern_obj, issue_type, severity = compiled_patterns[pattern_name]
+            print(f"Pattern '{pattern_name}' regex:", pattern_obj.pattern)
+            for line in content.splitlines():
+                print(f"Testing line: {repr(line)}")
+                for match in pattern_obj.finditer(line):
+                    print(f"MATCH FOUND for {pattern_name}: {match.group(0)}")
+                    if pattern_obj.groups >= 1 and match.group(1) is not None:
+                        print(f"  Captured group: {match.group(1)}")
+        else:
+            print(f"Pattern '{pattern_name}' is NOT in compiled patterns!")
+
+    issues = SecurityProcessor.scan_content(content, "test.py", config)
+    print("Issues found:", len(issues))
+    for i, issue in enumerate(issues):
+        print(f"Issue {i+1}: {issue.rule_id} - {issue.severity}")
+
     assert len(issues) > 0
-    assert any("API Key" in issue.issue_type for issue in issues)
+    assert any(issue.severity == SecuritySeverity.HIGH for issue in issues)
 
 
 def test_security_processor_false_positives():
@@ -110,7 +137,8 @@ def test_security_processor_false_positives():
 EXAMPLE_KEY = "example_key"  # Should not trigger
 TEST_PASSWORD = "dummy_password"  # Should not trigger
 """
-    issues = SecurityProcessor.scan_content(content, "test.py")
+    config = CodeConCatConfig()
+    issues = SecurityProcessor.scan_content(content, "test.py", config)
     assert len(issues) == 0
 
 
@@ -122,7 +150,7 @@ def test_end_to_end_workflow(temp_dir, sample_python_file, sample_config):
     assert any(f.file_path == sample_python_file for f in files)
 
     # Test parsing
-    parsed_files = parse_code_files([f.file_path for f in files], sample_config)
+    parsed_files, errors = parse_code_files([f.file_path for f in files], sample_config)
     assert len(parsed_files) > 0
     first_file = parsed_files[0]
     assert isinstance(first_file, ParsedFileData)
@@ -160,14 +188,14 @@ def test_large_file_handling(temp_dir):
     # Create a large file
     large_file = os.path.join(temp_dir, "large.py")
     with open(large_file, "w") as f:
-        for i in range(1000):  
+        for i in range(1000):
             f.write(f"def func_{i}(): pass\n")
 
     config = CodeConCatConfig(target_path=temp_dir)
     files = collect_local_files(temp_dir, config)
-    parsed_files = parse_code_files([f.file_path for f in files], config)
+    parsed_files, errors = parse_code_files([f.file_path for f in files], config)
     assert len(parsed_files) == 1
-    assert len(parsed_files[0].declarations) == 1000  
+    assert len(parsed_files[0].declarations) == 1000
 
 
 def test_special_characters(temp_dir):
@@ -185,7 +213,7 @@ class TestClass_🐍:
 
     config = CodeConCatConfig(target_path=temp_dir)
     files = collect_local_files(temp_dir, config)
-    parsed_files = parse_code_files([f.file_path for f in files], config)
+    parsed_files, errors = parse_code_files([f.file_path for f in files], config)
     assert len(parsed_files) == 1
     assert any("☺" in d.name for d in parsed_files[0].declarations)
     assert any("🐍" in d.name for d in parsed_files[0].declarations)
@@ -202,7 +230,7 @@ def test_concurrent_processing(temp_dir):
     config = CodeConCatConfig(target_path=temp_dir, max_workers=4)
     start_time = time.time()
     files = collect_local_files(temp_dir, config)
-    parsed_files = parse_code_files([f.file_path for f in files], config)
+    parsed_files, errors = parse_code_files([f.file_path for f in files], config)
     end_time = time.time()
 
     assert len(parsed_files) == 10
@@ -229,15 +257,12 @@ def test_token_counting():
         file_path="test.py",
         language="python",
         content=content,
-        token_stats=TokenStats(
-            gpt3_tokens=10, gpt4_tokens=10, davinci_tokens=10, claude_tokens=8
-        ),
+        token_stats=TokenStats(input_tokens=10, output_tokens=20, total_tokens=30),
     )
 
-    assert parsed.token_stats.gpt3_tokens > 0
-    assert parsed.token_stats.gpt4_tokens > 0
-    assert parsed.token_stats.davinci_tokens > 0
-    assert parsed.token_stats.claude_tokens > 0
+    assert parsed.token_stats.input_tokens == 10
+    assert parsed.token_stats.output_tokens == 20
+    assert parsed.token_stats.total_tokens == 30
 
 
 def test_disable_ai_context(temp_dir):
@@ -253,7 +278,7 @@ def main():
 
     config = CodeConCatConfig(target_path=temp_dir)
     files = collect_local_files(temp_dir, config)
-    parsed_files = parse_code_files([f.file_path for f in files], config)
+    parsed_files, errors = parse_code_files([f.file_path for f in files], config)
     assert len(parsed_files) == 1
     assert len(parsed_files[0].declarations) == 1
 
@@ -272,7 +297,7 @@ def main():
 
     config = CodeConCatConfig(target_path=temp_dir)
     files = collect_local_files(temp_dir, config)
-    parsed_files = parse_code_files([f.file_path for f in files], config)
+    parsed_files, errors = parse_code_files([f.file_path for f in files], config)
     assert len(parsed_files) == 1
     assert len(parsed_files[0].declarations) == 1
     assert parsed_files[0].declarations[0].docstring == "Main function."

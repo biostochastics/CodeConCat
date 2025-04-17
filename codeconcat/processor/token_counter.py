@@ -6,6 +6,7 @@ from typing import Dict
 import tiktoken
 from transformers import GPT2TokenizerFast
 
+
 @dataclass
 class TokenStats:
     """Token statistics for a file."""
@@ -20,7 +21,7 @@ class TokenStats:
 _ENCODER_CACHE: Dict[str, tiktoken.Encoding] = {}
 
 # Load Claude tokenizer once
-_CLAUDE_TOKENIZER = GPT2TokenizerFast.from_pretrained('Xenova/claude-tokenizer')
+_CLAUDE_TOKENIZER = GPT2TokenizerFast.from_pretrained("Xenova/claude-tokenizer")
 
 
 def get_encoder(model: str = "gpt-3.5-turbo") -> tiktoken.Encoding:

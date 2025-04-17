@@ -43,5 +43,8 @@ def write_json(
     with open(config.output, "w", encoding="utf-8") as f:
         f.write(final_json)
 
-    print(f"[CodeConCat] JSON output written to: {config.output}")
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"[CodeConCat] JSON output written to: {config.output}")
     return final_json

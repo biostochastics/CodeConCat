@@ -5,7 +5,6 @@ from typing import Dict, List
 
 from codeconcat.base_types import (
     AnnotatedFileData,
-    CodeElementType,
     ParsedDocData,
     ParsedFileData,
 )
@@ -26,22 +25,28 @@ def generate_ai_preamble(
         ext = file.file_path.split(".")[-1] if "." in file.file_path else "unknown"
         file_types[ext] = file_types.get(ext, 0) + 1
 
-        for element in file.elements:
-            if element.type == CodeElementType.FUNCTION:
+        for element in file.declarations:
+            if element.kind == "function":
                 total_functions += 1
-                total_function_lines += (element.end_line - element.start_line + 1)
+                total_function_lines += element.end_line - element.start_line + 1
 
     avg_function_length = (
-        round(total_function_lines / total_functions, 1)
-        if total_functions > 0
-        else 0
+        round(total_function_lines / total_functions, 1) if total_functions > 0 else 0
     )
 
     # Identify potential entry points
     common_entry_points = [
-        "main.py", "__main__.py", "app.py", "server.py", "manage.py",
-        "index.js", "server.js", "app.js",
-        "index.ts", "server.ts", "app.ts",
+        "main.py",
+        "__main__.py",
+        "app.py",
+        "server.py",
+        "manage.py",
+        "index.js",
+        "server.js",
+        "app.js",
+        "index.ts",
+        "server.ts",
+        "app.ts",
         # Add more common entry points as needed
     ]
     potential_entry_files = [
@@ -54,7 +59,7 @@ def generate_ai_preamble(
     key_files_with_summaries = []
     for file in code_files:
         annotation = file_annotations.get(
-            file.file_path, AnnotatedFileData(file.file_path, "", [])
+            file.file_path, AnnotatedFileData(file.file_path, "", "", "")
         )
         if annotation.summary:
             key_files_with_summaries.append(f"- `{file.file_path}`: {annotation.summary}")

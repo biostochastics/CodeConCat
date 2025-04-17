@@ -13,17 +13,17 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
     """Process file content according to configuration options."""
     # Don't return empty content for test files
     if not content.strip() and (
-        "/tests/" in config.target_path or 
-        config.target_path.startswith("test_") or 
-        config.target_path.endswith("_test.R") or
-        config.target_path.endswith("_tests.R")
+        "/tests/" in config.target_path
+        or config.target_path.startswith("test_")
+        or config.target_path.endswith("_test.R")
+        or config.target_path.endswith("_tests.R")
     ):
         return "# Empty test file"
-    
+
     # If we need to remove docstrings, do it before any other processing
     if config.remove_docstrings:
         content = remove_docstrings(content)
-        
+
     lines = content.split("\n")
     processed_lines = []
 
@@ -57,37 +57,37 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
 
 def remove_docstrings(content: str) -> str:
     """Remove documentation strings from code.
- 
+
     It preserves inline comments (#, //).
- 
+
     Args:
         content: The source code content
-        
+
     Returns:
         Code content with docstrings removed
     """
     # Python triple-quoted docstrings (both ''' and """)
     # Using non-greedy matching and handling escaped quotes within docstrings requires
     # more complex regex or a proper parser. This simpler version works for most cases.
-    content = re.sub(r'"""[\s\S]*?"""', '', content)
-    content = re.sub(r"'''[\s\S]*?'''", '', content)
+    content = re.sub(r'"""[\s\S]*?"""', "", content)
+    content = re.sub(r"'''[\s\S]*?'''", "", content)
 
     # JavaScript/TypeScript/Java JSDoc/JavaDoc style comments (/** ... */)
     # Need to be careful not to remove /* */ style comments if remove_comments is False
-    content = re.sub(r'/\*\*.*?\*/', '', content, flags=re.DOTALL)
+    content = re.sub(r"/\*\*.*?\*/", "", content, flags=re.DOTALL)
 
     # C# XML documentation comments (/// ...)
-    content = re.sub(r'^\s*///.*$', '', content, flags=re.MULTILINE)
+    content = re.sub(r"^\s*///.*$", "", content, flags=re.MULTILINE)
 
     # Rust documentation comments (/// ... or //! ...)
-    content = re.sub(r'^\s*///.*$', '', content, flags=re.MULTILINE)
-    content = re.sub(r'^\s*//!.*$', '', content, flags=re.MULTILINE)
+    content = re.sub(r"^\s*///.*$", "", content, flags=re.MULTILINE)
+    content = re.sub(r"^\s*//!.*$", "", content, flags=re.MULTILINE)
 
     # R roxygen2 comments (#' ...)
-    content = re.sub(r"^\s*#'.*$", '', content, flags=re.MULTILINE)
-    
+    content = re.sub(r"^\s*#'.*$", "", content, flags=re.MULTILINE)
+
     # Remove potential empty lines left after docstring removal
-    content = re.sub(r'\n\s*\n', '\n', content)
+    content = re.sub(r"\n\s*\n", "\n", content)
 
     return content
 
@@ -100,16 +100,15 @@ def generate_file_summary(file_data: ParsedFileData) -> str:
 
     if file_data.token_stats:
         summary.append("Token Counts:")
-        summary.append(f"  - GPT-3.5: {file_data.token_stats.gpt3_tokens:,}")
-        summary.append(f"  - GPT-4: {file_data.token_stats.gpt4_tokens:,}")
-        summary.append(f"  - Davinci: {file_data.token_stats.davinci_tokens:,}")
-        summary.append(f"  - Claude: {file_data.token_stats.claude_tokens:,}")
+        summary.append(f"  - Input: {file_data.token_stats.input_tokens:,}")
+        summary.append(f"  - Output: {file_data.token_stats.output_tokens:,}")
+        summary.append(f"  - Total: {file_data.token_stats.total_tokens:,}")
 
     if file_data.security_issues:
         summary.append("\nSecurity Issues:")
         for issue in file_data.security_issues:
-            summary.append(f"  - {issue.issue_type} (Line {issue.line_number})")
-            summary.append(f"    {issue.line_content}")
+            summary.append(f"  - {issue.issue_type} ({issue.severity}, Line {issue.line_number})")
+            summary.append(f"    Context: {issue.line_content}")
 
     if file_data.declarations:
         summary.append("\nDeclarations:")

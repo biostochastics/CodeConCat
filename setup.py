@@ -37,6 +37,12 @@ extras_require = {
         "pytest-asyncio>=0.21.1",
         "pytest-mock>=3.11.1",
     ],
+    "token": [
+        "tiktoken>=0.5.1",
+    ],
+    "security": [
+        "transformers>=4.36.0",
+    ],
     "all": [
         "fastapi>=0.68.0",
         "uvicorn>=0.15.0",
@@ -45,6 +51,8 @@ extras_require = {
         "pytest-cov>=4.1.0",
         "pytest-asyncio>=0.21.1",
         "pytest-mock>=3.11.1",
+        "tiktoken>=0.5.1",
+        "transformers>=4.36.0",
     ],
 }
 

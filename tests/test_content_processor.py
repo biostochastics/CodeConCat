@@ -7,6 +7,7 @@ from codeconcat.base_types import (
     Declaration,
     ParsedFileData,
     SecurityIssue,
+    SecuritySeverity,
     TokenStats,
 )
 from codeconcat.processor.content_processor import (
@@ -68,16 +69,15 @@ def test_generate_file_summary():
                 docstring=None,
             )
         ],
-        token_stats=TokenStats(
-            gpt3_tokens=100, gpt4_tokens=120, davinci_tokens=110, claude_tokens=115
-        ),
+        token_stats=TokenStats(input_tokens=100, output_tokens=120, total_tokens=220),
         security_issues=[
             SecurityIssue(
-                issue_type="hardcoded_secret",
-                line_number=3,
-                line_content="password = 'secret'",
-                severity="high",
+                rule_id="hardcoded_secret",
                 description="Hardcoded password found in source code",
+                file_path="/path/to/test.py",
+                line_number=3,
+                severity=SecuritySeverity.HIGH,
+                context="password = 'secret'",
             )
         ],
     )
@@ -85,7 +85,7 @@ def test_generate_file_summary():
     summary = generate_file_summary(file_data)
     assert "test.py" in summary
     assert "python" in summary
-    assert "GPT-3.5: 100" in summary
+    assert "  - Total: 220" in summary
     assert "hardcoded_secret" in summary
     assert "function: test_func" in summary
 

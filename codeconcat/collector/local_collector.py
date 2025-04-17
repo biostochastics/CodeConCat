@@ -2,30 +2,18 @@ import fnmatch
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List
 
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
+from tqdm import tqdm
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 
-# Set up logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)
-
-# Create a console handler and set the level to debug
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-
-# Create a formatter and add it to the handler
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-ch.setFormatter(formatter)
-
-# Add the handler to the logger
-logger.addHandler(ch)
-
+# Do not set up handlers or formatters here; let the CLI configure logging.
 DEFAULT_EXCLUDES = [
     # Version Control
     ".git/",  # Match the .git directory itself
@@ -133,9 +121,7 @@ def get_gitignore_spec(root_path: str) -> PathSpec:
 
     if os.path.exists(gitignore_path):
         with open(gitignore_path, "r") as f:
-            patterns = [
-                line.strip() for line in f if line.strip() and not line.startswith("#")
-            ]
+            patterns = [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
     # Add common patterns that should always be ignored
     patterns.extend(
@@ -170,10 +156,14 @@ def should_include_file(
         bool: True if file should be included, False otherwise
     """
     # Get relative path for .gitignore matching
-    rel_path = os.path.relpath(file_path, config.target_path)
+    rel_path = os.path.relpath(file_path, config.target_path).replace(
+        os.sep, "/"
+    )  # Normalize to / for glob tests
 
     # Check .gitignore first
     if gitignore_spec and gitignore_spec.match_file(rel_path):
+        if getattr(config, "show_skip", False) or getattr(config, "debug", False):
+            logger.info(f"Excluded by .gitignore: {rel_path}")
         return False
 
     # Then check configuration patterns
@@ -185,17 +175,46 @@ def should_include_file(
                 fnmatch.fnmatch(os.path.join(*path_parts[: i + 1]), pattern)
                 for i in range(len(path_parts))
             ):
+                if getattr(config, "show_skip", False) or getattr(config, "debug", False):
+                    logger.info(f"Excluded by pattern: {rel_path} (pattern: {pattern})")
                 return False
 
     if config.include_paths:
-        return any(
-            fnmatch.fnmatch(rel_path, pattern) for pattern in config.include_paths
-        )
+        matched = any(fnmatch.fnmatch(rel_path, pattern) for pattern in config.include_paths)
+        if not matched and (getattr(config, "show_skip", False) or getattr(config, "debug", False)):
+            logger.info(f"Skipped by include_paths: {rel_path} (patterns: {config.include_paths})")
+        return matched
+
+    # Language filter (step 3): Only include if language is in include_languages, if set
+    if hasattr(config, "include_languages") and config.include_languages:
+        ext = os.path.splitext(rel_path)[1].lstrip(".")
+        # Use ext_map if available, otherwise just extension
+        try:
+            from codeconcat.collector.local_collector import ext_map
+
+            language = ext_map(ext, config)
+        except Exception:
+            language = ext
+
+        # Normalize both language and config.include_languages for robust comparison
+        def norm_lang(s):
+            return "".join(c for c in s.lower() if c.isalnum())
+
+        normalized_language = norm_lang(language)
+        normalized_includes = [norm_lang(l) for l in config.include_languages]
+        matched_lang = normalized_language in normalized_includes
+        if not matched_lang and (
+            getattr(config, "show_skip", False) or getattr(config, "debug", False)
+        ):
+            logger.info(
+                f"Skipped by include_languages: {rel_path} (detected: {language}, allowed: {config.include_languages})"
+            )
+        return matched_lang
 
     return True
 
 
-def collect_local_files(root_path: str, config: CodeConCatConfig):
+def collect_local_files(root_path: str, config: CodeConCatConfig, show_progress: bool = False):
     """Collect files from local filesystem."""
 
     logger.debug(f"[CodeConCat] Collecting files from: {root_path}")
@@ -207,7 +226,8 @@ def collect_local_files(root_path: str, config: CodeConCatConfig):
     gitignore_spec = get_gitignore_spec(root_path)
 
     # Collect files using thread pool
-    with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
+    max_workers = config.max_workers if getattr(config, "max_workers", None) not in (None, 0) else 1
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
 
         for dirpath, dirnames, filenames in os.walk(root_path):
@@ -219,12 +239,20 @@ def collect_local_files(root_path: str, config: CodeConCatConfig):
             # Process files in parallel
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
-                futures.append(
-                    executor.submit(process_file, file_path, config, gitignore_spec)
-                )
+                futures.append(executor.submit(process_file, file_path, config, gitignore_spec))
 
         # Collect results, filtering out None values
-        results = [f.result() for f in futures if f.result()]
+        results = [
+            f.result()
+            for f in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="Collecting files",
+                unit="file",
+                disable=not show_progress,  # Disable progress bar if show_progress is False
+            )
+            if f.result()
+        ]
 
     if not results:
         logger.warning("[CodeConCat] No files found matching the criteria")
@@ -274,86 +302,47 @@ def should_skip_dir(dirpath: str, user_excludes: List[str]) -> bool:
     # Convert to relative path for matching
     if os.path.isabs(dirpath):
         try:
-            rel_path = os.path.relpath(dirpath, os.getcwd())
+            rel_path = os.path.relpath(dirpath, config.target_path)
         except ValueError:
             rel_path = dirpath
     else:
         rel_path = dirpath
-
-    # Normalize path separators and remove leading/trailing slashes
     rel_path = rel_path.replace(os.sep, "/").strip("/")
 
-    # Check if the directory itself matches any exclude pattern
     for pattern in all_excludes:
         if matches_pattern(rel_path, pattern):
             logger.debug(f"Excluding directory {rel_path} due to pattern {pattern}")
             return True
-
-    # Also check each parent directory
-    path_parts = [p for p in rel_path.split("/") if p]
-    current_path = ""
-    for part in path_parts:
-        if current_path:
-            current_path += "/"
-        current_path += part
-
-        for pattern in all_excludes:
-            # Try both with and without trailing slash
-            if matches_pattern(current_path, pattern) or matches_pattern(
-                current_path + "/", pattern
-            ):
-                logger.debug(
-                    f"Excluding directory {rel_path} due to parent {current_path} matching pattern {pattern}"
-                )
-                return True
-
     return False
 
 
+import string
+
+_cache = {}
+
+
 def matches_pattern(path_str: str, pattern: str) -> bool:
-    """Match a path against a glob pattern, handling both relative and absolute paths."""
-    # Normalize path separators and remove leading/trailing slashes
-    path_str = path_str.replace(os.sep, "/").strip("/")
-    pattern = pattern.replace(os.sep, "/").strip("/")
-
-    # Handle special case of root directory
-    if pattern == "":
-        return path_str == ""
-
-    # Convert glob pattern to regex
-    pattern = pattern.replace(".", "\\.")  # Escape dots
-    pattern = pattern.replace("**", "__DOUBLE_STAR__")  # Preserve **
-    pattern = pattern.replace("*", "[^/]*")  # Single star doesn't cross directories
-    pattern = pattern.replace("__DOUBLE_STAR__", ".*")  # ** can cross directories
-    pattern = pattern.replace("?", "[^/]")  # ? matches single character
-
-    # Handle directory patterns
-    if pattern.endswith("/"):
-        pattern = pattern + ".*"  # Match anything after directory
-
-    # Handle pattern anchoring
-    if pattern.startswith("/"):
-        pattern = "^" + pattern[1:]  # Keep absolute path requirement
-    elif pattern.startswith("**/"):
-        pattern = ".*" + pattern[2:]  # Allow matching anywhere in path
-    else:
-        pattern = "^" + pattern  # Anchor to start by default
-
-    if not pattern.endswith("$"):
-        pattern += "$"  # Always anchor to end
-
-    # Try to match
-    try:
-        return bool(re.match(pattern, path_str))
-    except re.error as e:
-        logger.warning(f"Invalid pattern {pattern}: {str(e)}")
-        return False
+    """Match a path against a glob pattern using fnmatch.translate for correctness, with caching."""
+    norm_path = path_str.replace(os.sep, "/")
+    norm_pattern = pattern.replace(os.sep, "/")
+    if norm_pattern not in _cache:
+        _cache[norm_pattern] = re.compile(fnmatch.translate(norm_pattern))
+    return bool(_cache[norm_pattern].match(norm_path))
 
 
 def ext_map(ext: str, config: CodeConCatConfig) -> str:
-    """Map file extensions to their corresponding language or type."""
-    if ext in config.custom_extension_map:
-        return config.custom_extension_map[ext]
+    """Map file extensions to their corresponding language or type, normalizing identifiers."""
+
+    def norm_lang(s):
+        return "".join(c for c in s.lower() if c.isalnum())
+
+    # Normalize custom extension map
+    custom_map = {
+        k.lower(): norm_lang(v) for k, v in getattr(config, "custom_extension_map", {}).items()
+    }
+    ext_lc = ext.lower()
+    if ext_lc in custom_map:
+        return custom_map[ext_lc]
 
     # Non-code files that should be excluded
     non_code_exts = {
@@ -409,21 +398,16 @@ def ext_map(ext: str, config: CodeConCatConfig) -> str:
     # Code files
     code_exts = {
         # Python
-        "py": "python",
-        "pyi": "python",
+        "py": "py",
+        "pyi": "py",
         # JavaScript/TypeScript
-        "js": "javascript",
-        "jsx": "javascript",
-        "ts": "typescript",
-        "tsx": "typescript",
-        "mjs": "javascript",
+        "js": "js",
+        "jsx": "jsx",
+        "ts": "ts",
+        "tsx": "tsx",
+        "mjs": "js",
         # R
         "r": "r",
-        "R": "r",
-        "rs": "r",
-        "Rs": "r",
-        "RScript": "r",
-        # Other languages
         "jl": "julia",
         "cpp": "cpp",
         "hpp": "cpp",
@@ -442,8 +426,41 @@ def ext_map(ext: str, config: CodeConCatConfig) -> str:
 
 def is_binary_file(file_path: str) -> bool:
     """Check if a file is likely to be binary."""
+    # Fast path: check by extension
+    binary_exts = {
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "ico",
+        "webp",
+        "woff",
+        "woff2",
+        "ttf",
+        "eot",
+        "otf",
+        "pdf",
+        "doc",
+        "docx",
+        "xls",
+        "xlsx",
+        "zip",
+        "tar",
+        "gz",
+        "tgz",
+        "7z",
+        "rar",
+        "mp3",
+        "mp4",
+        "wav",
+        "avi",
+        "mov",
+    }
+    ext = os.path.splitext(file_path)[1].lstrip(".").lower()
+    if ext in binary_exts:
+        return True
     try:
-        with open(file_path, "tr") as check_file:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as check_file:
             check_file.readline()
             return False
     except UnicodeDecodeError:

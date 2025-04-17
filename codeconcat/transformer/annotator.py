@@ -1,9 +1,7 @@
 from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedFileData
 
 
-def annotate(
-    parsed_data: ParsedFileData, config: CodeConCatConfig
-) -> AnnotatedFileData:
+def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> AnnotatedFileData:
     pieces = []
     pieces.append(f"## File: {parsed_data.file_path}\n")
 
@@ -23,22 +21,19 @@ def annotate(
         elif decl.kind == "symbol" and not config.disable_symbols:
             symbols.append(decl.name)
 
-    # Add headers for each kind if they exist
+    # Explicitly list all found functions, classes, structs, and symbols
     if functions:
         pieces.append("### Functions\n")
         for name in functions:
             pieces.append(f"- {name}\n")
-
     if classes:
         pieces.append("### Classes\n")
         for name in classes:
             pieces.append(f"- {name}\n")
-
     if structs:
         pieces.append("### Structs\n")
         for name in structs:
             pieces.append(f"- {name}\n")
-
     if symbols:
         pieces.append("### Symbols\n")
         for name in symbols:
@@ -57,11 +52,7 @@ def annotate(
     if symbols:
         summary_parts.append(f"{len(symbols)} symbols")
 
-    summary = (
-        f"Contains {', '.join(summary_parts)}"
-        if summary_parts
-        else "No declarations found"
-    )
+    summary = f"Contains {', '.join(summary_parts)}" if summary_parts else "No declarations found"
 
     # Generate tags
     tags = []

@@ -2,7 +2,25 @@
 
 ## NEW ENTRIES APPEAR ON TOP
 
-## [0.6.3] - 2025-04-17
+## [0.6.4] - 2025-04-17
+
+### Added
+
+- Multi-stage progress bars for all major processing steps (file collection, parsing, annotation, doc extraction, output writing) using `tqdm`. Toggle with `--no-progress-bar`.
+- Markdown cross-linking: symbol summaries in Markdown now link to their definitions for easier navigation. Toggle with `--cross-link-symbols`.
+
+### Fixed
+- Grouped CLI arguments for better usability.
+- Improved config loading and dynamic versioning using Hatchling (`pyproject.toml` + `version.py`).
+- Cleaned up and standardized `pyproject.toml` for modern Python packaging.
+- Improved documentation and error messages for output writing and config handling.
+- The Markdown output now always includes explicit lists of all functions, classes, structs, and symbols for each file under a dedicated analysis section, improving visibility and AI comprehension.
+- The annotation logic was improved and a bug was fixed so that all parsed declarations (not just comments or TODOs) are included in the output.
+- CLI/config improvements: grouped arguments, more helpful help output, and new flags for progress bars and cross-linking.
+- Fixed bug where annotated functions/classes were not shown in Markdown output due to overly restrictive filtering in the writer.
+- Token counting (`tiktoken`) and security scanning (`transformers`) are now documented as optional dependencies and can be installed via `extras_require` (`[token]`, `[security]`, `[all]`).
+
+## [0.6.3] - 2025-04-16
 
 ### Added
 - Added `--remove-docstrings` CLI option to exclude documentation strings (Python, JS/TS/Java, C#, Rust, R) from the output.
