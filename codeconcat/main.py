@@ -34,6 +34,7 @@ from .version import __version__
 
 logger = logging.getLogger("codeconcat")
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Exception hierarchy
 # ──────────────────────────────────────────────────────────────────────────────
@@ -83,6 +84,7 @@ def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
     if not getattr(config, "disable_copy", True) and parts <= 1:
         try:
             import pyperclip
+
             pyperclip.copy(output_text)
             logger.info("Output copied to clipboard.")
         except ImportError:
@@ -393,7 +395,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         try:
             output = None
             if config.format == "markdown":
-                output = write_markdown(annotated_files, parsed_files, docs, config, folder_tree_str)
+                output = write_markdown(
+                    annotated_files, parsed_files, docs, config, folder_tree_str
+                )
             elif config.format == "json":
                 output = write_json(annotated_files, docs, config, folder_tree_str)
             elif config.format == "xml":
