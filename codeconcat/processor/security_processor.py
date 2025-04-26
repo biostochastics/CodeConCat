@@ -216,41 +216,47 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                     try:
                         group_index = 1 if pattern.groups >= 1 and match.group(1) is not None else 0
                         raw_finding = match.group(group_index)
-                        start_col, _ = match.span(group_index)
-                        if not raw_finding or cls._should_ignore_finding(raw_finding, config):
-                            continue
-                        if cls._is_duplicate(issues, lineno, issue_type, raw_finding, abs_path):
-                            continue
-                        current_severity = cls._determine_severity(default_sev, abs_path, config)
-                        threshold = cls._resolve_threshold(config)
-                        # Compare severity indices directly for robustness
-                        try:
-                            current_sev_index = cls.SEVERITY_ORDER.index(current_severity)
-                            threshold_index = cls.SEVERITY_ORDER.index(threshold)
-                            if current_sev_index < threshold_index:
-                                continue
-                        except ValueError:
-                            # Handle case where severity might not be in the order list (shouldn't happen)
-                            logger.error(
-                                "Invalid severity '%s' or '%s'; defaulting to MEDIUM.",
-                                current_severity,
-                                threshold,
-                            )
-                            continue
-                        masked_finding = cls._get_masked_finding(raw_finding)
-                        issue = SecurityIssue(
-                            line_number=lineno,
-                            line_content=line,
-                            issue_type=issue_type,
-                            severity=current_severity,
-                            description=f"Potential {issue_type} detected.",
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to extract group from match in file '%s', line %d: %s", file_path, lineno, exc
                         )
-                        issues.append(issue)
-                    except IndexError:
-                        pass
-                    except Exception as exc:  # pylint: disable=broad-except
-                        logger.warning("Failed to process match: %s", exc, exc_info=True)
-                        pass
+                        continue
+
+                    if not raw_finding or cls._should_ignore_finding(raw_finding, config):
+                        continue
+                    if cls._is_duplicate(issues, lineno, issue_type, raw_finding, abs_path):
+                        continue
+                    current_severity = cls._determine_severity(default_sev, abs_path, config)
+                    threshold = cls._resolve_threshold(config)
+                    # Compare severity indices directly for robustness
+                    try:
+                        current_sev_index = cls.SEVERITY_ORDER.index(current_severity)
+                        threshold_index = cls.SEVERITY_ORDER.index(threshold)
+                        if current_sev_index < threshold_index:
+                            continue
+                    except ValueError:
+                        # Handle case where severity might not be in the order list (shouldn't happen)
+                        logger.error(
+                            "Invalid severity '%s' or '%s'; defaulting to MEDIUM.",
+                            current_severity,
+                            threshold,
+                        )
+                        continue
+
+                    try:
+                        masked_line = cls._mask_sensitive_data(line, pattern, match)
+                    except Exception:
+                        masked_line = line
+                    issue = SecurityIssue(
+                        line_number=lineno,
+                        line_content=masked_line,
+                        issue_type=issue_type,
+                        severity=current_severity,
+                        description=f"Potential {issue_type} detected.",
+                        raw_finding=raw_finding,
+                        file_path=str(abs_path),
+                    )
+                    issues.append(issue)
 
         return issues
 
@@ -392,28 +398,24 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
 
     @staticmethod
     def _mask_sensitive_data(line: str, pattern: re.Pattern[str], match: re.Match[str]) -> str:
-        """Return *line* with the secret portion of *match* hidden."""
-        try:
-            group_index = 1 if pattern.groups >= 1 and match.group(1) else 0
-            start, end = match.span(group_index)
-            finding = match.group(group_index)
+        """Return *line* with the secret portion of *match* hidden. May raise ValueError on failure."""
+        group_index = 1 if pattern.groups >= 1 and match.group(1) else 0
+        start, end = match.span(group_index)
+        finding = match.group(group_index)
 
-            if not finding:
-                return line
+        if not finding:
+            return line
 
-            length = len(finding)
-            if length > 8:
-                masked = f"{finding[:3]}****{finding[-3:]}"
-            elif length > 4:
-                masked = f"{finding[:2]}****{finding[-2:]}"
-            elif length > 2:
-                masked = f"{finding[0]}****{finding[-1]}"
-            else:
-                masked = "****"
-            return f"{line[:start]}{masked}{line[end:]}"
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.warning("Failed to mask sensitive data: %s", exc, exc_info=True)
-            return line[: match.start()] + "[***MASKED***]" + line[match.end() :]
+        length = len(finding)
+        if length > 8:
+            masked = f"{finding[:3]}****{finding[-3:]}"
+        elif length > 4:
+            masked = f"{finding[:2]}****{finding[-2:]}"
+        elif length > 2:
+            masked = f"{finding[0]}****{finding[-1]}"
+        else:
+            masked = "****"
+        return f"{line[:start]}{masked}{line[end:]}"
 
     @staticmethod
     def _is_duplicate(

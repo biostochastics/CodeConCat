@@ -49,7 +49,7 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
         "github_ref": None,
         "include_languages": [],
         "exclude_languages": [],
-        "include_paths": [],
+        "include_paths": ["**/*", "LICENSE*", "README*"],
         # "exclude_paths": [], # Handled separately below
         "extract_docs": False,
         "merge_docs": False,
@@ -98,8 +98,8 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
         "ref": "github_ref",
         "include_languages": "include_languages",
         "exclude_languages": "exclude_languages",
-        "include": "include_paths",
-        "exclude": "exclude_paths",
+        "include_paths": "include_paths",
+        "exclude_paths": "exclude_paths",
         "docs": "enable_docs",  # Note: maps to enable_docs
         "merge_docs": "merge_docs",
         "output": "output",
@@ -143,7 +143,23 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
     # 4. Merge configurations: Defaults < YAML < Explicit CLI
     merged = {**base_defaults, **yaml_config, **config_from_cli}
 
-    # Special handling for exclude_paths: Combine defaults with user-provided
+    # Special handling for GitHub runs: If --github is used and --include-paths is NOT explicitly
+    # provided via CLI, default to including everything ('**/*') plus LICENSE/README,
+    # overriding any potentially restrictive 'include_paths' from the YAML config.
+    is_github_run = merged.get("github_url") is not None
+    cli_provided_include_paths = cli_args.get("include_paths") is not None
+
+    if is_github_run and not cli_provided_include_paths:
+        # Force the desired default for GitHub runs when not explicitly overridden by CLI
+        github_default_includes = ['**/*', 'LICENSE*', 'README*']
+        if merged.get("include_paths") != github_default_includes:
+            merged["include_paths"] = github_default_includes
+            logging.debug(
+                "GitHub run detected without explicit CLI --include-paths. "
+                f"Forcing include_paths to default: {github_default_includes}"
+            )
+
+    # 5. Special handling for exclude_paths: Combine defaults with user-provided
     user_excludes = merged.get("exclude_paths", [])
     if not isinstance(user_excludes, list):
         logging.warning(

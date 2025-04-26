@@ -1,7 +1,6 @@
 # CodeConCat
 
-[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.6.4-blue)
-
+[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.6.5-blue)
 
 <p align="center">
   <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="200"/>
@@ -115,16 +114,23 @@ codeconcat --include "*.py" "*.js" --exclude "test_*" "*.pyc"
 
 ### CLI Configuration
 
-Create a `.codeconcat.yml` configuration file for persistent settings:
+**Configuration Precedence:**
+1. CLI arguments (highest priority)
+2. `.codeconcat.yml` file in project root (or `.codeconcat.yaml`)
+3. Hardcoded defaults (lowest priority)
+
+This precedence ensures that CLI arguments always override config file values, and config file values override built-in defaults. This behavior is now robust and correct (previous bug with CLI None overriding config is fixed).
+
+Create a `.codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)` configuration file for persistent settings:
 
 ```bash
 # Initialize default configuration
-codeconcat --init
+codeconcat --init  # creates a .codeconcat.yml template file
 ```
 
-Example configuration:
+Example configuration (YAML):
 ```yaml
-# .codeconcat.yml
+# .codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)
 format: markdown
 extract_docs: true
 include_patterns:
@@ -230,7 +236,7 @@ Access the auto-generated API documentation:
 
 ## Configuration
 
-Create a `.codeconcat.yml` in your project root or use `codeconcat --init`:
+Create a `.codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)` in your project root or use `codeconcat --init  # creates a .codeconcat.yml template file`:
 
 ```yaml
 # Documentation settings
@@ -287,8 +293,14 @@ custom_extension_map:
 
 ### Configuration Priority Order
 
+1. CLI arguments (highest)
+2. Local `.codeconcat.yml` (or `.codeconcat.yaml`)
+3. Default settings (lowest)
+
+This merging order is now robust and correct.
+
 1. Command line arguments (highest priority)
-2. Local `.codeconcat.yml` file
+2. Local `.codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)` file
 3. Default settings (lowest priority)
 
 ## Output Formats
@@ -380,8 +392,8 @@ project/
 | `--no-symbols` | `false` | Disable symbol extraction |
 | `--debug` | `false` | Enable detailed logging |
 | `--log-level` | `WARNING` | Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
-| `--init` | `false` | Initialize default configuration file |
-| `--show-config` | `false` | Display the final merged configuration and exit |
+| `--init` | `false` | Initialize a default `.codeconcat.yml` configuration file from template |
+| `--show-config` | `false` | Display the final merged configuration (after applying precedence) and exit |
 | `--sort-files` | `false` | Sort files alphabetically by path in the output |
 | `--split-output` | `1` | Split the output into X approximately equal files (requires X > 1, Markdown only) |
 | `--remove-docstrings` | `false` | Remove docstrings from the code content in the output |
@@ -403,16 +415,37 @@ codeconcat --include "**/*.{py,js,ts,java,go,php,rb,r,jl,rs,cpp,cs}"
 
 ### GitHub Integration
 
+You can process any public or private GitHub repository by specifying either the full URL or the `username/repo` format. By default, CodeConCat will include all code, LICENSE, and README files, and will always respect `.gitignore` rules.
+
+#### Minimal examples
 ```bash
-# Process specific branch
-codeconcat --github username/repo/main
+# Process a public repo (default branch)
+codeconcat --github username/repo
 
-# Use with authentication
-codeconcat --github username/repo --github-token YOUR_TOKEN
+# Process a specific branch
+codeconcat --github username/repo --ref main
 
-# Process specific commit or tag
+# Process a specific commit or tag
 codeconcat --github username/repo --ref v1.0.0
+
+# Use with authentication (for private repos)
+codeconcat --github username/repo --github-token YOUR_TOKEN
 ```
+
+#### Custom file filtering
+When using `--github`, CodeConCat defaults to considering **all files** (`**/*`) in the repository, in addition to `LICENSE*` and `README*`. This ensures broad inclusion unless you specify otherwise. You can still use `--include-paths` and `--exclude-paths` on the command line to customize filtering for a specific run, overriding this default behavior.
+
+```bash
+# Only include Python files (and LICENSE/README) - overrides the default broad inclusion
+codeconcat --github username/repo --include-paths '**/*.py'
+
+# Exclude test and docs directories (still respects .gitignore)
+codeconcat --github username/repo --exclude-paths '**/tests/**' '**/docs/**'
+```
+
+- **GitHub Default:** Considers all files (`**/*`), plus `LICENSE*` and `README*`.
+- `LICENSE*` and `README*` files are always included by default (even if overriding includes).
+- `.gitignore` is always respected.
 
 ### File Filtering
 
@@ -481,7 +514,7 @@ The test suite includes:
 3. **Integration**:
    - Use programmatic API for tight integration
    - Use web API for loose coupling
-   - Consider using configuration files for consistency
+   - Consider using a `.codeconcat.yml` (or `.codeconcat.yaml`) configuration file for consistency and reproducibility
 
 4. **Error Handling**:
    - Always implement proper error handling

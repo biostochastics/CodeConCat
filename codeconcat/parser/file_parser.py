@@ -4,6 +4,7 @@ logger = logging.getLogger(__name__)
 import os
 from functools import lru_cache
 from typing import Callable, Dict, List, Optional, Tuple
+import inspect
 
 from codeconcat.base_types import (
     CodeConCatConfig,
@@ -37,57 +38,82 @@ logger = logging.getLogger(__name__)
 
 
 def parse_code_files(
-    file_paths: List[str], config: CodeConCatConfig
+    files_to_parse: List[ParsedFileData], config: CodeConCatConfig
 ) -> Tuple[List[ParsedFileData], List[ParserError]]:
     """
-    Parses multiple code files, collecting both results and errors.
-    Handles file opening, language determination, parsing, and optional processing steps.
+    Parses multiple code files using pre-read content, collecting results and errors.
+    Handles language determination, parsing, and optional processing steps based on ParsedFileData.
     """
-    parsed_files: List[ParsedFileData] = []
+    parsed_files_output: List[ParsedFileData] = []
     errors: List[ParserError] = []
 
-    for file_path in file_paths:
-        language = None
+    for file_data in files_to_parse:
+        file_path = file_data.file_path
+        content = file_data.content
+        language = file_data.language  # Use language determined by collector
+
         try:
-            language = determine_language(file_path)
+            # Basic validation - skip if essential data is missing
+            if not file_path or content is None:
+                errors.append(
+                    ParserError("Missing file path or content in input data", file_path=file_path)
+                )
+                continue
+
+            # Language validation (already determined by collector, but re-check)
             if not language or language == "unknown":
                 ext = os.path.splitext(file_path)[1].lower()
+                # Check if it's an extension we *should* know but don't have a parser for
                 if ext and ext in get_all_known_extensions():
-                    errors.append(
-                        UnsupportedLanguageError(
-                            f"No parser available for determined language of '{file_path}'",
-                            file_path=file_path,
-                        )
-                    )
-                continue
+                     errors.append(
+                         UnsupportedLanguageError(
+                             f"No parser available for known extension '{ext}' of '{file_path}' (lang: {language})",
+                             file_path=file_path,
+                         )
+                     )
+                else:
+                    # If language is unknown and not a known code extension, likely not a code file
+                    logger.debug(f"Skipping file {file_path} with unknown/unsupported language: {language}")
+                continue # Skip this file
 
+            # Check include/exclude languages from config (redundant if collector already did this, but safe)
             if config.include_languages and language not in config.include_languages:
+                logger.debug(f"Skipping {file_path} (lang: {language}) due to include_languages config")
                 continue
             if config.exclude_languages and language in config.exclude_languages:
+                logger.debug(f"Skipping {file_path} (lang: {language}) due to exclude_languages config")
                 continue
 
-            with open(file_path, "r", encoding="utf-8", errors="strict") as f:
-                content = f.read()
+            # --- File Opening Removed - Content is already provided --- 
+            # with open(file_path, "r", encoding="utf-8", errors="strict") as f:
+            #     content = f.read()
 
-            parser_info = get_language_parser(file_path)
-            if not parser_info:
-                raise UnsupportedLanguageError(
-                    f"Parser function mapping not found for language '{language}' of file '{file_path}'",
-                    file_path=file_path,
-                )
-            parse_func = parser_info[1]
+            parse_func = get_language_parser(language) # Pass language
+
+            if not parse_func:
+                 raise UnsupportedLanguageError(
+                     f"Parser function mapping not found for language '{language}' of file '{file_path}'",
+                     file_path=file_path,
+                 )
+
+            # Determine the actual parsing function, handling JS/TS variations
             if language in ["javascript", "typescript"]:
-                actual_parse_func = lambda fp, c: parse_func(fp, c, language=language)
+                 # Ensure the parser function accepts the language hint if needed
+                 sig = inspect.signature(parse_func)
+                 if 'language' in sig.parameters:
+                     actual_parse_func = lambda fp, c: parse_func(fp, c, language=language)
+                 else:
+                     actual_parse_func = parse_func
             else:
                 actual_parse_func = parse_func
 
+            # Perform the parsing using the provided content
             parse_result: ParseResult = actual_parse_func(file_path, content)
 
+            # --- Optional Processing (Token Counting, Security Scan) ---
             token_stats: Optional[TokenStats] = None
             if config.enable_token_counting:
-                # Import moved here to break circular dependency
                 from codeconcat.processor.token_counter import get_token_stats
-
                 try:
                     token_stats = get_token_stats(content)
                 except Exception as e:
@@ -95,32 +121,32 @@ def parse_code_files(
 
             security_issues: List[SecurityIssue] = []
             if config.enable_security_scanning:
-                # Import moved here to break circular dependency
                 from codeconcat.processor.security_processor import SecurityProcessor
-
                 try:
                     security_issues = SecurityProcessor.scan_content(content, file_path, config)
                 except Exception as e:
                     logger.warning(f"Security scanning failed for {file_path}: {e}")
 
-            parsed_files.append(
+            # Append successfully parsed data
+            parsed_files_output.append(
                 ParsedFileData(
                     file_path=parse_result.file_path,
                     language=parse_result.language,
-                    content=parse_result.content,
+                    content=parse_result.content, # Store original content
                     declarations=parse_result.declarations,
                     token_stats=token_stats,
                     security_issues=security_issues,
                 )
             )
 
-        except FileNotFoundError as e:
-            logger.warning(f"Skipping file {file_path}: File not found.")
-            errors.append(FileProcessingError(str(e), file_path=file_path, original_exception=e))
-        except UnicodeDecodeError as e:
-            logger.warning(f"Skipping file {file_path} due to decode error: {e}")
+        # --- Exception Handling --- (Moved FileNotFoundError outside, as file isn't opened here)
+        # except FileNotFoundError as e: # No longer applicable here
+        #     logger.warning(f"Skipping file {file_path}: File not found.")
+        #     errors.append(FileProcessingError(str(e), file_path=file_path, original_exception=e))
+        except UnicodeDecodeError as e: # Should not happen if collector reads correctly
+            logger.warning(f"Skipping file {file_path} due to unexpected decode error in pre-read content: {e}")
             errors.append(
-                ParserError(f"Unicode decode error: {e}", file_path=file_path, original_exception=e)
+                ParserError(f"Unicode decode error in content: {e}", file_path=file_path, original_exception=e)
             )
         except LanguageParserError as e:
             logger.warning(f"Skipping file {file_path} due to parsing error: {e}")
@@ -132,7 +158,8 @@ def parse_code_files(
             logger.warning(f"Skipping file {file_path} due to processing error: {e}")
             errors.append(ParserError(str(e), file_path=e.file_path, original_exception=e))
         except Exception as e:
-            logger.error(f"Unexpected error processing {file_path}: {e}", exc_info=True)
+            import traceback
+            logger.error(f"Unexpected error processing {file_path}: {e}\n{traceback.format_exc()}")
             errors.append(
                 ParserError(
                     f"Unexpected error: {type(e).__name__} - {e}",
@@ -142,9 +169,9 @@ def parse_code_files(
             )
 
     if errors:
-        logger.info(f"Finished parsing. Encountered {len(errors)} errors.")
+        logger.info(f"Finished parsing {len(files_to_parse)} inputs. Encountered {len(errors)} errors.")
 
-    return parsed_files, errors
+    return parsed_files_output, errors
 
 
 @lru_cache(maxsize=100)
@@ -221,31 +248,35 @@ def get_all_known_extensions() -> set:
     }
 
 
-def get_language_parser(file_path: str) -> Optional[Tuple[str, Callable]]:
-    """Get the appropriate parser for a file based on its extension."""
-    ext = file_path.split(".")[-1].lower() if "." in file_path else ""
-
-    extension_map = {
-        ".py": ("python", parse_python),
-        ".js": ("javascript", parse_javascript_or_typescript),
-        ".ts": ("typescript", parse_javascript_or_typescript),
-        ".jsx": ("javascript", parse_javascript_or_typescript),
-        ".tsx": ("typescript", parse_javascript_or_typescript),
-        ".r": ("r", parse_r),
-        ".jl": ("julia", parse_julia),
-        ".rs": ("rust", parse_rust),
-        ".cpp": ("cpp", parse_cpp_code),
-        ".cxx": ("cpp", parse_cpp_code),
-        ".cc": ("cpp", parse_cpp_code),
-        ".hpp": ("cpp", parse_cpp_code),
-        ".hxx": ("cpp", parse_cpp_code),
-        ".h": ("c", parse_c_code),
-        ".c": ("c", parse_c_code),
-        ".cs": ("csharp", parse_csharp_code),
-        ".java": ("java", parse_java),
-        ".go": ("go", parse_go),
-        ".php": ("php", parse_php),
+def get_language_parser(language: str) -> Optional[Callable]:
+    """Get the appropriate parser function for a given language identifier."""
+    # Map language identifiers (strings) to parser functions
+    language_to_parser_map: Dict[str, Callable] = {
+        "python": parse_python,
+        "javascript": parse_javascript_or_typescript,
+        "typescript": parse_javascript_or_typescript,
+        "r": parse_r,
+        "julia": parse_julia,
+        "rust": parse_rust,
+        "cpp": parse_cpp_code,
+        "c": parse_c_code,
+        "csharp": parse_csharp_code,
+        "java": parse_java,
+        "go": parse_go,
+        "php": parse_php,
+        # Add other supported languages and their parser functions here
+        # "html": parse_html, # Example
+        # "css": parse_css,   # Example
     }
 
-    ext_with_dot = f".{ext}" if not ext.startswith(".") else ext
-    return extension_map.get(ext_with_dot)
+    # Normalize language string (lowercase, maybe remove hyphens/underscores?)
+    # For now, just lowercase seems consistent with language_map.py
+    normalized_language = language.lower()
+
+    parser_func = language_to_parser_map.get(normalized_language)
+
+    if parser_func is None:
+        logger.debug(f"No specific parser function found for language: {language} ({normalized_language})")
+        return None
+
+    return parser_func
