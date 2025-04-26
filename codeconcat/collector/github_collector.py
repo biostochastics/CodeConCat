@@ -3,7 +3,7 @@
 import re
 import subprocess
 import tempfile
-from typing import List, Optional, Tuple
+from typing import List, Tuple, Optional
 import os
 import shutil
 import logging
@@ -11,8 +11,8 @@ import logging
 from github import Github, GithubException
 from github.Repository import Repository
 
-from ..base_types import CodeConCatConfig, ParsedFileData
-from .local_collector import collect_local_files
+from codeconcat.base_types import CodeConCatConfig, ParsedFileData
+from codeconcat.collector.local_collector import collect_local_files
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,9 @@ def parse_github_url(url: str) -> Tuple[str, str, Optional[str]]:
     )
 
 
-def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[ParsedFileData]:
+def collect_github_files(
+    github_url: str, config: CodeConCatConfig
+) -> Tuple[List[ParsedFileData], str]:
     """
     Collect files from a GitHub repository.
 
@@ -47,7 +49,7 @@ def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[Pars
         config: Configuration object
 
     Returns:
-        List[ParsedFileData]: List of parsed file data objects
+        Tuple[List[ParsedFileData], str]: List of parsed file data objects and the path to the temporary directory used.
     """
     owner, repo_name, url_ref = parse_github_url(github_url)
 
@@ -106,7 +108,7 @@ def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[Pars
             logger.info(f"Collecting files from {temp_dir} with config: {github_config}")
             files = collect_local_files(temp_dir, github_config)
             logger.info(f"Found {len(files)} files")
-            return files
+            return files, temp_dir  # Return files and temp_dir path
 
         except subprocess.CalledProcessError as e:
             # Log more details on error
@@ -114,10 +116,11 @@ def collect_github_files(github_url: str, config: CodeConCatConfig) -> List[Pars
             logger.error(f"Command run: {' '.join(e.cmd)}")
             logger.error(f"Stderr: {e.stderr.strip()}")
             logger.error(f"Stdout: {e.stdout.strip()}")
-            return []
+            return [], ""  # Return empty list and empty path on error
         except Exception as e:
-            logger.error(f"Error processing GitHub repository: {e}")
-            return []
+            import traceback
+            logger.error(f"Error processing GitHub repository: {e}\nConfig: {config}\nTraceback: {traceback.format_exc()}")
+            return [], ""  # Return empty list and empty path on error
 
 
 def build_clone_url(github_url: str, token: Optional[str] = None) -> str:

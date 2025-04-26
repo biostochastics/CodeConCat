@@ -147,6 +147,21 @@ def build_parser() -> argparse.ArgumentParser:
     g_in.add_argument("--github-token", help="PAT for private repos.")
     g_in.add_argument("--ref", help="Branch, tag or commit hash.")
 
+    # filtering
+    g_filt = p.add_argument_group("Filtering")
+    g_filt.add_argument(
+        "--include-paths",
+        nargs='+',
+        metavar="GLOB_PATTERN",
+        help="Glob patterns for files/paths to include. Overrides default/config."
+    )
+    g_filt.add_argument(
+        "--exclude-paths",
+        nargs='+',
+        metavar="GLOB_PATTERN",
+        help="Glob patterns for files/paths to exclude. Overrides default/config."
+    )
+
     # output
     g_out = p.add_argument_group("Output")
     g_out.add_argument("-o", "--output", help="Output file path.")
@@ -178,7 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 # ──────────────────────────────────────────────────────────────────────────────
 def cli_entry_point() -> None:
-    print("\n🐾  " + get_random_quote() + "\n")
+    print(get_random_quote())
 
     parser = build_parser()
     args = parser.parse_args()
@@ -224,7 +239,7 @@ def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
     lines = []
     for root, dirs, files in os.walk(root_path):
         # Check if we should skip this directory
-        if should_skip_dir(root, config.exclude_paths):
+        if should_skip_dir(root, config):
             dirs[:] = []  # Clear dirs to prevent descending into this directory
             continue
 
@@ -242,7 +257,7 @@ def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
 
         # Filter directories for the next iteration
         dirs[:] = [
-            d for d in dirs if not should_skip_dir(os.path.join(root, d), config.exclude_paths)
+            d for d in dirs if not should_skip_dir(os.path.join(root, d), config)
         ]
         dirs.sort()  # Sort directories for consistent output
 
@@ -260,8 +275,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         # Collect files
         try:
+            temp_repo_path = ""  # Initialize for non-github case
             if config.github_url:
-                code_files = collect_github_files(config)
+                code_files, temp_repo_path = collect_github_files(config.github_url, config)
             else:
                 code_files = collect_local_files(config.target_path, config, show_progress=True)
 
@@ -274,8 +290,10 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         logger.info("[CodeConCat] Generating folder tree...")
         folder_tree_str = ""
         if not config.disable_tree:
+            # Use the temporary repo path for GitHub runs, otherwise the target path
+            tree_root = temp_repo_path if config.github_url else config.target_path
             try:
-                folder_tree_str = generate_folder_tree(config.target_path, config)
+                folder_tree_str = generate_folder_tree(tree_root, config)  # Pass config
                 logger.info("[CodeConCat] Folder tree generated.")
             except Exception as e:
                 logger.warning(f"Warning: Failed to generate folder tree: {str(e)}")
@@ -283,31 +301,20 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         # Parse code files
         try:
             logger.info(f"[CodeConCat] Found {len(code_files)} code files. Starting parsing...")
-            file_paths = [f.file_path for f in code_files]
-            parsed_files, errors = parse_code_files(file_paths, config)
-            logger.info(f"[CodeConCat] Parsing complete. Parsed {len(parsed_files)} files.")
-            if config.show_skip and errors:
-                print("\n[Skipped Files]")
-                for err in errors:
-                    file_path = getattr(err, "file_path", None)
-                    msg = str(err)
-                    if file_path:
-                        print(f"  {file_path}: {msg}")
-                    else:
-                        print(f"  [Unknown file]: {msg}")
-                print("")
-            # Defensive flattening: flatten any nested lists in parsed_files
-            flattened = []
-            for pf in parsed_files:
-                if isinstance(pf, list):
-                    flattened.extend(pf)
-                else:
-                    flattened.append(pf)
-            parsed_files = flattened
-            # Token stats will be calculated at the end of the run
+            # Pass the full ParsedFileData objects, which include content
+            parsed_files, errors = parse_code_files(code_files, config)
+            if errors:
+                # Log errors encountered during parsing
+                for error in errors:
+                    logger.warning(f"Parsing error for {error.file_path}: {str(error)}")
 
             if not parsed_files:
+                logger.error("[CodeConCat] No files were successfully parsed.")
+                # Decide if this should be a fatal error or just a warning
                 raise FileProcessingError("No files were successfully parsed")
+            else:
+                logger.info(f"[CodeConCat] Parsing complete. Parsed {len(parsed_files)} files.")
+
         except Exception as e:
             raise FileProcessingError(f"Error parsing files: {str(e)}")
 
@@ -445,7 +452,7 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
 
         # Process code
         if config.github_url:
-            code_files = collect_github_files(config)
+            code_files = collect_github_files(config.github_url, config)
         else:
             code_files = collect_local_files(config.target_path, config)
 
@@ -458,7 +465,7 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
             folder_tree_str = generate_folder_tree(config.target_path, config)
 
         # Parse and process files
-        parsed_files, errors = parse_code_files([f.file_path for f in code_files], config)
+        parsed_files, errors = parse_code_files(code_files, config)
         if not parsed_files:
             raise FileProcessingError("No files were successfully parsed")
 

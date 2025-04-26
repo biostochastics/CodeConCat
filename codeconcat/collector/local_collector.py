@@ -3,14 +3,16 @@ import logging
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 from tqdm import tqdm
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
+from codeconcat.language_map import get_language_guesslang, GUESSLANG_AVAILABLE, ext_map
 
 logger = logging.getLogger(__name__)
 # Do not set up handlers or formatters here; let the CLI configure logging.
@@ -88,21 +90,25 @@ DEFAULT_EXCLUDES = [
     "pnpm-lock.yaml",
     "**/pnpm-lock.yaml",
     # Cache and Temporary Files
-    ".cache/",
-    "**/.cache/",
-    "**/.cache/**",
-    "tmp/",
-    "**/tmp/",
-    "**/tmp/**",
+    ".cache/", "**/.cache/", "**/.cache/**",
+    "tmp/", "**/tmp/", "**/tmp/**",
     # Test Coverage
-    "coverage/",
-    "**/coverage/",
-    "**/coverage/**",
+    "coverage/", "**/coverage/", "**/coverage/**",
     # Environment Files
-    ".env",
-    "**/.env",
-    ".env.*",
-    "**/.env.*",
+    ".env", "**/.env", ".env.*", "**/.env.*",
+    # Python specific
+    "__pycache__/", "**/__pycache__/", "**/__pycache__/**",
+    "*.pyc", "**/*.pyc",
+    "*.pyo", "**/*.pyo",
+    "*.pyd", "**/*.pyd",
+    "*.egg-info/", "**/*.egg-info/", "**/*.egg-info/**",
+    # Virtual environments - Simplified patterns
+    "codeconcat_venv/**", "**/codeconcat_venv/**",
+    "venv/**", "**/venv/**",
+    ".venv/**", "**/.venv/**",
+    "env/**", "**/env/**",
+    "*env/**", "**/*env/**", # Covers names like 'myenv', 'test_env' and subdirs
+    "**/.*",  # Ignore all files/directories starting with a dot
 ]
 
 
@@ -141,132 +147,177 @@ def get_gitignore_spec(root_path: str) -> PathSpec:
     return PathSpec.from_lines(GitWildMatchPattern, patterns)
 
 
+# @lru_cache(maxsize=1024) # Cache results for performance -- REMOVED due to unhashable config
 def should_include_file(
-    file_path: str, config: CodeConCatConfig, gitignore_spec: PathSpec = None
-) -> bool:
-    """
-    Check if a file should be included based on configuration and .gitignore.
+    file_path: str, config: CodeConCatConfig, gitignore_spec: Optional[PathSpec] = None
+) -> Optional[str]: # Return Optional[str] (language or None)
+    """Determine if a file should be included based on various criteria.
 
     Args:
-        file_path: Path to the file
-        config: Configuration object
-        gitignore_spec: PathSpec object for .gitignore matching
+        file_path (str): The absolute path to the file.
+        config (CodeConCatConfig): The configuration object.
+        gitignore_spec (Optional[PathSpec]): The compiled gitignore patterns.
 
     Returns:
-        bool: True if file should be included, False otherwise
+        Optional[str]: The determined language string if the file should be included, otherwise None.
     """
-    # Get relative path for .gitignore matching
-    rel_path = os.path.relpath(file_path, config.target_path).replace(
-        os.sep, "/"
-    )  # Normalize to / for glob tests
+    rel_path = os.path.relpath(file_path, config.target_path or ".")
+    norm_path = Path(rel_path).as_posix() # Normalize path for matching
+    logger.debug(f"Checking file: {rel_path} (Full: {file_path})")
 
-    # Check .gitignore first
-    if gitignore_spec and gitignore_spec.match_file(rel_path):
-        if getattr(config, "show_skip", False) or getattr(config, "debug", False):
-            logger.info(f"Excluded by .gitignore: {rel_path}")
-        return False
+    # 1. Check .gitignore
+    if gitignore_spec and gitignore_spec.match_file(norm_path):
+        logger.debug(f"Excluded by .gitignore: {rel_path}")
+        return None
 
-    # Then check configuration patterns
-    if config.exclude_paths:
-        for pattern in config.exclude_paths:
-            # Check if any part of the path matches the pattern
-            path_parts = Path(rel_path).parts
-            if any(
-                fnmatch.fnmatch(os.path.join(*path_parts[: i + 1]), pattern)
-                for i in range(len(path_parts))
-            ):
-                if getattr(config, "show_skip", False) or getattr(config, "debug", False):
-                    logger.info(f"Excluded by pattern: {rel_path} (pattern: {pattern})")
-                return False
+    # 2. Check default excludes (always applied)
+    matching_default_exclude = match_path_against_patterns(norm_path, DEFAULT_EXCLUDES)
+    if matching_default_exclude:
+        logger.debug(f"Excluded by default excludes pattern '{matching_default_exclude}' matching path '{norm_path}'")
+        return None
 
+    # 3. Check explicit excludes from config
+    if config.exclude_paths and match_path_against_patterns(norm_path, config.exclude_paths):
+        logger.debug(f"Excluded by config exclude_paths: {rel_path}")
+        return None
+
+    # 4. Check explicit includes from config
+    # If include_paths is defined, a file *must* match at least one pattern
     if config.include_paths:
-        matched = any(fnmatch.fnmatch(rel_path, pattern) for pattern in config.include_paths)
-        if not matched and (getattr(config, "show_skip", False) or getattr(config, "debug", False)):
-            logger.info(f"Skipped by include_paths: {rel_path} (patterns: {config.include_paths})")
-        return matched
-
-    # Language filter (step 3): Only include if language is in include_languages, if set
-    if hasattr(config, "include_languages") and config.include_languages:
-        ext = os.path.splitext(rel_path)[1].lstrip(".")
-        # Use ext_map if available, otherwise just extension
-        try:
-            from codeconcat.collector.local_collector import ext_map
-
-            language = ext_map(ext, config)
-        except Exception:
-            language = ext
-
-        # Normalize both language and config.include_languages for robust comparison
-        def norm_lang(s):
-            return "".join(c for c in s.lower() if c.isalnum())
-
-        normalized_language = norm_lang(language)
-        normalized_includes = [norm_lang(l) for l in config.include_languages]
-        matched_lang = normalized_language in normalized_includes
-        if not matched_lang and (
-            getattr(config, "show_skip", False) or getattr(config, "debug", False)
-        ):
-            logger.info(
-                f"Skipped by include_languages: {rel_path} (detected: {language}, allowed: {config.include_languages})"
+        if not match_path_against_patterns(norm_path, config.include_paths):
+            logger.debug(
+                f"Skipped: '{rel_path}' does not match any include_paths pattern {config.include_paths}"
             )
-        return matched_lang
+            return None
+        else:
+             logger.debug(f"Included by include_paths: {rel_path}")
+             # Continue to language checks even if included by path
+    # else: # No include_paths means include all by default (subject to excludes)
+    #     logger.debug(f"Included by default (no include_paths specified): {rel_path}")
 
-    return True
+    # --- Language Determination and Filtering ---
+    language: Optional[str] = None
+    # Try guesslang first if available and enabled (check config? maybe not needed here)
+    if GUESSLANG_AVAILABLE:
+        try:
+            # Read content specifically for guesslang if not already read
+            # TODO: Optimize - can we avoid reading twice?
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                content_for_guess = f.read(5000) # Read a chunk for detection
+            language = get_language_guesslang(content_for_guess)
+            if language:
+                logger.debug(f"Language detected by guesslang as '{language}' for {rel_path}")
+        except Exception as e:
+            logger.debug(f"guesslang check failed for {rel_path}: {e}")
+            language = None # Ensure language is None if guesslang fails
+
+    # Fallback to extension map if guesslang fails, is unavailable, or returns None/Unknown
+    if not language or language.lower() == 'unknown':
+        filename = os.path.basename(file_path)
+        # Use extension WITH the dot for lookup
+        ext_with_dot = os.path.splitext(file_path)[1].lower()
+        language = ext_map.get(filename.lower(), ext_map.get(ext_with_dot))
+        if language:
+            logger.debug(f"Using language '{language}' for {rel_path} based on extension/filename.")
+        else:
+             logger.debug(f"Could not determine language for {rel_path} using extension/filename.")
+             # If include_paths was specified and matched, but language is unknown, maybe warn?
+             # For now, if language is unknown, we don't include unless forced by config?
+             # If we got here because include_paths matched, maybe default to 'unknown' language?
+             # Let's return None for now if language is undetermined.
+             return None
+
+    # Ensure we have a language string
+    if not language:
+        logger.debug(f"Final language determination failed for {rel_path}")
+        return None
+
+    # 5. Check include_languages from config
+    if config.include_languages and language not in config.include_languages:
+        logger.debug(
+            f"Excluded by include_languages: {rel_path} (lang: {language} not in {config.include_languages})"
+        )
+        return None
+
+    # 6. Check exclude_languages from config
+    if config.exclude_languages and language in config.exclude_languages:
+        logger.debug(
+            f"Excluded by exclude_languages: {rel_path} (lang: {language} in {config.exclude_languages})"
+        )
+        return None
+
+    # If we passed all checks, the file should be included
+    logger.debug(f"Final decision: Include {rel_path} (Language: {language})")
+    return language # Return the determined language string
 
 
 def collect_local_files(root_path: str, config: CodeConCatConfig, show_progress: bool = False):
-    """Collect files from local filesystem."""
+    """Collect and read files from the local file system based on configuration."""
+    logger.info(f"[CodeConCat] Collecting files from: {root_path}")
+    all_files = [] # Collect all potential file paths first
+    for root, dirs, files in os.walk(root_path, topdown=True):
+        # Filter directories based on ignore patterns
+        # TODO: Implement should_skip_dir logic similar to generate_folder_tree
+        # dirs[:] = [d for d in dirs if not should_skip_dir(os.path.join(root, d), config)]
 
-    logger.debug(f"[CodeConCat] Collecting files from: {root_path}")
+        for file in files:
+            all_files.append(os.path.join(root, file))
 
-    # Ensure root path exists
-    if not os.path.exists(root_path):
-        raise FileNotFoundError(f"Path does not exist: {root_path}")
-
+    parsed_files_data = []
     gitignore_spec = get_gitignore_spec(root_path)
 
-    # Collect files using thread pool
-    max_workers = config.max_workers if getattr(config, "max_workers", None) not in (None, 0) else 1
+    # Determine the number of workers
+    max_workers = config.max_workers if config.max_workers else os.cpu_count()
+    logger.debug(f"Using {max_workers} workers for file processing.")
+
+    # Process files in parallel
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = []
+        # Submit tasks: Check should_include_file first
+        future_to_file = {}
+        for file_path in all_files:
+            # Directly call should_include_file here
+            language = should_include_file(file_path, config, gitignore_spec)
+            if language: # If language is returned, file should be included
+                # Submit process_file with the determined language
+                future = executor.submit(process_file, file_path, config, language)
+                future_to_file[future] = file_path
+            # else: file is excluded, do nothing
 
-        for dirpath, dirnames, filenames in os.walk(root_path):
-            # Skip directories that match exclude patterns
-            if should_skip_dir(dirpath, config.exclude_paths):
-                dirnames.clear()  # Clear dirnames to skip subdirectories
-                continue
+        # Collect results as they complete
+        # Use tqdm for progress bar if enabled
+        iterable = as_completed(future_to_file)
+        if show_progress:
+            iterable = tqdm(iterable, total=len(future_to_file), desc="Collecting files", unit="file")
 
-            # Process files in parallel
-            for filename in filenames:
-                file_path = os.path.join(dirpath, filename)
-                futures.append(executor.submit(process_file, file_path, config, gitignore_spec))
+        for future in iterable:
+            file_path = future_to_file[future]
+            try:
+                result = future.result()
+                if result:
+                    parsed_files_data.append(result)
+            except Exception as exc:
+                logger.error(f"[CodeConCat] Error processing {file_path}: {exc}")
 
-        # Collect results, filtering out None values
-        results = [
-            f.result()
-            for f in tqdm(
-                as_completed(futures),
-                total=len(futures),
-                desc="Collecting files",
-                unit="file",
-                disable=not show_progress,  # Disable progress bar if show_progress is False
-            )
-            if f.result()
-        ]
-
-    if not results:
+    if not parsed_files_data:
         logger.warning("[CodeConCat] No files found matching the criteria")
-    else:
-        logger.info(f"[CodeConCat] Collected {len(results)} files")
 
-    return results
+    return parsed_files_data
 
 
-def process_file(file_path: str, config: CodeConCatConfig, gitignore_spec: PathSpec):
-    """Process a single file, reading its content if it should be included."""
+# Function to process a single file (called by the executor)
+def process_file(file_path: str, config: CodeConCatConfig, language: str) -> Optional[ParsedFileData]:
+    """Process a single file, reading its content. Assumes file should be included.
+    Args:
+        file_path (str): Absolute path to the file.
+        config (CodeConCatConfig): Configuration object.
+        language (str): The language determined by should_include_file.
+    Returns:
+        Optional[ParsedFileData]: Data object if successful, None otherwise.
+    """
     try:
-        if not should_include_file(file_path, config, gitignore_spec):
-            return None
+        # should_include_file check is done before submitting the task
+        # if not language: # This check is redundant now
+        #     return None
 
         if is_binary_file(file_path):
             logger.debug(f"[CodeConCat] Skipping binary file: {file_path}")
@@ -275,17 +326,19 @@ def process_file(file_path: str, config: CodeConCatConfig, gitignore_spec: PathS
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        ext = os.path.splitext(file_path)[1].lstrip(".")
-        language = ext_map(ext, config)
+        # Language is now passed as an argument, no need to look it up here
+        # ext = os.path.splitext(file_path)[1].lstrip(".")
+        # filename = os.path.basename(file_path)
+        # Use dictionary access on the imported ext_map
+        # language = ext_map.get(filename.lower(), ext_map.get(ext.lower()))
 
         logger.debug(f"[CodeConCat] Processed file: {file_path} ({language})")
         return ParsedFileData(
             file_path=file_path,
-            language=language,
+            language=language, # Use the passed language
             content=content,
             declarations=[],  # We'll fill this in during parsing phase
         )
-
     except UnicodeDecodeError:
         logger.debug(f"[CodeConCat] Skipping non-text file: {file_path}")
         return None
@@ -294,16 +347,17 @@ def process_file(file_path: str, config: CodeConCatConfig, gitignore_spec: PathS
         return None
 
 
-def should_skip_dir(dirpath: str, user_excludes: List[str]) -> bool:
+def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept config object
     """Check if a directory should be skipped based on exclude patterns."""
-    all_excludes = DEFAULT_EXCLUDES + (user_excludes or [])
+    all_excludes = DEFAULT_EXCLUDES + (config.exclude_paths or [])  # Access excludes from config
     logger.debug(f"Checking directory: {dirpath} against patterns: {all_excludes}")
 
     # Convert to relative path for matching
     if os.path.isabs(dirpath):
         try:
-            rel_path = os.path.relpath(dirpath, config.target_path)
+            rel_path = os.path.relpath(dirpath, config.target_path)  # Use config.target_path
         except ValueError:
+            # Handle cases where dirpath is not under target_path (e.g., different drive on Windows)
             rel_path = dirpath
     else:
         rel_path = dirpath
@@ -328,100 +382,6 @@ def matches_pattern(path_str: str, pattern: str) -> bool:
     if norm_pattern not in _cache:
         _cache[norm_pattern] = re.compile(fnmatch.translate(norm_pattern))
     return bool(_cache[norm_pattern].match(norm_path))
-
-
-def ext_map(ext: str, config: CodeConCatConfig) -> str:
-    """Map file extensions to their corresponding language or type, normalizing identifiers."""
-
-    def norm_lang(s):
-        return "".join(c for c in s.lower() if c.isalnum())
-
-    # Normalize custom extension map
-    custom_map = {
-        k.lower(): norm_lang(v) for k, v in getattr(config, "custom_extension_map", {}).items()
-    }
-    ext_lc = ext.lower()
-    if ext_lc in custom_map:
-        return custom_map[ext_lc]
-
-    # Non-code files that should be excluded
-    non_code_exts = {
-        # Images
-        "svg",
-        "png",
-        "jpg",
-        "jpeg",
-        "gif",
-        "ico",
-        "webp",
-        # Fonts
-        "woff",
-        "woff2",
-        "ttf",
-        "eot",
-        "otf",
-        # Documents
-        "pdf",
-        "doc",
-        "docx",
-        "xls",
-        "xlsx",
-        # Archives
-        "zip",
-        "tar",
-        "gz",
-        "tgz",
-        "7z",
-        "rar",
-        # Build artifacts
-        "map",
-        "min.js",
-        "min.css",
-        "bundle.js",
-        "bundle.css",
-        "chunk.js",
-        "chunk.css",
-        "nft.json",
-        "rsc",
-        "meta",
-        # Other assets
-        "mp3",
-        "mp4",
-        "wav",
-        "avi",
-        "mov",
-    }
-
-    if ext.lower() in non_code_exts:
-        return "non-code"
-
-    # Code files
-    code_exts = {
-        # Python
-        "py": "py",
-        "pyi": "py",
-        # JavaScript/TypeScript
-        "js": "js",
-        "jsx": "jsx",
-        "ts": "ts",
-        "tsx": "tsx",
-        "mjs": "js",
-        # R
-        "r": "r",
-        "jl": "julia",
-        "cpp": "cpp",
-        "hpp": "cpp",
-        "cxx": "cpp",
-        "c": "c",
-        "h": "c",
-        # Documentation
-        "md": "doc",
-        "rst": "doc",
-        "txt": "doc",
-        "rmd": "doc",
-    }
-
-    return code_exts.get(ext.lower(), "unknown")
 
 
 def is_binary_file(file_path: str) -> bool:
@@ -465,3 +425,19 @@ def is_binary_file(file_path: str) -> bool:
             return False
     except UnicodeDecodeError:
         return True
+
+
+def match_path_against_patterns(path: str, patterns: List[str]) -> Optional[str]:
+    """Check if a path matches any of the given patterns.
+
+    Args:
+        path (str): The path string to check.
+        patterns (List[str]): A list of pattern strings.
+
+    Returns:
+        Optional[str]: The first pattern that matches the path, or None if no pattern matches.
+    """
+    for pattern in patterns:
+        if matches_pattern(path, pattern):
+            return pattern # Return the pattern that matched
+    return None # Return None if no match

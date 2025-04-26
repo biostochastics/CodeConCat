@@ -1,6 +1,18 @@
-# Changelog
+# Changelog NEW ENTRIES APPEAR ON TOP
 
-## NEW ENTRIES APPEAR ON TOP
+## [0.6.5] - 2025-04-26
+
+### Added
+- Added default exclusion patterns (`venv/`, `.venv/`, `env/`, `*env/`, etc.) to automatically skip common virtual environment directories.
+- Added debug logging to `local_collector` to show which specific exclusion pattern (default or gitignore) caused a file to be skipped.
+
+### Fixed
+- Refactored language detection logic during file collection to prevent potential errors and improve efficiency.
+- CLI --include-paths/--exclude-paths now properly override config/YAML
+- Parsing works for files from temp directories (GitHub collector)
+- LICENSE and README always included by default
+- Improved import paths and folder tree call
+- **GitHub Default Includes:** When using `--github` without explicitly providing `--include-paths` on the command line, the tool now defaults to including `['**/*', 'LICENSE*', 'README*']`. This overrides potentially restrictive `include_paths` settings from a local `.codeconcat.yml` file, ensuring broader file collection from the target repository by default.
 
 ## [0.6.4] - 2025-04-17
 

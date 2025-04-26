@@ -1,6 +1,6 @@
 # CodeConCat
 
-[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.6.4-blue)
+[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.6.5-blue)
 
 <p align="center">
   <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="200"/>
@@ -295,7 +295,7 @@ custom_extension_map:
 
 1. CLI arguments (highest)
 2. Local `.codeconcat.yml` (or `.codeconcat.yaml`)
-3. Hardcoded defaults (lowest)
+3. Default settings (lowest)
 
 This merging order is now robust and correct.
 
@@ -415,16 +415,37 @@ codeconcat --include "**/*.{py,js,ts,java,go,php,rb,r,jl,rs,cpp,cs}"
 
 ### GitHub Integration
 
+You can process any public or private GitHub repository by specifying either the full URL or the `username/repo` format. By default, CodeConCat will include all code, LICENSE, and README files, and will always respect `.gitignore` rules.
+
+#### Minimal examples
 ```bash
-# Process specific branch
-codeconcat --github username/repo/main
+# Process a public repo (default branch)
+codeconcat --github username/repo
 
-# Use with authentication
-codeconcat --github username/repo --github-token YOUR_TOKEN
+# Process a specific branch
+codeconcat --github username/repo --ref main
 
-# Process specific commit or tag
+# Process a specific commit or tag
 codeconcat --github username/repo --ref v1.0.0
+
+# Use with authentication (for private repos)
+codeconcat --github username/repo --github-token YOUR_TOKEN
 ```
+
+#### Custom file filtering
+When using `--github`, CodeConCat defaults to considering **all files** (`**/*`) in the repository, in addition to `LICENSE*` and `README*`. This ensures broad inclusion unless you specify otherwise. You can still use `--include-paths` and `--exclude-paths` on the command line to customize filtering for a specific run, overriding this default behavior.
+
+```bash
+# Only include Python files (and LICENSE/README) - overrides the default broad inclusion
+codeconcat --github username/repo --include-paths '**/*.py'
+
+# Exclude test and docs directories (still respects .gitignore)
+codeconcat --github username/repo --exclude-paths '**/tests/**' '**/docs/**'
+```
+
+- **GitHub Default:** Considers all files (`**/*`), plus `LICENSE*` and `README*`.
+- `LICENSE*` and `README*` files are always included by default (even if overriding includes).
+- `.gitignore` is always respected.
 
 ### File Filtering
 

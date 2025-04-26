@@ -36,6 +36,9 @@ dependencies = [
 dev = [
     "pytest>=7.0",
 ]
+guesslang = [
+    "guesslang>=2.2.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/biostochastics/codeconcat"
