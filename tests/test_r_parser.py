@@ -1,7 +1,7 @@
 import unittest
 
-from codeconcat.parser.language_parsers.r_parser import RParser, parse_r
 from codeconcat.errors import LanguageParserError
+from codeconcat.parser.language_parsers.r_parser import RParser
 
 
 class TestRParser(unittest.TestCase):
@@ -99,7 +99,9 @@ class TestRParser(unittest.TestCase):
 
         self.assertEqual(len(class_decls), 1)
         self.assertEqual(class_decls[0].name, "Calculator")
-        self.assertEqual({m.name for m in method_decls}, {"Calculator.add", "Calculator.subtract"})
+        self.assertEqual(
+            {m.name for m in method_decls}, {"Calculator.add", "Calculator.subtract"}
+        )
 
     def test_reference_class(self):
         r_code = """
@@ -125,7 +127,9 @@ class TestRParser(unittest.TestCase):
 
         self.assertEqual(len(class_decls), 1)
         self.assertEqual(class_decls[0].name, "Employee")
-        self.assertEqual({m.name for m in method_decls}, {"Employee.raise", "Employee.get_info"})
+        self.assertEqual(
+            {m.name for m in method_decls}, {"Employee.raise", "Employee.get_info"}
+        )
 
     def test_modifiers(self):
         r_code = """

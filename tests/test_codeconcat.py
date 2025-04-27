@@ -1,21 +1,19 @@
 import os
 import tempfile
 import time
-from unittest.mock import Mock, patch
-import inspect
 
 import pytest
 
 from codeconcat.base_types import (
     CodeConCatConfig,
-    Declaration,
     ParsedFileData,
-    SecurityIssue,
     SecuritySeverity,
     TokenStats,
-    AnnotatedFileData,
 )
-from codeconcat.collector.local_collector import collect_local_files, should_include_file
+from codeconcat.collector.local_collector import (
+    collect_local_files,
+    should_include_file,
+)
 from codeconcat.parser.file_parser import parse_code_files
 from codeconcat.parser.language_parsers.python_parser import parse_python
 from codeconcat.processor.security_processor import SecurityProcessor
@@ -99,8 +97,6 @@ def decorated_func():  # Function with decorator
 
 # Unit Tests: Security Processor Tests
 def test_security_processor():
-    import re
-
     content = """
 API_KEY = "super_secret_key_12345"
 password = "password123"
@@ -126,7 +122,7 @@ password = "password123"
     issues = SecurityProcessor.scan_content(content, "test.py", config)
     print("Issues found:", len(issues))
     for i, issue in enumerate(issues):
-        print(f"Issue {i+1}: {issue.rule_id} - {issue.severity}")
+        print(f"Issue {i + 1}: {issue.rule_id} - {issue.severity}")
 
     assert len(issues) > 0
     assert any(issue.severity == SecuritySeverity.HIGH for issue in issues)
@@ -164,7 +160,7 @@ def test_end_to_end_workflow(temp_dir, sample_python_file, sample_config):
     # Test output generation
     output_path = os.path.join(temp_dir, "output.md")
     sample_config.output = output_path
-    result = write_markdown([annotated], [], sample_config)
+    write_markdown([annotated], [], sample_config)
     assert os.path.exists(output_path)
     with open(output_path, "r") as f:
         content = f.read()

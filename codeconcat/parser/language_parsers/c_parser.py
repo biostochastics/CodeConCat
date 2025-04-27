@@ -1,12 +1,12 @@
 # file: codeconcat/parser/language_parsers/c_parser.py
 
+import logging
 import re
-from typing import List, Optional
+from typing import List
 
 from codeconcat.base_types import ParseResult
-from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 from codeconcat.errors import LanguageParserError
-import logging
+from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,9 @@ def parse_c_code(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse C file: {e}", file_path=file_path, original_exception=e
+            message=f"Failed to parse C file: {e}",
+            file_path=file_path,
+            original_exception=e,
         )
     return ParseResult(
         file_path=file_path, language="c", content=content, declarations=declarations
@@ -41,9 +43,9 @@ class CParser(BaseParser):
                 rf"{type_pattern}\s+"
                 rf"(?P<name>[a-zA-Z_]\w*)\s*\([^;{{]*"
             ),
-            "struct": re.compile(rf"^[^#/]*struct\s+(?P<name>[a-zA-Z_]\w*)"),
-            "union": re.compile(rf"^[^#/]*union\s+(?P<name>[a-zA-Z_]\w*)"),
-            "enum": re.compile(rf"^[^#/]*enum\s+(?P<name>[a-zA-Z_]\w*)"),
+            "struct": re.compile(r"^[^#/]*struct\s+(?P<name>[a-zA-Z_]\w*)"),
+            "union": re.compile(r"^[^#/]*union\s+(?P<name>[a-zA-Z_]\w*)"),
+            "enum": re.compile(r"^[^#/]*enum\s+(?P<name>[a-zA-Z_]\w*)"),
             "typedef": re.compile(
                 r"^[^#/]*typedef\s+"
                 r"(?:struct|union|enum)?\s*"
@@ -97,11 +99,11 @@ class CParser(BaseParser):
                     break
             else:
                 if "struct" in line:
-                    logger.info(f"No matching pattern found for struct declaration")
+                    logger.info("No matching pattern found for struct declaration")
                 elif "function" in line:
-                    logger.info(f"No matching pattern found for function declaration")
+                    logger.info("No matching pattern found for function declaration")
                 elif "enum" in line:
-                    logger.info(f"No matching pattern found for enum declaration")
+                    logger.info("No matching pattern found for enum declaration")
             i += 1
 
         return symbols

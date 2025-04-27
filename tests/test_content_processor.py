@@ -1,7 +1,5 @@
 """Tests for the content processor module."""
 
-import pytest
-
 from codeconcat.base_types import (
     CodeConCatConfig,
     Declaration,

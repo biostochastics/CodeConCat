@@ -1,12 +1,11 @@
 """GitHub repository collector for CodeConcat."""
 
+import logging
 import re
 import subprocess
 import tempfile
-from typing import List, Tuple, Optional
-import os
-import shutil
-import logging
+import traceback
+from typing import List, Optional, Tuple
 
 from github import Github, GithubException
 from github.Repository import Repository
@@ -73,7 +72,9 @@ def collect_github_files(
                 clone_url,
                 temp_dir,
             ]
-            logger.info(f"Running git clone command: {' '.join(clone_command)}")  # Log the command
+            logger.info(
+                f"Running git clone command: {' '.join(clone_command)}"
+            )  # Log the command
             subprocess.run(
                 clone_command,
                 check=True,
@@ -91,6 +92,8 @@ def collect_github_files(
                 exclude_languages=config.exclude_languages,
                 include_paths=config.include_paths,
                 exclude_paths=config.exclude_paths,
+                use_gitignore=config.use_gitignore,
+                use_default_excludes=config.use_default_excludes,
                 extract_docs=config.extract_docs,
                 merge_docs=config.merge_docs,
                 doc_extensions=config.doc_extensions,
@@ -105,21 +108,26 @@ def collect_github_files(
                 disable_ai_context=config.disable_ai_context,
             )
 
-            logger.info(f"Collecting files from {temp_dir} with config: {github_config}")
+            logger.info(
+                f"Collecting files from {temp_dir} with config: {github_config}"
+            )
             files = collect_local_files(temp_dir, github_config)
             logger.info(f"Found {len(files)} files")
             return files, temp_dir  # Return files and temp_dir path
 
         except subprocess.CalledProcessError as e:
             # Log more details on error
-            logger.error(f"Error cloning repository '{repo_name}' (Return code: {e.returncode}).")
+            logger.error(
+                f"Error cloning repository '{repo_name}' (Return code: {e.returncode})."
+            )
             logger.error(f"Command run: {' '.join(e.cmd)}")
             logger.error(f"Stderr: {e.stderr.strip()}")
             logger.error(f"Stdout: {e.stdout.strip()}")
             return [], ""  # Return empty list and empty path on error
         except Exception as e:
-            import traceback
-            logger.error(f"Error processing GitHub repository: {e}\nConfig: {config}\nTraceback: {traceback.format_exc()}")
+            logger.error(
+                f"Error processing GitHub repository: {e}\nConfig: {config}\nTraceback: {traceback.format_exc()}"
+            )
             return [], ""  # Return empty list and empty path on error
 
 

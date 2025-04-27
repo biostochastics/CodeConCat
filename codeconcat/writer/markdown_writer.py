@@ -1,22 +1,23 @@
+from __future__ import annotations
+
+import logging
 import os
 import random
+import re
 from typing import List
-from halo import Halo
-import tiktoken
 
-from ..base_types import (
-    AnnotatedFileData,
-    CodeConCatConfig,
-    ParsedDocData,
-    ParsedFileData,
+import tiktoken
+from halo import Halo
+
+from codeconcat.base_types import (
     PROGRAMMING_QUOTES,
+    CodeConCatConfig,
+    Declaration,
+    WritableItem,
 )
-from codeconcat.processor.content_processor import (
-    generate_directory_structure,
-    generate_file_summary,
-    process_file_content,
-)
-from codeconcat.writer.ai_context import generate_ai_preamble
+from codeconcat.utilities.ai_context import generate_ai_preamble
+
+logger = logging.getLogger(__name__)
 
 
 def count_tokens(text: str) -> int:
@@ -25,10 +26,9 @@ def count_tokens(text: str) -> int:
         encoder = tiktoken.get_encoding("cl100k_base")
         return len(encoder.encode(text))
     except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.info(f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count")
+        logger.info(
+            f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count"
+        )
         return len(text.split())
 
 
@@ -52,7 +52,9 @@ def print_quote_with_ascii(total_output_tokens: int = None):
     current_line = "|  "
     for word in words:
         if len(current_line) + len(word) + 1 > width - 2:
-            output_lines.append(current_line + " " * (width - len(current_line) - 1) + "|")
+            output_lines.append(
+                current_line + " " * (width - len(current_line) - 1) + "|"
+            )
             current_line = "|  " + word
         else:
             if current_line == "|  ":
@@ -64,9 +66,6 @@ def print_quote_with_ascii(total_output_tokens: int = None):
     output_lines.extend([empty_line, top_border])
 
     # Print everything
-    import logging
-
-    logger = logging.getLogger(__name__)
     logger.info("\n".join(output_lines))
     logger.info(f"\nQuote tokens (GPT-4): {quote_tokens:,}")
     if total_output_tokens:
@@ -85,157 +84,97 @@ def is_test_or_config_file(file_path: str) -> bool:
     )
 
 
+def _generate_anchor_name(file_path: str, decl: Declaration) -> str:
+    """Generate a sanitized, unique anchor name for a declaration."""
+    # Normalize file path: remove leading './', replace slashes and dots
+    norm_path = file_path.lstrip("./").replace("/", "_").replace(".", "_")
+    # Sanitize declaration name: keep alphanumeric, hyphen, underscore
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "", decl.name)
+    # Combine parts
+    anchor = f"symbol-{norm_path}-{decl.kind}-{safe_name}".lower()
+    return anchor
+
+
 def write_markdown(
-    annotated_files: List[AnnotatedFileData],
-    parsed_files: List[ParsedFileData],
-    docs: List[ParsedDocData],
+    items: List[WritableItem],
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
-    """Write the concatenated code and docs to a markdown file."""
-    spinner = Halo(text="Generating CodeConcat output", spinner="dots")
+    """Write the concatenated code and docs to a markdown file, respecting config flags."""
+    spinner = Halo(text="Generating Markdown output", spinner="dots")
     spinner.start()
 
-    output_chunks = []
-    output_chunks.append("# CodeConCat Output\n\n")
+    output_parts = []
+    output_parts.append("# CodeConCat Output\n\n")
 
-    # Add AI-friendly preamble only if enabled
-    if not config.disable_ai_context:
-        spinner.text = "Generating AI preamble"
-        output_chunks.append(generate_ai_preamble(parsed_files, docs, {}))
+    # --- Section: Repository Overview --- #
+    # This includes AI preamble and potentially the folder tree
+    if config.include_repo_overview:
+        spinner.text = "Generating repository overview"
+        # Generate AI preamble (if not disabled implicitly by preset/flag)
+        # We might need a more specific flag like 'include_ai_preamble' later
+        # For now, tie it to repo overview
+        if not config.disable_ai_context:
+            # Pass items list only, as config is no longer needed by generate_ai_preamble
+            ai_preamble = generate_ai_preamble(items)
+            if ai_preamble:
+                output_parts.append(ai_preamble)
+                output_parts.append("\n")
 
-    # Add directory structure if configured
-    if config.include_directory_structure:
-        spinner.text = "Generating directory structure"
-        output_chunks.append("## Directory Structure\n")
-        output_chunks.append("```\n")
-        all_files = [f.file_path for f in annotated_files] + [d.file_path for d in docs]
-        dir_structure = generate_directory_structure(all_files)
-        output_chunks.append(dir_structure)
-        output_chunks.append("\n```\n\n")
-    elif folder_tree_str:  # Fallback to provided folder tree
-        output_chunks.append("## Folder Tree\n")
-        output_chunks.append("```\n")
-        output_chunks.append(folder_tree_str)
-        output_chunks.append("\n```\n\n")
+        # Add directory structure if configured and provided
+        if config.include_directory_structure and folder_tree_str:
+            spinner.text = "Adding directory structure"
+            output_parts.append("## Directory Structure\n")
+            output_parts.append(f"```\n{folder_tree_str}\n```\n\n")
+        output_parts.append("---\n\n")
 
-    # Create a map of doc files by base name for merging
-    doc_map = {}
-    merged_docs = set()  # Track which docs have been merged
-    if config.merge_docs:
-        for doc in docs:
-            base_name = os.path.splitext(os.path.basename(doc.file_path))[0].lower()
-            doc_map[base_name] = doc
+    # --- File Index --- #
+    if config.include_file_index:
+        output_parts.append("## File Index")
+        output_parts.append("```")
+        # Sort items if needed for index consistency with file section
+        items_for_index = (
+            sorted(items, key=lambda x: x.file_path) if config.sort_files else items
+        )
+        for item in items_for_index:
+            output_parts.append(item.file_path)
+        output_parts.append("```")
+        output_parts.append("\n")
 
-    # Process code files
-    if annotated_files:
-        spinner.text = "Processing code files"
-        output_chunks.append("## Code Files\n\n")
-        for i, ann in enumerate(annotated_files, 1):
-            spinner.text = f"Processing code file {i}/{len(annotated_files)}: {ann.file_path}"
-            output_chunks.append(f"### File: {ann.file_path}\n")
+    # --- Files Section (Unified) --- #
+    output_parts.append("## Files")
+    output_parts.append("\n")
 
-            is_test_config = is_test_or_config_file(ann.file_path)
+    # Sort items if requested before processing
+    items_to_process = (
+        sorted(items, key=lambda x: x.file_path) if config.sort_files else items
+    )
 
-            # Add file summary if enabled or if it's a test/config file
-            if config.include_file_summary or is_test_config:
-                spinner.text = "Generating file summary"
-                summary = generate_file_summary(
-                    ParsedFileData(
-                        file_path=ann.file_path,
-                        language=ann.language,
-                        content=ann.annotated_content,
-                    )
-                )
-                # If cross-linking is enabled, replace symbol names in summary with Markdown links
-                if config.cross_link_symbols and hasattr(ann, "declarations") and ann.declarations:
-
-                    def make_anchor(decl):
-                        # Use file_path + kind + name for uniqueness
-                        anchor = f"symbol-{os.path.basename(ann.file_path).replace('.', '-')}-{decl.kind}-{decl.name}"
-                        return anchor
-
-                    summary_lines = summary.split("\n")
-                    for decl in getattr(ann, "declarations", []):
-                        anchor = make_anchor(decl)
-                        # Replace symbol name with Markdown link in summary (simple heuristic)
-                        for i, line in enumerate(summary_lines):
-                            if decl.name in line:
-                                summary_lines[i] = line.replace(
-                                    decl.name, f"[{decl.name}](#{anchor})"
-                                )
-                    summary = "\n".join(summary_lines)
-                output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
-
-            # For test/config files, show content as well
-            if ann.content:
-                spinner.text = "Processing file content"
-                processed_content = process_file_content(ann.content, config)
-                # Add anchors for each declaration if cross-linking is enabled
-                if config.cross_link_symbols and hasattr(ann, "declarations") and ann.declarations:
-                    for decl in ann.declarations:
-                        anchor = f"symbol-{os.path.basename(ann.file_path).replace('.', '-')}-{decl.kind}-{decl.name}"
-                        output_chunks.append(f'<a name="{anchor}"></a>\n')
-                output_chunks.append(f"```{ann.language}\n{processed_content}\n```")
-
-                # Always output the full annotated content (lists of functions/classes/etc)
-                if ann.annotated_content:
-                    output_chunks.append("\n#### Analysis\n")
-                    output_chunks.append(ann.annotated_content)
-                    output_chunks.append("\n")
-
-            # If merge_docs is enabled, try to find and merge related doc content
-            if config.merge_docs:
-                base_name = os.path.splitext(os.path.basename(ann.file_path))[0].lower()
-                if base_name in doc_map:
-                    doc = doc_map[base_name]
-                    output_chunks.append("\n### Associated Documentation\n")
-                    output_chunks.append(doc.content)
-                    output_chunks.append("\n")
-                    merged_docs.add(doc.file_path)
-
-            output_chunks.append("\n---\n")
-
-    # Add remaining docs section if there are unmerged docs
-    remaining_docs = [doc for doc in docs if doc.file_path not in merged_docs]
-    if remaining_docs:
-        spinner.text = "Processing documentation files"
-        output_chunks.append("## Documentation\n\n")
-        for i, doc in enumerate(remaining_docs, 1):
-            spinner.text = f"Processing doc file {i}/{len(remaining_docs)}: {doc.file_path}"
-            output_chunks.append(f"### File: {doc.file_path}\n")
-            if config.include_file_summary:
-                spinner.text = "Generating file summary"
-                summary = generate_file_summary(
-                    ParsedFileData(
-                        file_path=doc.file_path,
-                        language="markdown",
-                        content=doc.content,
-                        declarations=[],
-                    )
-                )
-                output_chunks.append(f"#### Summary\n```\n{summary}\n```\n\n")
-            output_chunks.append(doc.content)
-            output_chunks.append("\n---\n")
+    # Single loop processing all items polymorphically
+    if not items_to_process:
+        output_parts.append("_No files or documents found._")
+    else:
+        for item in items_to_process:
+            # Polymorphic call to render markdown chunks
+            md_chunks = item.render_markdown_chunks(config)
+            output_parts.extend(md_chunks)
+            output_parts.append("\n---\n")  # Separator between files
 
     spinner.text = "Finalizing output"
-    final_str = "".join(output_chunks)
+    final_str = "\n".join(output_parts)
 
     # Count tokens for the entire output
     spinner.text = "Counting tokens"
     output_tokens = count_tokens(final_str)
 
-    with open(config.output, "w", encoding="utf-8") as f:
-        f.write(final_str)
-        # Add token count information at the end
-        f.write("\n\n## Token Statistics\n")
-        f.write(f"Total CodeConcat output tokens (GPT-4): {output_tokens:,}\n")
+    # Add token count information at the end of the string
+    final_str += "\n\n<!-- Token Count -->\n"
+    final_str += (
+        f"<!-- Total CodeConCat output tokens (cl100k_base): {output_tokens:,} -->\n"
+    )
 
-    spinner.succeed("CodeConcat output generated successfully")
-    import logging
-
-    logger = logging.getLogger(__name__)
-    logger.info(f"[CodeConCat] Markdown output written to: {config.output}")
+    spinner.succeed("Markdown generation complete")
+    # Logging is handled by the caller (e.g., run_codeconcat)
 
     # Print quote with ASCII art, passing the total output tokens
     print_quote_with_ascii(output_tokens)

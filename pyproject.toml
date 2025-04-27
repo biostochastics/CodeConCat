@@ -11,7 +11,7 @@ requires-python = ">=3.8"
 license = "MIT"
 keywords = ["llm", "code", "documentation", "aggregator"]
 authors = [
-    { name = "CodeConcat Team", email = "team@codeconcat.dev" },
+    { name = "Sergey Kornilov", email = "sergey.kornilov@biostochastics.com" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -30,11 +30,16 @@ dependencies = [
     "tiktoken>=0.5.1",
     "fastapi>=0.104.0",
     "uvicorn>=0.24.0",
+    "tqdm>=4.62.0", # Added for progress bars
+    "pathspec>=0.11.0", # Added for gitignore pattern matching
+    "halo>=0.0.31", # Added for spinners
+    "transformers>=4.20.0", # Added for token counting
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "ruff>=0.1.0", # Added linter/formatter
 ]
 guesslang = [
     "guesslang>=2.2.0",

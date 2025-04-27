@@ -9,14 +9,18 @@ guesslang_instance = None
 
 try:
     from guesslang import Guess
+
     guesslang_instance = Guess()
     GUESSLANG_AVAILABLE = True
-    logger.info("Successfully imported guesslang. Advanced language detection is enabled.")
+    logger.info(
+        "Successfully imported guesslang. Advanced language detection is enabled."
+    )
 except ImportError:
     logger.info(
         "guesslang library not found. Falling back to basic extension-based language detection. "
         "For more accurate language detection, install with 'pip install codeconcat[guesslang]'."
     )
+
 
 def get_language_guesslang(content: str) -> Optional[str]:
     """Detect language using guesslang if available."""
@@ -25,12 +29,13 @@ def get_language_guesslang(content: str) -> Optional[str]:
     try:
         language = guesslang_instance.language_name(content)
         # guesslang might return 'Unknown' or similar for unrecognizable content
-        if language and language.lower() != 'unknown':
-             # Normalize to lowercase as our ext_map keys are lowercase
+        if language and language.lower() != "unknown":
+            # Normalize to lowercase as our ext_map keys are lowercase
             return language.lower()
     except Exception as e:
         logger.debug(f"guesslang failed to detect language: {e}")
     return None
+
 
 # Basic extension map (fallback and used by should_include_file)
 # Keys should be lowercase
@@ -70,7 +75,6 @@ ext_map = {
     ".html": "html",
     ".htm": "html",
     ".css": "css",
-    ".scss": "scss",
     ".sass": "sass",
     ".less": "less",
     ".xml": "xml",
@@ -85,9 +89,9 @@ ext_map = {
     ".rst": "restructuredtext",
     ".tex": "latex",
     ".dockerfile": "dockerfile",
-    "dockerfile": "dockerfile", # Allow Dockerfile with no extension
+    "dockerfile": "dockerfile",  # Allow Dockerfile with no extension
     ".makefile": "makefile",
-    "makefile": "makefile", # Allow Makefile with no extension
+    "makefile": "makefile",  # Allow Makefile with no extension
     ".env": "dotenv",
     ".gitignore": "gitignore",
     ".gitattributes": "gitattributes",
@@ -156,7 +160,6 @@ ext_map = {
     ".nix": "nix",
     ".rkt": "racket",
     ".scheme": "scheme",
-    ".scss": "scss",
     ".v": "verilog",
     ".sv": "systemverilog",
     ".vhdl": "vhdl",

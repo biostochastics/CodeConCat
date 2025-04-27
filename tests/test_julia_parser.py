@@ -2,8 +2,8 @@
 
 import pytest
 
-from codeconcat.parser.language_parsers.julia_parser import parse_julia
 from codeconcat.errors import LanguageParserError
+from codeconcat.parser.language_parsers.julia_parser import parse_julia
 
 
 def test_parse_julia_function():

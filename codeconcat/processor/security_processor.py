@@ -22,11 +22,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from ..base_types import (
-    CodeConCatConfig,
-    CustomSecurityPattern,
-    SecuritySeverity,
-)
+from ..base_types import CodeConCatConfig, CustomSecurityPattern, SecuritySeverity
 from .security_types import SecurityIssue
 
 __all__ = ["SecurityProcessor"]
@@ -51,10 +47,10 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     # ----------------------------------------------------------------------------------
     _AWS_SECRET_KEY_REGEX = '(?i)\\baws[_\\-\\s]+secret[_\\-\\s]+(?:access[_\\-\\s]+)?key["\\s:=]+["]?([A-Za-z0-9/+=]{40})["\\s]?'
     _GENERIC_API_KEY_REGEX = "(?i)\\b(?:api[_\\-\\s]*key|key[_\\-\\s]*id|secret[_\\-\\s]*key)[\"'\\s:=]+[\"']?([a-zA-Z0-9\\-._/+=]{8,})[\"']?"
-    _GENERIC_PASSWORD_REGEX = (
-        "(?i)\\b(?:password|pwd|pass)['\"\\s:=]+['\"]?([a-zA-Z0-9!@#$%^&*()_\\+-]{8,})['\"]?"
+    _GENERIC_PASSWORD_REGEX = "(?i)\\b(?:password|pwd|pass)['\"\\s:=]+['\"]?([a-zA-Z0-9!@#$%^&*()_\\+-]{8,})['\"]?"
+    _AWS_SESSION_TOKEN_REGEX = (
+        '(?i)aws_session_token["\\s:=]+["]?([A-Za-z0-9/+=]{16,})["\\s]?'
     )
-    _AWS_SESSION_TOKEN_REGEX = '(?i)aws_session_token["\\s:=]+["]?([A-Za-z0-9/+=]{16,})["\\s]?'
 
     # ----------------------------------------------------------------------------------
     # Pattern definitions ----------------------------------------------------------------
@@ -191,7 +187,8 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             abs_path = Path(file_path).expanduser().resolve()
         except Exception:  # pylint: disable=broad-except
             logger.warning(
-                "Could not resolve absolute path for '%s'; falling back to the " "provided string.",
+                "Could not resolve absolute path for '%s'; falling back to the "
+                "provided string.",
                 file_path,
             )
             abs_path = Path(str(file_path))
@@ -202,7 +199,9 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
 
         # Merge built‑in with (optionally validated) custom patterns.
         compiled_patterns = cls._compile_patterns(config)
-        logger.debug(f"Compiled patterns available for scan: {list(compiled_patterns.keys())}")
+        logger.debug(
+            f"Compiled patterns available for scan: {list(compiled_patterns.keys())}"
+        )
         issues: List[SecurityIssue] = []
 
         for idx, line in enumerate(content.splitlines()):  # ``idx`` is zero‑based.
@@ -211,22 +210,39 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             if cls._should_skip_line(idx, content.splitlines()):
                 continue
 
-            for rule_name, (pattern, issue_type, default_sev) in compiled_patterns.items():
+            for rule_name, (
+                pattern,
+                issue_type,
+                default_sev,
+            ) in compiled_patterns.items():
                 for match in pattern.finditer(line):
                     try:
-                        group_index = 1 if pattern.groups >= 1 and match.group(1) is not None else 0
+                        group_index = (
+                            1
+                            if pattern.groups >= 1 and match.group(1) is not None
+                            else 0
+                        )
                         raw_finding = match.group(group_index)
                     except Exception as exc:
                         logger.warning(
-                            "Failed to extract group from match in file '%s', line %d: %s", file_path, lineno, exc
+                            "Failed to extract group from match in file '%s', line %d: %s",
+                            file_path,
+                            lineno,
+                            exc,
                         )
                         continue
 
-                    if not raw_finding or cls._should_ignore_finding(raw_finding, config):
+                    if not raw_finding or cls._should_ignore_finding(
+                        raw_finding, config
+                    ):
                         continue
-                    if cls._is_duplicate(issues, lineno, issue_type, raw_finding, abs_path):
+                    if cls._is_duplicate(
+                        issues, lineno, issue_type, raw_finding, abs_path
+                    ):
                         continue
-                    current_severity = cls._determine_severity(default_sev, abs_path, config)
+                    current_severity = cls._determine_severity(
+                        default_sev, abs_path, config
+                    )
                     threshold = cls._resolve_threshold(config)
                     # Compare severity indices directly for robustness
                     try:
@@ -271,11 +287,17 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
         compiled: Dict[str, Tuple[re.Pattern[str], str, SecuritySeverity]] = {}
 
         # --- Compile Built-in Patterns ---
-        for name, (raw_regex, issue_type, severity) in cls._RAW_BUILT_IN_PATTERNS.items():
+        for name, (
+            raw_regex,
+            issue_type,
+            severity,
+        ) in cls._RAW_BUILT_IN_PATTERNS.items():
             try:
                 compiled[name] = (re.compile(raw_regex), issue_type, severity)
             except re.error as exc:
-                logger.error("Failed to compile built-in security pattern '%s': %s", name, exc)
+                logger.error(
+                    "Failed to compile built-in security pattern '%s': %s", name, exc
+                )
 
         # --- Compile and Add/Overwrite with Custom Patterns ---
         for custom in config.security_custom_patterns:
@@ -288,7 +310,11 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                 issue_type = custom.name
                 compiled[custom.name] = (re.compile(custom.regex), issue_type, severity)
             except re.error as exc:
-                logger.error("Failed to compile custom security pattern '%s': %s", custom.name, exc)
+                logger.error(
+                    "Failed to compile custom security pattern '%s': %s",
+                    custom.name,
+                    exc,
+                )
             except KeyError:
                 logger.error(
                     "Invalid severity '%s' for custom security pattern '%s'.",
@@ -308,7 +334,8 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                 fnmatch.fnmatch(path_str, normalized)
                 or fnmatch.fnmatch(abs_path.name, normalized)
                 or any(
-                    fnmatch.fnmatch(parent.as_posix(), normalized) for parent in abs_path.parents
+                    fnmatch.fnmatch(parent.as_posix(), normalized)
+                    for parent in abs_path.parents
                 )
             ):
                 return True
@@ -397,9 +424,11 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             return "****"
 
     @staticmethod
-    def _mask_sensitive_data(line: str, pattern: re.Pattern[str], match: re.Match[str]) -> str:
+    def _mask_sensitive_data(
+        line: str, pattern: re.Pattern[str], match: re.Match[str]
+    ) -> str:
         """Return *line* with the secret portion of *match* hidden. May raise ValueError on failure."""
-        group_index = 1 if pattern.groups >= 1 and match.group(1) else 0
+        group_index = 1 if pattern.groups >= 1 and match.group(1) is not None else 0
         start, end = match.span(group_index)
         finding = match.group(group_index)
 
@@ -436,20 +465,26 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
 
     # ------------------------------------------------------------------------- formatting
     @classmethod
-    def format_issues(cls, issues: List[SecurityIssue], config: CodeConCatConfig) -> str:
+    def format_issues(
+        cls, issues: List[SecurityIssue], config: CodeConCatConfig
+    ) -> str:
         """Pretty‑print *issues* with respect to *config* threshold."""
         if not issues:
             return "Security Scan Results: No issues found."
 
         threshold = cls._resolve_threshold(config)
-        filtered: List[SecurityIssue] = [issue for issue in issues if issue.severity >= threshold]
+        filtered: List[SecurityIssue] = [
+            issue for issue in issues if issue.severity >= threshold
+        ]
         if not filtered:
             return (
                 "Security Scan Results: No issues found at or above the "
                 f"'{threshold.name}' threshold."
             )
 
-        filtered.sort(key=lambda i: (i.severity, i.file_path, i.line_number), reverse=True)
+        filtered.sort(
+            key=lambda i: (i.severity, i.file_path, i.line_number), reverse=True
+        )
 
         lines: List[str] = [
             "Security Scan Results:",

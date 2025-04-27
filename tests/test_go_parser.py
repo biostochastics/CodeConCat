@@ -2,8 +2,8 @@
 
 import pytest
 
-from codeconcat.parser.language_parsers.go_parser import parse_go
 from codeconcat.errors import LanguageParserError
+from codeconcat.parser.language_parsers.go_parser import parse_go
 
 
 def test_parse_go_function():

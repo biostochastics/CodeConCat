@@ -4,7 +4,11 @@ import re
 from typing import List, Optional
 
 from codeconcat.errors import LanguageParserError
-from codeconcat.parser.language_parsers.base_parser import BaseParser, Declaration, ParseResult
+from codeconcat.parser.language_parsers.base_parser import (
+    BaseParser,
+    Declaration,
+    ParseResult,
+)
 
 
 def parse_csharp_code(file_path: str, content: str) -> ParseResult:
@@ -15,7 +19,9 @@ def parse_csharp_code(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse C# file: {e}", file_path=file_path, original_exception=e
+            message=f"Failed to parse C# file: {e}",
+            file_path=file_path,
+            original_exception=e,
         )
     return ParseResult(
         file_path=file_path,

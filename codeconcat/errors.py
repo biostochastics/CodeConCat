@@ -16,7 +16,9 @@ class ConfigurationError(CodeConcatError):
 class FileProcessingError(CodeConcatError):
     """Errors during file collection or initial processing."""
 
-    def __init__(self, message: str, file_path: str = None, original_exception: Exception = None):
+    def __init__(
+        self, message: str, file_path: str = None, original_exception: Exception = None
+    ):
         super().__init__(message)
         self.file_path = file_path
         self.original_exception = original_exception
@@ -38,7 +40,9 @@ class ParserError(FileProcessingError):
         line_number: int = None,
         original_exception: Exception = None,
     ):
-        super().__init__(message, file_path=file_path, original_exception=original_exception)
+        super().__init__(
+            message, file_path=file_path, original_exception=original_exception
+        )
         self.line_number = line_number
 
     def __str__(self):

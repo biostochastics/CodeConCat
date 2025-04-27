@@ -1,10 +1,10 @@
 """Tests for GitHub collector functionality."""
 
+import logging
 import os
 import tempfile
-from unittest import TestCase, mock
 from pathlib import Path
-import logging
+from unittest import TestCase, mock
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 from codeconcat.collector.github_collector import (
@@ -23,7 +23,9 @@ class TestGitHubCollector(TestCase):
             github_url="test/repo",
             github_token="test_token",
             github_ref="main",
-            include_languages=["python"],  # Add this to ensure Python files are included
+            include_languages=[
+                "python"
+            ],  # Add this to ensure Python files are included
             include_paths=["*.py"],  # Add this to ensure .py files are included
         )
 

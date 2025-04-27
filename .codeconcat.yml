@@ -84,6 +84,7 @@ exclude_paths:
   - "**/.venv/**"
   - "**/venv/**"
   - "*env"            # generic env dir (e.g. `env/`)
+  - "setup.py"        # Exclude setup.py due to parsing hang
 
 include_paths:
   # ── Front‑end / full‑stack JS & TS ───────────────────────────────────────────
@@ -129,17 +130,18 @@ include_languages:           # must match ext_map() outputs
 enable_docs:         false   # pull in standalone docs (.md, .rst, etc.)
 merge_docs:          false   # merge docs into main output
 enable_ai_context:   true    # prepend AI‑friendly “preamble”
-enable_annotations:  true    # run LLM annotator
-disable_symbols:     false   # skip symbol index when true
-remove_docstrings:   true
+enable_annotations:  false   # run LLM annotator (Disabled for testing)
+disable_symbols:     true   # skip symbol index when true (Disabled for testing)
+remove_docstrings:   false   # (Disabled for testing)
+enable_security_scanning: false # Added to disable potentially slow security scans
 
 ########################
 #  DISPLAY OPTIONS
 ########################
 include_file_summary:        true
 include_directory_structure: true
-remove_comments:             true
-remove_empty_lines:          true
+remove_comments:             false  # (Disabled for testing)
+remove_empty_lines:          false  # (Disabled for testing)
 show_line_numbers:           true
 
 ########################
@@ -151,6 +153,6 @@ max_workers: 4               # thread‑pool size (null = automatic)
 #  OUTPUT
 ########################
 output:        output.md     # final file or base name when splitting
-format:        markdown      # markdown | json | xml
-split_output:  1             # >1 → split Markdown into N parts
+format:        markdown      # markdown | json | xml | text
+split_output:  1             # >1 → split into N parts
 sort_files:    true          # alphabetical inside the output

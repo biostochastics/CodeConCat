@@ -4,59 +4,67 @@ import xml.etree.ElementTree as ET
 from typing import List
 from xml.dom import minidom
 
-from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedDocData
+from codeconcat.base_types import (
+    CodeConCatConfig,
+    WritableItem,
+)
 
 
 def write_xml(
-    annotated_files: List[AnnotatedFileData],
-    docs: List[ParsedDocData],
+    items: List[WritableItem],
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
-    """Write the concatenated code and docs to an XML file."""
+    """Write the concatenated code and docs to an XML file, respecting config flags."""
 
-    root = ET.Element("codeconcat")
+    root = ET.Element("codeconcat_output")
 
-    # Add metadata
-    metadata = ET.SubElement(root, "metadata")
-    ET.SubElement(metadata, "total_files").text = str(len(annotated_files) + len(docs))
-    ET.SubElement(metadata, "code_files").text = str(len(annotated_files))
-    ET.SubElement(metadata, "doc_files").text = str(len(docs))
+    # --- Repository Overview --- #
+    if config.include_repo_overview:
+        repo_overview = ET.SubElement(root, "repository_overview")
+        # Add directory structure if configured and available
+        if config.include_directory_structure and folder_tree_str:
+            tree_elem = ET.SubElement(repo_overview, "directory_structure")
+            # Use CDATA for potentially complex tree string
+            tree_elem.text = f"<![CDATA[{folder_tree_str}]]>"
 
-    # Add folder tree if present
-    if folder_tree_str:
-        tree_elem = ET.SubElement(root, "folder_tree")
-        tree_elem.text = folder_tree_str
+    # --- File Index --- #
+    if config.include_file_index:
+        file_index = ET.SubElement(root, "file_index")
+        # Sort items if needed for index consistency with file section
+        items_for_index = (
+            sorted(items, key=lambda x: x.file_path) if config.sort_files else items
+        )
+        for item in items_for_index:
+            ET.SubElement(file_index, "file", path=item.file_path)
 
-    # Add code files
-    code_section = ET.SubElement(root, "code_files")
-    for file in annotated_files:
-        file_elem = ET.SubElement(code_section, "file")
-        ET.SubElement(file_elem, "path").text = file.file_path
-        ET.SubElement(file_elem, "language").text = file.language
+    # --- Files Section --- #
+    files_section = ET.SubElement(root, "files")
 
-        # Add code content with CDATA to preserve formatting
-        content_elem = ET.SubElement(file_elem, "content")
-        content_elem.text = f"<![CDATA[{file.annotated_content}]]>"
+    # Sort items if requested before processing
+    items_to_process = (
+        sorted(items, key=lambda x: x.file_path) if config.sort_files else items
+    )
 
-    # Add doc files
-    docs_section = ET.SubElement(root, "doc_files")
-    for doc in docs:
-        doc_elem = ET.SubElement(docs_section, "file")
-        ET.SubElement(doc_elem, "path").text = doc.file_path
-        ET.SubElement(doc_elem, "type").text = doc.doc_type
-        content_elem = ET.SubElement(doc_elem, "content")
-        content_elem.text = f"<![CDATA[{doc.content}]]>"
+    # Single loop processing all items polymorphically
+    for item in items_to_process:
+        item_element = item.render_xml_element(config)
+        # Append the generated element (either <file> or <doc>) directly
+        files_section.append(item_element)
 
-    # Convert to string with pretty printing
-    xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent="  ")
+    # Convert the ElementTree to a string
+    # Use minidom for pretty printing if indent is configured
+    try:
+        rough_string = ET.tostring(root, "utf-8")
+        reparsed = minidom.parseString(rough_string)
+        xml_str = reparsed.toprettyxml(indent="  ", encoding="utf-8").decode("utf-8")
+    except Exception:
+        # Fallback if minidom fails (e.g., with complex CDATA)
+        xml_str = ET.tostring(root, encoding="unicode")
 
-    # Write to file
-    with open(config.output, "w", encoding="utf-8") as f:
-        f.write(xml_str)
+    # Writing to file is handled by the caller
+    # import logging
+    # logger = logging.getLogger(__name__)
+    # logger.info(f"XML data generated (will be written to: {config.output})")
 
-    import logging
-
-    logger = logging.getLogger(__name__)
-    logger.info(f"[CodeConCat] XML output written to: {config.output}")
     return xml_str
