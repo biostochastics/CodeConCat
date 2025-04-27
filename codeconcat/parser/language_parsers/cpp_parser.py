@@ -1,11 +1,13 @@
 # file: codeconcat/parser/language_parsers/cpp_parser.py
 
 import re
-from typing import List, Optional
+import logging
+from typing import List
 
-from codeconcat.errors import LanguageParserError
-from codeconcat.base_types import ParseResult
-from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol, Declaration
+from ...base_types import Declaration, ParseResult
+from .base_parser import BaseParser, LanguageParserError
+
+logger = logging.getLogger(__name__)
 
 
 def parse_cpp_code(file_path: str, content: str) -> ParseResult:
@@ -15,7 +17,9 @@ def parse_cpp_code(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse C++ file: {e}", file_path=file_path, original_exception=e
+            message=f"Failed to parse C++ file: {e}",
+            file_path=file_path,
+            original_exception=e,
         )
     return ParseResult(
         file_path=file_path, language="cpp", content=content, declarations=declarations
@@ -53,8 +57,8 @@ class CppParser(BaseParser):
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
 
-    def parse(self, content: str) -> List[Declaration]:
-        """Parse C++ code and return declarations."""
+    def parse(self, content: str) -> ParseResult:
+        """Parse C++ code and return ParseResult with declarations and imports."""
         declarations = []
         lines = content.split("\n")
         i = 0
@@ -137,7 +141,28 @@ class CppParser(BaseParser):
                     break
             i += 1
 
-        return declarations
+        # Extract includes/imports from the content
+        imports = []
+        for line in content.split("\n"):
+            line = line.strip()
+            if line.startswith("#include"):
+                include_match = re.match(r'#include\s+[<"]([^>"]+)[>"]', line)
+                if include_match:
+                    imports.append(include_match.group(1))
+
+        logger.debug(
+            f"[CppParser] Finished parsing for {self.current_file_path}. Found {len(declarations)} declarations, {len(imports)} imports."
+        )
+
+        return ParseResult(
+            file_path=self.current_file_path,
+            language="cpp",
+            content=content,
+            declarations=declarations,
+            imports=imports,
+            token_stats=None,
+            security_issues=[],
+        )
 
     def _remove_block_comments(self, text: str) -> str:
         """
@@ -170,15 +195,16 @@ class CppParser(BaseParser):
 
         n = len(lines)
         for i in range(start + 1, n):
-            l = lines[i]
+            line = lines[i]
 
             # remove // inline comment
-            comment_pos = l.find("//")
+            comment_pos = line.find("//")
             if comment_pos >= 0:
-                l = l[:comment_pos]
+                line = line[:comment_pos]
 
-            brace_count += l.count("{") - l.count("}")
-            if brace_count <= 0:
+            brace_count += line.count("{") - line.count("}")
+
+            if brace_count < 0:  # Found closing brace before matching open
                 return i
         # Not found => return last line
         return n - 1
@@ -193,7 +219,9 @@ class CppParser(BaseParser):
             if re.match(rf"\s*{class_type}\s+{name}\b", line_content):
                 return line_num
 
-    def _find_namespace_start(self, lines: List[str], start_line: int, name: str) -> int:
+    def _find_namespace_start(
+        self, lines: List[str], start_line: int, name: str
+    ) -> int:
         """
         Find the line number where the namespace definition starts
         """

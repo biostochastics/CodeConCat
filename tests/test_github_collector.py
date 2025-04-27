@@ -23,7 +23,9 @@ class TestGitHubCollector(TestCase):
             github_url="test/repo",
             github_token="test_token",
             github_ref="main",
-            include_languages=["python"],  # Add this to ensure Python files are included
+            include_languages=[
+                "python"
+            ],  # Add this to ensure Python files are included
             include_paths=["*.py"],  # Add this to ensure .py files are included
         )
 

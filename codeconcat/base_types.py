@@ -5,11 +5,11 @@ Holds data classes and typed structures used throughout CodeConCat.
 """
 
 # Rename this file to base_types.py to avoid conflict with Python's types module
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
 import re
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, field_validator, validator
 
 PROGRAMMING_QUOTES = [
     '"Clean code always looks like it was written by someone who cares." - Robert C. Martin',
@@ -28,7 +28,7 @@ PROGRAMMING_QUOTES = [
     '"Always code as if the guy who ends up maintaining your code will be a violent psychopath who knows where you live." - Rick Osborne',
 ]
 
-VALID_FORMATS = {"markdown", "json", "xml"}
+VALID_FORMATS = {"markdown", "json", "xml", "text"}
 
 # --- Security Related Enums and Types ---
 
@@ -54,9 +54,7 @@ class SecuritySeverity(Enum):
             try:
                 return order.index(self) < order.index(other)
             except ValueError:
-                return (
-                    NotImplemented  # Handle cases where a value might not be in the defined order
-                )
+                return NotImplemented  # Handle cases where a value might not be in the defined order
         return NotImplemented
 
 
@@ -85,7 +83,9 @@ class CustomSecurityPattern(BaseModel):
             return SecuritySeverity[value.upper()].name
         except KeyError:
             valid_severities = ", ".join([s.name for s in SecuritySeverity])
-            raise ValueError(f"Invalid severity '{value}'. Must be one of: {valid_severities}")
+            raise ValueError(
+                f"Invalid severity '{value}'. Must be one of: {valid_severities}"
+            )
 
     @field_validator("regex")
     def validate_regex(cls, value):
@@ -134,19 +134,29 @@ class ParsedFileData:
     language: str
     content: str
     declarations: List[Declaration] = field(default_factory=list)
+    imports: List[str] = field(default_factory=list)
     token_stats: Optional[TokenStats] = None
     security_issues: List[SecurityIssue] = field(default_factory=list)
 
 
 @dataclass
 class AnnotatedFileData:
-    """Data structure for annotated file content."""
+    """Data structure for annotated file content, including structured analysis results."""
 
+    # Core file info
     file_path: str
     language: str
-    content: str
-    annotated_content: str
-    summary: Optional[str] = None
+    content: str  # Original content
+    annotated_content: str  # Potentially processed content (e.g., comments removed)
+
+    # Structured analysis results (passed from ParsedFileData)
+    declarations: List[Declaration] = field(default_factory=list)
+    imports: List[str] = field(default_factory=list)
+    token_stats: Optional[TokenStats] = None
+    security_issues: List[SecurityIssue] = field(default_factory=list)
+
+    # Optional AI-generated additions
+    summary: Optional[str] = None  # AI-generated overall summary
     tags: List[str] = field(default_factory=list)
 
 
@@ -167,6 +177,28 @@ class ParseResult:
     language: str
     content: str
     declarations: List[Declaration]
+    imports: List[str]  # Add imports field
+    token_stats: Optional[TokenStats] = None
+    security_issues: List[SecurityIssue] = field(default_factory=list)
+
+    # For backward compatibility with code that expects (declarations, imports) tuple
+    def __getitem__(self, key):
+        """Enable subscripting like result[0] and result[1]"""
+        if key == 0:
+            return self.declarations
+        elif key == 1:
+            return self.imports
+        else:
+            raise IndexError(f"ParseResult index {key} out of range")
+
+    def __iter__(self):
+        """Enable iteration and unpacking like 'declarations, imports = result'"""
+        yield self.declarations
+        yield self.imports
+
+    def __len__(self):
+        """Return length for compatibility"""
+        return 2  # Always 2 items (declarations, imports) for backwards compatibility
 
 
 # Pydantic model for Global Configuration
@@ -177,18 +209,39 @@ class CodeConCatConfig(BaseModel):
     Fields are validated upon instantiation.
     """
 
+    # For backward compatibility with code that treats this like a dictionary
+    def get(self, key: str, default=None):
+        """Provide dictionary-like access with .get() method"""
+        return getattr(self, key, default)
+
     target_path: str = "."
     github_url: Optional[str] = None
     github_token: Optional[str] = None
     github_ref: Optional[str] = None
     include_languages: List[str] = Field(default_factory=list)
     exclude_languages: List[str] = Field(default_factory=list)
-    include_paths: List[str] = Field(default_factory=list)
-    exclude_paths: List[str] = Field(default_factory=list)
+    include_paths: Optional[List[str]] = Field(
+        None, description="Patterns for files/directories to include."
+    )
+    exclude_paths: Optional[List[str]] = Field(
+        None, description="Patterns for files/directories to exclude."
+    )
+    use_gitignore: bool = Field(
+        True, description="Whether to respect rules found in .gitignore files."
+    )
+    use_default_excludes: bool = Field(
+        True, description="Whether to use the built-in default exclude patterns."
+    )
+    include_languages: Optional[List[str]] = Field(
+        None, description="Specific languages to include (by identifier)."
+    )
+    exclude_languages: List[str] = Field(default_factory=list)
     extract_docs: bool = False
     show_skip: bool = False  # Whether to print skipped files after parsing
     merge_docs: bool = False
-    doc_extensions: List[str] = Field(default_factory=lambda: [".md", ".rst", ".txt", ".rmd"])
+    doc_extensions: List[str] = Field(
+        default_factory=lambda: [".md", ".rst", ".txt", ".rmd"]
+    )
     custom_extension_map: Dict[str, str] = Field(default_factory=dict)
     output: str = "code_concat_output.md"
     format: str = "markdown"
@@ -223,9 +276,27 @@ class CodeConCatConfig(BaseModel):
     # Advanced options
     max_workers: int = 4
     split_output: int = 1  # Number of files to split output into
+    verbose: bool = False  # Added for verbose logging control
 
     # Markdown cross-linking
-    cross_link_symbols: bool = False  # Option to cross-link symbol summaries and definitions
+    cross_link_symbols: bool = (
+        False  # Option to cross-link symbol summaries and definitions
+    )
+
+    # Progress Bar
+    disable_progress_bar: bool = False  # Disable tqdm progress bars
+
+    # New Output Structure/Verbosity Controls
+    output_preset: Optional[str] = "medium"  # 'lean', 'medium', 'full', or None
+    include_repo_overview: bool = True  # Default based on 'medium'
+    include_file_index: bool = True  # Default based on 'medium'
+    include_file_summary: bool = True  # Default based on 'medium'
+    include_declarations_in_summary: bool = True  # Default based on 'medium'
+    include_imports_in_summary: bool = (
+        False  # Default based on 'medium' (maybe imports are too verbose?)
+    )
+    include_tokens_in_summary: bool = True  # Default based on 'medium'
+    include_security_in_summary: bool = True  # Default based on 'medium'
 
     # --- Pydantic Validators --- #
 
@@ -249,12 +320,19 @@ class CodeConCatConfig(BaseModel):
                 f"Must be one of: {valid_severities}"
             )
 
+    @validator("output_preset", pre=True, always=True)
+    def validate_output_preset(cls, v):
+        if v is None or isinstance(v, str) and v.lower() in ["lean", "medium", "full"]:
+            return v.lower() if isinstance(v, str) else v
+        raise ValueError(
+            "output_preset must be one of 'lean', 'medium', 'full', or None"
+        )
+
     @field_validator("split_output")
     def check_split_output(cls, v):
         if v < 1:
-            raise ValueError("split_output must be 1 or greater")
+            raise ValueError("split_output must be an integer greater than 0.")
         return v
 
-    # The validator for security_custom_patterns automatically handles
-    # validating each item in the list against the CustomSecurityPattern model,
-    # including its own validators for 'severity' and 'regex'.
+    class Config:
+        extra = "ignore"  # Ignore extra fields from config file/CLI

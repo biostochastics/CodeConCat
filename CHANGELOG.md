@@ -1,5 +1,30 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
+## [0.6.6] - 2025-04-27
+
+### Added
+- Added `tqdm` progress bars for file collection, parsing, annotation, and output splitting to provide feedback during long operations.
+- Added `--no-progress-bar` CLI flag to disable progress bars.
+- Added `--use-gitignore`/`--no-use-gitignore` CLI flags and corresponding `use_gitignore` config option (default: True) to control whether `.gitignore` files are respected during file collection.
+- Added `--use-default-excludes`/`--no-use-default-excludes` CLI flags and corresponding `use_default_excludes` config option (default: True) to control whether built-in default exclusion patterns (e.g., for `.git`, `__pycache__`) are applied.
+- Added `--verbose` flag to enable detailed debug logging, particularly for file inclusion/exclusion decisions.
+- Added `--format text` option to output a simple concatenation of processed file contents.
+- Implemented Markdown cross-linking functionality for the existing `--cross-link-symbols` flag: generates HTML anchors for declarations and links to them from file summaries.
+
+### Changed
+- **Filtering Refactor:** Consolidated all path filtering logic (`include_paths`, `exclude_paths`, default excludes, `.gitignore`) to use the `pathspec` library consistently, providing more robust and predictable `.gitignore`-style pattern matching.
+- **Parser Refactor:** Updated all language parsers (Python, Java, Go, C++, Rust, JavaScript/TypeScript, Julia, PHP, R) to return a standardized `ParseResult` object instead of a simple list/tuple. This object now explicitly includes extracted imports (`import`, `use`, `require`, `library`, etc.) alongside declarations, file path, language, and original content. This simplifies downstream processing and improves consistency.
+- Made `ParseResult` and `CodeConCatConfig` classes more backward compatible for easier integration.
+- Updated docstrings throughout for better documentation.
+
+### Fixed
+- Improved error handling in security processor (`_mask_sensitive_data`) to prevent potential index errors.
+- Moved `traceback` imports to the top level in relevant files (`security_processor.py`, `github_collector.py`, `file_parser.py`) to avoid potential `ImportError` during exception handling.
+- Refactored `load_config` to correctly handle configuration precedence (CLI > `.codeconcat.yml` > defaults) and improve robustness against `None` values from CLI defaults.
+- Fixed an issue where the file parser (`file_parser.py`) could fail if a language-specific parser returned the richer `ParseResult` object instead of a simple tuple/list.
+- Fixed `collect_local_files` function to correctly process the input path when it points to a single file instead of a directory.
+
+
 ## [0.6.5] - 2025-04-26
 
 ### Added

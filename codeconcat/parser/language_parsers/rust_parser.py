@@ -1,7 +1,7 @@
 import re
 from typing import List, Optional
 
-from codeconcat.base_types import Declaration, ParsedFileData
+from codeconcat.base_types import Declaration, ParsedFileData, ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser
 from codeconcat.errors import LanguageParserError
 
@@ -10,14 +10,19 @@ def parse_rust(file_path: str, content: str) -> ParsedFileData:
     """Parse Rust code and return declarations."""
     parser = RustParser()
     try:
-        declarations = parser.parse(content)
+        parse_result = parser.parse(content)
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse Rust file: {e}", file_path=file_path, original_exception=e
+            message=f"Failed to parse Rust file: {e}",
+            file_path=file_path,
+            original_exception=e,
         )
     return ParsedFileData(
-        file_path=file_path, language="rust", content=content, declarations=declarations
+        file_path=file_path,
+        language="rust",
+        content=content,
+        declarations=parse_result.declarations,
     )
 
 
@@ -166,7 +171,7 @@ class RustParser(BaseParser):
 
         return start  # if unmatched, treat as single-line
 
-    def parse(self, content: str) -> List[Declaration]:
+    def parse(self, content: str) -> ParseResult:
         lines = content.split("\n")
         declarations: List[Declaration] = []
 
@@ -373,15 +378,21 @@ class RustParser(BaseParser):
                                             func_line = lines[
                                                 d.start_line - 1
                                             ].rstrip()  # Convert to 0-based index
-                                            indent = len(func_line) - len(func_line.lstrip())
+                                            indent = len(func_line) - len(
+                                                func_line.lstrip()
+                                            )
                                             # Look for attributes at the same indentation level
                                             attrs = []
-                                            i = d.start_line - 2  # Start from line before function
+                                            i = (
+                                                d.start_line - 2
+                                            )  # Start from line before function
                                             while i >= 0:
                                                 line = lines[i].rstrip()
                                                 if not line.lstrip().startswith("#["):
                                                     break
-                                                line_indent = len(line) - len(line.lstrip())
+                                                line_indent = len(line) - len(
+                                                    line.lstrip()
+                                                )
                                                 if (
                                                     line_indent >= indent
                                                 ):  # Allow for attributes with same or more indentation
@@ -396,7 +407,10 @@ class RustParser(BaseParser):
                                     for d in nested_decls:
                                         if d.kind == "function":
                                             funcs_found += 1
-                                            if funcs_found <= 2 and "poll_read" not in d.name:
+                                            if (
+                                                funcs_found <= 2
+                                                and "poll_read" not in d.name
+                                            ):
                                                 block_decls.append(d)
                                         elif d.kind == "type":
                                             block_decls.append(d)
@@ -413,7 +427,9 @@ class RustParser(BaseParser):
                                     indent = len(func_line) - len(func_line.lstrip())
                                     # Look for attributes at the same indentation level
                                     attrs = []
-                                    i = decl.start_line - 2  # Start from line before function
+                                    i = (
+                                        decl.start_line - 2
+                                    )  # Start from line before function
                                     while i >= 0:
                                         line = lines[i].rstrip()
                                         if not line.lstrip().startswith("#["):

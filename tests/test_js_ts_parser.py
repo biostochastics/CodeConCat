@@ -1,6 +1,8 @@
 import pytest
 
-from codeconcat.parser.language_parsers.js_ts_parser import parse_javascript_or_typescript
+from codeconcat.parser.language_parsers.js_ts_parser import (
+    parse_javascript_or_typescript,
+)
 from codeconcat.errors import LanguageParserError
 
 
@@ -13,7 +15,9 @@ export class MyClass extends BaseClass {
   // some content
 }
 """
-    parsed = parse_javascript_or_typescript("MyClass.ts", content, language="typescript")
+    parsed = parse_javascript_or_typescript(
+        "MyClass.ts", content, language="typescript"
+    )
     assert len(parsed.declarations) == 1
 
     decl = parsed.declarations[0]
@@ -68,7 +72,9 @@ class MyClass {
   }
 }
 """
-    parsed = parse_javascript_or_typescript("MyClass.js", content, language="javascript")
+    parsed = parse_javascript_or_typescript(
+        "MyClass.js", content, language="javascript"
+    )
     # We expect 1 class symbol, plus 1 method symbol
     # The parser will likely produce 2 "declarations":
     # - The class at lines 1..6
@@ -205,7 +211,9 @@ export function multilineDoc() {
   return true;
 }
 """
-    parsed = parse_javascript_or_typescript("multiline.js", content, language="javascript")
+    parsed = parse_javascript_or_typescript(
+        "multiline.js", content, language="javascript"
+    )
     assert len(parsed.declarations) == 1
 
     decl = parsed.declarations[0]
@@ -229,4 +237,6 @@ def test_invalid_syntax_raises_error():
     """Test that parsing invalid JS/TS code raises LanguageParserError."""
     invalid_code = "function invalid( {};"  # Example invalid syntax
     with pytest.raises(LanguageParserError):
-        parse_javascript_or_typescript("invalid.js", invalid_code, language="javascript")
+        parse_javascript_or_typescript(
+            "invalid.js", invalid_code, language="javascript"
+        )

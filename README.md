@@ -1,6 +1,6 @@
 # CodeConCat
 
-[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.6.5-blue)
+[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.6.6-blue)
 
 <p align="center">
   <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="200"/>
@@ -71,13 +71,13 @@ Feature summary:
 ## Features
 
 - **AI-Optimized Output**: Structured content with smart context generation
-- **Smart File Collection**: Intelligent filtering and organization of your codebase
+- **Smart File Collection**: Intelligent filtering and organization of your codebase, including support for `.gitignore` rules and consistent glob pattern matching via the `pathspec` library.
 - **Documentation Extraction**: Automatically extract and process documentation
 - **Directory Tree**: Visual representation of your project structure
-- **Multiple Formats**: Output in Markdown, JSON, or XML
+- **Multiple Formats**: Output in Markdown, JSON, XML, or plain Text (`--format text`).
 - **Language Detection**: Automatic language detection and syntax highlighting
 - **Clipboard Integration**: One-click copy to clipboard
-- **Markdown Cross-Linking**: Symbol summaries in Markdown now link to their definitions for easier navigation (`--cross-link-symbols`).
+- **Markdown Cross-Linking**: When using `--format markdown` and the `--cross-link-symbols` flag, symbol summaries in the Markdown output will link to their corresponding definitions via HTML anchors for easier navigation.
 - **Token Counting**: Accurate GPT-4 token counting for all processed content
 - **Progress Tracking**: Real-time progress indication during processing (multi-stage progress bars for file collection, parsing, annotation, doc extraction, output writing; toggle with `--no-progress-bar`)
 - **Comprehensive Code Analysis**: Functions, classes, structs, and symbols are listed in the Markdown output under each file's analysis section for full visibility.
@@ -99,8 +99,9 @@ codeconcat
 # Process a specific directory
 codeconcat path/to/your/code
 
-# Change output format (markdown, json, or xml)
+# Change output format (markdown, json, xml, or text)
 codeconcat path/to/code --format json
+codeconcat path/to/code --format text
 
 # Extract and include documentation
 codeconcat path/to/code --docs
@@ -110,6 +111,18 @@ codeconcat --github username/repo --github-token YOUR_TOKEN
 
 # Specify files to include/exclude
 codeconcat --include "*.py" "*.js" --exclude "test_*" "*.pyc"
+
+# Disable automatic .gitignore handling (it's enabled by default)
+codeconcat --no-use-gitignore
+
+# Disable built-in default excludes (they're enabled by default)
+codeconcat --no-use-default-excludes
+
+# Enable verbose logging for debugging file inclusion/exclusion
+codeconcat --verbose
+
+# Enable cross-linking in Markdown output
+codeconcat --format markdown --cross-link-symbols
 ```
 
 ### CLI Configuration
@@ -141,6 +154,9 @@ exclude_patterns:
   - "__pycache__"
 disable_tree: false
 disable_annotations: false
+# Control filtering behavior (defaults are true)
+use_gitignore: true
+use_default_excludes: true
 ```
 
 
@@ -289,6 +305,10 @@ custom_extension_map:
   pyx: "cython"
   jsx: "javascript"
   tsx: "typescript"
+
+# Control filtering behavior (defaults are true)
+use_gitignore: true
+use_default_excludes: true
 ```
 
 ### Configuration Priority Order
@@ -320,6 +340,11 @@ This merging order is now robust and correct.
 - Structured format
 - Compatible with XML tools
 - Detailed metadata
+
+### Text
+- Plain text format
+- Simple and lightweight
+- Suitable for basic use cases
 
 ## Code Summaries
 
@@ -373,7 +398,7 @@ project/
 |------|---------|-------------|
 | `--docs` | `false` | Enable documentation extraction (.md, .rst, .txt, .rmd) |
 | `--merge-docs` | `false` | Merge documentation into the same output file as code |
-| `--format` | `markdown` | Output format: `markdown`, `json`, or `xml` |
+| `--format` | `markdown` | Output format: `markdown`, `json`, `xml`, or `text` |
 | `--output` | `code_concat_output.md` | Output file name |
 | `--include-languages` | `[]` | Limit to specific languages (e.g., `python javascript java go php`) |
 | `--exclude-languages` | `[]` | Exclude specific languages (e.g., `cpp`) |
@@ -383,6 +408,8 @@ project/
 | `--github` | `None` | GitHub repository URL or shorthand (e.g., `username/repo`) |
 | `--github-token` | `None` | Personal access token for private GitHub repos |
 | `--ref` | `None` | Branch, tag, or commit hash for GitHub repos |
+| `--no-use-gitignore` | `false` | Disable automatic .gitignore handling (default is enabled) |
+| `--no-use-default-excludes` | `false` | Disable built-in default excludes (default is enabled) |
 | `--no-tree` | `false` | Disable folder tree generation |
 | `--no-progress-bar` | `false` | Disable progress bars (use spinner only) |
 | `--cross-link-symbols` | `false` | Enable Markdown cross-linking between symbol summaries and definitions |
@@ -397,6 +424,9 @@ project/
 | `--sort-files` | `false` | Sort files alphabetically by path in the output |
 | `--split-output` | `1` | Split the output into X approximately equal files (requires X > 1, Markdown only) |
 | `--remove-docstrings` | `false` | Remove docstrings from the code content in the output |
+| `--verbose` | `false` | Enable verbose logging for debugging file inclusion/exclusion |
+| `--no-use-gitignore` | `false` | Disable automatic .gitignore handling |
+| `--no-use-default-excludes` | `false` | Disable built-in default excludes |
 
 ### Language Support
 

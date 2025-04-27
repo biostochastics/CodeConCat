@@ -1,23 +1,39 @@
 # file: codeconcat/parser/language_parsers/java_parser.py
 
+import logging
 import re
-from typing import List, Optional
 
 from codeconcat.errors import LanguageParserError
-from codeconcat.parser.language_parsers.base_parser import BaseParser, Declaration, ParseResult
+from codeconcat.parser.language_parsers.base_parser import (
+    BaseParser,
+    Declaration,
+    ParseResult,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def parse_java(file_path: str, content: str) -> ParseResult:
     parser = JavaParser()
     try:
-        declarations = parser.parse(content)
+        # parser.parse now returns a ParseResult object
+        parse_result = parser.parse(content)
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse Java file: {e}", file_path=file_path, original_exception=e
+            message=f"Failed to parse Java file: {e}",
+            file_path=file_path,
+            original_exception=e,
         )
+    # Return a new ParseResult, ensuring the file_path from the wrapper is used.
+    # The parse_result from the parser might not have the file_path set correctly
+    # if the parser instance is reused or if file_path wasn't passed down.
     return ParseResult(
-        file_path=file_path, language="java", content=content, declarations=declarations
+        file_path=file_path,  # Use file_path passed to this function
+        language="java",
+        content=content,
+        declarations=parse_result.declarations,  # Use declarations from the result
+        imports=parse_result.imports,  # Use imports from the result
     )
 
 
@@ -40,8 +56,8 @@ class JavaParser(BaseParser):
             ),
         }
 
-    def parse(self, content: str) -> List[Declaration]:
-        """Parse Java code and return declarations."""
+    def parse(self, content: str) -> ParseResult:
+        """Parse Java code and return a ParseResult object with declarations and imports."""
         declarations = []
         lines = content.split("\n")
         i = 0
@@ -65,7 +81,14 @@ class JavaParser(BaseParser):
 
                     # Extract modifiers
                     modifiers = set()
-                    for mod in ["public", "private", "protected", "static", "final", "abstract"]:
+                    for mod in [
+                        "public",
+                        "private",
+                        "protected",
+                        "static",
+                        "final",
+                        "abstract",
+                    ]:
                         if f"{mod} " in line:
                             modifiers.add(mod)
 
@@ -112,7 +135,21 @@ class JavaParser(BaseParser):
                     break
             i += 1
 
-        return declarations
+        # Extract imports (simplified approach)
+        imports = []
+        for line in content.split("\n"):
+            line = line.strip()
+            if line.startswith("import "):
+                import_stmt = line.replace("import ", "").replace(";", "").strip()
+                imports.append(import_stmt)
+
+        return ParseResult(
+            file_path=self.current_file_path,
+            language="java",
+            content=content,
+            declarations=declarations,
+            imports=imports,
+        )
 
     def extract_docstring(self, lines, start, end):
         """Extract docstring from Java code."""

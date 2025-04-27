@@ -1,10 +1,14 @@
 # file: codeconcat/parser/language_parsers/go_parser.py
 
 import re
-from typing import List, Optional
+import logging
+from typing import List
 
+from codeconcat.base_types import Declaration, ParseResult
+from codeconcat.parser.language_parsers.base_parser import BaseParser
 from codeconcat.errors import LanguageParserError
-from codeconcat.parser.language_parsers.base_parser import BaseParser, Declaration, ParseResult
+
+logger = logging.getLogger(__name__)
 
 
 def parse_go(file_path: str, content: str) -> ParseResult:
@@ -14,7 +18,9 @@ def parse_go(file_path: str, content: str) -> ParseResult:
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse Go file: {e}", file_path=file_path, original_exception=e
+            message=f"Failed to parse Go file: {e}",
+            file_path=file_path,
+            original_exception=e,
         )
     return ParseResult(
         file_path=file_path, language="go", content=content, declarations=declarations
@@ -54,17 +60,15 @@ class GoParser(BaseParser):
         self.patterns["const"] = re.compile(const_pattern)
 
         # Var pattern (both single and block)
-        var_pattern = (
-            r"^\s*(?:var\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|var\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
-        )
+        var_pattern = r"^\s*(?:var\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|var\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
         self.patterns["var"] = re.compile(var_pattern)
 
     def parse_file(self, content: str) -> List[Declaration]:
         """Parse Go file content and return list of declarations."""
         return self.parse(content)
 
-    def parse(self, content: str) -> List[Declaration]:
-        """Parse Go code content and return list of declarations."""
+    def parse(self, content: str) -> ParseResult:
+        """Parse Go code content and return ParseResult with declarations and imports."""
         declarations = []
         lines = content.split("\n")
         i = 0
@@ -215,7 +219,32 @@ class GoParser(BaseParser):
             else:
                 i += 1
 
-        return declarations
+        # Extract imports from content
+        imports = []
+        import_lines = re.findall(r"import\s+\(([^)]+)\)", content, re.DOTALL)
+        for block in import_lines:
+            for line in block.split("\n"):
+                pkg = line.strip().strip('"').strip("'").strip()
+                if pkg:
+                    imports.append(pkg)
+
+        # Also check for single line imports
+        single_imports = re.findall(r'import\s+"([^"]+)"', content)
+        imports.extend(single_imports)
+
+        logger.debug(
+            f"[GoParser] Finished parsing for {self.current_file_path}. Found {len(declarations)} declarations, {len(imports)} imports."
+        )
+
+        return ParseResult(
+            file_path=self.current_file_path,
+            language="go",
+            content=content,
+            declarations=declarations,
+            imports=imports,
+            token_stats=None,
+            security_issues=[],
+        )
 
     def _find_block_end(self, lines: List[str], start: int) -> int:
         """Find the end of a Go code block."""

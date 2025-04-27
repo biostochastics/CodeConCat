@@ -1,7 +1,7 @@
 """R code parser for CodeConcat."""
 
 import re
-from typing import List, Optional
+from typing import List
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
@@ -10,16 +10,18 @@ from codeconcat.errors import LanguageParserError
 
 def parse_r(file_path: str, content: str) -> ParseResult:
     parser = RParser()
+    parser.current_file_path = file_path  # Set the file path
     try:
-        declarations = parser.parse(content)
+        # Call the updated parse method which returns ParseResult
+        parse_result = parser.parse(content)
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
-            message=f"Failed to parse R file: {e}", file_path=file_path, original_exception=e
+            message=f"Failed to parse R file: {e}",
+            file_path=file_path,
+            original_exception=e,
         )
-    return ParseResult(
-        file_path=file_path, language="r", content=content, declarations=declarations
-    )
+    return parse_result
 
 
 class RParser(BaseParser):
@@ -102,24 +104,22 @@ class RParser(BaseParser):
                 (?:setClass|setRefClass|R6Class)\(\s*["'](?P<cname1>[a-zA-Z_]\w*)["']
                 |
                 # MyClass <- R6Class("MyClass", ...)
-                (?P<cname2>{qualified_name})\s*(?:<<?-|=|:=)\s*(?:setRefClass|R6Class)\(\s*["'](?P<cname3>[a-zA-Z_]\w*)["']
+                # MyClass = R6Class("MyClass", ...)
+                # MyClass <<- R6Class("MyClass", ...)
+                # MyClass := R6Class("MyClass", ...)
+                (?P<cname2>{qualified_name})\s*(?:<<?-|=|:=)\s*(?:R6Class|setRefClass|setClass)\(
+                |
+                # R6Class(...) -> MyClass
+                # R6Class(...) ->> MyClass
+                (?:R6Class|setRefClass|setClass)\([^)]*\)\s*(?:->|->>)\s*(?P<cname3>{qualified_name})
             )
             """,
             re.VERBOSE,
         )
 
-        # Packages: library("dplyr"), require(data.table), etc.
-        self.package_pattern = re.compile(
-            rf"""
-            ^\s*
-            (?:library|require)\s*\(\s*
-            (?:
-                ["'](?P<pkg1>[^"']+)["']
-                |
-                (?P<pkg2>[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)
-            )
-            """,
-            re.VERBOSE,
+        # Package imports: library(pkg), require(pkg)
+        self.import_pattern = re.compile(
+            r"^\s*(?:library|require)\s*\(\s*['\"]?([^'\"]+)['\"]?\s*\)"  # Fixed char class and require ')'
         )
 
         # R doesn't have an official block comment syntax, but from the base parser:
@@ -129,45 +129,46 @@ class RParser(BaseParser):
         self.block_comment_start = "#["
         self.block_comment_end = "]#"
 
-    def parse(self, content: str) -> List[Declaration]:
+    def parse(self, content: str) -> ParseResult:
         """
         Main parse entry:
           1) Merge multiline function/class assignments
-          2) Parse top-level lines
+          2) Scan for imports (library/require)
+          3) Parse top-level blocks for declarations
         """
-        raw_lines = content.split("\n")
-        # Merge multiline assignments for both functions and classes
-        merged_lines = self._merge_multiline_assignments(raw_lines, also_for_classes=True)
-        # Parse the resulting lines
-        symbols = self._parse_block(merged_lines, 0, len(merged_lines))
+        raw_lines = content.splitlines()
+        # Merge lines like 'x <-', '  function(...)' or 'Cls <-', '  R6Class(...)'
+        lines = self._merge_multiline_assignments(raw_lines, also_for_classes=True)
 
-        # Convert symbols to Declarations (unique by (kind, name, start_line, end_line)).
-        declarations = []
-        seen = set()
-        for sym in symbols:
-            key = (sym.kind, sym.name, sym.start_line, sym.end_line)
-            if key not in seen:
-                seen.add(key)
-                # +1 for 1-based indexing
-                declarations.append(
-                    Declaration(
-                        kind=sym.kind,
-                        name=sym.name,
-                        start_line=sym.start_line + 1,
-                        end_line=sym.end_line + 1,
-                        modifiers=sym.modifiers,
-                    )
-                )
-        return declarations
+        imports = []
+        # Scan for imports before parsing declarations
+        for line in lines:
+            match = self.import_pattern.match(line)
+            if match:
+                imports.append(match.group(1).strip())
 
-    def _parse_block(self, lines: List[str], start_idx: int, end_idx: int) -> List[CodeSymbol]:
+        # Parse recursively to find declarations (functions, classes, methods)
+        # _parse_block returns List[CodeSymbol], which is List[Declaration]
+        declarations = self._parse_block(lines, 0, len(lines))
+
+        return ParseResult(
+            file_path=self.current_file_path,
+            language="r",
+            content=content,
+            declarations=declarations,
+            imports=imports,
+        )
+
+    def _parse_block(
+        self, lines: List[str], start_idx: int, end_idx: int
+    ) -> List[Declaration]:  # Return type is List[Declaration]
         """
         Parse lines from start_idx to end_idx (exclusive),
         capturing functions/methods/classes/packages, plus nested definitions.
         Return a list of CodeSymbol objects (with 0-based line indices).
         Recursively parse the contents of each function/class block to find nested items.
         """
-        symbols: List[CodeSymbol] = []
+        symbols: List[Declaration] = []
         i = start_idx
 
         # Roxygen2-based modifiers
@@ -205,14 +206,16 @@ class RParser(BaseParser):
                 if mm.group("dot_name"):
                     method_name = mm.group("dot_name")
                 elif mm.group("dollar_obj") and mm.group("dollar_method"):
-                    method_name = f"{mm.group('dollar_obj')}${mm.group('dollar_method')}"
+                    method_name = (
+                        f"{mm.group('dollar_obj')}${mm.group('dollar_method')}"
+                    )
                 else:
                     # S4 setMethod("someMethod", ...)
                     method_name = mm.group("s4_name")
 
                 start_blk, end_blk = self._find_function_block(lines, i)
 
-                sym = CodeSymbol(
+                sym = Declaration(
                     name=method_name,
                     kind="method",
                     start_line=start_blk,
@@ -237,7 +240,7 @@ class RParser(BaseParser):
                 fname = fm.group("fname1") or fm.group("fname2")
                 start_blk, end_blk = self._find_function_block(lines, i)
 
-                sym = CodeSymbol(
+                sym = Declaration(
                     name=fname,
                     kind="function",
                     start_line=start_blk,
@@ -263,10 +266,12 @@ class RParser(BaseParser):
             # 3) Try class pattern (S4, ref, R6)
             cm = self.class_pattern.match(line)
             if cm:
-                cname = cm.group("cname1") or cm.group("cname2") or cm.group("cname3") or ""
+                cname = (
+                    cm.group("cname1") or cm.group("cname2") or cm.group("cname3") or ""
+                )
                 cls_start, cls_end = self._find_matching_parenthesis_block(lines, i)
 
-                csym = CodeSymbol(
+                csym = Declaration(
                     name=cname,
                     kind="class",
                     start_line=i,
@@ -278,10 +283,14 @@ class RParser(BaseParser):
                 # If R6Class or setRefClass, parse methods from the entire block
                 lowered_line = line.lower()
                 if "r6class" in lowered_line:
-                    methods = self._parse_r6_methods(lines, i, cls_end, class_name=cname)
+                    methods = self._parse_r6_methods(
+                        lines, i, cls_end, class_name=cname
+                    )
                     symbols.extend(methods)
                 elif "setrefclass" in lowered_line:
-                    methods = self._parse_refclass_methods(lines, i, cls_end, class_name=cname)
+                    methods = self._parse_refclass_methods(
+                        lines, i, cls_end, class_name=cname
+                    )
                     symbols.extend(methods)
 
                 # Also parse nested lines in case there are normal function definitions inside the class body
@@ -297,7 +306,7 @@ class RParser(BaseParser):
             pm = self.package_pattern.match(line)
             if pm:
                 pkg_name = pm.group("pkg1") or pm.group("pkg2")
-                psym = CodeSymbol(
+                psym = Declaration(
                     name=pkg_name,
                     kind="package",
                     start_line=i,
@@ -339,7 +348,9 @@ class RParser(BaseParser):
                 j = i + 1
                 comment_lines = []
                 # Skip blank or comment lines
-                while j < n and (not raw_lines[j].strip() or raw_lines[j].strip().startswith("#")):
+                while j < n and (
+                    not raw_lines[j].strip() or raw_lines[j].strip().startswith("#")
+                ):
                     comment_lines.append(raw_lines[j])
                     j += 1
                 if j < n:
@@ -351,7 +362,7 @@ class RParser(BaseParser):
                         new_line = (
                             base_line
                             + " "
-                            + " ".join(l.strip() for l in comment_lines)
+                            + " ".join(line.strip() for line in comment_lines)
                             + " "
                             + raw_lines[j].lstrip()
                         )
@@ -360,13 +371,16 @@ class RParser(BaseParser):
                         continue
                     # Or if next line has an R6/ref class syntax
                     if also_for_classes:
-                        if any(x in next_strip for x in ["R6Class(", "setRefClass(", "setClass("]):
+                        if any(
+                            x in next_strip
+                            for x in ["R6Class(", "setRefClass(", "setClass("]
+                        ):
                             # Remove any trailing comment from the first line
                             base_line = re.sub(r"#.*$", "", line).rstrip()
                             new_line = (
                                 base_line
                                 + " "
-                                + " ".join(l.strip() for l in comment_lines)
+                                + " ".join(line.strip() for line in comment_lines)
                                 + " "
                                 + raw_lines[j].lstrip()
                             )
@@ -409,13 +423,17 @@ class RParser(BaseParser):
         Check if between start_idx and end_idx there's 'class(...) <- "fname"'
         or something that sets 'class(...)' to the same name, indicating an S3 constructor.
         """
-        pattern = re.compile(rf'class\s*\(\s*[^\)]*\)\s*(?:<<?-|=)\s*["\']{re.escape(fname)}["\']')
+        pattern = re.compile(
+            rf'class\s*\(\s*[^\)]*\)\s*(?:<<?-|=)\s*["\']{re.escape(fname)}["\']'
+        )
         for idx in range(start_idx, min(end_idx + 1, len(lines))):
             if pattern.search(lines[idx]):
                 return True
         return False
 
-    def _find_matching_parenthesis_block(self, lines: List[str], start_idx: int) -> (int, int):
+    def _find_matching_parenthesis_block(
+        self, lines: List[str], start_idx: int
+    ) -> (int, int):
         """
         For code like MyClass <- R6Class("MyClass", public=list(...)),
         we only track parentheses '(' and ')' -- not braces -- so we don't get confused by
@@ -443,19 +461,31 @@ class RParser(BaseParser):
 
     def _parse_r6_methods(
         self, lines: List[str], start_idx: int, end_idx: int, class_name: str
-    ) -> List[CodeSymbol]:
-        """
-        Inside R6Class("class_name", public=list(...), private=list(...)), parse:
-           methodName = function(...) { ... }
-        We'll produce code symbols with name: "class_name.methodName".
-        Ignore fields like 'value = 0'.
+    ) -> List[Declaration]:
+        """Parse methods defined within an R6 class block.
+
+        Identifies methods defined as `methodName = function(...) { ... }`
+        within the `public` or `private` lists of an R6Class definition.
+
+        Args:
+            lines: The list of all lines in the file.
+            start_idx: The starting line index of the R6 class block.
+            end_idx: The ending line index of the R6 class block.
+            class_name: The name of the R6 class.
+
+        Returns:
+            A list of Declaration objects, where each object represents a
+            found method. The name will be formatted as 'class_name.methodName'.
+            Fields like 'value = 0' are ignored.
         """
         methods = []
         block = lines[start_idx : end_idx + 1]
         combined = "\n".join(block)
 
         # Find all method declarations
-        method_pattern = re.compile(r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE)
+        method_pattern = re.compile(
+            r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE
+        )
 
         # Find all matches in the text
         for match in method_pattern.finditer(combined):
@@ -465,7 +495,7 @@ class RParser(BaseParser):
                 start_line = start_idx + combined[: match.start()].count("\n")
                 end_line = start_idx + combined[: match.end()].count("\n")
                 methods.append(
-                    CodeSymbol(
+                    Declaration(
                         name=full_name,
                         kind="method",
                         start_line=start_line,
@@ -487,7 +517,9 @@ class RParser(BaseParser):
         combined = "\n".join(block)
 
         # Find all method declarations
-        method_pattern = re.compile(r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE)
+        method_pattern = re.compile(
+            r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE
+        )
 
         # Find all matches in the text
         for match in method_pattern.finditer(combined):
@@ -507,7 +539,9 @@ class RParser(BaseParser):
                 )
         return methods
 
-    def _find_function_start_line(self, lines: List[str], start_line: int, func_name: str) -> int:
+    def _find_function_start_line(
+        self, lines: List[str], start_line: int, func_name: str
+    ) -> int:
         """
         Find the line number where the function definition starts
         """
@@ -516,12 +550,16 @@ class RParser(BaseParser):
                 return line_num
         return -1
 
-    def _find_class_start_line(self, lines: List[str], start_line: int, class_name: str) -> int:
+    def _find_class_start_line(
+        self, lines: List[str], start_line: int, class_name: str
+    ) -> int:
         """
         Find the line number where the class definition starts
         """
         for line_num, line_content in enumerate(lines[start_line:], start=start_line):
-            if re.match(rf"\s*setClass\s*\(\s*['\"]?{class_name}['\"]?\b", line_content):
+            if re.match(
+                rf"\s*setClass\s*\(\s*['\"]?{class_name}['\"]?\b", line_content
+            ):
                 return line_num
         return -1
 
@@ -529,4 +567,73 @@ class RParser(BaseParser):
         import logging
 
         logger = logging.getLogger(__name__)
-        logger.info("No matching pattern found in R code")  # Replace f-string with regular string
+        logger.info(
+            "No matching pattern found in R code"
+        )  # Replace f-string with regular string
+
+    def _merge_multiline_assignments(
+        self, raw_lines: List[str], also_for_classes: bool = False
+    ) -> List[str]:
+        """
+        Fix for cases like:
+          complex_func <- # comment
+             function(x) { ... }
+        We'll merge such lines so the regex sees them on a single line.
+
+        If also_for_classes=True, we also merge if the line ends with an assignment operator
+        and the next line starts with R6Class(, setRefClass(, or setClass(.
+        """
+        merged = []
+        i = 0
+        n = len(raw_lines)
+
+        while i < n:
+            line = raw_lines[i]
+            strip_line = line.strip()
+            # If the line ends with an assignment operator (possibly with comment)
+            if re.search(r"(?:<<?-|=|->|->>|:=)\s*(?:#.*)?$", strip_line):
+                j = i + 1
+                comment_lines = []
+                # Skip blank or comment lines
+                while j < n and (
+                    not raw_lines[j].strip() or raw_lines[j].strip().startswith("#")
+                ):
+                    comment_lines.append(raw_lines[j])
+                    j += 1
+                if j < n:
+                    next_strip = raw_lines[j].lstrip()
+                    # Merge if next line starts with "function("
+                    if next_strip.startswith("function"):
+                        # Remove any trailing comment from the first line
+                        base_line = re.sub(r"#.*$", "", line).rstrip()
+                        new_line = (
+                            base_line
+                            + " "
+                            + " ".join(line.strip() for line in comment_lines)
+                            + " "
+                            + raw_lines[j].lstrip()
+                        )
+                        merged.append(new_line)
+                        i = j + 1
+                        continue
+                    # Or if next line has an R6/ref class syntax
+                    if also_for_classes:
+                        if any(
+                            x in next_strip
+                            for x in ["R6Class(", "setRefClass(", "setClass("]
+                        ):
+                            # Remove any trailing comment from the first line
+                            base_line = re.sub(r"#.*$", "", line).rstrip()
+                            new_line = (
+                                base_line
+                                + " "
+                                + " ".join(line.strip() for line in comment_lines)
+                                + " "
+                                + raw_lines[j].lstrip()
+                            )
+                            merged.append(new_line)
+                            i = j + 1
+                            continue
+            merged.append(line)
+            i += 1
+        return merged

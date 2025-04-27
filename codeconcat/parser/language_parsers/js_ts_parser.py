@@ -11,10 +11,10 @@ from codeconcat.errors import LanguageParserError
 def parse_javascript_or_typescript(
     file_path: str, content: str, language: str = "javascript"
 ) -> ParseResult:
-    """Parse JavaScript or TypeScript code and return declarations."""
-    parser = JstsParser(language)
+    """Parse JavaScript or TypeScript code and return ParseResult."""
+    parser = JstsParser(file_path)
     try:
-        declarations = parser.parse(content)
+        return parser.parse(content)
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
@@ -22,12 +22,6 @@ def parse_javascript_or_typescript(
             file_path=file_path,
             original_exception=e,
         )
-    return ParseResult(
-        file_path=file_path,
-        language=language,
-        content=content,
-        declarations=declarations,
-    )
 
 
 class CodeSymbol:
@@ -48,7 +42,9 @@ class CodeSymbol:
         self.modifiers = modifiers
         self.docstring = docstring
         self.children = children
-        self.brace_depth = 0  # Current nesting depth at the time this symbol was "opened"
+        self.brace_depth = (
+            0  # Current nesting depth at the time this symbol was "opened"
+        )
 
 
 class JstsParser(BaseParser):
@@ -58,9 +54,8 @@ class JstsParser(BaseParser):
     interfaces, type aliases, enums, and basic decorators.
     """
 
-    def __init__(self, language: str = "javascript"):
-        self.language = language
-        super().__init__()
+    def __init__(self, file_path: str):
+        super().__init__(file_path=file_path)
 
         # Set recognized modifiers
         self.recognized_modifiers = {
@@ -86,37 +81,25 @@ class JstsParser(BaseParser):
         self.in_class = False
 
         # Set up patterns
-        self.patterns = self._setup_patterns()
-
-    def _setup_patterns(self) -> List[re.Pattern]:
-        """Set up regex patterns for parsing JavaScript/TypeScript code."""
-        return [
-            # Function patterns (must come before class patterns)
-            re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(?P<symbol_name>\w+)\s*\("),
-            re.compile(
-                r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?function\s*\("
-            ),
-            # Arrow function pattern
-            re.compile(
-                r"^(?:export\s+)?(?:const|let|var)\s+(?P<symbol_name>\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>"
-            ),
-            # Method patterns (inside class)
-            re.compile(r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\("),
-            # Class patterns
-            re.compile(r"^(?:export\s+)?class\s+(?P<symbol_name>\w+)"),
-            # Interface patterns (TypeScript)
-            re.compile(r"^(?:export\s+)?interface\s+(?P<symbol_name>\w+)"),
-            # Type alias patterns (TypeScript)
-            re.compile(r"^(?:export\s+)?type\s+(?P<symbol_name>\w+)"),
-            # Enum patterns (TypeScript)
-            re.compile(r"^(?:export\s+)?enum\s+(?P<symbol_name>\w+)"),
+        patterns_str = [
+            "^(?:export\\s+)?(?:async\\s+)?function\\s+\\*?(?P<symbol_name>[\\w\\$]+)\\s*\\(.*\\)\\s*\\{?",  # Function, async function, generator
+            "^(?:export\\s+)?(?:async\\s+)?(?:const|let|var)\\s+(?P<symbol_name>[\\w\\$]+)\\s*=\\s*(?:async\\s+)?\\(.*\\)\\s*=>\\s*\\{?",  # Arrow function assigned to variable
+            "^(?:export\\s+)?class\\s+(?P<symbol_name>[\\w\\$]+)(?:\\s+extends\\s+[\\w\\.]+)?(?:\\s+implements\\s+[\\w\\.\\s,]+)?\\s*\\{?",  # Class definition
+            "^(?:export\\s+)?(?:abstract\\s+)?class\\s+(?P<symbol_name>[\\w\\$]+)(?:\\s+extends\\s+[\\w\\.]+)?(?:\\s+implements\\s+[\\w\\.\\s,]+)?\\s*\\{?",  # Abstract Class definition (TS)
+            "^(?:export\\s+)?interface\\s+(?P<symbol_name>[\\w\\$]+)(?:\\s+extends\\s+[\\w\\.\\s,]+)?\\s*\\{?",  # Interface definition (TS)
+            "^(?:export\\s+)?enum\\s+(?P<symbol_name>[\\w\\$]+)\\s*\\{?",  # Enum definition (TS)
+            "^(?:export\\s+)?type\\s+(?P<symbol_name>[\\w\\$]+)\\s*=\\s*.*?",  # Type alias (TS)
+            "^(?:export\\s+)?(?:const|let|var)\\s+(?P<symbol_name>[\\w\\$]+)\\s*[:=].*",  # Variable declaration
+            # Method definitions within classes (more specific regex needed for accuracy)
+            "^(?:public\\s+|private\\s+|protected\\s+|static\\s+|readonly\\s+|async\\s+)*\\*?(?P<symbol_name>[\\w\\$]+)\\s*\\(.*\\)\\s*[:{]?",  # Methods/Properties
         ]
+        self.patterns = [re.compile(p) for p in patterns_str]
 
     def _get_kind(self, pattern: re.Pattern) -> str:
         """Get the kind of symbol based on the pattern that matched."""
         pattern_str = pattern.pattern
         # Check for arrow function first
-        if r"\s*=\s*(?:async\s+)?\([^)]*\)\s*=>" in pattern_str:
+        if "\\s*=\\s*(?:async\\s+)?\\([^)]*\\)\\s*=>" in pattern_str:
             return "arrow_function"
         elif "function\\s+" in pattern_str:
             return "function"
@@ -128,15 +111,21 @@ class JstsParser(BaseParser):
             return "type"
         elif "enum\\s+" in pattern_str:
             return "enum"
-        elif r"^\s*(?:static\s+)?(?:async\s+)?(?P<symbol_name>\w+)\s*\(" in pattern_str:
+        elif (
+            "^\\s*(?:static\\s+)?(?:async\\s+)?(?P<symbol_name>\\w+)\\s*\\("
+            in pattern_str
+        ):
             # If we're inside a class, it's a method. Otherwise, it's a function.
             if self.in_class:
                 return "method"
             return "function"
-        return "unknown"  # Default to unknown for any other patterns
+        elif "(?:const|let|var)" in pattern_str and "=>" not in pattern_str:
+            return "variable"
+        else:
+            return "unknown"  # Default to unknown for any other patterns
 
-    def parse(self, content: str) -> List[Declaration]:
-        """Parse JavaScript/TypeScript code content."""
+    def parse(self, content: str) -> ParseResult:
+        """Parse JavaScript/TypeScript code content and return ParseResult."""
         lines = content.split("\n")
         symbols = []  # List to store all symbols
         symbol_stack = []  # Stack for tracking nested symbols
@@ -190,11 +179,9 @@ class JstsParser(BaseParser):
             brace_depth += line.count("{") - line.count("}")
 
             # Try to match each pattern
-            matched = False
             for pattern in self.patterns:  # Use stored patterns
                 match = pattern.match(line)
                 if match:
-                    matched = True
                     name = match.group("symbol_name")
                     if not name:
                         continue
@@ -224,7 +211,9 @@ class JstsParser(BaseParser):
                         end_line=0,  # Will be set when popped
                         modifiers=modifiers,
                         docstring=(
-                            "\n".join(current_doc_comments) if current_doc_comments else None
+                            "\n".join(current_doc_comments)
+                            if current_doc_comments
+                            else None
                         ),
                         children=[],
                     )
@@ -271,4 +260,31 @@ class JstsParser(BaseParser):
         for symbol in symbols:
             add_symbol_to_declarations(symbol)
 
-        return declarations
+        # Extract imports/requires
+        imports = []
+        import_pattern = re.compile(
+            "^(?:import(?:(?:(?:[ \\n\\t]+(?:\\*\\s*as)?\\s*\\w*)|(?:[ \\n\\t]*\\{[^}]*\\}))(?:[ \\n\\t]+from)?))?[ \\n\\t]*(?:['\"])([^'\\\"]+)(?:['\"])"
+        )
+        require_pattern = re.compile(
+            "(?:const|let|var)\\s+.*?=\\s*require\\(\\s*['\"]([^'\\\"]+)['\"]\\s*\\)"
+        )
+
+        for line in lines:
+            line = line.strip()
+            import_match = import_pattern.match(line)
+            if import_match:
+                imports.append(import_match.group(1))
+            else:
+                require_match = require_pattern.search(line)
+                if require_match:
+                    imports.append(require_match.group(1))
+
+        return ParseResult(
+            file_path=self.current_file_path,
+            language="javascript",  # Or detect typescript?
+            content=content,
+            declarations=declarations,
+            imports=list(set(imports)),  # Unique imports
+            token_stats=None,
+            security_issues=[],
+        )

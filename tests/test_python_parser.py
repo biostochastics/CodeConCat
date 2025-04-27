@@ -2,7 +2,7 @@
 
 import unittest
 
-from codeconcat.parser.language_parsers.python_parser import PythonParser, parse_python
+from codeconcat.parser.language_parsers.python_parser import PythonParser
 from codeconcat.errors import LanguageParserError
 
 

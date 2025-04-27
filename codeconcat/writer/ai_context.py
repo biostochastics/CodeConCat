@@ -62,7 +62,9 @@ def generate_ai_preamble(
             file.file_path, AnnotatedFileData(file.file_path, "", "", "")
         )
         if annotation.summary:
-            key_files_with_summaries.append(f"- `{file.file_path}`: {annotation.summary}")
+            key_files_with_summaries.append(
+                f"- `{file.file_path}`: {annotation.summary}"
+            )
 
     # Generate summary
     lines = [

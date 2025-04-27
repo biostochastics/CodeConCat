@@ -5,7 +5,9 @@ from typing import List
 from codeconcat.base_types import CodeConCatConfig, ParsedDocData
 
 
-def extract_docs(file_paths: List[str], config: CodeConCatConfig) -> List[ParsedDocData]:
+def extract_docs(
+    file_paths: List[str], config: CodeConCatConfig
+) -> List[ParsedDocData]:
     doc_paths = [fp for fp in file_paths if is_doc_file(fp, config.doc_extensions)]
 
     with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
