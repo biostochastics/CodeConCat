@@ -1,10 +1,10 @@
 """Tests for GitHub collector functionality."""
 
+import logging
 import os
 import tempfile
-from unittest import TestCase, mock
 from pathlib import Path
-import logging
+from unittest import TestCase, mock
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 from codeconcat.collector.github_collector import (

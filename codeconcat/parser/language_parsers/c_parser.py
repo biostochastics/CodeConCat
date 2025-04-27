@@ -1,12 +1,12 @@
 # file: codeconcat/parser/language_parsers/c_parser.py
 
+import logging
 import re
 from typing import List
 
 from codeconcat.base_types import ParseResult
-from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 from codeconcat.errors import LanguageParserError
-import logging
+from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
 logger = logging.getLogger(__name__)
 

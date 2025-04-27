@@ -2,8 +2,8 @@
 
 import pytest
 
-from codeconcat.parser.language_parsers.php_parser import parse_php
 from codeconcat.errors import LanguageParserError
+from codeconcat.parser.language_parsers.php_parser import parse_php
 
 
 def test_parse_php_class():

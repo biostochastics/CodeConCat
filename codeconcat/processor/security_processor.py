@@ -22,11 +22,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from ..base_types import (
-    CodeConCatConfig,
-    CustomSecurityPattern,
-    SecuritySeverity,
-)
+from ..base_types import CodeConCatConfig, CustomSecurityPattern, SecuritySeverity
 from .security_types import SecurityIssue
 
 __all__ = ["SecurityProcessor"]

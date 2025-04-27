@@ -4,8 +4,8 @@ import re
 from typing import List, Optional
 
 from codeconcat.base_types import Declaration, ParseResult
-from codeconcat.parser.language_parsers.base_parser import BaseParser
 from codeconcat.errors import LanguageParserError
+from codeconcat.parser.language_parsers.base_parser import BaseParser
 
 
 def parse_javascript_or_typescript(

@@ -1,15 +1,12 @@
-import os
-import logging
-import traceback
-from typing import List, Optional, Tuple, Callable, Set
-from tqdm import tqdm
 import functools
+import logging
+import os
+import traceback
+from typing import Callable, List, Optional, Set, Tuple
 
-from codeconcat.base_types import (
-    ParsedFileData,
-    ParseResult,
-    CodeConCatConfig,
-)
+from tqdm import tqdm
+
+from codeconcat.base_types import CodeConCatConfig, ParsedFileData, ParseResult
 from codeconcat.errors import (
     FileProcessingError,
     LanguageParserError,

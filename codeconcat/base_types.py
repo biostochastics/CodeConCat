@@ -4,11 +4,17 @@ base_types.py
 Holds data classes and typed structures used throughout CodeConCat.
 """
 
-# Rename this file to base_types.py to avoid conflict with Python's types module
-from typing import Dict, List, Optional, Set
+from __future__ import annotations
+
+import re
+import xml.etree.ElementTree as ET
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-import re
+
+# Rename this file to base_types.py to avoid conflict with Python's types module
+from typing import Any, Dict, List, Optional, Set
+
 from pydantic import BaseModel, Field, field_validator, validator
 
 PROGRAMMING_QUOTES = [
@@ -100,6 +106,37 @@ class CustomSecurityPattern(BaseModel):
 # --- Core Data Types ---
 
 
+# Abstract Base Class for Writable Items
+class WritableItem(ABC):
+    """Abstract base class for items that can be rendered by different writers."""
+
+    @property
+    @abstractmethod
+    def file_path(self) -> str:
+        """The path to the source file."""
+        pass
+
+    @abstractmethod
+    def render_text_lines(self, config: "CodeConCatConfig") -> List[str]:
+        """Renders the item as a list of strings for the text writer."""
+        pass
+
+    @abstractmethod
+    def render_markdown_chunks(self, config: "CodeConCatConfig") -> List[str]:
+        """Renders the item as a list of markdown string chunks."""
+        pass
+
+    @abstractmethod
+    def render_json_dict(self, config: "CodeConCatConfig") -> Dict[str, Any]:
+        """Renders the item as a dictionary for the JSON writer."""
+        pass
+
+    @abstractmethod
+    def render_xml_element(self, config: "CodeConCatConfig") -> ET.Element:
+        """Renders the item as an XML element structure."""
+        pass
+
+
 @dataclass
 class Declaration:
     """A declaration in a code file."""
@@ -140,7 +177,7 @@ class ParsedFileData:
 
 
 @dataclass
-class AnnotatedFileData:
+class AnnotatedFileData(WritableItem):
     """Data structure for annotated file content, including structured analysis results."""
 
     # Core file info
@@ -159,14 +196,260 @@ class AnnotatedFileData:
     summary: Optional[str] = None  # AI-generated overall summary
     tags: List[str] = field(default_factory=list)
 
+    # Implement WritableItem properties and methods
+    @property
+    def file_path(self) -> str:
+        # Dataclasses allow direct field access to satisfy property
+        return self.__dict__["file_path"]
+
+    def render_text_lines(self, config: "CodeConCatConfig") -> List[str]:
+        lines = []
+        lines.append(
+            f"Language: {self.language}" if self.language else "Language: Unknown"
+        )
+
+        # Summary
+        if config.include_file_summary and self.summary:
+            lines.append("\n## Summary:")
+            lines.append(self.summary)
+
+        # Declarations
+        if config.include_declarations_in_summary and self.declarations:
+            lines.append("\n## Declarations:")
+            for decl in self.declarations:
+                lines.append(
+                    f"  - {decl.kind}: {decl.name} (Lines: {decl.start_line}-{decl.end_line})"
+                )
+
+        # Imports
+        if config.include_imports_in_summary and self.imports:
+            lines.append("\n## Imports:")
+            for imp in sorted(self.imports):
+                lines.append(f"  - {imp}")
+
+        # Token Stats
+        if config.include_tokens_in_summary and self.token_stats:
+            lines.append("\n## Token Stats:")
+            lines.append(f"  - Input Tokens: {self.token_stats.input_tokens}")
+            lines.append(f"  - Output Tokens: {self.token_stats.output_tokens}")
+            lines.append(f"  - Total Tokens: {self.token_stats.total_tokens}")
+
+        # Security Issues
+        if config.include_security_in_summary and self.security_issues:
+            lines.append("\n## Security Issues:")
+            for issue in self.security_issues:
+                severity_val = (
+                    issue.severity.value
+                    if hasattr(issue.severity, "value")
+                    else str(issue.severity)
+                )
+                lines.append(
+                    f"  - Severity: {severity_val}, Line: {issue.line_number}, Description: {issue.description}"
+                )
+
+        # Tags
+        if self.tags:
+            lines.append("\n## Tags:")
+            lines.append(f"  - {', '.join(sorted(self.tags))}")
+
+        # Content (Use annotated_content if available and not disabled, else content)
+        # TODO: Add config flag specifically for using annotated_content vs raw content?
+        content_to_use = (
+            self.annotated_content if self.annotated_content else self.content
+        )
+        if config.include_code_content and content_to_use:
+            lines.append("\n## Content:")
+            lines.append(content_to_use)
+
+        return lines
+
+    def render_markdown_chunks(self, config: "CodeConCatConfig") -> List[str]:
+        chunks = []
+        # Use annotated_content preferentially if it exists
+        content_to_render = (
+            self.annotated_content if self.annotated_content else self.content
+        )
+        lang_hint = self.language.lower() if self.language else ""
+
+        if config.include_code_content and content_to_render:
+            chunks.append(f"```{lang_hint}\n{content_to_render}\n```\n\n")
+
+        # Placeholder for other sections like declarations, imports, etc. if added later
+        # Example:
+        # if config.include_declarations_in_summary and self.declarations:
+        #    chunks.append("**Declarations:**\n")
+        #    for decl in self.declarations:
+        #        chunks.append(f"- `{decl.name}` ({decl.kind})\n")
+
+        return chunks
+
+    def render_json_dict(self, config: "CodeConCatConfig") -> Dict[str, Any]:
+        entry = {"type": "code"}  # Always include type
+        entry["file_path"] = self.file_path  # Always include file_path
+
+        if self.language:
+            entry["language"] = self.language
+
+        # Use annotated_content if available, else raw content
+        content_to_use = (
+            self.annotated_content if self.annotated_content else self.content
+        )
+        if config.include_code_content and content_to_use:
+            entry["content"] = content_to_use  # Decide which content field to use
+
+        if config.include_file_summary and self.summary:
+            entry["summary"] = self.summary
+
+        if config.include_declarations_in_summary and self.declarations:
+            entry["declarations"] = [decl.model_dump() for decl in self.declarations]
+
+        if config.include_imports_in_summary and self.imports:
+            entry["imports"] = sorted(self.imports)
+
+        if config.include_tokens_in_summary and self.token_stats:
+            entry["token_stats"] = self.token_stats.model_dump()
+
+        if config.include_security_in_summary and self.security_issues:
+            entry["security_issues"] = [
+                issue.model_dump() for issue in self.security_issues
+            ]
+
+        if self.tags:
+            entry["tags"] = list(self.tags)  # Convert set to list
+
+        return entry
+
+    def render_xml_element(self, config: "CodeConCatConfig") -> ET.Element:
+        file_elem = ET.Element("file")
+        ET.SubElement(file_elem, "path").text = self.file_path
+        if self.language:
+            ET.SubElement(file_elem, "language").text = self.language
+
+        # Content (use annotated preferentially, wrap in CDATA)
+        content_to_use = (
+            self.annotated_content if self.annotated_content else self.content
+        )
+        if config.include_code_content and content_to_use:
+            content_elem = ET.SubElement(file_elem, "content")
+            content_elem.text = f"<![CDATA[{content_to_use}]]>"
+
+        # Summary (wrap in CDATA)
+        if config.include_file_summary and self.summary:
+            summary_elem = ET.SubElement(file_elem, "summary")
+            summary_elem.text = f"<![CDATA[{self.summary}]]>"
+
+        # Declarations
+        if config.include_declarations_in_summary and self.declarations:
+            decls_elem = ET.SubElement(file_elem, "declarations")
+            for decl in self.declarations:
+                ET.SubElement(
+                    decls_elem,
+                    "declaration",
+                    kind=decl.kind,
+                    name=decl.name,
+                    start_line=str(decl.start_line),
+                    end_line=str(decl.end_line),
+                )
+
+        # Imports
+        if config.include_imports_in_summary and self.imports:
+            imports_elem = ET.SubElement(file_elem, "imports")
+            for imp in sorted(self.imports):
+                ET.SubElement(imports_elem, "import", name=imp)
+
+        # Token Stats
+        if config.include_tokens_in_summary and self.token_stats:
+            stats_elem = ET.SubElement(file_elem, "token_stats")
+            ET.SubElement(stats_elem, "input_tokens").text = str(
+                self.token_stats.input_tokens
+            )
+            ET.SubElement(stats_elem, "output_tokens").text = str(
+                self.token_stats.output_tokens
+            )
+            ET.SubElement(stats_elem, "total_tokens").text = str(
+                self.token_stats.total_tokens
+            )
+
+        # Security Issues (wrap description in CDATA)
+        if config.include_security_in_summary and self.security_issues:
+            sec_issues_elem = ET.SubElement(file_elem, "security_issues")
+            for issue in self.security_issues:
+                severity_val = (
+                    issue.severity.value
+                    if hasattr(issue.severity, "value")
+                    else str(issue.severity)
+                )
+                issue_elem = ET.SubElement(
+                    sec_issues_elem,
+                    "issue",
+                    severity=severity_val,
+                    line=str(issue.line_number),
+                )
+                desc_elem = ET.SubElement(issue_elem, "description")
+                desc_elem.text = f"<![CDATA[{issue.description}]]>"
+
+        # Tags
+        if self.tags:
+            tags_elem = ET.SubElement(file_elem, "tags")
+            for tag in sorted(self.tags):
+                ET.SubElement(tags_elem, "tag", name=tag)
+
+        return file_elem
+
 
 @dataclass
-class ParsedDocData:
-    """Data structure for a parsed documentation file."""
+class ParsedDocData(WritableItem):
+    """Data structure for parsed documentation content."""
 
     file_path: str
     doc_type: str
     content: str
+
+    # Implement WritableItem properties and methods
+    @property
+    def file_path(self) -> str:
+        return self.__dict__["file_path"]
+
+    def render_text_lines(self, config: "CodeConCatConfig") -> List[str]:
+        lines = []
+        if self.doc_type:
+            lines.append(f"Type: {self.doc_type}")
+        if config.include_doc_content and self.content:
+            lines.append("\n## Content:")
+            lines.append(self.content)
+        return lines
+
+    def render_markdown_chunks(self, config: "CodeConCatConfig") -> List[str]:
+        chunks = []
+        if config.include_doc_content and self.content:
+            # Use 'markdown' hint for docs, could refine if doc_type gives better hints
+            chunks.append(f"```markdown\n{self.content}\n```\n\n")
+        return chunks
+
+    def render_json_dict(self, config: "CodeConCatConfig") -> Dict[str, Any]:
+        entry = {"type": "documentation"}
+        entry["file_path"] = self.file_path
+
+        if self.doc_type:
+            entry["doc_type"] = self.doc_type
+
+        if config.include_doc_content and self.content:
+            entry["content"] = self.content
+
+        return entry
+
+    def render_xml_element(self, config: "CodeConCatConfig") -> ET.Element:
+        doc_elem = ET.Element("doc")
+        ET.SubElement(doc_elem, "path").text = self.file_path
+        if self.doc_type:
+            ET.SubElement(doc_elem, "doc_type").text = self.doc_type
+
+        # Content (wrap in CDATA)
+        if config.include_doc_content and self.content:
+            content_elem = ET.SubElement(doc_elem, "content")
+            content_elem.text = f"<![CDATA[{self.content}]]>"
+
+        return doc_elem
 
 
 @dataclass

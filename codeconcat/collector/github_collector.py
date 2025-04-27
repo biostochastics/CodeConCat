@@ -1,11 +1,11 @@
 """GitHub repository collector for CodeConcat."""
 
+import logging
 import re
 import subprocess
 import tempfile
-from typing import List, Tuple, Optional
-import logging
 import traceback
+from typing import List, Optional, Tuple
 
 from github import Github, GithubException
 from github.Repository import Repository

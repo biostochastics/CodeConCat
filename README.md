@@ -1,6 +1,6 @@
 # CodeConCat
 
-[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.6.6-blue)
+[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.7.0-blue)
 
 <p align="center">
   <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="200"/>

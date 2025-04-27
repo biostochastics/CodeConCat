@@ -1,13 +1,13 @@
 """Python code parser for CodeConcat."""
 
-import re
 import logging
+import re
 from typing import List, Tuple
 
 # Moved imports back to top
 from codeconcat.base_types import Declaration, ParseResult
-from codeconcat.parser.language_parsers.base_parser import BaseParser
 from codeconcat.errors import LanguageParserError
+from codeconcat.parser.language_parsers.base_parser import BaseParser
 
 logger = logging.getLogger(__name__)
 

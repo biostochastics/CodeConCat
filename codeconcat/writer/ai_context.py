@@ -1,23 +1,31 @@
 """AI context generation for CodeConcat output."""
 
 import os
-from typing import Dict, List
+from typing import List
 
 from codeconcat.base_types import (
     AnnotatedFileData,
     ParsedDocData,
-    ParsedFileData,
+    WritableItem,
 )
 
 
 def generate_ai_preamble(
-    code_files: List[ParsedFileData],
-    doc_files: List[ParsedDocData],
-    file_annotations: Dict[str, AnnotatedFileData],
+    items: List[WritableItem],
 ) -> str:
     """Generate an AI-friendly preamble that explains the codebase structure and contents."""
 
-    # Count files by type and calculate complexity metrics
+    # --- Filter items into specific types --- #
+    code_files: List[AnnotatedFileData] = []
+    doc_files: List[ParsedDocData] = []
+    for item in items:
+        if isinstance(item, AnnotatedFileData):
+            code_files.append(item)
+        elif isinstance(item, ParsedDocData):
+            doc_files.append(item)
+        # Note: If other WritableItem types exist, they are ignored here.
+
+    # --- Calculate Stats (mostly from code files) --- #
     file_types = {}
     total_functions = 0
     total_function_lines = 0
@@ -55,16 +63,12 @@ def generate_ai_preamble(
         if os.path.basename(file.file_path) in common_entry_points
     ]
 
-    # Identify key files (based on having annotations)
+    # Identify key files (based on having annotations/summaries)
     key_files_with_summaries = []
     for file in code_files:
-        annotation = file_annotations.get(
-            file.file_path, AnnotatedFileData(file.file_path, "", "", "")
-        )
-        if annotation.summary:
-            key_files_with_summaries.append(
-                f"- `{file.file_path}`: {annotation.summary}"
-            )
+        # Access summary directly from the item
+        if file.summary:
+            key_files_with_summaries.append(f"- `{file.file_path}`: {file.summary}")
 
     # Generate summary
     lines = [

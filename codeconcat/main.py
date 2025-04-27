@@ -5,26 +5,28 @@ This module handles command-line argument parsing, configuration loading,
 file collection, processing, and output generation.
 """
 
+import argparse
+import importlib.resources
+import logging
 import os
 import sys
-import argparse
-import logging
-import importlib.resources
+from typing import List
 
 from tqdm import tqdm
 
-from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig
+from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, WritableItem
 from codeconcat.collector.github_collector import collect_github_files
 from codeconcat.collector.local_collector import collect_local_files
 from codeconcat.config.config_loader import load_config
 from codeconcat.parser.doc_extractor import extract_docs
 from codeconcat.parser.file_parser import parse_code_files
-from codeconcat.transformer.annotator import annotate
-from codeconcat.writer.markdown_writer import write_markdown
-from codeconcat.writer.json_writer import write_json
-from codeconcat.writer.xml_writer import write_xml
-from codeconcat.version import __version__
 from codeconcat.quotes import get_random_quote
+from codeconcat.transformer.annotator import annotate
+from codeconcat.version import __version__
+from codeconcat.writer.json_writer import write_json
+from codeconcat.writer.markdown_writer import write_markdown
+from codeconcat.writer.text_writer import write_text
+from codeconcat.writer.xml_writer import write_xml
 
 # Suppress HuggingFace tokenizers parallelism warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -556,42 +558,35 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         except Exception as e:
             raise FileProcessingError(f"Error during annotation: {str(e)}")
 
-        # Sort files alphabetically if requested (#31)
+        # --- Prepare list for polymorphic writers --- #
+        items: List[WritableItem] = []
+        items.extend(annotated_files)
+        items.extend(docs)
+
         if config.sort_files:
-            logger.info("Sorting files alphabetically by path...")
-            # Debug: Check types before sorting
-            for idx, item in enumerate(annotated_files):
-                if not isinstance(item, AnnotatedFileData):
-                    logger.error(
-                        f"Type Error: Element at index {idx} in annotated_files is {type(item)}, not AnnotatedFileData. Value: {repr(item)}"
-                    )
-            # End Debug
-            try:
-                annotated_files.sort(key=lambda f: f.file_path)
-            except AttributeError as e:
-                logger.error(f"Error sorting files: {e}")
-                raise
-            logger.debug("Files sorted.")
+            logger.info("Sorting all items alphabetically by path...")
+            items.sort(key=lambda x: x.file_path)
+            logger.debug("Items sorted.")
 
         logger.info(f"[CodeConCat] Writing output in {config.format} format...")
         # Write output in requested format
         try:
             output = None
             if config.format == "markdown":
-                output = write_markdown(
-                    annotated_files, parsed_files, docs, config, folder_tree_str
-                )
+                # Pass the combined & sorted items list
+                # Updated call signature
+                output = write_markdown(items, config, folder_tree_str)
             elif config.format == "json":
-                output = write_json(annotated_files, docs, config, folder_tree_str)
+                # Pass the combined & sorted items list
+                output = write_json(items, config, folder_tree_str)
             elif config.format == "xml":
-                output = write_xml(
-                    parsed_files,
-                    docs,
-                    {f.file_path: f for f in annotated_files},
-                    folder_tree_str,
-                )
+                # Pass the combined & sorted items list
+                # Corrected call signature
+                output = write_xml(items, config, folder_tree_str)
             elif config.format == "text":
-                output = "\n".join([file.content for file in parsed_files])
+                # Pass the combined & sorted items list
+                # Corrected call to use the actual writer function
+                output = write_text(items, config, folder_tree_str)
         except Exception as e:
             raise OutputError(f"Error generating {config.format} output: {str(e)}")
 

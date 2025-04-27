@@ -1,7 +1,7 @@
 # file: codeconcat/parser/language_parsers/cpp_parser.py
 
-import re
 import logging
+import re
 from typing import List
 
 from ...base_types import Declaration, ParseResult
@@ -58,7 +58,32 @@ class CppParser(BaseParser):
         self.block_comment_end = "*/"
 
     def parse(self, content: str) -> ParseResult:
-        """Parse C++ code and return ParseResult with declarations and imports."""
+        """Parse C++ code using regex patterns to extract declarations and imports.
+
+        Processes the code line by line, attempting to match patterns for:
+        - Namespaces (tracks current namespace)
+        - Classes/Structs
+        - Functions/Methods
+        - Typedefs
+        - Using directives
+        - Enums
+
+        Handles simple brace counting to determine the end line for blocks
+        starting with '{'. Also extracts #include directives separately.
+
+        Args:
+            content: The C++ code content as a string.
+
+        Returns:
+            ParseResult: An object containing:
+                - file_path: The path of the parsed file.
+                - language: Set to 'cpp'.
+                - content: The original file content.
+                - declarations: A list of Declaration objects found.
+                - imports: A list of strings representing included file paths.
+                - token_stats: Currently None (can be added later).
+                - security_issues: Currently empty (can be added later).
+        """
         declarations = []
         lines = content.split("\n")
         i = 0
@@ -139,6 +164,13 @@ class CppParser(BaseParser):
                     declarations.append(decl)
                     i = end_line
                     break
+            else:
+                # This block executes if the inner 'for' loop completes without 'break'
+                # Meaning no pattern matched the current line
+                if line:  # Avoid logging for comments/empty lines already skipped
+                    logger.warning(
+                        f"No matching pattern found for line {i + 1}: {line!r}"
+                    )
             i += 1
 
         # Extract includes/imports from the content

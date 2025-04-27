@@ -1,5 +1,18 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
+## [0.7.0] - 2025-04-27
+
+### Changed
+- **Writer Refactoring:** Major refactoring of the output writers (`text`, `markdown`, `json`, `xml`) and `ai_context` helper to use polymorphism. Introduced a `WritableItem` interface and moved format-specific rendering logic into `AnnotatedFileData` and `ParsedDocData`. This eliminates type checking, adheres to SOLID principles, and improves maintainability and extensibility.
+
+### Fixed
+- **C++ Parser:**
+    - Improved the docstring for `CppParser.parse` method to better explain its functionality and the `ParseResult` structure.
+    - Added line number and content context to the warning log message when a line fails to match any parsing pattern, aiding debugging.
+- **Text Writer:** Replaced hardcoded separator length (`80`) with a `SEPARATOR_LENGTH` constant for better readability and maintainability.
+- **Core:** Fixed missing `List` import from `typing` in `main.py`.
+- Addressed various linting and formatting issues identified by `isort` and `ruff`.
+
 ## [0.6.6] - 2025-04-27
 
 ### Added

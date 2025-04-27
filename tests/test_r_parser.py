@@ -1,7 +1,7 @@
 import unittest
 
-from codeconcat.parser.language_parsers.r_parser import RParser
 from codeconcat.errors import LanguageParserError
+from codeconcat.parser.language_parsers.r_parser import RParser
 
 
 class TestRParser(unittest.TestCase):

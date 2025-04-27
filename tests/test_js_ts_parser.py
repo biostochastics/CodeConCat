@@ -1,9 +1,9 @@
 import pytest
 
+from codeconcat.errors import LanguageParserError
 from codeconcat.parser.language_parsers.js_ts_parser import (
     parse_javascript_or_typescript,
 )
-from codeconcat.errors import LanguageParserError
 
 
 def test_basic_class():

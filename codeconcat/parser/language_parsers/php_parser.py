@@ -1,7 +1,8 @@
-from codeconcat.base_types import Declaration, ParseResult
-from codeconcat.parser.language_parsers.base_parser import BaseParser
-from codeconcat.errors import LanguageParserError
 import re
+
+from codeconcat.base_types import Declaration, ParseResult
+from codeconcat.errors import LanguageParserError
+from codeconcat.parser.language_parsers.base_parser import BaseParser
 
 
 def parse_php(file_path: str, content: str) -> ParseResult:

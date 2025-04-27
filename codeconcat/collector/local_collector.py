@@ -4,14 +4,14 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 from tqdm import tqdm
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
-from codeconcat.language_map import get_language_guesslang, GUESSLANG_AVAILABLE, ext_map
+from codeconcat.language_map import GUESSLANG_AVAILABLE, ext_map, get_language_guesslang
 
 logger = logging.getLogger(__name__)
 # Do not set up handlers or formatters here; let the CLI configure logging.

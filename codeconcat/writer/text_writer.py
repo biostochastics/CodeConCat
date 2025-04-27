@@ -1,20 +1,23 @@
 """Plain text writer for CodeConcat output."""
 
+# Use forward reference for type hint
+from __future__ import annotations
+
 import logging
-from typing import List, Union
+from typing import List
 
 from codeconcat.base_types import (
-    AnnotatedFileData,
     CodeConCatConfig,
-    ParsedDocData,
+    WritableItem,
 )
 
 logger = logging.getLogger(__name__)
 
+SEPARATOR_LENGTH = 80  # Define the constant
+
 
 def write_text(
-    annotated_files: List[AnnotatedFileData],
-    docs: List[ParsedDocData],
+    items: List[WritableItem],
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
@@ -23,9 +26,9 @@ def write_text(
 
     # --- Repository Overview --- #
     if config.include_repo_overview:
-        output_lines.append("#" * 80)
+        output_lines.append("#" * SEPARATOR_LENGTH)
         output_lines.append("# Repository Overview")
-        output_lines.append("#" * 80)
+        output_lines.append("#" * SEPARATOR_LENGTH)
         if config.include_directory_structure and folder_tree_str:
             output_lines.append("\n## Directory Structure:")
             output_lines.append(folder_tree_str)
@@ -33,104 +36,43 @@ def write_text(
 
     # --- File Index --- #
     if config.include_file_index:
-        output_lines.append("#" * 80)
+        output_lines.append("#" * SEPARATOR_LENGTH)
         output_lines.append("# File Index")
-        output_lines.append("#" * 80)
-        all_files_for_index = sorted(
-            [ann.file_path for ann in annotated_files] + [d.file_path for d in docs]
-        )
-        for i, file_path in enumerate(all_files_for_index):
-            output_lines.append(f"{i + 1}. {file_path}")
+        output_lines.append("#" * SEPARATOR_LENGTH)
+        # Assumes items list is already sorted if config.sort_files is True
+        # If not sorted here, the index might not match sorted file output section.
+        # Caller (main.py/cli_entry_point.py) should handle sorting before passing 'items'.
+        for i, item in enumerate(items):
+            output_lines.append(f"{i + 1}. {item.file_path}")
         output_lines.append("\n")
 
     # --- Files Section --- #
-    output_lines.append("#" * 80)
+    output_lines.append("#" * SEPARATOR_LENGTH)
     output_lines.append("# File Content")
-    output_lines.append("#" * 80)
+    output_lines.append("#" * SEPARATOR_LENGTH)
     output_lines.append("\n")
 
-    files_to_process: List[Union[AnnotatedFileData, ParsedDocData]] = []
-    if annotated_files:
-        files_to_process.extend(annotated_files)
-    if docs:
-        files_to_process.extend(docs)
+    items_to_process = (
+        sorted(items, key=lambda x: x.file_path) if config.sort_files else items
+    )
 
-    if config.sort_files:
-        files_to_process.sort(key=lambda x: x.file_path)
+    if not items_to_process:
+        output_lines.append("_No files or documents found._")
+    else:
+        for i, item in enumerate(items_to_process):
+            output_lines.append("-" * SEPARATOR_LENGTH)
+            output_lines.append(f"File: {item.file_path}")
+            output_lines.append("-" * SEPARATOR_LENGTH)
 
-    for i, file_data in enumerate(files_to_process):
-        output_lines.append("-" * 80)
-        output_lines.append(f"File: {file_data.file_path}")
-        output_lines.append("-" * 80)
+            # Polymorphic call to render text lines
+            item_lines = item.render_text_lines(config)
+            output_lines.extend(item_lines)
 
-        if isinstance(file_data, AnnotatedFileData):
-            if file_data.language:
-                output_lines.append(f"Language: {file_data.language}")
-
-            # Summary
-            if config.include_file_summary and file_data.summary:
-                output_lines.append("\n## Summary:")
-                output_lines.append(file_data.summary)
-
-            # Declarations
-            if config.include_declarations_in_summary and file_data.declarations:
-                output_lines.append("\n## Declarations:")
-                for decl in file_data.declarations:
-                    output_lines.append(
-                        f"  - {decl.kind}: {decl.name} (Lines: {decl.start_line}-{decl.end_line})"
-                    )
-
-            # Imports
-            if config.include_imports_in_summary and file_data.imports:
-                output_lines.append("\n## Imports:")
-                for imp in sorted(file_data.imports):
-                    output_lines.append(f"  - {imp}")
-
-            # Token Stats
-            if config.include_tokens_in_summary and file_data.token_stats:
-                output_lines.append("\n## Token Stats:")
-                output_lines.append(
-                    f"  - Input Tokens: {file_data.token_stats.input_tokens}"
-                )
-                output_lines.append(
-                    f"  - Output Tokens: {file_data.token_stats.output_tokens}"
-                )
-                output_lines.append(
-                    f"  - Total Tokens: {file_data.token_stats.total_tokens}"
-                )
-
-            # Security Issues
-            if config.include_security_in_summary and file_data.security_issues:
-                output_lines.append("\n## Security Issues:")
-                for issue in file_data.security_issues:
-                    severity_val = (
-                        issue.severity.value
-                        if hasattr(issue.severity, "value")
-                        else str(issue.severity)
-                    )
-                    output_lines.append(
-                        f"  - Severity: {severity_val}, Line: {issue.line_number}, Description: {issue.description}"
-                    )
-
-            # Tags
-            if file_data.tags:
-                output_lines.append("\n## Tags:")
-                output_lines.append(f"  - {', '.join(sorted(file_data.tags))}")
-
-            # Content
-            if config.include_code_content and file_data.content:
-                output_lines.append("\n## Content:")
-                output_lines.append(file_data.content)
-
-        elif isinstance(file_data, ParsedDocData):
-            if file_data.doc_type:
-                output_lines.append(f"Type: {file_data.doc_type}")
-            if config.include_doc_content and file_data.content:
-                output_lines.append("\n## Content:")
-                output_lines.append(file_data.content)
-
-        output_lines.append("\n")  # Add a newline after each file section
+            output_lines.append("\n")  # Add a newline after each file section
 
     output_string = "\n".join(output_lines)
-    logger.debug(f"Generated text output string of length {len(output_string)}")
+    logger.info(
+        f"Generated text output for {len(items)} files "
+        f"with total length {len(output_string)} characters"
+    )
     return output_string

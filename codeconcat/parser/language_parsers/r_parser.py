@@ -4,8 +4,8 @@ import re
 from typing import List
 
 from codeconcat.base_types import Declaration, ParseResult
-from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 from codeconcat.errors import LanguageParserError
+from codeconcat.parser.language_parsers.base_parser import BaseParser, CodeSymbol
 
 
 def parse_r(file_path: str, content: str) -> ParseResult:

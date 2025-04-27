@@ -1,9 +1,10 @@
 # file: codeconcat/parser/language_parsers/base_parser.py
 
 import re
-from typing import Dict, List, Optional, Pattern, Set
 from abc import ABC
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Pattern, Set
+
 from codeconcat.base_types import Declaration, ParseResult
 
 
