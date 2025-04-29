@@ -120,7 +120,6 @@ class EnhancedCSharpParser(EnhancedCFamilyParser):
         """
         # First check for XML comments (///)
         xml_comment_lines = []
-        i = start
 
         # Look for XML comments before the current position
         prev_i = start - 1

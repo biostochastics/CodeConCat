@@ -399,7 +399,7 @@ class EnhancedPHPParser(EnhancedBaseParser):
 
             # Handle group use statements: use Namespace\{ClassA, ClassB}
             if "{" in line and "}" in line:
-                namespace_prefix = line[4 : line.find("{")].strip()
+                line[4 : line.find("{")].strip()
                 items = line[line.find("{") + 1 : line.find("}")].split(",")
 
                 for item in items:

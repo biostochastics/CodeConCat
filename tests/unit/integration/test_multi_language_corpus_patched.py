@@ -358,7 +358,7 @@ def test_golang_parser_with_corpus(language_corpus_files):
     for i, file in enumerate(go_files):
         print(f"  Go file {i+1}: {file}")
 
-    config = CodeConCatConfig(use_enhanced_parsers=True)
+    CodeConCatConfig(use_enhanced_parsers=True)
 
     try:
         # Directly use the EnhancedGoParser class

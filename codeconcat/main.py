@@ -10,11 +10,15 @@ import importlib.resources
 import logging
 import os
 import sys
-from typing import List
-
+from typing import List, Union
+from typing import Literal
 from tqdm import tqdm
-
-from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, WritableItem
+from codeconcat.base_types import (
+    ContentSegmentType,
+    AnnotatedFileData,
+    CodeConCatConfig,
+    WritableItem,
+)
 from codeconcat.collector.remote_collector import collect_git_repo
 from codeconcat.collector.local_collector import collect_local_files
 from codeconcat.config.config_builder import ConfigBuilder
@@ -22,6 +26,7 @@ from codeconcat.diagnostics import verify_tree_sitter_dependencies, diagnose_par
 from codeconcat.parser.doc_extractor import extract_docs
 from codeconcat.parser.file_parser import parse_code_files
 from codeconcat.parser.enhanced_pipeline import enhanced_parse_pipeline
+from codeconcat.processor.compression_processor import CompressionProcessor
 from codeconcat.quotes import get_random_quote
 from codeconcat.transformer.annotator import annotate
 from codeconcat.version import __version__
@@ -37,8 +42,72 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # SPDX‑License‑Identifier: MIT
 
 # ------------------------------------------------------------------------------
+# Set up logging for CodeConCat
+logger = logging.getLogger(__name__)
 
-logger = logging.getLogger("codeconcat")
+
+def configure_logging(
+    log_level: Union[
+        str, int, Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    ] = "WARNING",
+    debug: bool = False,
+    quiet: bool = False,
+) -> None:
+    """Configure the logging system for CodeConCat.
+
+    Args:
+        log_level: The logging level to use. Can be a string (DEBUG, INFO, etc.) or an int.
+        debug: If True, sets log level to DEBUG regardless of log_level parameter.
+        quiet: If True, only shows ERROR level messages and disables progress bars.
+    """
+    # Determine the actual log level to use
+    if debug:
+        actual_level = logging.DEBUG
+    elif quiet:
+        actual_level = logging.ERROR
+    elif isinstance(log_level, str):
+        # Convert string log level to int
+        try:
+            actual_level = getattr(logging, log_level.upper())
+        except AttributeError:
+            # Invalid log level string, fall back to WARNING
+            actual_level = logging.WARNING
+            logger.error(f"Invalid log level: {log_level}. Using WARNING instead.")
+    else:
+        # Assume it's already a valid int level
+        actual_level = log_level
+
+    # Configure root logger
+    logging.basicConfig(
+        level=actual_level,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # When in quiet mode, make sure progress bars are disabled and adjust logging further
+    if quiet:
+        # Suppress internal logging for non-error messages
+        # But leave handlers in place for actual errors
+        for logger_name in [
+            "codeconcat",
+            "codeconcat.collector",
+            "codeconcat.parser",
+            "codeconcat.writer",
+            "codeconcat.processor",
+            "codeconcat.transformer",
+        ]:
+            logging.getLogger(logger_name).setLevel(logging.ERROR)
+
+    # Only log this if not in quiet mode
+    if not quiet:
+        logger.info(f"Logging level set to: {logging.getLevelName(actual_level)}")
+
+    # Suppress overly verbose logs from libraries if not in debug mode
+    if actual_level != logging.DEBUG:
+        logging.getLogger("charset_normalizer").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("filelock").setLevel(logging.WARNING)
+        # Add other noisy libraries here if needed
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -117,32 +186,72 @@ def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
             logger.warning(f"Failed to copy to clipboard: {e}")
 
 
-def create_default_config() -> None:
+def create_default_config(interactive: bool = True) -> None:
     """Creates a default '.codeconcat.yml' configuration file in the current directory.
 
     This function is typically triggered by the '--init' CLI flag.
-    It reads the default configuration template embedded within the package
-    and writes it to '.codeconcat.yml' in the current working directory.
-    If the file already exists, it logs a warning and does not overwrite it.
+    It can either create a default configuration file directly from a template,
+    or run an interactive setup that guides the user through configuration options.
+
+    Args:
+        interactive: If True, runs the interactive configuration setup.
+                    If False, creates a default configuration from the template.
     """
+    if interactive:
+        # Use the interactive configuration builder
+        try:
+            from codeconcat.config.interactive_config import run_interactive_setup
+
+            success = run_interactive_setup()
+            if not success:
+                logger.warning("Interactive configuration setup did not complete successfully.")
+        except ImportError:
+            logger.error(
+                "Failed to import interactive_config module. Falling back to basic config creation."
+            )
+            _create_basic_config()
+        except Exception as e:
+            logger.error(f"Error during interactive configuration setup: {e}")
+            logger.info("Falling back to basic config creation.")
+            _create_basic_config()
+    else:
+        # Create a basic configuration from the template
+        _create_basic_config()
+
+
+def _create_basic_config() -> None:
+    """Creates a basic default '.codeconcat.yml' configuration file from the template."""
     config_filename = ".codeconcat.yml"
     if os.path.exists(config_filename):
         logger.warning(f"{config_filename} already exists; aborting.")
         return
 
     try:
-        template_content = importlib.resources.read_text(
-            "codeconcat.config", "default_config.template.yml"
+        # First try to use the file directly
+        template_path = os.path.join(
+            os.path.dirname(__file__), "config", "templates", "default_config.template.yml"
         )
-
-        with open(config_filename, "w") as f:
-            f.write(template_content)
+        if os.path.exists(template_path):
+            with open(template_path, "r") as src, open(config_filename, "w") as dest:
+                dest.write(src.read())
+        else:
+            # Fall back to importlib.resources if file not found directly
+            template_content = importlib.resources.read_text(
+                "codeconcat.config.templates", "default_config.template.yml"
+            )
+            with open(config_filename, "w") as f:
+                f.write(template_content)
 
         logger.info(f"Created default configuration file: {config_filename}")
+        print(f"\n✅ Created default configuration file: {config_filename}")
+        print("To use this configuration, run CodeConCat without the --init flag:")
+        print("  codeconcat --target-path <your_code_directory>")
     except FileNotFoundError:
         logger.error("Default configuration template not found within the package.")
+        print("\n❌ Default configuration template not found. Please reinstall CodeConCat.")
     except Exception as e:
         logger.error(f"Failed to create default configuration file: {e}")
+        print(f"\n❌ Failed to create default configuration file: {e}")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -232,7 +341,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
     )
     g_gen.add_argument(
-        "--init", action="store_true", help="Create default '.codeconcat.yml' and exit."
+        "--init",
+        action="store_true",
+        help="Interactive setup: create a customized '.codeconcat.yml' and exit.",
     )
     g_gen.add_argument("--show-config", action="store_true", help="Print merged config and exit.")
     g_gen.add_argument(
@@ -418,72 +529,38 @@ def cli_entry_point():
     CodeConCat logic via run_codeconcat, and writes the output.
     Handles potential errors and logs them appropriately.
     """
-    parser = build_parser()
-    args = parser.parse_args()
+    try:
+        # Parse arguments (returns namespace with defaults)
+        parser = build_parser()
+        args = parser.parse_args()
 
-    # Determine log level from verbosity flags
-    log_level_map = {
-        0: logging.WARNING,  # Default
-        1: logging.INFO,  # --verbose
-        2: logging.DEBUG,  # --verbose --verbose or --debug
-    }
+        # Configure logging based on args
+        log_level = getattr(args, "log_level", "WARNING")
+        debug_mode = getattr(args, "debug", False)
+        quiet_mode = getattr(args, "quiet", False)
+        configure_logging(log_level, debug_mode, quiet_mode)
 
-    # Check for quiet mode first (overrides all other verbosity settings)
-    if args.quiet:
-        log_level = logging.ERROR  # Only show errors and the final success message
-    else:
-        # Set log level based on verbosity or debug flag
-        log_level = (
-            logging.DEBUG if args.debug else log_level_map.get(args.verbose, logging.WARNING)
-        )
+        # Initialize config if requested
+        if hasattr(args, "init") and args.init:
+            logger.info("Running interactive configuration setup")
+            create_default_config(interactive=True)
+            return 0
 
-    # Configure root logger
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+        # Convert args namespace to dictionary for easier handling
+        cli_args = vars(args)
 
-    # When in quiet mode, make sure progress bars are disabled and adjust logging further
-    if args.quiet:
-        # Force disable progress bars
-        args.disable_progress_bar = True
-        # Suppress internal logging for non-error messages
-        # But leave handlers in place for actual errors
-        for logger_name in [
-            "codeconcat",
-            "codeconcat.collector",
-            "codeconcat.parser",
-            "codeconcat.writer",
-            "codeconcat.processor",
-            "codeconcat.transformer",
-        ]:
-            logging.getLogger(logger_name).setLevel(logging.ERROR)
+        # Handle backward compatibility for parser engine selection
+        if hasattr(args, "no_tree") and args.no_tree and "parser_engine" not in cli_args:
+            logger.warning(
+                "The --no-tree flag is deprecated. Please use --parser-engine=regex instead."
+            )
+            cli_args["parser_engine"] = "regex"
+    except Exception as e:
+        logger.error(f"Error during argument parsing: {e}")
+        print(f"\n❌ Error initializing CodeConCat: {e}")
+        return 1
 
-    # Only log this if not in quiet mode
-    if not args.quiet:
-        logger.info(f"Logging level set to: {log_level}")
-    # Suppress overly verbose logs from libraries if not in debug mode
-    if log_level != "DEBUG":
-        logging.getLogger("charset_normalizer").setLevel(logging.WARNING)
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
-        logging.getLogger("filelock").setLevel(logging.WARNING)
-        # Add other noisy libraries here if needed
-
-    # --- Handle Special Flags --- #
-    if args.init:
-        create_default_config()
-        return  # Exit after creating config
-
-    # --- Handle compatibility between old and new flags --- #
-    cli_args = vars(args)
-
-    # Convert --no-tree to --parser-engine for backward compatibility
-    if args.no_tree and "parser_engine" not in cli_args:
-        logger.warning(
-            "The --no-tree flag is deprecated. Please use --parser-engine=regex instead."
-        )
-        cli_args["parser_engine"] = "regex"
+    # We already handled the no_tree flag in the try block above
 
     # --- Load Configuration using the new ConfigBuilder --- #
     try:
@@ -860,6 +937,39 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             logger.info("Sorting all items alphabetically by path...")
             items.sort(key=lambda x: x.file_path)
             logger.debug("Items sorted.")
+
+        # Apply compression if enabled
+        if config.enable_compression:
+            logger.info(f"[CodeConCat] Applying compression (level: {config.compression_level})...")
+            compression_processor = CompressionProcessor(config)
+
+            # Apply compression to each annotated file
+            for i, item in enumerate(items):
+                if isinstance(item, AnnotatedFileData) and item.content:
+                    # Process the file through the compression processor
+                    compressed_segments = compression_processor.process_file(item)
+
+                    if compressed_segments:
+                        # Store the compressed content in the item for rendering
+                        item.content = compression_processor.apply_compression(item)
+
+                        # Store segments in config for the renderer to access
+                        # This is a workaround since we can't modify the WritableItem interface
+                        # without more substantial refactoring
+                        config._compressed_segments = compressed_segments
+
+                        # Log compression stats
+                        original_lines = len(item.content.split("\n"))
+                        compressed_lines = sum(
+                            1
+                            for s in compressed_segments
+                            if s.segment_type == ContentSegmentType.CODE
+                        )
+                        logger.debug(
+                            f"Compressed {item.file_path}: {compressed_lines} retained of {original_lines} lines"
+                        )
+
+            logger.info("[CodeConCat] Compression complete.")
 
         logger.info(f"[CodeConCat] Writing output in {config.format} format...")
         # Write output in requested format

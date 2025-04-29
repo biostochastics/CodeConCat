@@ -18,12 +18,25 @@ from .base_parser import BaseParser
 from .enhanced_base_parser import EnhancedBaseParser
 from .pattern_library import (
     ClassPatterns,
-    CommentPatterns,
-    DocstringPatterns,
     FunctionPatterns,
     ImportPatterns,
+    CommentPatterns,
+    DocstringPatterns,
     C_FAMILY_MODIFIERS,
+    create_pattern_with_modifiers,
 )
+
+__all__ = [
+    "BaseParser",
+    "EnhancedBaseParser",
+    "ClassPatterns",
+    "FunctionPatterns",
+    "ImportPatterns",
+    "CommentPatterns",
+    "DocstringPatterns",
+    "C_FAMILY_MODIFIERS",
+    "create_pattern_with_modifiers",
+]
 
 # Import mappers - will be used by get_language_parser
 
@@ -56,48 +69,79 @@ REGEX_PARSER_MAP = {
     "r_enhanced": "EnhancedRParser",
 }
 
-# Dictionary mapping languages to their parser class names for tree-sitter parsers
-# NOTE: As of April 2025, the codebase has been updated to use tree-sitter-language-pack
-# for more reliable language loading across different Python versions (including 3.12/3.13)
-# and platforms. This resolves previous compatibility issues with individual grammar packages.
-#
-# If you're experiencing issues loading any language, ensure you have the latest version of
-# tree-sitter-language-pack installed: pip install tree-sitter-language-pack>=0.7.2
-#
-TREE_SITTER_PARSER_MAP = {
-    "python": "TreeSitterPythonParser",
-    "java": "TreeSitterJavaParser",
-    "javascript": "TreeSitterJsTsParser",
-    "typescript": "TreeSitterJsTsParser",
-    "c": "TreeSitterCppParser",
-    "cpp": "TreeSitterCppParser",
-    "csharp": "TreeSitterCSharpParser",
-    "go": "TreeSitterGoParser",
-    "php": "TreeSitterPhpParser",
-    "rust": "TreeSitterRustParser",
-    "julia": "TreeSitterJuliaParser",
-    "r": "TreeSitterRParser",
-}
+# Check for Tree-sitter availability and conditionally define parser map
+try:
+    # Use importlib.util to check for availability instead of importing directly
+    import importlib.util
 
-# Dictionary mapping language extensions to language names
+    has_tree_sitter = importlib.util.find_spec("tree_sitter") is not None
+    has_ts_language_pack = importlib.util.find_spec("tree_sitter_language_pack") is not None
+
+    # Only proceed if both are available
+    if has_tree_sitter and has_ts_language_pack:
+        # Tree-sitter is available, define the full mapping
+        TREE_SITTER_AVAILABLE = True
+
+    # Dictionary mapping languages to their parser class names for tree-sitter parsers
+    # NOTE: As of April 2025, the codebase has been updated to use tree-sitter-language-pack
+    # for more reliable language loading across different Python versions (including 3.12/3.13)
+    # and platforms. This resolves previous compatibility issues with individual grammar packages.
+    TREE_SITTER_PARSER_MAP = {
+        "python": "TreeSitterPythonParser",
+        "java": "TreeSitterJavaParser",
+        "javascript": "TreeSitterJsTsParser",
+        "typescript": "TreeSitterJsTsParser",
+        "c": "TreeSitterCppParser",
+        "cpp": "TreeSitterCppParser",
+        "csharp": "TreeSitterCSharpParser",
+        "go": "TreeSitterGoParser",
+        "php": "TreeSitterPhpParser",
+        "rust": "TreeSitterRustParser",
+        "julia": "TreeSitterJuliaParser",
+        "r": "TreeSitterRParser",
+    }
+
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info("Tree-sitter support is available")
+
+except ImportError:
+    # Tree-sitter or tree-sitter-language-pack is not available
+    TREE_SITTER_AVAILABLE = False
+    TREE_SITTER_PARSER_MAP = {}
+
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "Tree-sitter support is not available. Install with: pip install tree-sitter-language-pack>=0.7.2"
+        " - Falling back to regex-based parsers."
+    )
+
+# Dictionary mapping language extensions to language names (case-insensitive)
+# Use a dictionary comprehension to normalize all extensions to lowercase
 LANGUAGE_EXTENSION_MAP = {
-    ".py": "python",
-    ".js": "javascript",
-    ".ts": "typescript",
-    ".jsx": "javascript",
-    ".tsx": "typescript",
-    ".r": "r",
-    ".jl": "julia",
-    ".rs": "rust",
-    ".cpp": "cpp",
-    ".cxx": "cpp",
-    ".cc": "cpp",
-    ".hpp": "cpp",
-    ".hxx": "cpp",
-    ".h": "c",
-    ".c": "c",
-    ".cs": "csharp",
-    ".java": "java",
-    ".go": "go",
-    ".php": "php",
+    ext.lower(): lang
+    for ext, lang in {
+        ".py": "python",
+        ".js": "javascript",
+        ".ts": "typescript",
+        ".jsx": "javascript",
+        ".tsx": "typescript",
+        ".r": "r",
+        ".jl": "julia",
+        ".rs": "rust",
+        ".cpp": "cpp",
+        ".cxx": "cpp",
+        ".cc": "cpp",
+        ".hpp": "cpp",
+        ".hxx": "cpp",
+        ".h": "c",
+        ".c": "c",
+        ".cs": "csharp",
+        ".java": "java",
+        ".go": "go",
+        ".php": "php",
+    }.items()
 }

@@ -186,7 +186,7 @@ def fetch_repo_files(repo_name: str, config: CodeConCatConfig) -> Tuple[List[Par
     if "/" in repo_name:
         owner, repo = repo_name.split("/")
     else:
-        owner, repo = "unknown", repo_name
+        _owner, repo = "unknown", repo_name
 
     # Check common local paths for the repository
     potential_paths = [
@@ -506,7 +506,7 @@ def test_codeconcat_python_parsers(codeconcat_repo):
     # Verify detection of key Python features - but don't fail if specific kinds aren't found
     # as long as we have any declarations
     expected_kinds = ["class", "function", "method", "import", "variable"]
-    found_kinds = [kind for kind in expected_kinds if kind in declaration_kinds]
+    [kind for kind in expected_kinds if kind in declaration_kinds]
     logger.info(f"Found declaration kinds: {list(declaration_kinds.keys())}")
 
     if total_declarations > 0:

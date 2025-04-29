@@ -42,7 +42,6 @@ class GoParser(BaseParser):
         """
         declarations = []
         imports: Set[str] = set()
-        package_name = "unknown"
         lines = content.split("\n")
         doc_buffer: List[str] = []
 
@@ -58,7 +57,7 @@ class GoParser(BaseParser):
                 # Package
                 package_match = PACKAGE_PATTERN.match(line)
                 if package_match:
-                    package_name = package_match.group(1)
+                    package_match.group(1)
                     doc_buffer = []
                     continue
 

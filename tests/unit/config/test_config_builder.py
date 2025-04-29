@@ -78,7 +78,7 @@ class TestConfigBuilder:
         assert isinstance(config, CodeConCatConfig)
 
         # Verify some default settings
-        assert config.disable_tree == False  # Default is to use Tree-sitter
+        assert not config.disable_tree  # Default is to use Tree-sitter
         assert config.format == "markdown"  # Default output format
         assert config.max_workers == 4  # Default thread pool size
 
@@ -158,7 +158,7 @@ class TestConfigBuilder:
         default_builder.with_preset("lean")
         default_builder.with_yaml_config(sample_yaml_config)
         default_builder.with_cli_args(cli_args)
-        config = default_builder.build()
+        default_builder.build()
 
         # Print config details
         default_builder.print_config_details()  # This should print to stdout

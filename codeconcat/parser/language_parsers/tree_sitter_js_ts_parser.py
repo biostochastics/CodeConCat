@@ -403,7 +403,6 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 logger.debug(f"Running JS/TS query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    import_sources = set()
                     for node, capture_name in captures:
                         if (
                             capture_name.startswith("import_source")

@@ -201,8 +201,6 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
 
         # Track the current brace level for the block
         brace_level = 0
-        in_declaration = False
-        current_declaration = None
 
         logger.debug(f"Processing JS/TS block at lines {start+1}-{end+1}")
 
@@ -211,7 +209,7 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
                 break
 
             line = lines[i].strip()
-            raw_line = lines[i]
+            lines[i]
 
             # Skip empty lines and single-line comments
             if not line or line.startswith("//"):

@@ -243,9 +243,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
                     if ":" in line:
                         # Calculate the expected indentation of the block body
                         current_line_indent = self._get_indent_level(raw_line)
-                        expected_body_indent = (
-                            current_line_indent + 4
-                        )  # Python usually uses 4 spaces
+                        (current_line_indent + 4)  # Python usually uses 4 spaces
 
                         # Find the end of the block by looking for decreased indentation
                         end_line = i

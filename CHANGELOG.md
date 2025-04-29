@@ -3,7 +3,24 @@
 ## [0.7.0] - 2025-04-29
 
 ### Added
-- **Added tree parser support**
+- **Added Tree-Sitter Parser Support**: enough said, fallbacks implemented.
+
+- **Advanced Compression Support:**
+    - Added new `CompressionProcessor` that intelligently compresses code content by preserving important segments and replacing less important ones with placeholder text.
+    - Implemented configurable compression levels (low, medium, high, aggressive) with corresponding heuristics.
+    - Added configuration options: `enable_compression`, `compression_level`, `compression_placeholder`, `compression_keep_threshold`, and `compression_keep_tags`.
+    - Implemented segment-aware rendering in all output formats (Markdown, JSON, XML, text).
+    - Smart preservation of security-sensitive code, API endpoints, control flow, and commented segments with keep tags.
+
+- **Interactive Configuration Setup**: Enhanced the `--init` command to provide an interactive setup experience that guides users through creating a customized `.codeconcat.yml` configuration file with helpful prompts and explanations for each option.
+
+- **REST API Server**: Added a FastAPI-based REST API with JSON request/response format, allowing remote access to code aggregation functionality.
+    - Created new `codeconcat-api` command-line tool with customizable host, port, and logging options
+    - Implemented comprehensive endpoints: `/api/concat` for JSON configuration, `/api/upload` for file uploads
+    - Added utility endpoints for configuration discovery: `/api/config/presets`, `/api/config/formats`, `/api/config/languages`
+    - Included auto-generated API documentation via Swagger UI at `/api/docs`, OpenAPI schema at `/api/openapi.json`, and ReDoc alternative documentation at `/api/redoc`
+    - Added proper request/response validation with Pydantic models and error handling
+    - Implemented CORS support for cross-origin requests
 - **Configuration System:**
     - Implemented a new `ConfigBuilder` class with a clear four-stage configuration loading process (Defaults → Preset → YAML → CLI).
     - Added `--show-config-detail` flag to print the source of each configuration setting (default/preset/YAML/CLI).
@@ -42,6 +59,13 @@
         - **Go:** Better interface detection, embedded types, generics, and Go doc comment parsing.
 
 ### Changed
+- **Code Quality Improvements:**
+    - Applied black formatting with 100-character line length for consistent style across the codebase.
+    - Fixed 80+ linting issues using ruff, including unused imports and variables.
+    - Added properly configured .coveragerc file for code coverage reporting.
+    - Fixed imports in language_parsers/__init__.py to match available classes.
+    - Standardized import structure across test modules for better maintainability.
+    
 - **CLI Simplification:**
     - Renamed confusing flags: replaced `--no-tree/disable_tree` with clearer `--parser-engine={regex,tree_sitter}`.
     - Grouped CLI options into "Basic" and "Advanced" categories, hiding advanced options by default.

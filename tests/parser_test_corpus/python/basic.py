@@ -8,7 +8,6 @@ This file contains common Python constructs that should be properly parsed.
 """
 
 
-
 class SimpleClass:
     """A simple class with documentation."""
 

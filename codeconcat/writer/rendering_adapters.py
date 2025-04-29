@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional
 from codeconcat.base_types import (
     AnnotatedFileData,
     CodeConCatConfig,
+    ContentSegment,
+    ContentSegmentType,
     Declaration,
     ParsedDocData,
     SecurityIssue,
@@ -127,6 +129,10 @@ class MarkdownRenderAdapter:
     @staticmethod
     def render_file_content(content: str, language: str, config: CodeConCatConfig) -> str:
         """Render file content as a markdown code block with appropriate language tag."""
+        # Special case for empty content
+        if not content:
+            return "```\n// No content\n```"
+
         # Add line numbers if configured
         if config.show_line_numbers:
             # Split content by lines, add line numbers, and rejoin
@@ -138,7 +144,43 @@ class MarkdownRenderAdapter:
 
             content = content_with_numbers.rstrip("\n")
 
-        return f"```{language}\n{content}\n```"
+        # If compression is enabled and segments are provided in metadata,
+        # handle compression styling for placeholder text
+        if (
+            config.enable_compression
+            and hasattr(config, "_compressed_segments")
+            and config._compressed_segments
+        ):
+            # This is a workaround since we can't pass segments directly to this method
+            # In a real implementation, we would refactor the interfaces to support segments directly
+            return MarkdownRenderAdapter._render_compressed_content(
+                config._compressed_segments, language
+            )
+
+        # Use language tag if available
+        lang_tag = language if language and language != "unknown" else ""
+
+        # Create the markdown code block
+        return f"```{lang_tag}\n{content}\n```"
+
+    @staticmethod
+    def _render_compressed_content(segments: List[ContentSegment], language: str) -> str:
+        """Render compressed content with special formatting for placeholders."""
+        # Use language tag if available
+        lang_tag = language if language and language != "unknown" else ""
+
+        result = [f"```{lang_tag}"]
+
+        for segment in segments:
+            if segment.segment_type == ContentSegmentType.OMITTED:
+                # Style the placeholder differently
+                result.append(f"\n/* {segment.content} */\n")
+            else:
+                # Regular code segment
+                result.append(segment.content)
+
+        result.append("```")
+        return "\n".join(result)
 
     @staticmethod
     def render_annotated_file(file_data: AnnotatedFileData, config: CodeConCatConfig) -> List[str]:
@@ -250,11 +292,12 @@ class JsonRenderAdapter:
         }
 
     @staticmethod
-    def token_stats_to_dict(token_stats: Optional[TokenStats]) -> Optional[Dict[str, int]]:
+    def token_stats_to_dict(token_stats: Optional[TokenStats]) -> Optional[Dict[str, Any]]:
         """Convert a TokenStats object to a dictionary for JSON serialization."""
         if not token_stats:
             return None
 
+        # Convert TokenStats to a dict, handling all token models
         return {
             "gpt3_tokens": token_stats.gpt3_tokens,
             "gpt4_tokens": token_stats.gpt4_tokens,
@@ -263,35 +306,78 @@ class JsonRenderAdapter:
         }
 
     @staticmethod
+    def segment_to_dict(segment: ContentSegment) -> Dict[str, Any]:
+        """Convert a ContentSegment to a dictionary for JSON serialization."""
+        result = {
+            "type": segment.segment_type.value,
+            "content": segment.content,
+            "start_line": segment.start_line,
+            "end_line": segment.end_line,
+        }
+
+        # Include metadata if present
+        if segment.metadata:
+            # Filter out original_content from JSON for brevity if present
+            metadata = {k: v for k, v in segment.metadata.items() if k != "original_content"}
+            result["metadata"] = metadata
+
+        return result
+
+    @staticmethod
     def annotated_file_to_dict(
         file_data: AnnotatedFileData, config: CodeConCatConfig
     ) -> Dict[str, Any]:
         """Convert an AnnotatedFileData object to a dictionary for JSON serialization."""
         result = {
             "file_path": file_data.file_path,
-            "language": file_data.language,
-            "content": file_data.content,
-            "annotated_content": file_data.annotated_content,
-            "summary": file_data.summary,
-            "tags": file_data.tags,
+            "language": file_data.language or "unknown",
         }
 
-        # Add structured data based on configuration
-        if not config.disable_symbols:
+        if file_data.summary and config.include_file_summary:
+            result["summary"] = file_data.summary
+
+        if file_data.tags:
+            result["tags"] = file_data.tags
+
+        # Include content data based on config
+        if not config.disable_symbols and file_data.declarations:
             result["declarations"] = [
-                JsonRenderAdapter.declaration_to_dict(decl) for decl in file_data.declarations
+                JsonRenderAdapter.declaration_to_dict(d) for d in file_data.declarations
             ]
 
-        result["imports"] = file_data.imports
-
-        if file_data.token_stats and config.enable_token_counting:
-            result["token_stats"] = JsonRenderAdapter.token_stats_to_dict(file_data.token_stats)
+        if file_data.imports:
+            result["imports"] = file_data.imports
 
         if file_data.security_issues and not config.mask_output_content:
             result["security_issues"] = [
-                JsonRenderAdapter.security_issue_to_dict(issue)
-                for issue in file_data.security_issues
+                JsonRenderAdapter.security_issue_to_dict(i) for i in file_data.security_issues
             ]
+
+        if config.enable_token_counting and file_data.token_stats:
+            result["token_stats"] = JsonRenderAdapter.token_stats_to_dict(file_data.token_stats)
+
+        # Handle compressed content if enabled
+        if (
+            config.enable_compression
+            and hasattr(config, "_compressed_segments")
+            and config._compressed_segments
+        ):
+            result["compression_applied"] = True
+            result["content_segments"] = [
+                JsonRenderAdapter.segment_to_dict(s) for s in config._compressed_segments
+            ]
+            # Include a flat version of the content too
+            segments_content = []
+            for segment in config._compressed_segments:
+                segments_content.append(segment.content)
+            result["content"] = "\n".join(segments_content)
+        else:
+            # Include actual content (not compressed)
+            content_to_use = (
+                file_data.annotated_content if file_data.annotated_content else file_data.content
+            )
+            result["content"] = content_to_use or ""
+            result["compression_applied"] = False
 
         return result
 
@@ -380,55 +466,86 @@ class XmlRenderAdapter:
         file_data: AnnotatedFileData, config: CodeConCatConfig
     ) -> ET.Element:
         """Create an XML element representing an AnnotatedFileData object."""
-        file_elem = ET.Element("file")
-        file_elem.set("path", file_data.file_path)
-        file_elem.set("language", file_data.language)
+        file_element = ET.Element("file")
+        file_element.set("path", file_data.file_path)
+        file_element.set("language", file_data.language or "unknown")
 
-        # Add summary if present
-        if file_data.summary:
-            summary_elem = ET.SubElement(file_elem, "summary")
+        # Add summary if present and configured
+        if file_data.summary and config.include_file_summary:
+            summary_elem = ET.SubElement(file_element, "summary")
             summary_elem.text = file_data.summary
 
         # Add tags if present
         if file_data.tags:
-            tags_elem = ET.SubElement(file_elem, "tags")
+            tags_elem = ET.SubElement(file_element, "tags")
             for tag in file_data.tags:
                 tag_elem = ET.SubElement(tags_elem, "tag")
                 tag_elem.text = tag
 
-        # Add declarations if configured
+        # Add declarations if present and configured
         if not config.disable_symbols and file_data.declarations:
-            decls_elem = ET.SubElement(file_elem, "declarations")
+            declarations_elem = ET.SubElement(file_element, "declarations")
             for decl in file_data.declarations:
-                XmlRenderAdapter.add_declaration_to_element(decls_elem, decl)
+                XmlRenderAdapter.add_declaration_to_element(declarations_elem, decl)
 
         # Add imports if present
         if file_data.imports:
-            imports_elem = ET.SubElement(file_elem, "imports")
+            imports_elem = ET.SubElement(file_element, "imports")
             for imp in file_data.imports:
-                imp_elem = ET.SubElement(imports_elem, "import")
-                imp_elem.text = imp
+                import_elem = ET.SubElement(imports_elem, "import")
+                import_elem.text = imp
+
+        # Add security issues if present and not masked
+        if file_data.security_issues and not config.mask_output_content:
+            security_elem = ET.SubElement(file_element, "security_issues")
+            for issue in file_data.security_issues:
+                XmlRenderAdapter.add_security_issue_to_element(security_elem, issue)
 
         # Add token stats if present and configured
-        if file_data.token_stats and config.enable_token_counting:
-            XmlRenderAdapter.add_token_stats_to_element(file_elem, file_data.token_stats)
+        if config.enable_token_counting and file_data.token_stats:
+            token_stats_elem = ET.SubElement(file_element, "token_stats")
+            XmlRenderAdapter.add_token_stats_to_element(token_stats_elem, file_data.token_stats)
 
-        # Add security issues if present and configured
-        if file_data.security_issues and not config.mask_output_content:
-            issues_elem = ET.SubElement(file_elem, "security_issues")
-            for issue in file_data.security_issues:
-                XmlRenderAdapter.add_security_issue_to_element(issues_elem, issue)
+        # Handle compressed content if enabled
+        if (
+            config.enable_compression
+            and hasattr(config, "_compressed_segments")
+            and config._compressed_segments
+        ):
+            file_element.set("compression_applied", "true")
+            segments_elem = ET.SubElement(file_element, "content_segments")
 
-        # Add content
-        content_elem = ET.SubElement(file_elem, "content")
-        content_elem.text = file_data.content
+            for segment in config._compressed_segments:
+                segment_elem = ET.SubElement(segments_elem, "segment")
+                segment_elem.set("type", segment.segment_type.value)
+                segment_elem.set("start_line", str(segment.start_line))
+                segment_elem.set("end_line", str(segment.end_line))
 
-        # Add annotated content if different
-        if file_data.annotated_content and file_data.annotated_content != file_data.content:
-            annotated_elem = ET.SubElement(file_elem, "annotated_content")
-            annotated_elem.text = file_data.annotated_content
+                # Add content
+                content_elem = ET.SubElement(segment_elem, "content")
+                content_elem.text = segment.content
 
-        return file_elem
+                # Add metadata if present
+                if segment.metadata:
+                    metadata_elem = ET.SubElement(segment_elem, "metadata")
+                    for key, value in segment.metadata.items():
+                        if key != "original_content":  # Skip original content for brevity
+                            meta_item = ET.SubElement(metadata_elem, key)
+                            meta_item.text = str(value)
+
+            # Also include the combined content
+            content_elem = ET.SubElement(file_element, "content")
+            content_elem.text = "\n".join(s.content for s in config._compressed_segments)
+        else:
+            # Add the file content without compression
+            file_element.set("compression_applied", "false")
+            content_to_use = (
+                file_data.annotated_content if file_data.annotated_content else file_data.content
+            )
+            content_elem = ET.SubElement(file_element, "content")
+            content_elem.text = content_to_use or ""
+
+        return file_element
 
     @staticmethod
     def create_doc_file_element(doc_data: ParsedDocData, config: CodeConCatConfig) -> ET.Element:

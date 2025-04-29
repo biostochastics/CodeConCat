@@ -871,7 +871,6 @@ def is_binary_file(file_path: str) -> bool:
         return True
 
     # Path-based checks for known binary files or large text files we want to skip
-    file_name = os.path.basename(file_path).lower()
     path_lower = file_path.lower()
 
     # Skip lock files, minified files, and known large generated files

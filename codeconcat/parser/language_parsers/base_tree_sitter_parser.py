@@ -3,8 +3,32 @@ import logging
 from typing import Dict, List, Optional
 
 from codeconcat.base_types import Declaration, ParseResult, ParserInterface
-from tree_sitter import Language, Node, Parser, Tree
 from ...errors import LanguageParserError
+
+# Import tree-sitter with proper error handling
+try:
+    from tree_sitter import Language, Node, Parser, Tree, Query
+
+    TREE_SITTER_AVAILABLE = True
+except ImportError:
+    TREE_SITTER_AVAILABLE = False
+
+    # Create dummy classes to avoid type errors
+    class Language:
+        pass
+
+    class Node:
+        pass
+
+    class Parser:
+        pass
+
+    class Tree:
+        pass
+
+    class Query:
+        pass
+
 
 # Import tree-sitter-language-pack for reliable language loading
 try:
@@ -33,6 +57,8 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             LanguageParserError: If the Tree-sitter grammar cannot be loaded or parser creation fails.
         """
         self.language_name = language_name
+        # Initialize the query cache
+        self._compiled_queries: Dict[str, Query] = {}
         # Load the language object first
         self.ts_language: Language = self._load_language()
         # Create the parser instance and set its language
@@ -43,6 +69,38 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         # The grammar is loaded in __init__. If it failed, an exception would
         # have been raised. This method confirms the instance is usable.
         return self.parser is not None
+
+    def _get_compiled_query(self, query_name: str) -> Query:
+        """Gets a compiled Tree-sitter query from cache or compiles it if not present.
+
+        Args:
+            query_name: The name of the query to compile.
+
+        Returns:
+            The compiled Tree-sitter Query object.
+        """
+        if not TREE_SITTER_AVAILABLE:
+            raise LanguageParserError(
+                "Tree-sitter is not available. Please install it with: pip install tree-sitter-language-pack>=0.7.2"
+            )
+
+        if query_name not in self._compiled_queries:
+            query_str = self.get_queries().get(query_name, "")
+            if not query_str:
+                logger.warning(
+                    f"No query string found for '{query_name}' in {self.language_name} parser"
+                )
+                return None
+            try:
+                self._compiled_queries[query_name] = self.ts_language.query(query_str)
+                logger.debug(f"Compiled Tree-sitter query '{query_name}' for {self.language_name}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to compile Tree-sitter query '{query_name}' for {self.language_name}: {e}",
+                    exc_info=True,
+                )
+                return None
+        return self._compiled_queries[query_name]
 
     def _load_language(self) -> Language:
         """Loads the Tree-sitter language object.
@@ -239,12 +297,13 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         declarations = []
         imports = []
 
-        for query_name, query_str in queries.items():
-            if not query_str.strip():  # Skip empty queries
-                logger.debug(f"Skipping empty query '{query_name}' for {self.language_name}")
+        for query_name in queries:
+            # Get the compiled query from cache or compile it if not cached yet
+            query = self._get_compiled_query(query_name)
+            if not query:  # Skip if no valid query was found or compiled
                 continue
+
             try:
-                query = self.ts_language.query(query_str)
                 captures = query.captures(root_node)
                 logger.debug(f"Running query '{query_name}', found {len(captures)} captures.")
 

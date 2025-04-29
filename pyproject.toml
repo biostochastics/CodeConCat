@@ -54,6 +54,7 @@ Changelog = "https://github.com/biostochastics/codeconcat/blob/main/CHANGELOG.md
 
 [project.scripts]
 codeconcat = "codeconcat.main:cli_entry_point"
+codeconcat-api = "codeconcat.api.cli:cli_entry_point"
 
 [tool.hatch.version]
 path = "codeconcat/version.py"

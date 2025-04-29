@@ -56,7 +56,7 @@ def test_c_parser_diagnostic():
     print(f"File content length: {len(content)}")
 
     # Test parser
-    config = CodeConCatConfig(use_enhanced_parsers=True)
+    CodeConCatConfig(use_enhanced_parsers=True)
 
     try:
         # Try with enhanced parser
@@ -138,7 +138,7 @@ def test_go_parser_diagnostic():
     print(f"File content length: {len(content)}")
 
     # Test parser
-    config = CodeConCatConfig(use_enhanced_parsers=True)
+    CodeConCatConfig(use_enhanced_parsers=True)
 
     try:
         # Try with enhanced parser
@@ -217,7 +217,7 @@ def test_rust_parser_diagnostic():
     print(f"File content length: {len(content)}")
 
     # Test parser
-    config = CodeConCatConfig(use_enhanced_parsers=True)
+    CodeConCatConfig(use_enhanced_parsers=True)
 
     try:
         # Try with enhanced parser

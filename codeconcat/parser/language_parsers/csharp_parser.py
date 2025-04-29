@@ -64,7 +64,6 @@ class CSharpParser(BaseParser):
         lines = content.split("\n")
         doc_buffer: List[str] = []
         in_multiline_comment = False
-        current_namespace = ""
 
         try:
             logger.debug(f"Starting CSharpParser.parse (Regex) for file: {file_path}")
@@ -106,7 +105,7 @@ class CSharpParser(BaseParser):
                 # Namespace
                 namespace_match = NAMESPACE_PATTERN.match(stripped_line)
                 if namespace_match:
-                    current_namespace = namespace_match.group(1)
+                    namespace_match.group(1)
                     # Optionally prepend namespace to subsequent declarations?
                     doc_buffer = []
                     continue

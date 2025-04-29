@@ -224,7 +224,6 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
             logger.warning(f"Failed to execute Julia doc_comments query: {e}", exc_info=False)
 
         # --- Pass 2: Extract Imports and Declarations --- #
-        current_module_path = []  # Track module context
         for query_name, query_str in queries.items():
             if query_name == "doc_comments":
                 continue

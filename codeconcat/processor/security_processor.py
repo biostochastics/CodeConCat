@@ -228,7 +228,6 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                 continue
 
             # Keep track if line was modified by masking
-            line_modified = False
             original_line_for_masking = line  # Store original line segment for sequential masking
 
             for rule_name, (
@@ -290,7 +289,6 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                             output_lines[idx] = cls._mask_sensitive_data(
                                 output_lines[idx], pattern, match
                             )
-                            line_modified = True  # Flag that this line in output_lines was changed
                         except Exception:
                             # Log error but continue; output_lines[idx] remains as it was
                             logger.warning(

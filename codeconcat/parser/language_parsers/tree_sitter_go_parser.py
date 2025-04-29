@@ -1,7 +1,7 @@
 # file: codeconcat/parser/language_parsers/tree_sitter_go_parser.py
 
 import logging
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Any
 
 from tree_sitter import Node
 
@@ -12,6 +12,19 @@ logger = logging.getLogger(__name__)
 
 # Define Tree-sitter queries for Go
 # Ref: https://github.com/tree-sitter/tree-sitter-go/blob/master/queries/tags.scm
+
+# Define valid declaration capture types for better maintainability
+DECLARATION_CAPTURE_TYPES = frozenset(
+    {
+        "function",
+        "method",
+        "type_struct_interface",
+        "type_alias",
+        "constant",
+        "variable",
+    }
+)
+
 GO_QUERIES = {
     "imports": """
         ; Standard imports
@@ -238,6 +251,21 @@ class TreeSitterGoParser(BaseTreeSitterParser):
         """Initializes the Go Tree-sitter parser."""
         super().__init__(language_name="go")
 
+    def _find_type_node(self, captures, node_id):
+        """Helper to find a type node by its ID in the captures list.
+
+        Args:
+            captures: List of (node, name) tuples from query captures
+            node_id: ID of the node to match
+
+        Returns:
+            The matching node with name 'type', or None if not found
+        """
+        for node, name in captures:
+            if node.id == node_id and name == "type":
+                return node
+        return None
+
     def get_queries(self) -> Dict[str, str]:
         """Returns the predefined Tree-sitter queries for Go."""
         return GO_QUERIES
@@ -247,10 +275,12 @@ class TreeSitterGoParser(BaseTreeSitterParser):
     ) -> tuple[List[Declaration], List[str]]:
         """Runs Go-specific queries and extracts declarations and imports."""
         queries = self.get_queries()
-        declarations = []
+        declarations: List[Declaration] = []
         imports: Set[str] = set()
-        declaration_map = {}  # node_id -> declaration info
-        doc_comment_map = {}  # end_line -> comment_text (list of lines)
+        # Dictionary mapping node IDs to declaration information
+        declaration_map: Dict[int, Dict[str, Any]] = {}  # node_id -> declaration info
+        # Dictionary mapping end line numbers to accumulated doc comment text
+        doc_comment_map: Dict[int, str] = {}  # end_line -> comment_text
 
         # --- Pass 1: Extract Doc Comments --- #
         # Go doc comments are consecutive line comments preceding a declaration
@@ -286,7 +316,7 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                 doc_comment_map[last_comment_line] = "\n".join(current_doc_block)
 
         except Exception as e:
-            logger.warning(f"Failed to execute Go doc_comments query: {e}", exc_info=False)
+            logger.warning(f"Failed to execute Go doc_comments query: {e}", exc_info=True)
 
         # --- Pass 2: Extract Imports and Declarations --- #
         for query_name, query_str in queries.items():
@@ -315,14 +345,7 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                         node_id = node.id
 
                         # Identify the main declaration node
-                        if capture_name in [
-                            "function",
-                            "method",
-                            "type_struct_interface",
-                            "type_alias",
-                            "constant",
-                            "variable",
-                        ]:
+                        if capture_name in DECLARATION_CAPTURE_TYPES:
                             current_decl_node_id = (
                                 node.parent.id
                             )  # Use parent ID for mapping spec to declaration
@@ -331,14 +354,8 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                                 # Determine specific kind if needed (e.g., struct vs interface)
                                 kind = capture_name
                                 if kind == "type_struct_interface":
-                                    type_node = next(
-                                        (
-                                            n
-                                            for n, name in captures
-                                            if n.id == node_id and name == "type"
-                                        ),
-                                        None,
-                                    )
+                                    # Helper function to find type node by ID
+                                    type_node = self._find_type_node(captures, node_id)
                                     kind = type_node.type if type_node else "type"
 
                                 declaration_map[current_decl_node_id] = {

@@ -113,10 +113,9 @@ class EnhancedGoParser(EnhancedBaseParser):
             i = 0
 
             # Find package name
-            package_name = ""
             for line in lines:
                 if line.strip().startswith("package "):
-                    package_name = line.strip()[8:].strip()
+                    line.strip()[8:].strip()
                     break
 
             while i < len(lines):

@@ -762,7 +762,6 @@ class EnhancedRustParser(EnhancedBaseParser):
         Returns:
             List of modifiers found in the line.
         """
-        found_modifiers = []
         # Split line into words and check each word directly instead of using regex
         # This is more efficient for large input
         words = set(re.findall(r"\b\w+\b", line))

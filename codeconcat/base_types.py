@@ -37,6 +37,30 @@ PROGRAMMING_QUOTES = [
 
 VALID_FORMATS = {"markdown", "json", "xml", "text"}
 
+# --- Content Segment and Compression Types ---
+
+
+class ContentSegmentType(Enum):
+    """Types of content segments for compression."""
+
+    CODE = "code"  # Kept code segment
+    OMITTED = "omitted"  # Omitted code segment (replaced with placeholder)
+    METADATA = "metadata"  # Metadata or summary segment
+
+
+@dataclass
+class ContentSegment:
+    """Represents a segment of code content for compression."""
+
+    segment_type: ContentSegmentType
+    content: str
+    start_line: int
+    end_line: int
+    metadata: Dict[str, Any] = field(
+        default_factory=dict
+    )  # For additional info like security issues
+
+
 # --- Security Related Enums and Types ---
 
 
@@ -478,6 +502,28 @@ class CodeConCatConfig(BaseModel):
     mask_output_content: bool = Field(
         False,
         description="Mask sensitive data directly in the final output content (if security scanning is enabled).",
+    )
+
+    # --- Compression Options ---
+    enable_compression: bool = Field(
+        False,
+        description="Enable content compression to reduce output size while preserving important segments.",
+    )
+    compression_level: str = Field(
+        "medium",
+        description="Compression intensity: 'low', 'medium', 'high', or 'aggressive'.",
+    )
+    compression_placeholder: str = Field(
+        "[...code omitted ({lines} lines, {issues} issues)...]",
+        description="Template for placeholder text replacing omitted segments.",
+    )
+    compression_keep_threshold: int = Field(
+        3,
+        description="Minimum lines to consider keeping a segment (smaller segments always kept).",
+    )
+    compression_keep_tags: List[str] = Field(
+        default_factory=lambda: ["important", "keep", "security"],
+        description="Special comment tags that mark segments to always keep despite compression.",
     )
 
     # --- Processing Options ---

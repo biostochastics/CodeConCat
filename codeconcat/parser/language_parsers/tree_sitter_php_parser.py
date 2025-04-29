@@ -313,7 +313,6 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
         doc_comment_map = {}  # end_line -> raw comment_text (list of lines)
 
         # Keep track of modifiers for declarations
-        modifier_map = {}
         current_namespace = ""
 
         # --- Pass 1: Extract Doc Comments --- #

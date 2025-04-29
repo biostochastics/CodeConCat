@@ -398,20 +398,17 @@ enum Status {
         assert "react" in result.imports
 
         # Find TypeScript-specific declarations
-        interface_decl = None
-        type_alias = None
         generic_class = None
-        enum_decl = None
 
         for decl in result.declarations:
             if decl.kind == "interface" and decl.name == "ConfigInterface":
-                interface_decl = decl
+                pass
             elif decl.kind == "type" and decl.name == "StringOrNumber":
-                type_alias = decl
+                pass
             elif decl.kind == "class" and decl.name == "GenericContainer":
                 generic_class = decl
             elif decl.kind == "enum" and decl.name == "Status":
-                enum_decl = decl
+                pass
 
         # Test TypeScript-specific declarations (some may be None if parser doesn't detect them)
         # Only assert on what is actually found

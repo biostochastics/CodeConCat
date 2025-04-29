@@ -158,7 +158,7 @@ def _clean_rust_doc_comment(comment_block: List[str]) -> str:
     """Cleans a block of Rust doc comment lines."""
     cleaned_lines = []
     is_block = comment_block[0].startswith("/**") if comment_block else False
-    is_inner_doc = (
+    (
         comment_block[0].startswith(("//!", "/*!")) if comment_block else False
     )  # //! applies to parent
 
@@ -255,7 +255,6 @@ class TreeSitterRustParser(BaseTreeSitterParser):
             logger.warning(f"Failed to execute Rust doc_comments query: {e}", exc_info=False)
 
         # --- Pass 2: Extract Imports and Declarations --- #
-        current_mod_path = []
         for query_name, query_str in queries.items():
             if query_name == "doc_comments":
                 continue
