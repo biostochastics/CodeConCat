@@ -1,28 +1,12 @@
 import re
 
 from codeconcat.base_types import Declaration, ParseResult
-from codeconcat.errors import LanguageParserError
-from codeconcat.parser.language_parsers.base_parser import BaseParser
+from codeconcat.parser.language_parsers.base_parser import ParserInterface
 
 
-def parse_php(file_path: str, content: str) -> ParseResult:
-    """Parse PHP code and return declarations."""
-    try:
-        parser = PhpParser()
-        parser.current_file_path = file_path  # Set the file path
-        # Call the updated parse method which returns ParseResult
-        parse_result = parser.parse(content)
-        return parse_result
-    except Exception as e:
-        # Wrap internal parser errors in LanguageParserError
-        raise LanguageParserError(
-            message=f"Failed to parse PHP file: {e}",
-            file_path=file_path,
-            original_exception=e,
-        )
+class PhpParser(ParserInterface):
+    """Parses PHP code using Regex."""
 
-
-class PhpParser(BaseParser):
     def __init__(self):
         """Initialize PHP parser with regex patterns."""
         super().__init__()
@@ -37,8 +21,7 @@ class PhpParser(BaseParser):
             ),
             "arrow_function": re.compile(r"^\$(?P<name>\w+)\s*=\s*fn\s*\([^)]*\)\s*=>"),
             "property": re.compile(
-                r"^(?:(?:public|private|protected|static|final|var)\s+)*"
-                r"\$(?P<name>\w+)"
+                r"^(?:(?:public|private|protected|static|final|var)\s+)*" r"\$(?P<name>\w+)"
             ),
         }
         # Patterns for imports and includes
@@ -51,7 +34,7 @@ class PhpParser(BaseParser):
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
 
-    def parse(self, content: str) -> ParseResult:
+    def parse(self, content: str, file_path: str) -> ParseResult:
         """Parse PHP code and return a ParseResult object."""
         declarations = []
         imports = []  # List to store imports/includes
@@ -68,9 +51,7 @@ class PhpParser(BaseParser):
                 continue
             # Skip multi-line comments (basic check)
             if line.startswith(self.block_comment_start):
-                while i < len(lines) and not lines[i].strip().endswith(
-                    self.block_comment_end
-                ):
+                while i < len(lines) and not lines[i].strip().endswith(self.block_comment_end):
                     i += 1
                 i += 1  # Move past the closing comment line
                 continue
@@ -147,11 +128,7 @@ class PhpParser(BaseParser):
                         elif kind == "arrow_function" and line.endswith(";"):
                             end_line = i  # Arrow functions are single line
                         # If no braces and not arrow func, assume single line (e.g., abstract method)
-                        elif (
-                            "{" not in line
-                            and kind != "arrow_function"
-                            and line.endswith(";")
-                        ):
+                        elif "{" not in line and kind != "arrow_function" and line.endswith(";"):
                             end_line = i
                     elif line.endswith(";"):  # Property or simple statement
                         end_line = i
@@ -178,9 +155,10 @@ class PhpParser(BaseParser):
             i += 1
 
         return ParseResult(
-            file_path=self.current_file_path,
+            file_path=file_path,
             language="php",
             content=content,
             declarations=declarations,
             imports=imports,
+            engine_used="regex",
         )

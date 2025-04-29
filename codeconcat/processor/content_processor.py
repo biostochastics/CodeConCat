@@ -120,13 +120,9 @@ def generate_file_summary(file_data: ParsedFileData, config: CodeConCatConfig) -
         for issue in sorted_issues:
             # Use severity.value if it's an Enum
             severity_val = (
-                issue.severity.value
-                if hasattr(issue.severity, "value")
-                else issue.severity
+                issue.severity.value if hasattr(issue.severity, "value") else issue.severity
             )
-            summary.append(
-                f"  - `{severity_val}` (Line {issue.line_number}): {issue.description}"
-            )
+            summary.append(f"  - `{severity_val}` (Line {issue.line_number}): {issue.description}")
             # Optionally include context if needed and available
             # if issue.context:
             #     summary.append(f"    Context: {issue.context}")

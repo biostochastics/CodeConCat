@@ -1,11 +1,11 @@
 # file: codeconcat/parser/language_parsers/base_parser.py
 
 import re
-from abc import ABC
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Pattern, Set
 
-from codeconcat.base_types import Declaration, ParseResult
+from codeconcat.base_types import Declaration, ParseResult, ParserInterface
 
 
 @dataclass
@@ -24,7 +24,7 @@ class CodeSymbol:
             self.children = []
 
 
-class BaseParser(ABC):
+class BaseParser(ParserInterface):
     """
     BaseParser defines a minimal interface and partial logic for line-based scanning
     and comment extraction. Subclasses typically override _setup_patterns() and parse().
@@ -44,117 +44,21 @@ class BaseParser(ABC):
         self.modifiers: Set[str] = set()
         # Use Unicode word character class \w to match Unicode identifiers
         self.identifier_pattern = re.compile(r"[\w\u0080-\uffff]+")
-        # Store the file path for use in ParseResult
-        self.current_file_path = file_path
 
-    def parse(self, content: str) -> ParseResult:
-        """Parse code content and return list of declarations."""
-        self.symbols = []
-        self.current_symbol = None
-        self.symbol_stack = []
+    @abstractmethod
+    def parse(self, content: str, file_path: str) -> ParseResult:
+        """Parse code content and return a ParseResult object.
 
-        # Track seen declarations to avoid duplicates
-        seen_declarations = set()  # (name, start_line, kind) tuples
+        Subclasses must implement this method.
 
-        lines = content.split("\n")
-        in_comment = False
-        comment_buffer = []
-        brace_count = 0
+        Args:
+            content: The code content as a string.
+            file_path: The path to the file being parsed.
 
-        for i, line in enumerate(lines):
-            stripped_line = line.strip()
-
-            # Handle block comments
-            if self.block_comment_start in line and not in_comment:
-                in_comment = True
-                comment_start = line.index(self.block_comment_start)
-                comment_buffer.append(
-                    line[comment_start + len(self.block_comment_start) :]
-                )
-                continue
-
-            if in_comment:
-                if self.block_comment_end in line:
-                    in_comment = False
-                    comment_end = line.index(self.block_comment_end)
-                    comment_buffer.append(line[:comment_end])
-                    comment_buffer = []
-                else:
-                    comment_buffer.append(line)
-                continue
-
-            # Skip line comments
-            if stripped_line.startswith(self.line_comment):
-                continue
-
-            # Basic brace tracking
-            if self.block_start is not None and self.block_end is not None:
-                brace_count += line.count(self.block_start) - line.count(self.block_end)
-
-            # Try to match patterns
-            for kind, pattern in self.patterns.items():
-                match = pattern.match(stripped_line)
-                if match:
-                    name = match.group("n")  # Use "n" instead of "name"
-                    if not name:
-                        continue
-
-                    # Check if we've seen this declaration before
-                    declaration_key = (name, i, kind)
-                    if declaration_key in seen_declarations:
-                        continue
-                    seen_declarations.add(declaration_key)
-
-                    # Find block end for block-based declarations
-                    end_line = i
-                    if kind in (
-                        "class",
-                        "function",
-                        "method",
-                        "interface",
-                        "struct",
-                        "enum",
-                    ):
-                        end_line = self._find_block_end(lines, i)
-
-                    # Extract docstring if present
-                    docstring = None
-                    if end_line > i:
-                        docstring = self.extract_docstring(lines, i, end_line)
-
-                    # Create new symbol
-                    symbol = CodeSymbol(
-                        name=name,
-                        kind=kind,
-                        start_line=i,
-                        end_line=end_line,
-                        modifiers=set(),
-                        docstring=docstring,
-                    )
-
-                    # Handle symbol hierarchy
-                    if self.current_symbol:
-                        symbol.parent = self.current_symbol
-                        self.current_symbol.children.append(symbol)
-                    else:
-                        self.symbols.append(symbol)
-
-                    # Update current symbol for nested declarations
-                    if kind in ("class", "interface", "struct"):
-                        self.symbol_stack.append(self.current_symbol)
-                        self.current_symbol = symbol
-
-            # Handle end of block
-            if self.current_symbol and brace_count == 0:
-                self.current_symbol = (
-                    self.symbol_stack.pop() if self.symbol_stack else None
-                )
-
-        # Convert symbols to tuples
-        declarations = []
-        for symbol in self.symbols:
-            declarations.extend(self._flatten_symbol(symbol))
-        return declarations
+        Returns:
+            A ParseResult object.
+        """
+        raise NotImplementedError("Subclasses must implement the parse method.")
 
     def _flatten_symbol(self, symbol: CodeSymbol) -> List[Declaration]:
         """Flatten a symbol and its children into a list of declaration tuples."""
@@ -186,9 +90,7 @@ class BaseParser(ABC):
 
         return len(lines) - 1
 
-    def _create_pattern(
-        self, base_pattern: str, modifiers: Optional[List[str]] = None
-    ) -> Pattern:
+    def _create_pattern(self, base_pattern: str, modifiers: Optional[List[str]] = None) -> Pattern:
         if modifiers:
             modifier_pattern = f"(?:{'|'.join(modifiers)})\\s+"
             return re.compile(f"^\\s*(?:{modifier_pattern})?{base_pattern}")

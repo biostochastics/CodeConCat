@@ -1,235 +1,208 @@
 """C# code parser for CodeConcat."""
 
+import logging
 import re
-from typing import List, Optional
+from typing import List, Set
 
-from codeconcat.errors import LanguageParserError
-from codeconcat.parser.language_parsers.base_parser import (
-    BaseParser,
-    Declaration,
-    ParseResult,
+from ...base_types import Declaration, ParseResult
+from ...errors import LanguageParserError
+from .base_parser import BaseParser
+
+logger = logging.getLogger(__name__)
+
+# Simple Regex patterns for C# constructs (can be improved)
+# Note: Regex is limited for complex C# syntax (generics, attributes, etc.)
+NAMESPACE_PATTERN = re.compile(r"^\s*namespace\s+([\w\.]+)")
+USING_PATTERN = re.compile(r"^\s*using\s+([\w\.]+);")
+CLASS_INTERFACE_ENUM_PATTERN = re.compile(
+    r"^\s*(?:public|private|protected|internal|static|abstract|sealed)?\s*"
+    r"(?:partial\s+)?"
+    r"(?P<kind>class|interface|struct|enum)\s+(?P<name>[\w<>\?,\s]+)"
+    # Handle inheritance, interfaces, constraints : ...
+    r"(?:\s*:\s*[\w\.<>\?,\s]+)?\s*\{?"
 )
+METHOD_CONSTRUCTOR_PATTERN = re.compile(
+    r"^\s*(?:public|private|protected|internal|static|virtual|override|abstract|async|unsafe)?\s*"
+    # Return type or constructor name
+    r"(?:[\w\.<>\[\]\?]+\s+)?"
+    # Method/Constructor name
+    r"(?P<name>[\w~<>]+)"
+    # Parameters
+    r"\s*\(.*\)"
+    # Constraints or body start
+    r"(?:\s*where\s.*)?\s*\{?"
+)
+PROPERTY_FIELD_PATTERN = re.compile(
+    r"^\s*(?:public|private|protected|internal|static|readonly|const|volatile)?\s*"
+    # Type
+    r"[\w\.<>\[\]\?]+\s+"
+    # Name
+    r"(?P<name>\w+)"
+    # Body start, getter/setter, or semicolon
+    r"\s*(?:\{|;|=>|=)"
+)
+DOC_COMMENT_PATTERN = re.compile(r"^\s*///\s?(.*)")
 
 
-def parse_csharp_code(file_path: str, content: str) -> ParseResult:
-    """Parse C# code and return declarations."""
-    parser = CSharpParser()
-    try:
-        declarations = parser.parse(content)
-    except Exception as e:
-        # Wrap internal parser errors in LanguageParserError
-        raise LanguageParserError(
-            message=f"Failed to parse C# file: {e}",
-            file_path=file_path,
-            original_exception=e,
-        )
-    return ParseResult(
-        file_path=file_path,
-        language="csharp",
-        content=content,
-        declarations=declarations,
-    )
-
-
+# Inherit from BaseParser
 class CSharpParser(BaseParser):
-    """Parser for C# code."""
+    """Parses C# code using Regex."""
 
-    def __init__(self):
-        """Initialize the parser."""
-        super().__init__()
-        self._setup_patterns()
+    # Update signature to match ParserInterface
+    def parse(self, content: str, file_path: str) -> ParseResult:
+        """Parses the given C# code content.
 
-    def _setup_patterns(self):
-        """Set up C#-specific patterns."""
-        modifiers = r"(?:public|private|protected|internal)?\s*"
-        class_modifiers = r"(?:static|abstract|sealed)?\s*"
-        method_modifiers = r"(?:static|virtual|abstract|override)?\s*"
-        type_pattern = r"(?:[a-zA-Z_][a-zA-Z0-9_<>]*\s+)+"
+        Args:
+            content: The C# code as a string.
+            file_path: The path to the file being parsed.
 
-        self.patterns = {
-            "class": re.compile(
-                r"^\s*"
-                + modifiers
-                + class_modifiers  # Access and class modifiers
-                + r"class\s+"  # class keyword
-                + r"(?P<class_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Class name
-            ),
-            "interface": re.compile(
-                r"^\s*"
-                + modifiers  # Access modifiers
-                + r"interface\s+"  # interface keyword
-                + r"(?P<interface_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Interface name
-            ),
-            "method": re.compile(
-                r"^\s*"
-                + modifiers
-                + method_modifiers  # Access and method modifiers
-                + r"(?:async\s+)?"  # Optional async
-                + type_pattern  # Return type
-                + r"(?P<method_name>[a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)"  # Method name and args
-            ),
-            "property": re.compile(
-                r"^\s*"
-                + modifiers
-                + method_modifiers  # Access and property modifiers
-                + type_pattern  # Property type
-                + r"(?P<property_name>[a-zA-Z_][a-zA-Z0-9_]*)\s*{\s*(?:get|set)"  # Property name
-            ),
-            "enum": re.compile(
-                r"^\s*"
-                + modifiers  # Access modifiers
-                + r"enum\s+"  # enum keyword
-                + r"(?P<enum_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Enum name
-            ),
-            "struct": re.compile(
-                r"^\s*"
-                + modifiers  # Access modifiers
-                + r"struct\s+"  # struct keyword
-                + r"(?P<struct_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Struct name
-            ),
-            "delegate": re.compile(
-                r"^\s*"
-                + modifiers  # Access modifiers
-                + r"delegate\s+"  # delegate keyword
-                + type_pattern  # Return type
-                + r"(?P<delegate_name>[a-zA-Z_][a-zA-Z0-9_]*)\s*\("  # Delegate name
-            ),
-            "event": re.compile(
-                r"^\s*"
-                + modifiers  # Access modifiers
-                + r"event\s+"  # event keyword
-                + type_pattern  # Event type
-                + r"(?P<event_name>[a-zA-Z_][a-zA-Z0-9_]*)"  # Event name
-            ),
-            "namespace": re.compile(
-                r"^\s*namespace\s+"  # namespace keyword
-                + r"(?P<namespace_name>[a-zA-Z_][a-zA-Z0-9_.]*)"  # Namespace name
-            ),
-        }
-
-    def _extract_name(self, match: re.Match, kind: str, line: str) -> Optional[str]:
-        """Extract name from regex match."""
-        if kind == "class":
-            return match.group("class_name")
-        elif kind == "interface":
-            return match.group("interface_name")
-        elif kind == "method":
-            return match.group("method_name")
-        elif kind == "property":
-            return match.group("property_name")
-        elif kind == "enum":
-            return match.group("enum_name")
-        elif kind == "struct":
-            return match.group("struct_name")
-        elif kind == "delegate":
-            return match.group("delegate_name")
-        elif kind == "event":
-            return match.group("event_name")
-        elif kind == "namespace":
-            return match.group("namespace_name")
-        return None
-
-    def parse(self, content: str) -> List[Declaration]:
-        """Parse C# code to identify classes, methods, properties, and other constructs."""
+        Returns:
+            A ParseResult object containing declarations and imports (usings).
+        """
+        declarations = []
+        imports: Set[str] = set()  # Using directives
         lines = content.split("\n")
-        symbols: List[Declaration] = []
-        i = 0
+        doc_buffer: List[str] = []
+        in_multiline_comment = False
 
-        in_block = False
-        block_start = 0
-        block_name = ""
-        block_kind = ""
-        brace_count = 0
-        in_comment = False
-        in_attribute = False
+        try:
+            logger.debug(f"Starting CSharpParser.parse (Regex) for file: {file_path}")
+            for i, line in enumerate(lines):
+                stripped_line = line.strip()
 
-        while i < len(lines):
-            line = lines[i].strip()
+                # Handle block comments /* ... */
+                if in_multiline_comment:
+                    if "*/" in stripped_line:
+                        in_multiline_comment = False
+                        stripped_line = stripped_line.split("*/", 1)[1].strip()
+                    else:
+                        continue
+                if stripped_line.startswith("/*") and "*/" not in stripped_line:
+                    in_multiline_comment = True
+                    doc_buffer = []  # Block comments clear doc buffer
+                    continue
+                elif stripped_line.startswith("//") and not stripped_line.startswith("///"):
+                    doc_buffer = []  # Regular line comments clear doc buffer
+                    continue  # Skip regular comments
 
-            # Handle multi-line comments
-            if "/*" in line:
-                in_comment = True
-            if "*/" in line:
-                in_comment = False
-                i += 1
-                continue
-            if in_comment or line.strip().startswith("//"):
-                i += 1
-                continue
+                # Handle doc comments ///
+                doc_match = DOC_COMMENT_PATTERN.match(line)
+                if doc_match:
+                    # Allow multi-line doc comments by checking previous line
+                    if i > 0 and DOC_COMMENT_PATTERN.match(lines[i - 1].strip()):
+                        doc_buffer.append(doc_match.group(1))
+                    else:
+                        doc_buffer = [doc_match.group(1)]  # Start new buffer
+                    continue  # Don't process doc comment lines further
 
-            # Handle attributes
-            if line.strip().startswith("["):
-                in_attribute = True
-            if in_attribute:
-                if "]" in line:
-                    in_attribute = False
-                i += 1
-                continue
+                # Using directives (Imports)
+                using_match = USING_PATTERN.match(stripped_line)
+                if using_match:
+                    imports.add(using_match.group(1))
+                    doc_buffer = []  # Clear doc buffer after using
+                    continue
 
-            # Track braces and blocks
-            if not in_block:
-                for kind, pattern in self.patterns.items():
-                    match = pattern.match(line)
-                    if match:
-                        block_name = self._extract_name(match, kind, line)
-                        if not block_name:
-                            continue
+                # Namespace
+                namespace_match = NAMESPACE_PATTERN.match(stripped_line)
+                if namespace_match:
+                    namespace_match.group(1)
+                    # Optionally prepend namespace to subsequent declarations?
+                    doc_buffer = []
+                    continue
 
-                        block_start = i
-                        block_kind = kind
-                        in_block = True
-                        brace_count = line.count("{") - line.count("}")
+                # Class/Interface/Struct/Enum
+                cie_match = CLASS_INTERFACE_ENUM_PATTERN.match(stripped_line)
+                if cie_match:
+                    kind = cie_match.group("kind")
+                    name = cie_match.group("name").strip()  # Clean up potential generics noise
+                    # Remove generics part for simpler name matching if needed
+                    # name = re.sub(r'<.*>', '', name)
+                    docstring = self._format_docstring(doc_buffer)
+                    declarations.append(
+                        Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )  # Placeholder end_line
+                    doc_buffer = []
+                    continue
 
-                        # Handle one-line definitions
-                        if ";" in line:
-                            symbols.append(
-                                Declaration(
-                                    block_kind,
-                                    block_name,
-                                    i + 1,
-                                    i + 1,
-                                )
-                            )
-                            in_block = False
-                            break
-                        elif brace_count == 0:
-                            # Look ahead for opening brace or semicolon
-                            j = i + 1
-                            while j < len(lines) and not in_block:
-                                next_line = lines[j].strip()
-                                if next_line and not next_line.startswith("//"):
-                                    if "{" in next_line:
-                                        in_block = True
-                                        brace_count = 1
-                                    elif ";" in next_line:
-                                        symbols.append(
-                                            Declaration(
-                                                block_kind,
-                                                block_name,
-                                                i + 1,
-                                                j + 1,
-                                            )
-                                        )
-                                        in_block = False
-                                        i = j
-                                        break
-                                j += 1
-                            break
-            else:
-                brace_count += line.count("{") - line.count("}")
+                # Method/Constructor
+                mc_match = METHOD_CONSTRUCTOR_PATTERN.match(stripped_line)
+                if mc_match:
+                    name = mc_match.group("name")
+                    kind = (
+                        "method"
+                        if name and not name.startswith("~") and "." not in name
+                        else "constructor"
+                    )  # Basic heuristic
+                    # Heuristic to exclude explicit interface implementations for now
+                    if "." in name:
+                        continue
+                    docstring = self._format_docstring(doc_buffer)
+                    declarations.append(
+                        Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )  # Placeholder end_line
+                    doc_buffer = []
+                    continue
 
-            # Check if block ends
-            if in_block and brace_count == 0 and ("}" in line or ";" in line):
-                symbols.append(
-                    Declaration(
-                        block_kind,
-                        block_name,
-                        block_start + 1,
-                        i + 1,
-                    )
-                )
-                in_block = False
+                # Property/Field (Basic)
+                pf_match = PROPERTY_FIELD_PATTERN.match(stripped_line)
+                if pf_match:
+                    name = pf_match.group("name")
+                    kind = "property/field"  # Cannot easily distinguish with simple regex
+                    docstring = self._format_docstring(doc_buffer)
+                    declarations.append(
+                        Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )  # Placeholder end_line
+                    doc_buffer = []
+                    continue
 
-            i += 1
+                # If line wasn't comment, import, or declaration, clear doc buffer
+                if stripped_line:
+                    doc_buffer = []
 
-        return symbols
+            logger.debug(
+                f"Finished CSharpParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} usings."
+            )
+            return ParseResult(
+                file_path=file_path,
+                language="csharp",
+                content=content,
+                declarations=declarations,
+                imports=sorted(list(imports)),  # Usings are treated as imports
+                engine_used="regex",
+                token_stats=None,
+                security_issues=[],
+            )
+
+        except Exception as e:
+            logger.error(f"Error parsing C# file {file_path} with Regex: {e}", exc_info=True)
+            raise LanguageParserError(
+                message=f"Failed to parse C# file ({type(e).__name__}) using Regex: {e}",
+                file_path=file_path,
+                original_exception=e,
+            )
+
+    def _format_docstring(self, doc_buffer: List[str]) -> str:
+        """Formats the collected /// comments, potentially stripping XML tags."""
+        # Basic implementation: join lines. Could add XML stripping later.
+        return "\n".join(doc_buffer).strip()

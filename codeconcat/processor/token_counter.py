@@ -1,20 +1,11 @@
 """Token counting functionality using tiktoken."""
 
-from dataclasses import dataclass
 from typing import Dict
 
 import tiktoken
 from transformers import GPT2TokenizerFast
 
-
-@dataclass
-class TokenStats:
-    """Token statistics for a file."""
-
-    gpt3_tokens: int
-    gpt4_tokens: int
-    davinci_tokens: int
-    claude_tokens: int
+from ..base_types import TokenStats
 
 
 # Cache for encoders to avoid recreating them

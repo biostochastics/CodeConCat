@@ -1,0 +1,13 @@
+{
+  "basic.jl": {
+    "declaration_count": 1,
+    "declarations": [
+      "TestModule"
+    ],
+    "declarations_with_docstrings": [
+      "TestModule"
+    ],
+    "import_count": 0,
+    "imports": []
+  }
+}

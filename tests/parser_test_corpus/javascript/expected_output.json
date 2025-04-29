@@ -1,0 +1,26 @@
+{
+  "basic.js": {
+    "declaration_count": 10,
+    "declarations": [
+      "fs",
+      "path",
+      "SimpleClass",
+      "standaloneFunction",
+      "square",
+      "transformObject",
+      "PI",
+      "outerFunction",
+      "ChildClass",
+      "if"
+    ],
+    "declarations_with_docstrings": [
+      "SimpleClass",
+      "standaloneFunction",
+      "transformObject",
+      "outerFunction",
+      "ChildClass"
+    ],
+    "import_count": 0,
+    "imports": []
+  }
+}

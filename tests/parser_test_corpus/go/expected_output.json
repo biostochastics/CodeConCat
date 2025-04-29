@@ -1,0 +1,50 @@
+{
+  "basic.go": {
+    "declaration_count": 17,
+    "declarations": [
+      "Person",
+      "NewPerson",
+      "Greet",
+      "SetAddress",
+      "Employee",
+      "NewEmployee",
+      "GiveRaise",
+      "WorkInfo",
+      "String",
+      "Processor",
+      "SimpleProcessor",
+      "Process",
+      "GetStats",
+      "calculateStats",
+      "FileExists",
+      "divide",
+      "main"
+    ],
+    "declarations_with_docstrings": [
+      "Person",
+      "NewPerson",
+      "Greet",
+      "SetAddress",
+      "Employee",
+      "NewEmployee",
+      "GiveRaise",
+      "WorkInfo",
+      "String",
+      "Processor",
+      "SimpleProcessor",
+      "Process",
+      "GetStats",
+      "calculateStats",
+      "FileExists",
+      "divide"
+    ],
+    "import_count": 5,
+    "imports": [
+      "os",
+      "filepath",
+      "time",
+      "fmt",
+      "strconv"
+    ]
+  }
+}

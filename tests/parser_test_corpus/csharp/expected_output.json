@@ -1,0 +1,17 @@
+{
+  "basic.cs": {
+    "declaration_count": 1,
+    "declarations": [
+      "TestNamespace"
+    ],
+    "declarations_with_docstrings": [],
+    "import_count": 5,
+    "imports": [
+      "System.Threading.Tasks",
+      "System.IO",
+      "System.Linq",
+      "System",
+      "System.Collections.Generic"
+    ]
+  }
+}

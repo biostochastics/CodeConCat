@@ -1,7 +1,6 @@
 import logging
 import os
-from typing import Any, Dict
-
+from typing import Any, Dict, Optional
 import yaml
 from pydantic import ValidationError
 
@@ -33,6 +32,11 @@ DEFAULT_EXCLUDE_PATTERNS = [
     # OS specific
     ".DS_Store",
     "Thumbs.db",
+    # Test directories
+    "tests",
+    "test",
+    "**/tests",
+    "**/test",
 ]
 
 # Define settings for each output preset
@@ -82,7 +86,9 @@ PRESET_CONFIGS = {
 }
 
 
-def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
+def load_config(
+    cli_args: Dict[str, Any], config_path_override: Optional[str] = None
+) -> CodeConCatConfig:
     """
     Loads, merges, and validates the CodeConCat configuration.
 
@@ -95,7 +101,8 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
     1.  Default settings defined within the `CodeConCatConfig` Pydantic model.
     2.  Preset settings selected via `output_preset` (defaults to 'medium').
         Presets (`PRESET_CONFIGS`) define common combinations of output options.
-    3.  Settings loaded from a `.codeconcat.yml` file found in the target directory.
+    3.  Settings loaded from a config file (`.codeconcat.yml` by default, or specified
+        via `config_path_override`).
     4.  Settings explicitly provided via command-line arguments (`cli_args`).
 
     Special Handling:
@@ -110,16 +117,64 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
         cli_args: A dictionary representing the command-line arguments provided
                   by the user, typically parsed by `argparse`. Only non-default
                   values should ideally be passed to respect precedence.
+        config_path_override: An optional path to a specific configuration file.
+                              If provided, this path is used directly. Otherwise,
+                              the function searches for '.codeconcat.yml' relative
+                              to the target_path.
 
     Returns:
         A validated `CodeConCatConfig` object containing the merged configuration.
 
     Raises:
         ValidationError: If the final merged configuration fails Pydantic validation.
-        FileNotFoundError: If the specified `.codeconcat.yml` exists but cannot be read.
-        yaml.YAMLError: If the `.codeconcat.yml` file is malformed.
+        FileNotFoundError: If the specified config file (`config_path_override` or
+                         the default '.codeconcat.yml') does not exist or cannot be read.
+        yaml.YAMLError: If the config file is malformed.
         Exception: For other unexpected errors during loading or processing.
     """
+    # --- Determine Config File Path --- #
+    yaml_config_raw = {}
+    actual_config_path: Optional[str] = None
+
+    if config_path_override:
+        if os.path.isfile(config_path_override):
+            actual_config_path = os.path.abspath(config_path_override)
+            logging.info(f"Using specified config file: {actual_config_path}")
+        else:
+            # Raise specific error if override path doesn't exist
+            raise FileNotFoundError(f"Specified config file not found: {config_path_override}")
+    else:
+        # Fallback to searching near target_path
+        config_search_path = cli_args.get("target_path", ".")
+        default_config_filename = ".codeconcat.yml"
+        potential_config_path = os.path.join(config_search_path, default_config_filename)
+        if os.path.isfile(potential_config_path):
+            actual_config_path = os.path.abspath(potential_config_path)
+            logging.info(f"Found config file: {actual_config_path}")
+        else:
+            logging.info("No '.codeconcat.yml' found in target directory, using defaults/CLI args.")
+
+    # --- Load YAML Config (if path was determined) --- #
+    if actual_config_path:
+        try:
+            with open(actual_config_path, "r", encoding="utf-8") as f:
+                loaded_yaml = yaml.safe_load(f)
+                if isinstance(loaded_yaml, dict):
+                    yaml_config_raw = loaded_yaml
+                elif loaded_yaml is not None:  # Handle empty or non-dict YAML
+                    logging.warning(
+                        f"Config file '{actual_config_path}' does not contain a valid dictionary."
+                    )
+        except yaml.YAMLError as e:
+            logging.error(f"Error parsing YAML config file '{actual_config_path}': {e}")
+            raise  # Re-raise YAML error
+        except Exception as e:
+            # Catch other potential errors like permission issues
+            logging.error(f"Error reading config file '{actual_config_path}': {e}")
+            raise FileNotFoundError(f"Could not read config file: {actual_config_path}") from e
+
+    # --- Determine Preset --- #
+    # (Logic remains largely the same, using yaml_config_raw)
     # 1. Determine the preset (CLI > YAML > default 'medium')
     # Start by checking CLI args if 'output_preset' was provided *explicitly*
     # We need a way to distinguish between default values from argparse and user-provided ones.
@@ -128,34 +183,15 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
     # Otherwise, check YAML, then fall back to the Pydantic model default ('medium').
 
     # Temporarily load YAML just to check for 'output_preset'
-    yaml_config_raw = {}
-    config_search_path = cli_args.get("target_path", ".")
-    config_path = os.path.join(config_search_path, ".codeconcat.yml")
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                loaded_yaml = yaml.safe_load(f)
-                if isinstance(loaded_yaml, dict):
-                    yaml_config_raw = loaded_yaml
-        except Exception as e:
-            logging.warning(
-                f"Could not load or parse .codeconcat.yml for preset check: {e}"
-            )
-
-    # Determine the effective preset name
     cli_preset = cli_args.get("output_preset")
     yaml_preset = yaml_config_raw.get("output_preset")
 
     # Validate presets found
     if cli_preset and cli_preset not in PRESET_CONFIGS:
-        logging.warning(
-            f"Invalid output_preset '{cli_preset}' from CLI. Using default."
-        )
+        logging.warning(f"Invalid output_preset '{cli_preset}' from CLI. Using default.")
         cli_preset = None
     if yaml_preset and yaml_preset not in PRESET_CONFIGS:
-        logging.warning(
-            f"Invalid output_preset '{yaml_preset}' from YAML. Using default."
-        )
+        logging.warning(f"Invalid output_preset '{yaml_preset}' from YAML. Using default.")
         yaml_preset = None
 
     effective_preset_name = (
@@ -164,9 +200,7 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
     logging.debug(f"Using effective output preset: '{effective_preset_name}'")
 
     # 2. Get base config from the chosen preset
-    base_config_dict = PRESET_CONFIGS.get(
-        effective_preset_name, PRESET_CONFIGS["medium"]
-    )
+    base_config_dict = PRESET_CONFIGS.get(effective_preset_name, PRESET_CONFIGS["medium"])
 
     # Create an initial config object using Pydantic defaults + preset settings
     # Start with an empty dict and update with Pydantic defaults, then preset.
@@ -181,116 +215,79 @@ def load_config(cli_args: Dict[str, Any]) -> CodeConCatConfig:
             if key != "output_preset":  # Don't overwrite the already determined preset
                 config_after_yaml[key] = value
         else:
-            logging.warning(
-                f"Ignoring unknown configuration key '{key}' from .codeconcat.yml"
-            )
+            logging.warning(f"Ignoring unknown configuration key '{key}' from .codeconcat.yml")
 
     # 4. Layer Explicit CLI args on top
-    # Assume cli_args contains only explicitly provided args (needs careful handling in main.py)
-    final_config_dict = config_after_yaml.copy()
+    # Assume cli_args contains only explicitly provided values or None/defaults that should override
+    config_after_cli = config_after_yaml.copy()
+    for key, value in cli_args.items():
+        # Only update if the CLI arg was actually provided (not None or default value, difficult to tell perfectly with argparse)
+        # A common pattern is to check if the value is not None, assuming defaults are None or specific flags are used.
+        # We also need to handle the 'verbose' count specifically.
+        if value is not None and key in CodeConCatConfig.model_fields:
+            if key == "verbose":
+                # Convert integer count to boolean
+                config_after_cli[key] = value > 0
+            elif key == "debug" and value is True:
+                # Handle deprecated --debug flag, equivalent to verbose > 1
+                config_after_cli["verbose"] = True  # Set verbose to True if debug is set
+            elif key == "target_path":
+                # Ensure target_path is absolute before validation
+                config_after_cli[key] = os.path.abspath(value) if value else os.path.abspath(".")
+            elif key != "config":  # Don't store the config file path itself in the config object
+                config_after_cli[key] = value
+        elif key not in CodeConCatConfig.model_fields and key not in [
+            "config",
+            "log_level",
+        ]:  # Ignore keys not in the model, except special CLI ones
+            # Log ignored CLI args if needed, but might be noisy
+            # logger.debug(f"Ignoring CLI argument '{key}' not in config model.")
+            pass
 
-    # Map CLI arg names to CodeConCatConfig field names if they differ
-    # (Simplified mapping assuming names match for now, adjust if needed)
-    cli_key_to_config_key_map = {f: f for f in CodeConCatConfig.model_fields}
-    # Add specific mappings if CLI names differ from model names, e.g.:
-    cli_key_to_config_key_map["github"] = "github_url"
-    cli_key_to_config_key_map["ref"] = "github_ref"
-    cli_key_to_config_key_map["docs"] = "extract_docs"  # Map --docs to extract_docs
-    cli_key_to_config_key_map["no_tree"] = "disable_tree"
-    cli_key_to_config_key_map["no_ai_context"] = "disable_ai_context"
-    cli_key_to_config_key_map["no_annotations"] = "disable_annotations"
-    cli_key_to_config_key_map["no_symbols"] = "disable_symbols"
-    cli_key_to_config_key_map["no_copy"] = "disable_copy"
-    cli_key_to_config_key_map["no_progress_bar"] = "disable_progress_bar"
-    # Add mappings for the *new* fine-grained flags if their CLI names differ
-    # Assuming CLI uses --include-repo-overview etc. matching the model fields
+    # --- Final Processing & Validation --- #
+    final_config_dict = config_after_cli
 
-    for cli_key, value in cli_args.items():
-        # Important: Only apply if the value was explicitly provided
-        # This check might need refinement based on how cli_args is populated
-        if value is not None:  # Basic check, might need adjustment for False flags
-            config_key = cli_key_to_config_key_map.get(cli_key)
-            if config_key:
-                if config_key != "output_preset":  # Don't overwrite preset itself
-                    # Special handling for list fields if needed (e.g., ensuring they are lists)
-                    if isinstance(
-                        final_config_dict.get(config_key), list
-                    ) and not isinstance(value, list):
-                        # Handle case where CLI provides single string for list field (if applicable)
-                        final_config_dict[config_key] = [value]
-                    else:
-                        final_config_dict[config_key] = value
-            # else: # Optional: Warn about unmapped CLI args passed to load_config
-            #    logging.warning(f"CLI argument '{cli_key}' ignored (not mapped or None).")
+    # Ensure target_path is absolute if not set by CLI
+    if "target_path" not in final_config_dict or not final_config_dict["target_path"]:
+        final_config_dict["target_path"] = os.path.abspath(".")
+    elif not os.path.isabs(final_config_dict["target_path"]):
+        final_config_dict["target_path"] = os.path.abspath(final_config_dict["target_path"])
 
-    # 5. Handle special merging logic (exclude_paths, github includes)
-    # Ensure include/exclude paths are lists, default if needed
-    if not isinstance(final_config_dict.get("include_paths"), list):
-        final_config_dict["include_paths"] = []
-    if not isinstance(final_config_dict.get("exclude_paths"), list):
-        final_config_dict["exclude_paths"] = []
+    # Set default output path based on format if not provided
+    if not final_config_dict.get("output"):
+        output_format = final_config_dict.get(
+            "format", "markdown"
+        )  # Default to markdown if format missing
+        final_config_dict["output"] = f"code_concat_output.{output_format}"
 
-    # GitHub default include logic
-    is_github_run = final_config_dict.get("github_url") is not None
-    cli_provided_include_paths = (
-        cli_args.get("include_paths") is not None
-    )  # Check if *CLI* set it
+    # Handle default excludes
+    # Combine default and user excludes carefully
+    user_excludes = final_config_dict.get("exclude_paths") or []
+    default_excludes = []
+    # Check the boolean flag which should now be correctly set (True/False)
+    if final_config_dict.get("use_default_excludes", True):
+        default_excludes = DEFAULT_EXCLUDE_PATTERNS
+    final_config_dict["exclude_paths"] = list(set(default_excludes + user_excludes))
 
-    if is_github_run and not cli_provided_include_paths:
-        github_default_includes = ["**/*", "LICENSE*", "README*"]
-        if final_config_dict.get("include_paths") != github_default_includes:
-            final_config_dict["include_paths"] = github_default_includes
-            logging.debug(
-                "GitHub run detected without explicit CLI --include-paths. "
-                f"Forcing include_paths to default: {github_default_includes}"
-            )
+    # Handle GitHub default includes (only if source_url is present and include_paths not explicitly set)
+    if final_config_dict.get("source_url") and not cli_args.get("include_paths"):
+        # Use GITHUB_DEFAULT_INCLUDE_PATHS if include_paths is None or empty in the final dict
+        if not final_config_dict.get("include_paths"):
+            final_config_dict["include_paths"] = ["**/*", "LICENSE*", "README*"]
+            logging.debug("Using default include paths for GitHub source.")
 
-    # Exclude path merging: Combine DEFAULT_EXCLUDE_PATTERNS with user paths
-    user_excludes = final_config_dict.get("exclude_paths", [])
-    # Ensure all user excludes are strings and filter out empty ones
-    user_excludes = [str(p) for p in user_excludes if p]
-    final_excludes = list(set(DEFAULT_EXCLUDE_PATTERNS + user_excludes))
-    final_config_dict["exclude_paths"] = final_excludes
+    # TODO: Add more robust handling for merging list fields like include/exclude languages
 
-    # Ensure target_path is set, default to '.' if somehow missing
-    if not final_config_dict.get("target_path"):
-        final_config_dict["target_path"] = "."
-
-    # 6. Validate the final merged configuration and return
     try:
-        # Perform final type adjustments if needed (e.g., max_workers to int)
-        if "max_workers" in final_config_dict:
-            try:
-                final_config_dict["max_workers"] = int(final_config_dict["max_workers"])
-            except (ValueError, TypeError):
-                logging.warning(
-                    f"Invalid max_workers value '{final_config_dict['max_workers']}', using default 4."
-                )
-                final_config_dict["max_workers"] = 4  # Use a hardcoded default
-
-        # Adjust output filename based on format if not explicitly set
-        if "output" not in yaml_config_raw and "output" not in cli_args:
-            final_format = final_config_dict.get("format", "markdown")
-            final_config_dict["output"] = f"code_concat_output.{final_format}"
-
-        logging.debug(
-            f"Final configuration dict before validation: {final_config_dict}"
-        )
-        return CodeConCatConfig(**final_config_dict)
-
+        # Validate the final dictionary using the Pydantic model
+        logging.debug(f"Final config dict before validation: {final_config_dict}")
+        validated_config = CodeConCatConfig(**final_config_dict)
+        logging.debug(f"Validated Config: {validated_config}")
+        return validated_config
     except ValidationError as e:
-        logging.error("Configuration validation failed:")
-        # Provide more detailed error context
-        error_details = e.errors()
-        for error in error_details:
-            field = ".".join(map(str, error["loc"]))
-            msg = error["msg"]
-            logging.error(f"  Field '{field}': {msg}")
-        logging.debug(f"Failed configuration data: {final_config_dict}")
-        raise
-    except Exception as e:
-        logging.error(f"An unexpected error occurred during configuration loading: {e}")
-        logging.debug(f"Configuration data at time of error: {final_config_dict}")
+        logging.error(f"Configuration validation failed: {e}")
+        # Optionally print more details about the failed config
+        # logger.error(f"Failed config data: {final_config_dict}")
         raise
 
 
