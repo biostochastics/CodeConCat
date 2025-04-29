@@ -997,18 +997,58 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         try:
             from codeconcat.processor.token_counter import get_token_stats
 
-            total_gpt4 = total_davinci = total_claude = 0
+            # Calculate tokens for uncompressed content
+            total_gpt4_uncompressed = total_davinci_uncompressed = total_claude_uncompressed = 0
             for pf in parsed_files:
                 stats = get_token_stats(pf.content)
-                total_gpt4 += stats.gpt4_tokens
-                total_davinci += stats.davinci_tokens
-                total_claude += stats.claude_tokens
-            print("\n[Token Summary] Total tokens for all parsed files:")
-            print(f"  Claude:   {total_claude}")
-            print(f"  GPT-4:    {total_gpt4}")
-            print(f"  Davinci:  {total_davinci}")
+                total_gpt4_uncompressed += stats.gpt4_tokens
+                total_davinci_uncompressed += stats.davinci_tokens
+                total_claude_uncompressed += stats.claude_tokens
+
+            print("\n[Token Summary] Total tokens for all parsed files (UNCOMPRESSED):")
+            print(f"  Claude:   {total_claude_uncompressed}")
+            print(f"  GPT-4:    {total_gpt4_uncompressed}")
+            print(f"  Davinci:  {total_davinci_uncompressed}")
+
+            # If compression was enabled, also show compressed tokens for comparison
+            if config.enable_compression and hasattr(config, "_compressed_segments"):
+                total_gpt4_compressed = total_davinci_compressed = total_claude_compressed = 0
+
+                # Calculate compressed tokens by using the compressed segments
+                for file_segments in config._compressed_segments.values():
+                    compressed_content = "\n".join(segment.content for segment in file_segments)
+                    stats = get_token_stats(compressed_content)
+                    total_gpt4_compressed += stats.gpt4_tokens
+                    total_davinci_compressed += stats.davinci_tokens
+                    total_claude_compressed += stats.claude_tokens
+
+                print("\n[Token Summary] Total tokens for all parsed files (COMPRESSED):")
+                print(
+                    f"  Claude:   {total_claude_compressed} ({(total_claude_compressed/total_claude_uncompressed*100):.1f}%)"
+                )
+                print(
+                    f"  GPT-4:    {total_gpt4_compressed} ({(total_gpt4_compressed/total_gpt4_uncompressed*100):.1f}%)"
+                )
+                print(
+                    f"  Davinci:  {total_davinci_compressed} ({(total_davinci_compressed/total_davinci_uncompressed*100):.1f}%)"
+                )
+
+                # Show token reduction from compression
+                print("\n[Compression Effectiveness]")
+                print(
+                    f"  Claude:   {total_claude_uncompressed - total_claude_compressed} tokens saved ({(1-total_claude_compressed/total_claude_uncompressed)*100:.1f}% reduction)"
+                )
+                print(
+                    f"  GPT-4:    {total_gpt4_uncompressed - total_gpt4_compressed} tokens saved ({(1-total_gpt4_compressed/total_gpt4_uncompressed)*100:.1f}% reduction)"
+                )
+                print(
+                    f"  Davinci:  {total_davinci_uncompressed - total_davinci_compressed} tokens saved ({(1-total_davinci_compressed/total_davinci_uncompressed)*100:.1f}% reduction)"
+                )
         except Exception as e:
             logger.warning(f"[Tokens] Failed to calculate token stats: {e}")
+            import traceback
+
+            logger.debug(f"Token calculation error details: {traceback.format_exc()}")
         # Return the generated output string
         return output
 

@@ -81,27 +81,90 @@ pip install -e ".[all]"
 
 ## Parser Strategies & Capabilities
 
-CodeConCat features a sophisticated dual-parser architecture designed for robustness, accuracy, and flexibility across multiple programming languages:
+CodeConCat features a parser architecture designed for robustness, accuracy, and flexibility across multiple programming languages.
+
+### Parser Types
+
+The codebase includes three types of parsers, each with specific strengths and use cases:
+
+1. **Legacy Parsers** - The original regex-based parsers that formed the foundation of CodeConCat:
+   - Simple pattern matching against language constructs
+   - Limited support for complex language features
+   - Being phased out in favor of enhanced and tree-sitter parsers
+   - Located in `codeconcat/parser/language_parsers/{language}_parser.py`
+
+2. **Enhanced Parsers** - Improved regex-based parsers with better recognition capabilities:
+   - More sophisticated regex patterns and state tracking
+   - Better support for nested declarations and complex syntax
+   - Improved docstring extraction and handling
+   - Located in `codeconcat/parser/language_parsers/enhanced_{language}_parser.py`
+
+3. **Tree-sitter Parsers** - Modern parsers using the Tree-sitter parsing library:
+   - Full syntax tree parsing for accurate code structure recognition
+   - Support for advanced language features and precise source locations
+   - Best handling of nested declarations and complex constructs
+   - Located in `codeconcat/parser/language_parsers/tree_sitter_{language}_parser.py`
 
 ### Parser Engine Selection
 
 ```bash
 # Use Tree-sitter (default, recommended for most use cases)
-codeconcat --parser-engine=tree_sitter
+codeconcat --parser-engine tree_sitter
 
-# Use Regex parser (fallback option)
-codeconcat --parser-engine=regex
+# Use enhanced regex-based parsers
+codeconcat --parser-engine enhanced
+
+# Use legacy regex-based parsers (not recommended)
+codeconcat --parser-engine regex
 ```
 
-### Tree-sitter Parsing
+### Fallback Mechanism
 
-Tree-sitter parsers provide high-accuracy parsing with support for modern language features:
+When Tree-sitter mode is enabled (default), CodeConCat employs a sophisticated fallback strategy for maximum compatibility:
 
-- **Concrete Syntax Tree (CST)**: Uses a true CST rather than regex patterns for more accurate parsing
-- **Context-Aware**: Properly handles nested declarations, generics, annotations, and other complex language features
-- **Language-Specific Queries**: Custom Tree-sitter queries for each supported language
-- **Enhanced Docstring Extraction**: Properly extracts documentation comments (including JSDoc, PyDoc, etc.)
-- **Parent-Child Relationships**: Accurately identifies class methods, nested functions, and inheritance structures
+1. First attempts to use a Tree-sitter grammar if available for the language
+2. If Tree-sitter parsing fails or is unavailable, falls back to the enhanced regex parser
+3. Processing continues without interruption for the remainder of the codebase
+
+### Testing Structure
+
+Each parser type has corresponding test files to ensure correct functionality:
+
+1. **Legacy Parser Tests** - Located in `tests/unit/parser/test_{language}_parser.py`
+   - These tests validate the basic functionality of the original parsers
+   - Being maintained for backwards compatibility but will eventually be removed
+
+2. **Enhanced Parser Tests** - Located in `tests/unit/parser/test_enhanced_{language}_parser.py`
+   - Comprehensive tests for the improved regex-based parsers
+   - Test nested declarations, docstring extraction, and language-specific features
+   - Use the modern `Declaration` class with direct `start_line`/`end_line` attributes
+
+3. **Tree-sitter Parser Tests** - Located in `tests/unit/parser/test_tree_sitter_{language}_parser.py`
+   - Tests for the Tree-sitter-based parsers
+   - Validate accurate syntax tree parsing and handling of complex language constructs
+   - Mock Tree-sitter dependencies for consistent test results
+   - Use the modern `Declaration` class with direct attributes
+
+### Diagnostic Commands
+
+For troubleshooting parsing issues:
+
+```bash
+# Verify Tree-sitter dependencies are correctly installed
+codeconcat --verify-dependencies
+
+# Diagnose parsing issues with a specific file
+codeconcat --diagnose-parser /path/to/problem/file.py
+```
+
+### Development Guidelines
+
+When extending or maintaining parsers:
+
+1. **Focus on Tree-sitter and Enhanced Parsers** - Legacy parsers are being phased out
+2. **Follow Modern Declaration API** - Use the `Declaration` class directly with `start_line`/`end_line` attributes
+3. **Test Edge Cases** - Ensure robust handling of complex language constructs
+4. **Provide Fallbacks** - Allow graceful degradation when specific features are unavailable
 
 ### Auto-Fallback Mechanism
 

@@ -235,7 +235,10 @@ def fetch_repo_files(repo_name: str, config: CodeConCatConfig) -> Tuple[List[Par
 
 @pytest.fixture(scope="module")
 def codeconcat_repo():
-    """Fetch and provide the codeconcat repository files."""
+    """Provide the codeconcat repository files.
+
+    Instead of cloning the repository, use the local copy since we're already in it.
+    """
     config = CodeConCatConfig(
         target_path="",
         use_enhanced_parsers=True,
@@ -247,19 +250,33 @@ def codeconcat_repo():
         verbose=True,
     )
 
-    # Fetch the repo files (will try GitHub clone and local fallbacks automatically)
-    files, temp_dir = fetch_repo_files("biostochastics/codeconcat", config)
+    # Use the local copy of the repository instead of fetching it
+    # We're already inside the codeconcat repository when running tests
+    repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    logger.info(f"Using local codeconcat repository at: {repo_path}")
+
+    # Use local collector to get the files
+    from codeconcat.collector.local_collector import collect_local_files
+
+    files = collect_local_files(repo_path, config)
 
     try:
         # Log status
         if files:
-            logger.info(f"Successfully fetched codeconcat repository with {len(files)} files")
+            logger.info(f"Successfully loaded codeconcat repository with {len(files)} files")
+            # List some of the files for debugging
+            python_files = [f for f in files if f.file_path.endswith(".py")]
+            logger.info(f"Found {len(python_files)} Python files")
+            if python_files:
+                logger.info(
+                    f"Sample Python files: {[os.path.basename(f.file_path) for f in python_files[:5]]}"
+                )
         else:
-            logger.warning("Failed to fetch any codeconcat repository files")
+            logger.warning("Failed to load any codeconcat repository files")
 
-        yield files, temp_dir
+        yield files, repo_path
     finally:
-        # Cleanup is automatic when using tempfile
+        # No cleanup needed for local path
         pass
 
 

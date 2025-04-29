@@ -390,7 +390,7 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 # Store comment keyed by its end line
                 doc_comment_map[node.end_point[0]] = self._clean_jsdoc(comment_text)
         except Exception as e:
-            logger.warning(f"Failed to execute JS/TS doc_comments query: {e}", exc_info=False)
+            logger.warning(f"Failed to execute JS/TS doc_comments query: {e}", exc_info=True)
 
         # --- Pass 2: Extract Imports and Declarations --- #
         for query_name, query_str in queries.items():

@@ -101,6 +101,50 @@ def parse_code_files(
                     f"[parse_code_files] Skipping {file_path} (lang: {language}) due to include_languages config"
                 )
                 continue
+
+            # Special handling for documentation files (Markdown, RST, etc.)
+            if language == "documentation":
+                logger.debug(f"[parse_code_files] Processing documentation file: {file_path}")
+
+                # For documentation files, we don't need to parse them - just use the content directly
+                # Create a minimal ParseResult with the whole file as documentation
+                from ..parser.base_types import ParseResult
+
+                parse_result = ParseResult()
+                parse_result.file_path = file_path
+                parse_result.language = "documentation"
+
+                # Use the whole file content as the module_docstring
+                parse_result.module_docstring = content
+
+                # Update the file_data with the parse result
+                file_data.parse_result = parse_result
+                parsed_files_output.append(file_data)
+                continue
+
+            # Special handling for configuration files (YAML, TOML, INI, etc.)
+            if language == "config":
+                logger.debug(f"[parse_code_files] Processing configuration file: {file_path}")
+
+                # For config files, we don't need to parse them - just use the content directly
+                # Create a minimal ParseResult with the whole file as configuration
+                from ..parser.base_types import ParseResult
+
+                parse_result = ParseResult()
+                parse_result.file_path = file_path
+                parse_result.language = "config"
+
+                # Add the file title to the module name
+                file_basename = os.path.basename(file_path)
+                parse_result.module_name = f"Configuration: {file_basename}"
+
+                # Use the whole file content as the module_docstring
+                parse_result.module_docstring = content
+
+                # Update the file_data with the parse result
+                file_data.parse_result = parse_result
+                parsed_files_output.append(file_data)
+                continue
             if config.exclude_languages and language in config.exclude_languages:
                 logger.debug(
                     f"[parse_code_files] Skipping {file_path} (lang: {language}) due to exclude_languages config"
@@ -515,6 +559,28 @@ def determine_language(file_path: str) -> Optional[str]:
     }
     if basename in r_specific_files:
         return None
+
+    # Documentation file types are handled specially with a "documentation" language identifier
+    documentation_extensions = {
+        ".md": "documentation",  # Markdown
+        ".rst": "documentation",  # reStructuredText
+    }
+    if ext in documentation_extensions:
+        logger.debug(f"Identified {file_path} as documentation file")
+        return documentation_extensions[ext]
+
+    # Configuration file types are handled specially with a "config" language identifier
+    config_extensions = {
+        ".yml": "config",  # YAML
+        ".yaml": "config",  # YAML
+        ".toml": "config",  # TOML
+        ".ini": "config",  # INI
+        ".cfg": "config",  # Config
+        ".conf": "config",  # Config
+    }
+    if ext in config_extensions:
+        logger.debug(f"Identified {file_path} as configuration file")
+        return config_extensions[ext]
 
     language_map = {
         ".py": "python",

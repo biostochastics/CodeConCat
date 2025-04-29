@@ -9,9 +9,12 @@ import os
 import logging
 import tempfile
 import uvicorn
-from typing import Dict, List, Optional, Any
+import uuid
+from http import HTTPStatus
+from typing import Dict, List, Optional, Any, Callable
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -116,23 +119,44 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
+    # Add request ID middleware for request tracing
+    class RequestTracingMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next: Callable):
+            request_id = str(uuid.uuid4())
+            # Add request_id to each log record
+            logger_adapter = logging.LoggerAdapter(logger, {"request_id": request_id})
+            request.state.logger = logger_adapter
+            request.state.request_id = request_id
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            return response
+
+    app.add_middleware(RequestTracingMiddleware)
+
     # Configure CORS for frontend access
+    # Get allowed origins from environment variable or use a secure default
+    allowed_origins = os.environ.get("CODECONCAT_ALLOWED_ORIGINS", "http://localhost:3000").split(
+        ","
+    )
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # For development - restrict in production
+        allow_origins=allowed_origins,  # Restrict to specific trusted domains
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST"],  # Restrict to required methods only
+        allow_headers=["Authorization", "Content-Type"],  # Restrict to required headers only
     )
 
     # ────────────────────────────────────────────────────────────
     # API Routes
     # ────────────────────────────────────────────────────────────
 
+    from fastapi.responses import RedirectResponse
+
     @app.get("/", include_in_schema=False)
     async def read_root():
         """Redirect to API documentation."""
-        return {"message": "Welcome to CodeConCat API. Visit /api/docs for documentation."}
+        return RedirectResponse(url="/api/docs")
 
     @app.post(
         "/api/concat",
@@ -184,7 +208,8 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"Error processing request: {e}")
             raise HTTPException(
-                status_code=500, detail={"error": "Failed to process code", "details": str(e)}
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                detail={"error": "Failed to process code", "details": str(e)},
             )
 
     @app.post(
@@ -196,7 +221,6 @@ def create_app() -> FastAPI:
         },
     )
     async def upload_and_process(
-        background_tasks: BackgroundTasks,
         file: UploadFile = File(...),
         format: str = Form("json"),
         output_preset: str = Form("medium"),
@@ -261,8 +285,8 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"Error processing uploaded file: {e}")
             raise HTTPException(
-                status_code=500,
-                detail={"error": "Failed to process uploaded file", "details": str(e)},
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail={"error": "Failed to extract or process zip file", "details": str(e)},
             )
 
     @app.get("/api/ping")
@@ -293,13 +317,13 @@ def create_app() -> FastAPI:
 
 
 def start_server(
-    host: str = "0.0.0.0", port: int = 8000, log_level: str = "info", reload: bool = False
+    host: str = "127.0.0.1", port: int = 8000, log_level: str = "info", reload: bool = False
 ):
     """
     Start the CodeConCat API server.
 
     Args:
-        host: The host to bind the server to. Default is 0.0.0.0 (all interfaces).
+        host: The host to bind the server to. Default is 127.0.0.1 (localhost only).
         port: The port to bind the server to. Default is 8000.
         log_level: The log level for uvicorn. Default is "info".
         reload: Whether to reload the server on code changes. Default is False.

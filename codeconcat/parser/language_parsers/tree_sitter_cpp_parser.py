@@ -363,7 +363,7 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                 doc_comment_map[last_comment_line] = current_doc_block
 
         except Exception as e:
-            logger.warning(f"Failed to execute C++ doc_comments query: {e}", exc_info=False)
+            logger.warning(f"Failed to execute C++ doc_comments query: {e}", exc_info=True)
 
         # --- Pass 2: Extract Imports and Declarations --- #
         for query_name, query_str in queries.items():

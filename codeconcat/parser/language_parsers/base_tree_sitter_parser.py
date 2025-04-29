@@ -5,14 +5,19 @@ from typing import Dict, List, Optional
 from codeconcat.base_types import Declaration, ParseResult, ParserInterface
 from ...errors import LanguageParserError
 
-# Import tree-sitter with proper error handling
+# Import tree-sitter dependencies with proper error handling
+TREE_SITTER_AVAILABLE = False
+TREE_SITTER_LANGUAGE_PACK_AVAILABLE = False
+
 try:
+    # Try to import both packages in a single block to reduce filesystem operations
     from tree_sitter import Language, Node, Parser, Tree, Query
+    from tree_sitter_language_pack import get_language, get_parser
 
+    # Set availability flags if imports succeeded
     TREE_SITTER_AVAILABLE = True
+    TREE_SITTER_LANGUAGE_PACK_AVAILABLE = True
 except ImportError:
-    TREE_SITTER_AVAILABLE = False
-
     # Create dummy classes to avoid type errors
     class Language:
         pass
@@ -29,17 +34,22 @@ except ImportError:
     class Query:
         pass
 
+    # Try to determine which package is missing for more helpful error messages
+    try:
+        from tree_sitter import Language
 
-# Import tree-sitter-language-pack for reliable language loading
-try:
-    from tree_sitter_language_pack import get_language, get_parser
-
-    TREE_SITTER_LANGUAGE_PACK_AVAILABLE = True
-except ImportError:
-    # Fallback if the package isn't installed yet
-    TREE_SITTER_LANGUAGE_PACK_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning("tree-sitter-language-pack not found, language loading may fail on Python 3.12+")
+        # If we get here, tree-sitter is available but tree-sitter-language-pack isn't
+        TREE_SITTER_AVAILABLE = True
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "tree-sitter-language-pack not found, language loading may fail on Python 3.12+"
+        )
+    except ImportError:
+        # Both packages are missing
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "tree-sitter not available. Install with: pip install tree-sitter tree-sitter-language-pack>=0.7.2"
+        )
 
 logger = logging.getLogger(__name__)
 

@@ -252,7 +252,7 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                 }
 
         except Exception as e:
-            logger.warning(f"Failed to execute Rust doc_comments query: {e}", exc_info=False)
+            logger.warning(f"Failed to execute Rust doc_comments query: {e}", exc_info=True)
 
         # --- Pass 2: Extract Imports and Declarations --- #
         for query_name, query_str in queries.items():

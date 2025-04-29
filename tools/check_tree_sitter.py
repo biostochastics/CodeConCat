@@ -71,9 +71,13 @@ def check_tree_sitter_grammars() -> Tuple[bool, List[str], List[str]]:
     if not check_tree_sitter_core():
         return False, [], ["tree-sitter core library not installed or incomplete"]
 
-    # Try to import tree-sitter
+    # Check if tree-sitter is available
     try:
-        import tree_sitter
+        import importlib.util
+
+        # Use find_spec to check if the module is available without importing it
+        if importlib.util.find_spec("tree_sitter") is None:
+            return False
 
         # Look for grammar .so files in the site-packages directory
         site_packages = None
