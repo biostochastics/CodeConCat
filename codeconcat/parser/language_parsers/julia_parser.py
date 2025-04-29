@@ -1,37 +1,22 @@
 # file: codeconcat/parser/language_parsers/julia_parser.py
 
 import re
-from typing import List
+from typing import List, Set
 
 from codeconcat.errors import LanguageParserError
-from codeconcat.parser.language_parsers.base_parser import (
-    BaseParser,
-    Declaration,
-    ParseResult,
-)
+from codeconcat.base_types import ParseResult, Declaration
+from abc import ABC, abstractmethod
+
+# Define a basic interface to match what the file_parser expects
+class ParserInterface(ABC):
+    @abstractmethod
+    def parse(self, content: str, file_path: str) -> ParseResult:
+        pass
 
 
-def parse_julia(file_path: str, content: str) -> ParseResult:
-    parser = JuliaParser()
-    parser.current_file_path = file_path  # Set the file path
-    try:
-        # Call parse directly, which now returns ParseResult
-        parse_result = parser.parse(content)
-    except Exception as e:
-        # Wrap internal parser errors in LanguageParserError
-        raise LanguageParserError(
-            message=f"Failed to parse Julia file: {e}",
-            file_path=file_path,
-            original_exception=e,
-        )
-    # The parser's parse method now returns the complete ParseResult
-    return parse_result
-
-
-class JuliaParser(BaseParser):
+class JuliaParser(ParserInterface):
     def __init__(self):
         """Initialize Julia parser with regex patterns."""
-        super().__init__()
         self.patterns = {
             "module": re.compile(r"^module\s+(?P<name>\w+)"),
             "struct": re.compile(r"^(?:mutable\s+)?struct\s+(?P<name>\w+)"),
@@ -44,17 +29,11 @@ class JuliaParser(BaseParser):
         self.line_comment = "#"
         self.block_comment_start = "#="
         self.block_comment_end = "=#"
+        self.current_file_path: str = ""
 
-    def parse_file(self, content: str) -> List[Declaration]:
-        """Parse Julia file content and return list of declarations."""
-        # This method is deprecated in favor of parse returning ParseResult
-        # Keep it for potential compatibility or remove if sure it's unused elsewhere
-        # For now, let it call the new parse and extract declarations
-        result = self.parse(content)
-        return result.declarations
-
-    def parse(self, content: str) -> ParseResult:
+    def parse(self, content: str, file_path: str) -> ParseResult:
         """Parse Julia code and return a ParseResult object."""
+        self.current_file_path = file_path
         declarations = []
         imports = []
         lines = content.split("\n")
@@ -84,7 +63,7 @@ class JuliaParser(BaseParser):
                         continue
 
                     # Extract modifiers
-                    modifiers = set()
+                    modifiers: Set[str] = set()
                     if kind == "struct" and "mutable" in line:
                         modifiers.add("mutable")
                     # A simple check for inline, might need refinement
@@ -156,11 +135,9 @@ class JuliaParser(BaseParser):
             i += 1
 
         return ParseResult(
-            file_path=self.current_file_path,
-            language="julia",
-            content=content,
             declarations=declarations,
             imports=imports,
-            # token_stats=None,
-            # security_issues=[]
+            ast_root=None,  # No AST for regex parser
+            error=None,    # No errors to report
+            engine_used="regex"  # This is a regex parser
         )

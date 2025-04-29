@@ -1,0 +1,40 @@
+{
+  "basic.php": {
+    "declaration_count": 17,
+    "declarations": [
+      "MAX_RETRIES",
+      "App\\Example\\Person",
+      "App\\Example\\Employee",
+      "App\\Example\\Processor",
+      "App\\Example\\Logger",
+      "App\\Example\\SimpleProcessor",
+      "App\\Example\\calculateStats",
+      "App\\Example\\divide",
+      "person",
+      "person",
+      "employee",
+      "employee",
+      "processor",
+      "result",
+      "numbers",
+      "stats",
+      "result"
+    ],
+    "declarations_with_docstrings": [
+      "MAX_RETRIES",
+      "App\\Example\\Person",
+      "App\\Example\\Employee",
+      "App\\Example\\Processor",
+      "App\\Example\\Logger",
+      "App\\Example\\SimpleProcessor",
+      "App\\Example\\calculateStats",
+      "App\\Example\\divide"
+    ],
+    "import_count": 3,
+    "imports": [
+      "",
+      "PDO",
+      "User"
+    ]
+  }
+}

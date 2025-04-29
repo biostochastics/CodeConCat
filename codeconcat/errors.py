@@ -61,4 +61,21 @@ class LanguageParserError(ParserError):
 class UnsupportedLanguageError(ParserError):
     """Language determined but no parser available."""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        file_path: str = None,
+        language: str = None,
+        line_number: int = None,
+        original_exception: Exception = None,
+    ):
+        super().__init__(
+            message, file_path=file_path, line_number=line_number, original_exception=original_exception
+        )
+        self.language = language
+
+    def __str__(self):
+        base = super().__str__()
+        if self.language is not None:
+            return f"{base} (Language: {self.language})"
+        return base

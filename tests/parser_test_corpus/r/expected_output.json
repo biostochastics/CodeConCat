@@ -1,0 +1,49 @@
+{
+  "basic.R": {
+    "declaration_count": 17,
+    "declarations": [
+      "initialize",
+      "greet",
+      "set_address",
+      "get_address",
+      "initialize",
+      "give_raise",
+      "work_info",
+      "greet",
+      "new_simple_processor",
+      "process.SimpleProcessor",
+      "get_stats.SimpleProcessor",
+      "print.SimpleProcessor",
+      "calculateStats",
+      "divide",
+      "AdvancedProcessor",
+      "initialize",
+      "processData"
+    ],
+    "declarations_with_docstrings": [
+      "initialize",
+      "greet",
+      "set_address",
+      "get_address",
+      "initialize",
+      "give_raise",
+      "work_info",
+      "greet",
+      "new_simple_processor",
+      "process.SimpleProcessor",
+      "get_stats.SimpleProcessor",
+      "print.SimpleProcessor",
+      "calculateStats",
+      "divide",
+      "AdvancedProcessor",
+      "initialize",
+      "processData"
+    ],
+    "import_count": 3,
+    "imports": [
+      "utils",
+      "graphics",
+      "stats"
+    ]
+  }
+}

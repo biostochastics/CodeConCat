@@ -11,6 +11,8 @@ import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
+import abc
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 # Rename this file to base_types.py to avoid conflict with Python's types module
 from typing import Any, Dict, List, Optional, Set
@@ -103,18 +105,71 @@ class CustomSecurityPattern(BaseModel):
             raise ValueError(f"Invalid regex pattern: {e}")
 
 
-# --- Core Data Types ---
+# --- Data Structures for Parsing & Processing ---
 
 
-# Abstract Base Class for Writable Items
+@dataclass
+class Declaration:
+    """A declaration in a code file."""
+
+    kind: str
+    name: str
+    start_line: int
+    end_line: int
+    modifiers: Set[str] = field(default_factory=set)
+    docstring: str = ""
+    children: List["Declaration"] = field(default_factory=list)
+
+    def __post_init__(self):
+        """Initialize a declaration."""
+        pass
+
+
+# Moved from processor.token_counter to break circular import
+@dataclass
+class TokenStats:
+    """Token statistics for a file."""
+
+    gpt3_tokens: int
+    gpt4_tokens: int
+    davinci_tokens: int
+    claude_tokens: int
+
+
+@dataclass
+class ParsedFileData:
+    """Data structure for a single parsed code file."""
+
+    file_path: str
+    content: Optional[str]  # Optional because reading might fail
+    language: Optional[str]
+    declarations: List[Declaration] = field(default_factory=list)
+    imports: List[str] = field(default_factory=list)
+    token_stats: Optional[TokenStats] = None
+    security_issues: List[SecurityIssue] = field(default_factory=list)
+    parse_result: Optional[Any] = None
+
+
+# New ParseResult Dataclass
+@dataclass
+class ParseResult:
+    declarations: List[Declaration] = field(default_factory=list)
+    imports: List[str] = field(default_factory=list)
+    ast_root: Optional[Any] = None  # Holds tree_sitter.Node if available
+    error: Optional[str] = None  # To report parsing errors
+    engine_used: str = "regex"  # Track which engine actually produced result
+
+
 class WritableItem(ABC):
     """Abstract base class for items that can be rendered by different writers."""
 
-    @property
-    @abstractmethod
-    def file_path(self) -> str:
-        """The path to the source file."""
-        pass
+    # REMOVED: Abstract property for file_path.
+    # Relying on subclasses to define the field directly.
+    # @property
+    # @abstractmethod
+    # def file_path(self) -> str:
+    #     """The path to the source file."""
+    #     pass
 
     @abstractmethod
     def render_text_lines(self, config: "CodeConCatConfig") -> List[str]:
@@ -138,353 +193,139 @@ class WritableItem(ABC):
 
 
 @dataclass
-class Declaration:
-    """A declaration in a code file."""
-
-    kind: str
-    name: str
-    start_line: int
-    end_line: int
-    modifiers: Set[str] = field(default_factory=set)
-    docstring: str = ""
-    children: List["Declaration"] = field(default_factory=list)
-
-    def __post_init__(self):
-        """Initialize a declaration."""
-        pass
-
-
-@dataclass
-class TokenStats:
-    """Statistics about token usage."""
-
-    input_tokens: int
-    output_tokens: int
-    total_tokens: int
-
-
-@dataclass
-class ParsedFileData:
-    """Data structure for a single parsed code file."""
-
-    file_path: str
-    language: str
-    content: str
-    declarations: List[Declaration] = field(default_factory=list)
-    imports: List[str] = field(default_factory=list)
-    token_stats: Optional[TokenStats] = None
-    security_issues: List[SecurityIssue] = field(default_factory=list)
-
-
-@dataclass
 class AnnotatedFileData(WritableItem):
-    """Data structure for annotated file content, including structured analysis results."""
+    """Data structure for annotated file content, including structured analysis results.
+    
+    This class focuses solely on storing structured data and does not contain any rendering logic.
+    Rendering is delegated to specialized rendering adapters for different output formats.
+    """
 
-    # Core file info
+    # Core file info - required parameters (no defaults) must come first
     file_path: str
     language: str
     content: str  # Original content
     annotated_content: str  # Potentially processed content (e.g., comments removed)
-
-    # Structured analysis results (passed from ParsedFileData)
+    
+    # Optional AI-generated additions
+    summary: str = ""  # AI-generated overall summary
+    
+    # Structured analysis results (passed from ParsedFileData) - parameters with defaults
     declarations: List[Declaration] = field(default_factory=list)
     imports: List[str] = field(default_factory=list)
     token_stats: Optional[TokenStats] = None
     security_issues: List[SecurityIssue] = field(default_factory=list)
-
-    # Optional AI-generated additions
-    summary: Optional[str] = None  # AI-generated overall summary
     tags: List[str] = field(default_factory=list)
 
-    # Implement WritableItem properties and methods
-    @property
-    def file_path(self) -> str:
-        # Dataclasses allow direct field access to satisfy property
-        return self.__dict__["file_path"]
-
     def render_text_lines(self, config: "CodeConCatConfig") -> List[str]:
-        lines = []
-        lines.append(
-            f"Language: {self.language}" if self.language else "Language: Unknown"
-        )
-
-        # Summary
-        if config.include_file_summary and self.summary:
-            lines.append("\n## Summary:")
-            lines.append(self.summary)
-
-        # Declarations
-        if config.include_declarations_in_summary and self.declarations:
-            lines.append("\n## Declarations:")
-            for decl in self.declarations:
-                lines.append(
-                    f"  - {decl.kind}: {decl.name} (Lines: {decl.start_line}-{decl.end_line})"
-                )
-
-        # Imports
-        if config.include_imports_in_summary and self.imports:
-            lines.append("\n## Imports:")
-            for imp in sorted(self.imports):
-                lines.append(f"  - {imp}")
-
-        # Token Stats
-        if config.include_tokens_in_summary and self.token_stats:
-            lines.append("\n## Token Stats:")
-            lines.append(f"  - Input Tokens: {self.token_stats.input_tokens}")
-            lines.append(f"  - Output Tokens: {self.token_stats.output_tokens}")
-            lines.append(f"  - Total Tokens: {self.token_stats.total_tokens}")
-
-        # Security Issues
-        if config.include_security_in_summary and self.security_issues:
-            lines.append("\n## Security Issues:")
-            for issue in self.security_issues:
-                severity_val = (
-                    issue.severity.value
-                    if hasattr(issue.severity, "value")
-                    else str(issue.severity)
-                )
-                lines.append(
-                    f"  - Severity: {severity_val}, Line: {issue.line_number}, Description: {issue.description}"
-                )
-
-        # Tags
-        if self.tags:
-            lines.append("\n## Tags:")
-            lines.append(f"  - {', '.join(sorted(self.tags))}")
-
-        # Content (Use annotated_content if available and not disabled, else content)
-        # TODO: Add config flag specifically for using annotated_content vs raw content?
-        content_to_use = (
-            self.annotated_content if self.annotated_content else self.content
-        )
-        if config.include_code_content and content_to_use:
-            lines.append("\n## Content:")
-            lines.append(content_to_use)
-
-        return lines
+        from codeconcat.writer.rendering_adapters import TextRenderAdapter
+        return TextRenderAdapter.render_annotated_file(self, config)
 
     def render_markdown_chunks(self, config: "CodeConCatConfig") -> List[str]:
-        chunks = []
-        # Use annotated_content preferentially if it exists
-        content_to_render = (
-            self.annotated_content if self.annotated_content else self.content
-        )
-        lang_hint = self.language.lower() if self.language else ""
-
-        if config.include_code_content and content_to_render:
-            chunks.append(f"```{lang_hint}\n{content_to_render}\n```\n\n")
-
-        # Placeholder for other sections like declarations, imports, etc. if added later
-        # Example:
-        # if config.include_declarations_in_summary and self.declarations:
-        #    chunks.append("**Declarations:**\n")
-        #    for decl in self.declarations:
-        #        chunks.append(f"- `{decl.name}` ({decl.kind})\n")
-
-        return chunks
+        from codeconcat.writer.rendering_adapters import MarkdownRenderAdapter
+        return MarkdownRenderAdapter.render_annotated_file(self, config)
 
     def render_json_dict(self, config: "CodeConCatConfig") -> Dict[str, Any]:
-        entry = {"type": "code"}  # Always include type
-        entry["file_path"] = self.file_path  # Always include file_path
-
-        if self.language:
-            entry["language"] = self.language
-
-        # Use annotated_content if available, else raw content
-        content_to_use = (
-            self.annotated_content if self.annotated_content else self.content
-        )
-        if config.include_code_content and content_to_use:
-            entry["content"] = content_to_use  # Decide which content field to use
-
-        if config.include_file_summary and self.summary:
-            entry["summary"] = self.summary
-
-        if config.include_declarations_in_summary and self.declarations:
-            entry["declarations"] = [decl.model_dump() for decl in self.declarations]
-
-        if config.include_imports_in_summary and self.imports:
-            entry["imports"] = sorted(self.imports)
-
-        if config.include_tokens_in_summary and self.token_stats:
-            entry["token_stats"] = self.token_stats.model_dump()
-
-        if config.include_security_in_summary and self.security_issues:
-            entry["security_issues"] = [
-                issue.model_dump() for issue in self.security_issues
-            ]
-
-        if self.tags:
-            entry["tags"] = list(self.tags)  # Convert set to list
-
-        return entry
+        from codeconcat.writer.rendering_adapters import JsonRenderAdapter
+        return JsonRenderAdapter.annotated_file_to_dict(self, config)
 
     def render_xml_element(self, config: "CodeConCatConfig") -> ET.Element:
-        file_elem = ET.Element("file")
-        ET.SubElement(file_elem, "path").text = self.file_path
-        if self.language:
-            ET.SubElement(file_elem, "language").text = self.language
+        from codeconcat.writer.rendering_adapters import XmlRenderAdapter
+        return XmlRenderAdapter.create_annotated_file_element(self, config)
 
-        # Content (use annotated preferentially, wrap in CDATA)
-        content_to_use = (
-            self.annotated_content if self.annotated_content else self.content
-        )
-        if config.include_code_content and content_to_use:
-            content_elem = ET.SubElement(file_elem, "content")
-            content_elem.text = f"<![CDATA[{content_to_use}]]>"
 
-        # Summary (wrap in CDATA)
-        if config.include_file_summary and self.summary:
-            summary_elem = ET.SubElement(file_elem, "summary")
-            summary_elem.text = f"<![CDATA[{self.summary}]]>"
+# New Parser Interface
+class ParserInterface(abc.ABC):
+    """Abstract Base Class defining the interface for language parsers."""
 
-        # Declarations
-        if config.include_declarations_in_summary and self.declarations:
-            decls_elem = ET.SubElement(file_elem, "declarations")
-            for decl in self.declarations:
-                ET.SubElement(
-                    decls_elem,
-                    "declaration",
-                    kind=decl.kind,
-                    name=decl.name,
-                    start_line=str(decl.start_line),
-                    end_line=str(decl.end_line),
-                )
+    @abc.abstractmethod
+    def parse(self, content: str, file_path: str) -> ParseResult:
+        """Parse the given code content.
 
-        # Imports
-        if config.include_imports_in_summary and self.imports:
-            imports_elem = ET.SubElement(file_elem, "imports")
-            for imp in sorted(self.imports):
-                ET.SubElement(imports_elem, "import", name=imp)
+        Args:
+            content: The code content as a string.
+            file_path: The path to the file being parsed (for context/error reporting).
 
-        # Token Stats
-        if config.include_tokens_in_summary and self.token_stats:
-            stats_elem = ET.SubElement(file_elem, "token_stats")
-            ET.SubElement(stats_elem, "input_tokens").text = str(
-                self.token_stats.input_tokens
-            )
-            ET.SubElement(stats_elem, "output_tokens").text = str(
-                self.token_stats.output_tokens
-            )
-            ET.SubElement(stats_elem, "total_tokens").text = str(
-                self.token_stats.total_tokens
-            )
+        Returns:
+            A ParseResult object containing declarations, imports, potential AST,
+            error information, and the engine used.
+        """
+        pass
 
-        # Security Issues (wrap description in CDATA)
-        if config.include_security_in_summary and self.security_issues:
-            sec_issues_elem = ET.SubElement(file_elem, "security_issues")
-            for issue in self.security_issues:
-                severity_val = (
-                    issue.severity.value
-                    if hasattr(issue.severity, "value")
-                    else str(issue.severity)
-                )
-                issue_elem = ET.SubElement(
-                    sec_issues_elem,
-                    "issue",
-                    severity=severity_val,
-                    line=str(issue.line_number),
-                )
-                desc_elem = ET.SubElement(issue_elem, "description")
-                desc_elem.text = f"<![CDATA[{issue.description}]]>"
 
-        # Tags
-        if self.tags:
-            tags_elem = ET.SubElement(file_elem, "tags")
-            for tag in sorted(self.tags):
-                ET.SubElement(tags_elem, "tag", name=tag)
-
-        return file_elem
+class EnhancedParserInterface(ParserInterface):
+    """Enhanced interface for language parsers with improved capabilities.
+    
+    This extends the base ParserInterface with methods for capability reporting
+    and validation, supporting more robust parser selection and fallback logic.
+    """
+    
+    def get_capabilities(self) -> Dict[str, bool]:
+        """Report the capabilities of this parser.
+        
+        Returns:
+            A dictionary mapping capability names to booleans indicating support.
+            Examples include: 'can_parse_functions', 'can_parse_classes', etc.
+        """
+        return {
+            "can_parse_functions": True,
+            "can_parse_classes": True,
+            "can_parse_imports": True,
+            "can_extract_docstrings": True,
+        }
+    
+    def validate(self) -> bool:
+        """Validate that the parser is properly configured and ready to use.
+        
+        This method can be used to check for required dependencies, valid
+        configurations, or other prerequisites before attempting parsing.
+        
+        Returns:
+            True if the parser is valid and ready to use, False otherwise.
+        """
+        return True
 
 
 @dataclass
 class ParsedDocData(WritableItem):
-    """Data structure for parsed documentation content."""
+    """Data structure for parsed documentation files (e.g., Markdown)."""
 
+    # Required fields first
     file_path: str
-    doc_type: str
     content: str
+
+    # Fields with defaults
+    doc_type: str = "markdown"  # Default to markdown, can be overridden
+    summary: Optional[str] = None  # Optional summary
+    tags: List[str] = field(default_factory=list)
 
     # Implement WritableItem properties and methods
-    @property
-    def file_path(self) -> str:
-        return self.__dict__["file_path"]
-
     def render_text_lines(self, config: "CodeConCatConfig") -> List[str]:
-        lines = []
-        if self.doc_type:
-            lines.append(f"Type: {self.doc_type}")
-        if config.include_doc_content and self.content:
-            lines.append("\n## Content:")
-            lines.append(self.content)
-        return lines
+        from codeconcat.writer.rendering_adapters import TextRenderAdapter
+        return TextRenderAdapter.render_doc_file(self, config)
 
     def render_markdown_chunks(self, config: "CodeConCatConfig") -> List[str]:
-        chunks = []
-        if config.include_doc_content and self.content:
-            # Use 'markdown' hint for docs, could refine if doc_type gives better hints
-            chunks.append(f"```markdown\n{self.content}\n```\n\n")
-        return chunks
+        from codeconcat.writer.rendering_adapters import MarkdownRenderAdapter
+        return MarkdownRenderAdapter.render_doc_file(self, config)
 
     def render_json_dict(self, config: "CodeConCatConfig") -> Dict[str, Any]:
-        entry = {"type": "documentation"}
-        entry["file_path"] = self.file_path
-
-        if self.doc_type:
-            entry["doc_type"] = self.doc_type
-
-        if config.include_doc_content and self.content:
-            entry["content"] = self.content
-
-        return entry
+        from codeconcat.writer.rendering_adapters import JsonRenderAdapter
+        return JsonRenderAdapter.doc_file_to_dict(self, config)
 
     def render_xml_element(self, config: "CodeConCatConfig") -> ET.Element:
-        doc_elem = ET.Element("doc")
-        ET.SubElement(doc_elem, "path").text = self.file_path
-        if self.doc_type:
-            ET.SubElement(doc_elem, "doc_type").text = self.doc_type
-
-        # Content (wrap in CDATA)
-        if config.include_doc_content and self.content:
-            content_elem = ET.SubElement(doc_elem, "content")
-            content_elem.text = f"<![CDATA[{self.content}]]>"
-
-        return doc_elem
+        from codeconcat.writer.rendering_adapters import XmlRenderAdapter
+        return XmlRenderAdapter.create_doc_file_element(self, config)
 
 
-@dataclass
-class ParseResult:
-    """Result of parsing a code file."""
-
-    file_path: str
-    language: str
-    content: str
-    declarations: List[Declaration]
-    imports: List[str]  # Add imports field
-    token_stats: Optional[TokenStats] = None
-    security_issues: List[SecurityIssue] = field(default_factory=list)
-
-    # For backward compatibility with code that expects (declarations, imports) tuple
-    def __getitem__(self, key):
-        """Enable subscripting like result[0] and result[1]"""
-        if key == 0:
-            return self.declarations
-        elif key == 1:
-            return self.imports
-        else:
-            raise IndexError(f"ParseResult index {key} out of range")
-
-    def __iter__(self):
-        """Enable iteration and unpacking like 'declarations, imports = result'"""
-        yield self.declarations
-        yield self.imports
-
-    def __len__(self):
-        """Return length for compatibility"""
-        return 2  # Always 2 items (declarations, imports) for backwards compatibility
+# --- Core Data Types ---
 
 
-# Pydantic model for Global Configuration
+# Abstract Base Class for Writable Items
+# WritableItem class has been moved up before AnnotatedFileData to prevent circular references
+
+
+# --- Configuration Model ---
+
+
 class CodeConCatConfig(BaseModel):
     """Global configuration object using Pydantic for validation.
 
@@ -497,10 +338,43 @@ class CodeConCatConfig(BaseModel):
         """Provide dictionary-like access with .get() method"""
         return getattr(self, key, default)
 
-    target_path: str = "."
-    github_url: Optional[str] = None
-    github_token: Optional[str] = None
-    github_ref: Optional[str] = None
+    # --- Add missing parser config fields ---
+    parser_engine: str = Field(
+        "tree_sitter",
+        description="Parsing engine to use ('tree_sitter' or 'regex').",
+        validate_default=True,
+    )
+    fallback_to_regex: bool = Field(
+        True,
+        description="If tree-sitter parsing fails, fallback to the simpler regex parser.",
+        validate_default=True,
+    )
+    
+    use_enhanced_parsers: bool = Field(
+        True,
+        description="Use enhanced regex parsers where available instead of standard ones.",
+        validate_default=True,
+    )
+    
+    use_enhanced_pipeline: bool = Field(
+        True,
+        description="Use the enhanced parsing pipeline with progressive fallbacks (tree-sitter → enhanced → standard).",
+        validate_default=True,
+    )
+    # --- End added fields ---
+
+    target_path: str = Field(".", description="Local path to process if source_url is not provided.")
+    # Rename github_url -> source_url
+    source_url: Optional[str] = Field(
+        None, description="URL of the remote source (Git repository, ZIP archive). If set, target_path is ignored for input."
+    )
+    github_token: Optional[str] = Field(
+        None, description="GitHub token for accessing private repositories or increasing rate limits."
+    )
+    # Rename github_ref -> source_ref
+    source_ref: Optional[str] = Field(
+        None, description="Specific branch, tag, or commit SHA to use from the Git repository specified in source_url."
+    )
     include_languages: List[str] = Field(default_factory=list)
     exclude_languages: List[str] = Field(default_factory=list)
     include_paths: Optional[List[str]] = Field(
@@ -552,6 +426,13 @@ class CodeConCatConfig(BaseModel):
     security_custom_patterns: List[CustomSecurityPattern] = Field(
         default_factory=list
     )  # User-defined rules
+    # External Semgrep Scanning
+    enable_external_semgrep: bool = Field(
+        True, description="Whether to enable external security scanning using Semgrep."
+    )
+    semgrep_ruleset: Optional[str] = Field(
+        "p/ci", description="Semgrep ruleset to use (e.g., 'p/ci', path to rules, or registry name). Set to None to use Semgrep defaults."
+    )
 
     # Sorting
     sort_files: bool = False
@@ -581,41 +462,13 @@ class CodeConCatConfig(BaseModel):
     include_tokens_in_summary: bool = True  # Default based on 'medium'
     include_security_in_summary: bool = True  # Default based on 'medium'
 
-    # --- Pydantic Validators --- #
+    use_default_excludes: Optional[bool] = Field(
+        default=None, description="Apply built-in default excludes (git, venv, etc.)."
+    )
+    # New flag for output masking
+    mask_output_content: bool = Field(
+        False, description="Mask sensitive data directly in the final output content (if security scanning is enabled)."
+    )
 
-    @field_validator("format")
-    def validate_format(cls, value):
-        if value not in VALID_FORMATS:
-            raise ValueError(
-                f"Invalid format '{value}'. Must be one of: {', '.join(VALID_FORMATS)}"
-            )
-        return value
-
-    @field_validator("security_scan_severity_threshold")
-    def validate_severity_threshold(cls, value):
-        try:
-            # Ensure threshold is uppercase for enum matching
-            return SecuritySeverity[value.upper()].name
-        except KeyError:
-            valid_severities = ", ".join([s.name for s in SecuritySeverity])
-            raise ValueError(
-                f"Invalid security_scan_severity_threshold: '{value}'. "
-                f"Must be one of: {valid_severities}"
-            )
-
-    @validator("output_preset", pre=True, always=True)
-    def validate_output_preset(cls, v):
-        if v is None or isinstance(v, str) and v.lower() in ["lean", "medium", "full"]:
-            return v.lower() if isinstance(v, str) else v
-        raise ValueError(
-            "output_preset must be one of 'lean', 'medium', 'full', or None"
-        )
-
-    @field_validator("split_output")
-    def check_split_output(cls, v):
-        if v < 1:
-            raise ValueError("split_output must be an integer greater than 0.")
-        return v
-
-    class Config:
-        extra = "ignore"  # Ignore extra fields from config file/CLI
+    # --- Processing Options ---
+    # ... rest of the code remains the same ...

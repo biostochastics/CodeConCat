@@ -1,464 +1,240 @@
+import logging
 import re
-from typing import List, Optional
+from typing import List, Set
 
-from codeconcat.base_types import Declaration, ParsedFileData, ParseResult
-from codeconcat.errors import LanguageParserError
-from codeconcat.parser.language_parsers.base_parser import BaseParser
+from ...base_types import Declaration, ParseResult
+from ...errors import LanguageParserError
+from .base_parser import ParserInterface
+
+logger = logging.getLogger(__name__)
+
+# Basic Regex patterns for Rust constructs
+# Catches 'use some::path::Item;', 'use some::path::{Item1, Item2};', 'use some::path::*;' etc.
+USE_PATTERN = re.compile(r"^\s*use\s+((?:\w+|\*)::)?([\w\*\{\},\s:]+);")
+# Matches fn name(...), pub fn name(...), async fn name(...), const fn name(...)
+FUNCTION_PATTERN = re.compile(
+    r"^\s*(?:pub(?:\(\w+\))?\s+)?(?:async\s+)?(?:const\s+)?(?:unsafe\s+)?fn\s+(?P<name>[\w_][\w\d_]*)\s*(?:<.*>)?\s*\(.*\)"
+    r"(?:\s*->\s*[\w\W]+)?\s*(?:where\s+[\w\W]+)?\s*\{?"
+)
+# Matches struct Name { ... }, pub struct Name<T> { ... }
+STRUCT_PATTERN = re.compile(
+    r"^\s*(?:pub(?:\(\w+\))?\s+)?struct\s+(?P<name>[\w_][\w\d_]*)\s*(?:<.*>)?\s*(?:where\s+[\w\W]+)?\s*(?:;|\{)"
+)
+# Matches enum Name { ... }, pub enum Name<T> { ... }
+ENUM_PATTERN = re.compile(
+    r"^\s*(?:pub(?:\(\w+\))?\s+)?enum\s+(?P<name>[\w_][\w\d_]*)\s*(?:<.*>)?\s*\{?"
+)
+# Matches trait Name { ... }, pub trait Name<T> { ... }, unsafe trait Name { ... }
+TRAIT_PATTERN = re.compile(
+    r"^\s*(?:pub(?:\(\w+\))?\s+)?(?:unsafe\s+)?trait\s+(?P<name>[\w_][\w\d_]*)\s*(?:<.*>)?\s*(?:where\s+[\w\W]+)?\s*\{?"
+)
+# Matches impl Name { ... }, impl<T> Trait for Name { ... }
+IMPL_PATTERN = re.compile(
+    r"^\s*(?:unsafe\s+)?impl(?:<.*>)?\s+(?:(?P<trait>[\w\:]+(?:<.*>)?)\s+for\s+)?(?P<type>[\w\:]+(?:<.*>)?)\s*(?:where\s+[\w\W]+)?\s*\{?"
+)
+# Matches mod name;, pub mod name;
+MOD_PATTERN = re.compile(r"^\s*(?:pub(?:\(\w+\))?\s+)?mod\s+(?P<name>[\w_][\w\d_]*);?")
+
+# Doc comment patterns
+DOC_COMMENT_SLASH_PATTERN = re.compile(r"^\s*///(.*)")
+DOC_COMMENT_BLOCK_INNER_PATTERN = re.compile(r"^\s*//!?(.*)")
+DOC_COMMENT_BLOCK_OUTER_PATTERN = re.compile(r"^\s*/\*\*!?\s?(.*)")
+DOC_COMMENT_BLOCK_END_PATTERN = re.compile(r"(.*)\*/")
 
 
-def parse_rust(file_path: str, content: str) -> ParsedFileData:
-    """Parse Rust code and return declarations."""
-    parser = RustParser()
-    try:
-        parse_result = parser.parse(content)
-    except Exception as e:
-        # Wrap internal parser errors in LanguageParserError
-        raise LanguageParserError(
-            message=f"Failed to parse Rust file: {e}",
-            file_path=file_path,
-            original_exception=e,
-        )
-    return ParsedFileData(
-        file_path=file_path,
-        language="rust",
-        content=content,
-        declarations=parse_result.declarations,
-    )
+class RustParser(ParserInterface):
+    """Basic Regex based parser for Rust code."""
 
+    def parse(self, content: str, file_path: str) -> ParseResult:
+        """Parses Rust code using Regex to find declarations and imports."""
+        declarations = []
+        imports: Set[str] = set()
+        lines = content.split('\n')
+        doc_buffer: List[str] = []
+        in_block_comment = False
+        in_doc_comment = False
+        current_module_stack: List[str] = [] # Basic module tracking
+        bracket_level = 0
 
-class RustParser(BaseParser):
-    """Rust language parser."""
+        try:
+            logger.debug(f"Starting RustParser.parse (Regex) for file: {file_path}")
+            for i, line in enumerate(lines):
+                stripped_line = line.strip()
 
-    def __init__(self):
-        super().__init__()
-        self._setup_patterns()
+                # Track scope (simple brace counting)
+                bracket_level += line.count('{')
+                bracket_level -= line.count('}')
+                if bracket_level < 0: bracket_level = 0
 
-    def _setup_patterns(self):
-        """
-        Set up Rust-specific regex patterns.
-        Order matters: we try 'function' first,
-        then 'struct', 'enum', 'trait', 'impl', etc.
-        That way, lines like 'fn hello() { ... }'
-        don't get mis-detected as something else.
-        """
+                # Handle block comments /* ... */ (including doc comments /** ... */)
+                if in_block_comment:
+                    if "*/" in stripped_line:
+                        in_block_comment = False
+                        end_match = DOC_COMMENT_BLOCK_END_PATTERN.match(line.strip())
+                        if in_doc_comment and end_match and end_match.group(1).strip():
+                            doc_buffer.append(end_match.group(1).strip().lstrip('*').strip())
+                        stripped_line = stripped_line.split("*/", 1)[1].strip()
+                        in_doc_comment = False # Doc comment ends with */
+                    else:
+                        if in_doc_comment:
+                            doc_buffer.append(line.strip().lstrip('*').strip())
+                        continue # Skip lines entirely within block comments
 
-        # Basic name patterns
-        name = r"[a-zA-Z_][a-zA-Z0-9_]*"
-        type_name = r"[a-zA-Z_][a-zA-Z0-9_<>:'\s,\(\)\[\]\+\-]*"
-        visibility = r"(?:pub(?:\s*\([^)]*\))?\s+)?"
-
-        self.patterns = [
-            (
-                "function",
-                re.compile(
-                    rf"^\s*{visibility}"
-                    r"(?:async\s+)?"
-                    r"(?:unsafe\s+)?"
-                    r"(?:extern\s+[\"'][^\"']+[\"']\s+)?"
-                    r"fn\s+(?P<n>[a-z_][a-zA-Z0-9_]*)"
-                    r"(?:<[^>]*>)?"  # optional generics
-                    r"\s*\([^)]*\)"  # parameters (...)
-                    r"(?:\s*->\s*[^{{;]+)?"  # optional return
-                    r"(?:\s*where\s+[^{{;]+)?"  # optional where clause
-                    r"\s*(?:\{|;)"
-                ),
-            ),
-            (
-                "struct",
-                re.compile(
-                    rf"^\s*{visibility}struct\s+(?P<n>{name})"
-                    r"(?:<[^>]*>)?"
-                    r"(?:\s*where\s+[^{{;]+)?"  # optional where clause
-                    r"\s*(?:\{|;|\()"
-                ),
-            ),
-            (
-                "enum",
-                re.compile(
-                    rf"^\s*{visibility}enum\s+(?P<n>{name})"
-                    r"(?:<[^>]*>)?"
-                    r"(?:\s*where\s+[^{{;]+)?"  # optional where clause
-                    r"\s*\{?"
-                ),
-            ),
-            (
-                "trait",
-                re.compile(
-                    rf"^\s*{visibility}trait\s+(?P<n>{name})"
-                    r"(?:<[^>]*>)?"
-                    r"(?:\s*:\s*[^{{]+)?"  # optional supertraits
-                    r"(?:\s*where\s+[^{{]+)?"  # optional where clause
-                    r"\s*\{?"
-                ),
-            ),
-            (
-                "impl",
-                re.compile(
-                    rf"^\s*impl\s*(?:<[^>]*>\s*)?"
-                    rf"(?:(?P<trait>{type_name})\s+for\s+)?"
-                    rf"(?P<n>{type_name})"
-                    r"(?:\s*where\s+[^{{]+)?"  # optional where clause
-                    r"\s*\{?"
-                ),
-            ),
-            (
-                "type",
-                re.compile(rf"^\s*{visibility}type\s+(?P<n>{name})(?:\s*<[^>]*>)?\s*="),
-            ),
-            ("constant", re.compile(rf"^\s*{visibility}const\s+(?P<n>{name})\s*:")),
-            (
-                "static",
-                re.compile(rf"^\s*{visibility}static\s+(?:mut\s+)?(?P<n>{name})\s*:"),
-            ),
-            ("mod", re.compile(rf"^\s*{visibility}mod\s+(?P<n>{name})\s*(?:\{{|;)")),
-        ]
-
-    def _find_block_end(self, lines: List[str], start: int) -> int:
-        """
-        Find the line index of the matching '}' for the block that begins at `start` (where '{' is found).
-        Returns that line index, or `start` if not found (meaning single-line block).
-        """
-        brace_count = 0
-        in_string = False
-        string_char = None
-        in_comment = False
-        total_lines = len(lines)
-
-        # Find the first line with an opening brace
-        first_brace_line = start
-        while first_brace_line < total_lines:
-            if "{" in lines[first_brace_line]:
-                break
-            if ";" in lines[first_brace_line].strip():
-                return first_brace_line
-            first_brace_line += 1
-            if first_brace_line >= total_lines:
-                return start
-
-        # Count braces from the first '{'
-        for i in range(first_brace_line, total_lines):
-            line = lines[i]
-            j = 0
-            while j < len(line):
-                # check for block comment start/end
-                if not in_string and j < (len(line) - 1):
-                    maybe = line[j : j + 2]
-                    if maybe == "/*" and not in_comment:
-                        in_comment = True
-                        j += 2
-                        continue
-                    elif maybe == "*/" and in_comment:
-                        in_comment = False
-                        j += 2
-                        continue
-
-                ch = line[j]
-                if not in_comment:
-                    if ch == '"' and not in_string:
-                        in_string = True
-                        string_char = '"'
-                    elif ch == '"' and in_string and string_char == '"':
-                        in_string = False
-                        string_char = None
-                    elif not in_string:
-                        if ch == "{":
-                            brace_count += 1
-                        elif ch == "}":
-                            brace_count -= 1
-                            if brace_count == 0:
-                                return i
-                j += 1
-
-        return start  # if unmatched, treat as single-line
-
-    def parse(self, content: str) -> ParseResult:
-        lines = content.split("\n")
-        declarations: List[Declaration] = []
-
-        # Doc comments and attributes stack
-        doc_stack: List[List[str]] = [[]]
-        attr_stack: List[List[str]] = [[]]
-
-        def get_docs() -> List[str]:
-            return doc_stack[-1]
-
-        def get_attrs() -> List[str]:
-            return attr_stack[-1]
-
-        def clear_docs():
-            doc_stack[-1].clear()
-
-        def clear_attrs():
-            attr_stack[-1].clear()
-
-        def push_scope():
-            doc_stack.append([])
-            attr_stack.append([])
-
-        def pop_scope():
-            if len(doc_stack) > 1:
-                doc_stack.pop()
-            if len(attr_stack) > 1:
-                attr_stack.pop()
-
-        def format_doc_comment(comments: List[str]) -> str:
-            """Format doc comments consistently."""
-            if not comments:
-                return None
-            # For block comments /** ... */
-            if comments[0].startswith("/**"):
-                result = []
-                for i, line in enumerate(comments):
-                    if i == 0:  # First line
-                        result.append(line)
-                    elif i == len(comments) - 1:  # Last line
-                        result.append(" */")
-                    else:  # Middle lines
-                        # Remove leading * if present and add space
-                        line = line.lstrip("*").lstrip()
-                        result.append(" * " + line)
-                return "\n".join(result)
-            # For /// comments
-            return "\n".join(comments)
-
-        def parse_block(
-            start_line: int, end_line: int, parent_kind: Optional[str] = None
-        ) -> List[Declaration]:
-            """
-            Parse lines[start_line : end_line] (non-inclusive of end_line).
-            Return list of top-level declarations found.
-            parent_kind is the kind of the parent declaration (e.g. 'trait', 'impl')
-            """
-            block_decls = []
-            i = start_line
-            while i < end_line:
-                raw_line = lines[i]
-                stripped = raw_line.strip()
-
-                # Skip blank
-                if not stripped:
-                    i += 1
-                    continue
-
-                # Rust doc comments
-                if stripped.startswith("///"):
-                    get_docs().append(stripped)
-                    i += 1
-                    continue
-                if stripped.startswith("//!"):
-                    # module-level doc => skip for these tests
-                    i += 1
-                    continue
-                if stripped.startswith("/**"):
-                    # multi-line doc comment
-                    comment_lines = [stripped]
-                    i += 1
-                    while i < end_line and "*/" not in lines[i]:
-                        line_part = lines[i].strip()
-                        comment_lines.append(line_part)
-                        i += 1
-                    if i < end_line:
-                        comment_lines.append(lines[i].strip())
-                        i += 1
-                    get_docs().extend(comment_lines)
-                    continue
-
-                # Single-line non-doc comments
-                if stripped.startswith("//"):
-                    i += 1
-                    continue
-
-                # Attributes
-                if stripped.startswith("#["):
-                    attr_text = stripped
-                    while "]" not in attr_text and i + 1 < end_line:
-                        i += 1
-                        attr_text += " " + lines[i].strip()
-                    get_attrs().append(attr_text)
-                    i += 1
-                    continue
-
-                matched = False
-                # Try patterns in order:
-                for kind, pat in self.patterns:
-                    m = pat.match(stripped)
-                    if m:
-                        matched = True
-                        name = m.group("n") if "n" in m.groupdict() else None
-                        trait_part = m.groupdict().get("trait", None)
-                        if kind == "impl" and trait_part:
-                            # "impl Trait for Type"
-                            name = f"{trait_part} for {name}"
-
-                        # Skip nested declarations in certain contexts
-                        if parent_kind in ("trait", "impl") and kind in (
-                            "trait",
-                            "impl",
-                            "mod",
-                        ):
-                            i += 1
-                            continue
-
-                        # Clean up name
-                        if name:
-                            name = name.strip()
-                            # Special case for impl blocks: remove any generics from the name
-                            if kind == "impl":
-                                name = re.sub(r"<[^>]*>", "", name).strip()
-
-                        # Collect modifiers
-                        modifiers = set(get_attrs())
-                        clear_attrs()
-                        # If there's a pub(...) or pub in the line
-                        vis_m = re.search(r"pub(?:\s*\([^)]*\))?", stripped)
-                        if vis_m:
-                            modifiers.add(vis_m.group(0))
-
-                        # Docstring from the accumulated docs
-                        docstring = None
-                        if get_docs():
-                            docstring = format_doc_comment(get_docs())
-                            clear_docs()
-
-                        # Find block end
-                        block_end = self._find_block_end(lines, i)
-                        if block_end == i:
-                            # Single line declaration
-                            decl = Declaration(
-                                kind=kind,
-                                name=name,
-                                start_line=i + 1,
-                                end_line=i + 1,
-                                modifiers=modifiers,
-                                docstring=docstring,
-                            )
-                            block_decls.append(decl)
-                            i += 1
-                            break
+                if stripped_line.startswith("/*"):
+                    block_doc_match = DOC_COMMENT_BLOCK_OUTER_PATTERN.match(line.strip())
+                    if block_doc_match:
+                        in_block_comment = True
+                        in_doc_comment = True
+                        comment_content = block_doc_match.group(1)
+                        if comment_content.endswith("*/"):
+                             in_block_comment = False
+                             in_doc_comment = False
+                             end_match = DOC_COMMENT_BLOCK_END_PATTERN.match(comment_content)
+                             doc_buffer = [end_match.group(1).strip().lstrip('*').strip()] if end_match else []
                         else:
-                            # Multi-line declaration
-                            # If it's impl, trait, or mod, parse inside
-                            push_scope()
-                            nested_decls = []
-                            if kind in ("impl", "trait", "mod"):
-                                # parse the lines between i+1 .. block_end
-                                nested_decls = parse_block(i + 1, block_end, kind)
-                            pop_scope()
+                             doc_buffer = [comment_content.strip()] # Start buffer
+                        continue
+                    else:
+                        # Regular block comment
+                        if "*/" not in stripped_line:
+                            in_block_comment = True
+                        stripped_line = stripped_line.split("/*", 1)[0].strip()
+                        doc_buffer = [] # Regular block comments clear buffer
 
-                            # The outer declaration
-                            decl = Declaration(
-                                kind=kind,
-                                name=name,
-                                start_line=i + 1,
-                                end_line=block_end + 1,
-                                modifiers=modifiers,
-                                docstring=docstring,
-                            )
+                # Handle line comments (//, ///, //!)
+                if stripped_line.startswith("//"):
+                    doc_slash_match = DOC_COMMENT_SLASH_PATTERN.match(stripped_line)
+                    doc_block_inner_match = DOC_COMMENT_BLOCK_INNER_PATTERN.match(stripped_line)
+                    if doc_slash_match:
+                        doc_buffer.append(doc_slash_match.group(1).strip())
+                    elif doc_block_inner_match:
+                        # Inner block comments are module/crate level, less common before items
+                        # Treat similarly to outer for now, maybe refine later
+                        doc_buffer.append(doc_block_inner_match.group(1).strip())
+                    else:
+                        doc_buffer = [] # Regular line comment clears buffer
+                    stripped_line = "" # The rest of the line is comment
 
-                            # Add declarations based on context
-                            if parent_kind is None:
-                                import logging
+                if not stripped_line:
+                    # Don't clear doc buffer on empty lines
+                    continue
 
-                                logger = logging.getLogger(__name__)
-                                logger.info(f"Adding {kind} {name} at top level")
-                                block_decls.append(decl)
-                                if kind == "mod":
-                                    # For mod blocks, include both the mod and its nested declarations
-                                    # Always add all nested declarations at the top level
-                                    print(
-                                        f"Found {len(nested_decls)} nested declarations in mod {name}"
-                                    )
-                                    for d in nested_decls:
-                                        logger.info(
-                                            f"  - {d.kind} {d.name} with modifiers {d.modifiers}"
-                                        )
-                                        if d.kind == "function":
-                                            # For nested functions in modules, we need to capture their own attributes
-                                            # Find the indentation level of the function
-                                            func_line = lines[
-                                                d.start_line - 1
-                                            ].rstrip()  # Convert to 0-based index
-                                            indent = len(func_line) - len(
-                                                func_line.lstrip()
-                                            )
-                                            # Look for attributes at the same indentation level
-                                            attrs = []
-                                            i = (
-                                                d.start_line - 2
-                                            )  # Start from line before function
-                                            while i >= 0:
-                                                line = lines[i].rstrip()
-                                                if not line.lstrip().startswith("#["):
-                                                    break
-                                                line_indent = len(line) - len(
-                                                    line.lstrip()
-                                                )
-                                                if (
-                                                    line_indent >= indent
-                                                ):  # Allow for attributes with same or more indentation
-                                                    attrs.append(line.lstrip())
-                                                i -= 1
-                                            d.modifiers = set(attrs)
-                                            block_decls.append(d)
-                                elif kind == "impl":
-                                    # For impl blocks, include the impl block and any type/function declarations
-                                    # But only include the first two functions we find
-                                    funcs_found = 0
-                                    for d in nested_decls:
-                                        if d.kind == "function":
-                                            funcs_found += 1
-                                            if (
-                                                funcs_found <= 2
-                                                and "poll_read" not in d.name
-                                            ):
-                                                block_decls.append(d)
-                                        elif d.kind == "type":
-                                            block_decls.append(d)
-                            elif parent_kind == "mod":
-                                # Include all functions and nested declarations inside modules
-                                logger.info(f"Adding {kind} {name} inside mod")
-                                block_decls.append(decl)
-                                # For nested functions in modules, we need to capture their own attributes
-                                # Find the indentation level of the function
-                                if kind == "function":
-                                    func_line = lines[
-                                        decl.start_line - 1
-                                    ].rstrip()  # Convert to 0-based index
-                                    indent = len(func_line) - len(func_line.lstrip())
-                                    # Look for attributes at the same indentation level
-                                    attrs = []
-                                    i = (
-                                        decl.start_line - 2
-                                    )  # Start from line before function
-                                    while i >= 0:
-                                        line = lines[i].rstrip()
-                                        if not line.lstrip().startswith("#["):
-                                            break
-                                        line_indent = len(line) - len(line.lstrip())
-                                        if (
-                                            line_indent >= indent
-                                        ):  # Allow for attributes with same or more indentation
-                                            attrs.append(line.lstrip())
-                                        i -= 1
-                                    decl.modifiers = set(attrs)
-                                    # Also add the function to the top-level declarations
-                                    block_decls.append(decl)
-                            elif parent_kind == "impl" and kind in ("function", "type"):
-                                # Include functions and types inside impl blocks
-                                block_decls.append(decl)
-                            elif parent_kind == "trait":
-                                # Skip nested declarations in traits
-                                pass
+                # --- Parse Declarations and Imports --- #
 
-                            i = block_end + 1
-                            break
+                # Use statements (Imports)
+                use_match = USE_PATTERN.match(stripped_line)
+                if use_match:
+                    # Extract the full path used
+                    import_path = use_match.group(2).strip()
+                    # Basic handling for group imports
+                    if '{' in import_path and '}' in import_path and use_match.group(1):
+                        prefix = use_match.group(1)
+                        items = re.findall(r"\b\w+\b", import_path)
+                        for item in items:
+                            imports.add(f"{prefix}{item}")
+                    else:
+                         imports.add(use_match.group(1) + import_path if use_match.group(1) else import_path)
+                    doc_buffer = [] # Clear buffer after use statement
+                    continue
 
-                if not matched:
-                    # not a recognized line
-                    i += 1
+                # Function
+                func_match = FUNCTION_PATTERN.match(stripped_line)
+                if func_match:
+                    name = func_match.group("name")
+                    scope = "::".join(current_module_stack)
+                    full_name = f"{scope}::{name}" if scope else name
+                    docstring = "\n".join(filter(None, doc_buffer))
+                    declarations.append(Declaration(kind="function", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    doc_buffer = []
+                    continue
 
-            return block_decls
+                # Struct
+                struct_match = STRUCT_PATTERN.match(stripped_line)
+                if struct_match:
+                    name = struct_match.group("name")
+                    scope = "::".join(current_module_stack)
+                    full_name = f"{scope}::{name}" if scope else name
+                    docstring = "\n".join(filter(None, doc_buffer))
+                    declarations.append(Declaration(kind="struct", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    doc_buffer = []
+                    continue
 
-        # Parse the entire file as top-level
-        declarations = parse_block(0, len(lines))
-        return declarations
+                # Enum
+                enum_match = ENUM_PATTERN.match(stripped_line)
+                if enum_match:
+                    name = enum_match.group("name")
+                    scope = "::".join(current_module_stack)
+                    full_name = f"{scope}::{name}" if scope else name
+                    docstring = "\n".join(filter(None, doc_buffer))
+                    declarations.append(Declaration(kind="enum", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    doc_buffer = []
+                    continue
+
+                # Trait
+                trait_match = TRAIT_PATTERN.match(stripped_line)
+                if trait_match:
+                    name = trait_match.group("name")
+                    scope = "::".join(current_module_stack)
+                    full_name = f"{scope}::{name}" if scope else name
+                    docstring = "\n".join(filter(None, doc_buffer))
+                    declarations.append(Declaration(kind="trait", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    doc_buffer = []
+                    continue
+
+                 # Impl block
+                impl_match = IMPL_PATTERN.match(stripped_line)
+                if impl_match:
+                    impl_type = impl_match.group("type")
+                    impl_trait = impl_match.group("trait")
+                    scope = "::".join(current_module_stack)
+                    # Name the impl block uniquely if possible
+                    name = f"impl {impl_trait} for {impl_type}" if impl_trait else f"impl {impl_type}"
+                    full_name = f"{scope}::{name}" if scope else name
+                    docstring = "\n".join(filter(None, doc_buffer))
+                    # Represent the whole block as one 'impl' declaration
+                    declarations.append(Declaration(kind="implementation", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    doc_buffer = []
+                    continue
+
+                # Module
+                mod_match = MOD_PATTERN.match(stripped_line)
+                if mod_match:
+                    name = mod_match.group("name")
+                    scope = "::".join(current_module_stack)
+                    full_name = f"{scope}::{name}" if scope else name
+                    docstring = "\n".join(filter(None, doc_buffer))
+                    declarations.append(Declaration(kind="module", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    # Basic tracking - assumes mods don't close immediately
+                    # if stripped_line.endswith('{'): current_module_stack.append(name)
+                    doc_buffer = []
+                    continue
+
+                # If line contains code but wasn't handled, clear doc buffer
+                if stripped_line:
+                    doc_buffer = []
+                    # Basic scope exit for modules - Needs better tracking
+                    # if stripped_line == '}' and current_module_stack and bracket_level < len(current_module_stack) -1:
+                    #     current_module_stack.pop()
+
+            logger.debug(
+                 f"Finished RustParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} imports."
+             )
+            # TODO: Improve end_line detection
+            return ParseResult(
+                file_path=file_path,
+                language="rust",
+                content=content,
+                declarations=declarations,
+                imports=sorted(list(imports)),
+                engine_used="regex",
+                token_stats=None,
+                security_issues=[]
+            )
+
+        except Exception as e:
+            logger.error(f"Error parsing Rust file {file_path} with Regex: {e}", exc_info=True)
+            raise LanguageParserError(
+                message=f"Failed to parse Rust file ({type(e).__name__}) using Regex: {e}",
+                file_path=file_path,
+                original_exception=e,
+            )

@@ -1,0 +1,33 @@
+{
+  "basic.ts": {
+    "declaration_count": 13,
+    "declarations": [
+      "Person",
+      "Employee",
+      "Point",
+      "Result<T>",
+      "SimpleClass",
+      "greetPerson",
+      "standaloneFunction",
+      "square",
+      "PI",
+      "Employee",
+      "formatDate",
+      "formatCurrency",
+      "if"
+    ],
+    "declarations_with_docstrings": [
+      "Person",
+      "Employee",
+      "Point",
+      "SimpleClass",
+      "greetPerson",
+      "standaloneFunction",
+      "Employee",
+      "formatDate",
+      "formatCurrency"
+    ],
+    "import_count": 0,
+    "imports": []
+  }
+}

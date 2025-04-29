@@ -1,9 +1,7 @@
 # CodeConCat
 
-[![PyPI version](https://img.shields.io/pypi/v/codeconcat.svg)](https://pypi.org/project/codeconcat/) ![Version](https://img.shields.io/badge/version-0.7.0-blue)
-
 <p align="center">
-  <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="200"/>
+  <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="300"/>
 </p>
 
 > A simple code aggregator and documentation extractor optimized for AI comprehension and collaborative workflows
@@ -11,6 +9,8 @@
 ## Overview
 
 CodeConCat is your semi-intelligent companion for preparing codebases. It automatically ingests, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows. The tool provides structured output with smart context generation, making it ideal for sharing code with AI assistants and collaborators.
+
+With enhanced language parsers for 10 major programming languages, CodeConCat extracts rich semantic information from your codebase, including functions, classes, imports, and documentation.
 
 ```python
 from codeconcat import run_codeconcat_in_memory, CodeConCatConfig
@@ -41,6 +41,7 @@ Some features require optional dependencies. You can install them via [extras_re
 - **Clipboard Integration** (`pyperclip`): Used for copying output to the clipboard. Installed by default.
 - **Token Counting** (`tiktoken`): For accurate GPT-4 token counting.
 - **Security Scanning** (`transformers`): For advanced code security scanning (if enabled in config) and Claude tokenizer.
+- **Tree-sitter Parsing** (`tree_sitter`): For enhanced code parsing capabilities. All Tree-sitter language bindings are bundled with CodeConCat for use with supported languages.
 
 Install with extras:
 
@@ -55,19 +56,6 @@ pip install -e ".[security]"
 pip install -e ".[all]"
 ```
 
-Feature summary:
-
-| Feature             | Package        | Extra      | Installed by default? |
-|---------------------|---------------|------------|-----------------------|
-| Clipboard           | pyperclip      | (core)     | Yes                   |
-| Token counting      | tiktoken       | token      | No                    |
-| Security scanning   | transformers   | security   | No                    |
-| Web API             | fastapi, uvicorn, pydantic | web | No           |
-| Testing             | pytest, pytest-cov, etc. | test | No             |
-
-- **Versioning:** CodeConCat uses dynamic versioning managed in `codeconcat/version.py` and referenced from `pyproject.toml` using Hatchling. Always check these files for the current version.
-
-
 ## Features
 
 - **AI-Optimized Output**: Structured content with smart context generation
@@ -81,16 +69,50 @@ Feature summary:
 - **Token Counting**: Accurate GPT-4 token counting for all processed content
 - **Progress Tracking**: Real-time progress indication during processing (multi-stage progress bars for file collection, parsing, annotation, doc extraction, output writing; toggle with `--no-progress-bar`)
 - **Comprehensive Code Analysis**: Functions, classes, structs, and symbols are listed in the Markdown output under each file's analysis section for full visibility.
-- **Multi-Language Support**: Regex-based parsing for multiple languages:
-  - Python, JavaScript/TypeScript, Java, Go, PHP, Ruby, R, Julia, Rust, C/C++, C#
-- **Programmatic API**: Use CodeConCat directly in your Python code
-- **Web API**: Built-in FastAPI web server for HTTP access
+- **Advanced Language Support**: Dual-parser system with both regex-based and Tree-sitter parsers (select with `--parser-engine={tree_sitter,regex}`):
+  - **Tree-sitter Parsers**: High-accuracy parsing for 10 major languages with modern language feature support:
+    - Python (type hints, async functions, dataclasses)
+    - JavaScript/TypeScript (JSX/TSX, decorators, modern ES features)
+    - Java (generics, annotations, lambdas, records)
+    - C/C++ (templates, namespaces, operator overloading)
+    - C# (generics, attributes, async/await)
+    - Go (interfaces, embedded types, generics)
+    - PHP (attributes, enums, constructor promotion)
+    - Rust (traits, generics, macros)
+    - R (S3/S4/R6 classes, Roxygen docs)
+    - Julia (macros, structs, types)
+  - **Enhanced Regex Parsers**: Improved parsing for nested declarations and parent-child relationships:
+    - Python (nested functions, methods, and classes)
+    - JavaScript/TypeScript (nested functions and classes)
+    - Julia (nested modules, structs, and functions)
+    - Ruby and other languages without Tree-sitter support
+- **Programmatic API**: Use CodeConCat directly in your Python code with the new ConfigBuilder:
+
+```python
+from codeconcat import run_codeconcat_in_memory
+from codeconcat.config.config_builder import ConfigBuilder
+
+# Create a configuration with the builder pattern
+config_builder = ConfigBuilder()
+config_builder.with_defaults()
+config_builder.with_preset("medium")  # Use the 'medium' preset
+config_builder.with_yaml_config("path/to/.codeconcat.yml")  # Optional
+config_builder.with_cli_args({"format": "json", "parser_engine": "regex"})
+
+# Build the final configuration
+config = config_builder.build()
+
+# Run CodeConCat with the configuration
+output = run_codeconcat_in_memory(config)
+```
+
+- **Web API (Coming Soon)**: FastAPI web server for HTTP access (currently under development)
 
 ## Usage
 
 ### Command Line Interface (CLI)
 
-The CLI is the simplest way to use CodeConCat:
+The CLI is the simplest way to use CodeConCat. Basic options are shown by default, while advanced options can be viewed with the `--advanced` flag:
 
 ```bash
 # Process current directory with default settings
@@ -103,14 +125,25 @@ codeconcat path/to/your/code
 codeconcat path/to/code --format json
 codeconcat path/to/code --format text
 
+# Choose parser engine (tree_sitter for better accuracy, regex for speed)
+codeconcat --parser-engine=regex
+
 # Extract and include documentation
 codeconcat path/to/code --docs
 
-# Process a GitHub repository
-codeconcat --github username/repo --github-token YOUR_TOKEN
+# Process a remote Git repository (e.g., GitHub)
+codeconcat --source-url username/repo --github-token YOUR_TOKEN
+# Optionally specify a branch/tag/commit:
+# codeconcat --source-url username/repo --source-ref main --github-token YOUR_TOKEN
 
 # Specify files to include/exclude
-codeconcat --include "*.py" "*.js" --exclude "test_*" "*.pyc"
+codeconcat --include-paths "*.py" "*.js" --exclude-paths "test_*" "*.pyc"
+
+# Display advanced options
+codeconcat --advanced
+
+# Show detailed configuration information
+codeconcat --show-config-detail
 
 # Disable automatic .gitignore handling (it's enabled by default)
 codeconcat --no-use-gitignore
@@ -118,21 +151,59 @@ codeconcat --no-use-gitignore
 # Disable built-in default excludes (they're enabled by default)
 codeconcat --no-use-default-excludes
 
-# Enable verbose logging for debugging file inclusion/exclusion
+# Enable verbose logging (increase levels with -v, -vv)
 codeconcat --verbose
+codeconcat -vv  # Debug level logging
+
+# Control progress display
+codeconcat --disable-progress-bar
+
+# Show skipped files in verbose mode
+codeconcat --verbose --show-skip
+
+# Mask potentially sensitive output content
+codeconcat --mask-output-content
+
+# Configure output features
+codeconcat --no-ai-context     # Skip AI-specific preamble
+codeconcat --no-annotations    # Skip code annotation/augmentation
+codeconcat --no-symbols        # Skip generating symbol index
 
 # Enable cross-linking in Markdown output
 codeconcat --format markdown --cross-link-symbols
+
+# Apply predefined configuration presets
+codeconcat --preset lean      # Minimal output (no comments, docstrings)
+codeconcat --preset medium    # Balanced output (default)
+codeconcat --preset full      # Comprehensive output
 ```
 
 ### CLI Configuration
 
-**Configuration Precedence:**
-1. CLI arguments (highest priority)
-2. `.codeconcat.yml` file in project root (or `.codeconcat.yaml`)
-3. Hardcoded defaults (lowest priority)
+#### Configuration Precedence
 
-This precedence ensures that CLI arguments always override config file values, and config file values override built-in defaults. This behavior is now robust and correct (previous bug with CLI None overriding config is fixed).
+CodeConCat now uses a strict four-stage configuration loading process:
+
+1. **Defaults** - Built-in default values from the `CodeConCatConfig` model
+2. **Preset** - Predefined configuration sets ('lean', 'medium', 'full')
+3. **YAML** - Values from `.codeconcat.yml` file in project root (or `.codeconcat.yaml`)
+4. **CLI arguments** - Command-line options (highest priority)
+
+Each stage builds upon the previous, with later stages overriding earlier ones. You can view the source of each setting with:
+
+```bash
+# Show where each configuration setting comes from
+codeconcat --show-config-detail
+```
+
+#### Advanced vs Basic Options
+
+The CLI now groups options into two categories:
+
+- **Basic options**: Always shown in help output, covering common use cases
+- **Advanced options**: Hidden by default, shown when using `--advanced`
+
+This makes the tool more approachable for new users while still providing power users with all available options.
 
 Create a `.codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)` configuration file for persistent settings:
 
@@ -143,7 +214,7 @@ codeconcat --init  # creates a .codeconcat.yml template file
 
 Example configuration (YAML):
 ```yaml
-# .codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)
+# .codeconcat.yml
 format: markdown
 extract_docs: true
 include_patterns:
@@ -152,7 +223,7 @@ include_patterns:
 exclude_patterns:
   - "*.test.js"
   - "__pycache__"
-disable_tree: false
+parser_engine: tree_sitter  # Use 'regex' for faster, simpler parsing
 disable_annotations: false
 # Control filtering behavior (defaults are true)
 use_gitignore: true
@@ -182,11 +253,13 @@ config = CodeConCatConfig(
     merge_docs=True,
     include_paths=["*.py", "*.js"],
     exclude_paths=["test_*", "*.pyc"],
-    disable_tree=False,
+    parser_engine="tree_sitter",  # Use 'regex' for faster, simpler parsing
     disable_annotations=False,
-    github_url=None,  # Optional: Process from GitHub
-    github_token=None,  # Optional: GitHub authentication
-    ref=None  # Optional: GitHub branch/tag/commit
+    # Optional: Process from a remote source URL (Git repo, potentially ZIP in future)
+    source_url=None,
+    github_token=None,  # Optional: Git authentication (e.g., GitHub PAT)
+    # Optional: Git branch/tag/commit for source_url
+    source_ref=None
 )
 
 # Error handling
@@ -196,63 +269,33 @@ except Exception as e:
     print(f"Error processing code: {e}")
 ```
 
-### Web API
+### Web API (Coming Soon)
 
-CodeConCat includes a FastAPI-based web server for HTTP access:
+> **Note**: The Web API is currently under development and not yet available in the main release.
 
-1. Start the server:
-```bash
-# Install web dependencies if not already installed
-pip install "codeconcat[web]"
-
-# Start the server
-uvicorn app:app --reload
-```
-
-2. Access the API:
+A FastAPI-based HTTP API is planned for a future release, which will allow you to integrate CodeConCat with other services:
 
 ```python
+# Example of planned API usage (not yet implemented)
 import requests
 
-# Basic usage
-response = requests.post("http://localhost:8000/concat", 
+# Future API endpoint
+response = requests.post(
+    "http://localhost:8000/concat",
     json={
         "target_path": "path/to/code",
-        "format": "markdown"
+        "format": "json",
+        "parser_engine": "tree_sitter",
+        "include_paths": ["*.py", "*.js"],
+        "exclude_paths": ["test_*", "*.pyc"]
     }
 )
-output = response.json()["output"]
-
-# Advanced configuration
-payload = {
-    "target_path": "path/to/code",
-    "format": "json",
-    "extract_docs": True,
-    "merge_docs": True,
-    "include": ["*.py", "*.js"],
-    "exclude": ["test_*", "*.pyc"],
-    "disable_tree": False,
-    "disable_annotations": False
-}
-response = requests.post("http://localhost:8000/concat", json=payload)
 ```
 
-#### API Endpoints
-
-- `GET /` - API information and version
-- `POST /concat` - Process code and return output
-  - Request body: JSON with configuration options
-  - Response: JSON with processed output
-
-#### API Documentation
-
-Access the auto-generated API documentation:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
 
 ## Configuration
 
-Create a `.codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)` in your project root or use `codeconcat --init  # creates a .codeconcat.yml template file`:
+Create a `.codeconcat.yml` (YAML syntax; .yaml also supported, but .yml is recommended) in your project root or use `codeconcat --init  # creates a .codeconcat.yml template file`:
 
 ```yaml
 # Documentation settings
@@ -313,36 +356,42 @@ use_default_excludes: true
 
 ### Configuration Priority Order
 
-1. CLI arguments (highest)
-2. Local `.codeconcat.yml` (or `.codeconcat.yaml`)
-3. Default settings (lowest)
+CodeConCat uses a strict configuration priority order to ensure predictable behavior:
 
-This merging order is now robust and correct.
+1. CLI arguments (highest priority)
+2. Local `.codeconcat.yml` configuration file (YAML syntax)
+3. Preset configuration (lean, medium, or full)
+4. Default settings (lowest priority)
 
-1. Command line arguments (highest priority)
-2. Local `.codeconcat.yml (YAML syntax; .yaml also supported, but .yml is recommended)` file
-3. Default settings (lowest priority)
+This merging order ensures that command-line arguments always take precedence over any other settings, while still providing sensible defaults. Use `--show-config-detail` to see the source of each active configuration setting.
 
 ## Output Formats
 
+CodeConCat supports multiple output formats, selectable via the `--format` flag:
+
 ### Markdown (Default)
-- Clean, readable format
-- Syntax highlighting
+- Clean, readable format with syntax highlighting
 - Directory tree visualization
+- Structured declarations and imports
+- Security issue highlighting with severity indicators
+- Token counting statistics (when enabled)
 - AI-friendly structure
 
 ### JSON
-- Machine-readable format
-- Perfect for automation
-- Preserves all metadata
+- Machine-readable format for automation
+- Complete structured data representation
+- Preserves all metadata (declarations, imports, security issues, token stats)
+- Suitable for downstream processing
 
 ### XML
-- Structured format
-- Compatible with XML tools
-- Detailed metadata
+- Structured hierarchical format
+- Full metadata preservation
+- Compatible with XML processing tools
 
 ### Text
-- Plain text format
+- Simple plain text output
+- Line numbers (when enabled)
+- Minimal formatting
 - Simple and lightweight
 - Suitable for basic use cases
 
@@ -403,11 +452,11 @@ project/
 | `--include-languages` | `[]` | Limit to specific languages (e.g., `python javascript java go php`) |
 | `--exclude-languages` | `[]` | Exclude specific languages (e.g., `cpp`) |
 | `--include` | `[]` | Include specific glob patterns (e.g., `**/*.{py,js,ts,java,go}`) |
-| `--exclude` | `[]` | Exclude paths/patterns (e.g., `node_modules`, `__pycache__`) |
+| `--exclude` | `[]` | Exclude paths/patterns (e.g., `node_modules`, `__pycache__`, already excludes `tests/` by default) |
 | `--max-workers` | `4` | Number of concurrent threads for processing |
-| `--github` | `None` | GitHub repository URL or shorthand (e.g., `username/repo`) |
-| `--github-token` | `None` | Personal access token for private GitHub repos |
-| `--ref` | `None` | Branch, tag, or commit hash for GitHub repos |
+| `--source-url` | `None` | Remote Git repository URL or shorthand (e.g., `username/repo`) |
+| `--github-token` | `None` | Personal access token for private Git repos |
+| `--source-ref` | `None` | Branch, tag, or commit hash for Git repos |
 | `--no-use-gitignore` | `false` | Disable automatic .gitignore handling (default is enabled) |
 | `--no-use-default-excludes` | `false` | Disable built-in default excludes (default is enabled) |
 | `--no-tree` | `false` | Disable folder tree generation |
@@ -417,6 +466,7 @@ project/
 | `--no-ai-context` | `false` | Disable AI context generation |
 | `--no-annotations` | `false` | Disable code annotations |
 | `--no-symbols` | `false` | Disable symbol extraction |
+| `--mask-output` | `false` | Mask sensitive data directly in the output content. |
 | `--debug` | `false` | Enable detailed logging |
 | `--log-level` | `WARNING` | Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 | `--init` | `false` | Initialize a default `.codeconcat.yml` configuration file from template |
@@ -427,10 +477,13 @@ project/
 | `--verbose` | `false` | Enable verbose logging for debugging file inclusion/exclusion |
 | `--no-use-gitignore` | `false` | Disable automatic .gitignore handling |
 | `--no-use-default-excludes` | `false` | Disable built-in default excludes |
+| `--parser-engine` | `regex` | Select parsing engine: 'regex' (default) or 'tree_sitter'. |
+| `--compress-code` | `false` | Compress code output using Tree-sitter (requires --parser-engine=tree_sitter). |
+| `--no-fallback-to-regex` | `true` | Disable fallback to regex parser if Tree-sitter fails. |
 
 ### Language Support
 
-CodeConcat provides comprehensive parsing for multiple languages:
+CodeConCat provides comprehensive parsing for multiple languages:
 
 ```bash
 # Process Python and JavaScript files
@@ -450,27 +503,30 @@ You can process any public or private GitHub repository by specifying either the
 #### Minimal examples
 ```bash
 # Process a public repo (default branch)
-codeconcat --github username/repo
+codeconcat --source-url username/repo
 
 # Process a specific branch
-codeconcat --github username/repo --ref main
+codeconcat --source-url username/repo --source-ref main
 
 # Process a specific commit or tag
-codeconcat --github username/repo --ref v1.0.0
+codeconcat --source-url username/repo --source-ref v1.0.0
 
 # Use with authentication (for private repos)
-codeconcat --github username/repo --github-token YOUR_TOKEN
+codeconcat --source-url username/repo --github-token YOUR_TOKEN
 ```
 
 #### Custom file filtering
-When using `--github`, CodeConCat defaults to considering **all files** (`**/*`) in the repository, in addition to `LICENSE*` and `README*`. This ensures broad inclusion unless you specify otherwise. You can still use `--include-paths` and `--exclude-paths` on the command line to customize filtering for a specific run, overriding this default behavior.
+When using `--source-url`, CodeConCat defaults to considering **all files** (`**/*`) in the repository, in addition to `LICENSE*` and `README*`. This ensures broad inclusion unless you specify otherwise. You can still use `--include-paths` and `--exclude-paths` on the command line to customize filtering for a specific run, overriding this default behavior.
 
 ```bash
 # Only include Python files (and LICENSE/README) - overrides the default broad inclusion
-codeconcat --github username/repo --include-paths '**/*.py'
+codeconcat --source-url username/repo --include-paths '**/*.py'
 
-# Exclude test and docs directories (still respects .gitignore)
-codeconcat --github username/repo --exclude-paths '**/tests/**' '**/docs/**'
+# Exclude docs directories (test directories are already excluded by default)
+codeconcat --source-url username/repo --exclude-paths '**/docs/**'
+
+# Include test directories (overriding the default exclusion)
+codeconcat --source-url username/repo --include-paths '**/tests/**'
 ```
 
 - **GitHub Default:** Considers all files (`**/*`), plus `LICENSE*` and `README*`.
@@ -483,7 +539,8 @@ CodeConCat provides multiple ways to control which files are processed:
 
 1. **.gitignore Support**
    - Automatically respects your project's `.gitignore` rules
-   - Common patterns (e.g., `__pycache__`, `node_modules`) are always ignored
+   - Common patterns (e.g., `__pycache__`, `node_modules`, `tests/`) are always ignored
+   - Test directories (`tests/`, `test/`) are excluded by default
    - No configuration needed - just works!
 
 2. **Configuration File**

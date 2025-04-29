@@ -15,7 +15,7 @@ from codeconcat.base_types import (
     Declaration,
     WritableItem,
 )
-from codeconcat.utilities.ai_context import generate_ai_preamble
+from .ai_context import generate_ai_preamble
 
 logger = logging.getLogger(__name__)
 

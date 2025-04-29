@@ -1,0 +1,43 @@
+{
+  "basic.rs": {
+    "declaration_count": 19,
+    "declarations": [
+      "PI",
+      "MAX_RETRIES",
+      "AppSettings",
+      "Person",
+      "Person",
+      "Employee",
+      "Employee",
+      "Display",
+      "AppError",
+      "Display",
+      "Error",
+      "Processor",
+      "SimpleProcessor",
+      "SimpleProcessor",
+      "Processor",
+      "calculate_stats",
+      "divide",
+      "swap",
+      "main"
+    ],
+    "declarations_with_docstrings": [
+      "PI",
+      "MAX_RETRIES",
+      "AppSettings",
+      "Person",
+      "Employee",
+      "Processor",
+      "SimpleProcessor",
+      "calculate_stats",
+      "divide",
+      "swap",
+      "main"
+    ],
+    "import_count": 1,
+    "imports": [
+      "std"
+    ]
+  }
+}

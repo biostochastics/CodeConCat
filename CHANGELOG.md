@@ -1,8 +1,69 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
-## [0.7.0] - 2025-04-27
+## [UNRELEASED] - IN PROGRESS
+
+### Added
+- **Added tree parser support**
+- **Configuration System:**
+    - Implemented a new `ConfigBuilder` class with a clear four-stage configuration loading process (Defaults → Preset → YAML → CLI).
+    - Added `--show-config-detail` flag to print the source of each configuration setting (default/preset/YAML/CLI).
+    - Enhanced configuration validation and error reporting for a better user experience.
+- **Enhanced Parser Implementations:**
+    - Fixed Julia parser to properly identify nested declarations within modules, structs, and functions.
+    - Improved Python parser to handle parent-child relationships and nested declarations correctly.
+    - Verified JavaScript/TypeScript parser's enhanced declaration detection within classes and functions.
+    - Added utility (`enable_debug.py`) to enable debug logging for all parsers with detailed output.
+    - Created comprehensive test corpus for validating parser accuracy across all supported languages.
+- **Parser Diagnostics:**
+    - Implemented parser debug utility (`debug_parsers.py`) to compare basic and enhanced parsers.
+    - Added capabilities for printing detailed diagnostics, parent-child relationships, and creating minimal test files.
+- **Comprehensive Test Suite:**
+    - Added unit tests for all system components with proper fixtures, assertions, and debug logging.
+    - Implemented integration tests for the full parsing and rendering pipeline.
+    - Added tests for configuration stages, rendering adapters, parser implementations, and end-to-end workflows.
+- **Remote Input:** Added initial support for cloning remote Git repositories using `subprocess`, handling HTTPS, SSH, and `owner/repo[/ref]` shorthands.
+- **Security Processing:**
+    - Implemented sensitive data masking (PII, common secret patterns) using regex.
+    - Added semgrep integration for security scanning.
+- **Mask Output Content:** Added `--mask-output` flag to mask sensitive data directly in the final output content.
+- **Output Masking:** Added `--mask-output` CLI flag and `mask_output_content` config option to mask detected secrets directly in the output content.
+- **Enhanced Language Parsers:**
+    - **Regex Parser Restoration:** Restored, enhanced, and integrated regex-based parsers for R, Rust, and Julia languages.
+    - **Tree-sitter Query Improvements:** Added Tree-sitter queries for 10 major languages:
+        - **R:** Improved Roxygen docstring extraction, S3/S4/R6 class detection, and function/variable declarations.
+        - **Rust:** Enhanced trait implementation detection, generics, modifiers, and doc comments.
+        - **Julia:** Better macro, struct, and type handling with improved docstring extraction.
+        - **JavaScript/TypeScript:** Added support for modern ECMAScript features like decorators, async/await, React components, JSX/TSX, TypeScript types, and enhanced JSDoc parsing.
+        - **PHP:** Added support for PHP 8+ features (attributes, enums, constructor property promotion), improved namespace resolution and PHPDoc handling.
+        - **Python:** Better support for type hints, async functions, decorators, dataclasses, and docstring parsing.
+        - **Java:** Enhanced generics, annotations, lambda expressions, records, and Javadoc extraction.
+        - **C/C++:** Improved template handling, operator overloading, constructor/destructor detection, and doc comment parsing.
+        - **C#:** Enhanced support for generics, interfaces, async methods, attributes, properties, and XML documentation.
+        - **Go:** Better interface detection, embedded types, generics, and Go doc comment parsing.
 
 ### Changed
+- **CLI Simplification:**
+    - Renamed confusing flags: replaced `--no-tree/disable_tree` with clearer `--parser-engine={regex,tree_sitter}`.
+    - Grouped CLI options into "Basic" and "Advanced" categories, hiding advanced options by default.
+    - Added `--advanced` flag to show all advanced options in help output.
+    - Improved help text and organization of related option groups.
+- **Rendering Architecture:**
+    - Decoupled data models from rendering logic to improve maintainability and extensibility.
+    - Created dedicated rendering adapters for each output format (markdown, json, xml, text).
+    - Modified `AnnotatedFileData` and `ParsedDocData` to store only structured data without rendering logic.
+    - Implemented consistent rendering interfaces for all output formats.
+- **Remote Input Refactoring:**
+    - Renamed config fields in `CodeConCatConfig`: `github_url` -> `source_url`, `github_ref` -> `source_ref`.
+    - Renamed CLI arguments: `--github` -> `--source-url`, `--ref` -> `--source-ref`.
+    - Renamed collector module: `github_collector.py` -> `remote_collector.py`.
+    - Renamed functions: `collect_github_files` -> `collect_git_repo`, `parse_github_url` -> `parse_git_url`.
+    - Removed the `PyGithub` dependency as cloning is now handled via `subprocess`.
+    - Updated `main.py` logic to use the new configuration fields and collector function.
+- **Parser Interface Standardization:**
+    - All language parsers now implement a common `ParserInterface` for consistent behavior.
+    - Refactored regex parsers to follow the same interface as Tree-sitter parsers.
+    - Updated parser selection logic to properly include all available parsers.
+    - Improved documentation and logging for parser selection and fallback behavior.
 - **Writer Refactoring:** Major refactoring of the output writers (`text`, `markdown`, `json`, `xml`) and `ai_context` helper to use polymorphism. Introduced a `WritableItem` interface and moved format-specific rendering logic into `AnnotatedFileData` and `ParsedDocData`. This eliminates type checking, adheres to SOLID principles, and improves maintainability and extensibility.
 
 ### Fixed
@@ -12,6 +73,12 @@
 - **Text Writer:** Replaced hardcoded separator length (`80`) with a `SEPARATOR_LENGTH` constant for better readability and maintainability.
 - **Core:** Fixed missing `List` import from `typing` in `main.py`.
 - Addressed various linting and formatting issues identified by `isort` and `ruff`.
+- **Test Suite Improvements:**
+    - Fixed all multi-language corpus tests with better error handling and diagnostics.
+    - Updated tests to be more resilient to parser output variations for C-family, Go, and Rust languages.
+    - Added comprehensive diagnostics for parser test failures.
+    - Fixed line number formatting in Markdown renderer tests.
+    - JSON writer tests now handle missing `json_indent` configuration parameter with proper fallback.
 
 ## [0.6.6] - 2025-04-27
 
@@ -76,7 +143,7 @@
 - Added `--remove-docstrings` CLI option to exclude documentation strings (Python, JS/TS/Java, C#, Rust, R) from the output.
 - Added Configurable Security Scanning that introduced several options in .codeconcat.yml to control security scanning:
     - `enable_security_scanning`: Globally enable/disable the scanner (defaults to true).
-    - `security_scan_severity_threshold`: Set the minimum severity level to report (e.g., "MEDIUM", defaults to "MEDIUM").
+    - `security_scan_severity_threshold`: Set the minimum severity level to report (defaults to "MEDIUM").
     - `security_ignore_paths`: Specify glob patterns for files/directories to exclude from scanning (e.g., `["tests/", "**/vendor/**"]`).
     - `security_ignore_patterns`: Define regex patterns to ignore specific matched findings based on the content of the finding.
     - `security_custom_patterns`: Add user-defined secret detection rules (each requiring `name`, `regex`, and `severity`).

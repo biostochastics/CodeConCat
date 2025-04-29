@@ -20,10 +20,11 @@ import fnmatch
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 from ..base_types import CodeConCatConfig, CustomSecurityPattern, SecuritySeverity
 from .security_types import SecurityIssue
+from .external_scanners import run_semgrep_scan
 
 __all__ = ["SecurityProcessor"]
 
@@ -159,8 +160,17 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             logger.error("Invalid built‑in security pattern '%s': %s", _name, exc)
 
     # Inline‑ignore comment such as ``# nosec`` or ``# codeconcat-ignore-security``
-    _INLINE_IGNORE_PATTERN: re.Pattern[str] = re.compile(
-        r"(?:#|//)\s*(?:nosec|codeconcat-ignore-security)\b", re.IGNORECASE
+    # Inline ignore patterns:
+    #   - '# codeconcat-ignore-security-line' or '# nosec' (single line)
+    #   - '# codeconcat-ignore-security-block' ... '# end-ignore' (block)
+    _INLINE_IGNORE_LINE_PATTERN: re.Pattern[str] = re.compile(
+        r"(?:#|//)\s*(?:nosec|codeconcat-ignore-security(?:-line)?)\b", re.IGNORECASE
+    )
+    _INLINE_IGNORE_BLOCK_START_PATTERN: re.Pattern[str] = re.compile(
+        r"(?:#|//)\s*codeconcat-ignore-security-block\b", re.IGNORECASE
+    )
+    _INLINE_IGNORE_BLOCK_END_PATTERN: re.Pattern[str] = re.compile(
+        r"(?:#|//)\s*end-ignore", re.IGNORECASE
     )
 
     # ----------------------------------------------------------------------------------
@@ -172,15 +182,22 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
         content: str,
         file_path: str | Path,
         config: CodeConCatConfig,
-    ) -> List[SecurityIssue]:
+        mask_output_content: bool = False,
+    ) -> Tuple[List[SecurityIssue], Optional[str]]:
         """Scan *content* and return a list of :class:`SecurityIssue` objects.
+
+        If *mask_output_content* is True, the second element of the returned tuple
+        will be the content string with found secrets masked, otherwise it's None.
 
         The method respects *config* settings such as ignore lists and severity
         threshold.  The *file_path* is only used for reporting and for ignore
         matching; it **is not** read from disk.
+
+        Supports optional integration with external tools (e.g., Semgrep) if enabled.
         """
         if not config.enable_security_scanning:
-            return []
+            # Return empty list and None for content
+            return [], None
 
         # Resolve path early so downstream helpers can rely on a valid :class:`Path`.
         try:
@@ -203,19 +220,28 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             f"Compiled patterns available for scan: {list(compiled_patterns.keys())}"
         )
         issues: List[SecurityIssue] = []
+        # Use a list for mutable lines if masking
+        lines = content.splitlines()
+        output_lines = lines[:] if mask_output_content else None
 
-        for idx, line in enumerate(content.splitlines()):  # ``idx`` is zero‑based.
+        for idx, line in enumerate(lines):  # ``idx`` is zero‑based.
             lineno = idx + 1
 
-            if cls._should_skip_line(idx, content.splitlines()):
+            if cls._should_skip_line(idx, lines):
                 continue
+
+            # Keep track if line was modified by masking
+            line_modified = False
+            original_line_for_masking = line # Store original line segment for sequential masking
 
             for rule_name, (
                 pattern,
                 issue_type,
                 default_sev,
             ) in compiled_patterns.items():
-                for match in pattern.finditer(line):
+                # Use original line segment for finding matches, but mask the potentially already masked line
+                current_line_segment = output_lines[idx] if mask_output_content and output_lines else line
+                for match in pattern.finditer(original_line_for_masking):
                     try:
                         group_index = (
                             1
@@ -259,13 +285,29 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                         )
                         continue
 
+                    # Always generate the masked line for the issue report
                     try:
-                        masked_line = cls._mask_sensitive_data(line, pattern, match)
+                        masked_line_for_issue = cls._mask_sensitive_data(current_line_segment, pattern, match)
                     except Exception:
-                        masked_line = line
+                         # Use the (potentially already masked) line segment if specific masking fails
+                        masked_line_for_issue = current_line_segment
+
+                    # Mask the actual output line list if requested
+                    if mask_output_content and output_lines:
+                        try:
+                            # Mask the line in the output_lines list
+                            output_lines[idx] = cls._mask_sensitive_data(output_lines[idx], pattern, match)
+                            line_modified = True # Flag that this line in output_lines was changed
+                        except Exception:
+                            # Log error but continue; output_lines[idx] remains as it was
+                            logger.warning(
+                                f"Failed to mask output line {lineno} in {file_path} for finding: {raw_finding[:10]}...",
+                                exc_info=True
+                            )
+
                     issue = SecurityIssue(
                         line_number=lineno,
-                        line_content=masked_line,
+                        line_content=masked_line_for_issue, # Use specifically masked line for issue
                         issue_type=issue_type,
                         severity=current_severity,
                         description=f"Potential {issue_type} detected.",
@@ -274,7 +316,27 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                     )
                     issues.append(issue)
 
-        return issues
+        # Optional: integrate external scanners (e.g., Semgrep)
+        if getattr(config, "enable_external_semgrep", False):
+            semgrep_issues = run_semgrep_scan(
+                abs_path,
+                config,
+                rules=getattr(config, "semgrep_ruleset", "p/ci")
+            )
+            # Add Semgrep issues, avoiding duplicates if possible (basic check)
+            existing_issue_keys = {
+                (iss.file_path, iss.line_number, iss.issue_type) for iss in issues
+            }
+            for s_issue in semgrep_issues:
+                key = (s_issue.file_path, s_issue.line_number, s_issue.issue_type)
+                if key not in existing_issue_keys:
+                    issues.append(s_issue)
+                    existing_issue_keys.add(key)
+
+        # Join the masked lines if masking was enabled
+        final_masked_content = "\n".join(output_lines) if output_lines is not None else None
+
+        return issues, final_masked_content
 
     # ----------------------------------------------------------------------------------
     # Internal helpers -------------------------------------------------------------------
@@ -356,16 +418,32 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     # --------------------------------------------------------------------- inline ignores
     @classmethod
     def _should_skip_line(cls, line_idx: int, lines: List[str]) -> bool:
-        """Helper handling inline ``# nosec`` style comments on *line_idx* or previous."""
-        if cls._has_inline_ignore(lines[line_idx]):
+        """Handle inline and block ignore comments for security scanning.
+
+        Supports:
+        - '# codeconcat-ignore-security-line' or '# nosec' (single line)
+        - '# codeconcat-ignore-security-block' ... '# end-ignore' (block)
+        Ignores leading/trailing whitespace and both '#' and '//' comment styles.
+        """
+        # Block ignore
+        in_block = False
+        for i in range(0, line_idx + 1):
+            if cls._INLINE_IGNORE_BLOCK_START_PATTERN.search(lines[i]):
+                in_block = True
+            elif in_block and cls._INLINE_IGNORE_BLOCK_END_PATTERN.search(lines[i]):
+                in_block = False
+        if in_block:
             return True
-        if line_idx > 0 and cls._has_inline_ignore(lines[line_idx - 1]):
+        # Single-line ignore
+        if cls._has_inline_ignore_line(lines[line_idx]):
+            return True
+        if line_idx > 0 and cls._has_inline_ignore_line(lines[line_idx - 1]):
             return True
         return False
 
     @classmethod
-    def _has_inline_ignore(cls, line: str) -> bool:  # noqa: D401 — short helper
-        return bool(cls._INLINE_IGNORE_PATTERN.search(line))
+    def _has_inline_ignore_line(cls, line: str) -> bool:
+        return bool(cls._INLINE_IGNORE_LINE_PATTERN.search(line))
 
     # --------------------------------------------------------------------- severity logic
     @classmethod
@@ -468,7 +546,10 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     def format_issues(
         cls, issues: List[SecurityIssue], config: CodeConCatConfig
     ) -> str:
-        """Pretty‑print *issues* with respect to *config* threshold."""
+        """Pretty‑print *issues* with respect to *config* threshold.
+
+        Includes the specific finding and context lines for each issue.
+        """
         if not issues:
             return "Security Scan Results: No issues found."
 
@@ -486,23 +567,42 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             key=lambda i: (i.severity, i.file_path, i.line_number), reverse=True
         )
 
+        # Group issues by file for context
+        from collections import defaultdict
+        file_to_issues = defaultdict(list)
+        for issue in filtered:
+            file_to_issues[issue.file_path].append(issue)
+
         lines: List[str] = [
             "Security Scan Results:",
             "=" * 20,
             f"Found {len(filtered)} issue(s) at or above the '{threshold.name}' threshold:",
         ]
-        for issue in filtered:
-            lines.extend(
-                [
-                    "",
-                    f"Severity : {issue.severity.name}",
-                    f"Type     : {issue.issue_type}",
-                    f"File     : {issue.file_path}",
-                    f"Line {issue.line_number}: {issue.line_content.strip()}",
-                    f"Description: {issue.description}",
-                    "-" * 20,
-                ]
-            )
+        for file_path, file_issues in file_to_issues.items():
+            # Try to read file for context
+            try:
+                with open(file_path, "r") as f:
+                    file_lines = f.readlines()
+            except Exception:
+                file_lines = None
+            for issue in file_issues:
+                lines.append("")
+                lines.append(f"Severity : {issue.severity.name}")
+                lines.append(f"Type     : {issue.issue_type}")
+                lines.append(f"File     : {issue.file_path}")
+                lines.append(f"Line {issue.line_number}: {issue.line_content.strip()}")
+                lines.append(f"Finding  : {issue.raw_finding}")
+                lines.append(f"Description: {issue.description}")
+                # Add context lines if file is available
+                if file_lines:
+                    start = max(0, issue.line_number - 3)
+                    end = min(len(file_lines), issue.line_number + 2)
+                    context = file_lines[start:end]
+                    lines.append("Context:")
+                    for i, ctx_line in enumerate(context, start=start + 1):
+                        prefix = ">>>" if i == issue.line_number else "   "
+                        lines.append(f"{prefix} {i:4d}: {ctx_line.rstrip()}")
+                lines.append("-" * 20)
         return "\n".join(lines)
 
     # --------------------------------------------------------------------------- internal

@@ -2,27 +2,12 @@ import re
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.errors import LanguageParserError
-from codeconcat.parser.language_parsers.base_parser import BaseParser
+from codeconcat.parser.language_parsers.base_parser import ParserInterface
 
 
-def parse_php(file_path: str, content: str) -> ParseResult:
-    """Parse PHP code and return declarations."""
-    try:
-        parser = PhpParser()
-        parser.current_file_path = file_path  # Set the file path
-        # Call the updated parse method which returns ParseResult
-        parse_result = parser.parse(content)
-        return parse_result
-    except Exception as e:
-        # Wrap internal parser errors in LanguageParserError
-        raise LanguageParserError(
-            message=f"Failed to parse PHP file: {e}",
-            file_path=file_path,
-            original_exception=e,
-        )
+class PhpParser(ParserInterface):
+    """Parses PHP code using Regex."""
 
-
-class PhpParser(BaseParser):
     def __init__(self):
         """Initialize PHP parser with regex patterns."""
         super().__init__()
@@ -51,7 +36,7 @@ class PhpParser(BaseParser):
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
 
-    def parse(self, content: str) -> ParseResult:
+    def parse(self, content: str, file_path: str) -> ParseResult:
         """Parse PHP code and return a ParseResult object."""
         declarations = []
         imports = []  # List to store imports/includes
@@ -178,9 +163,10 @@ class PhpParser(BaseParser):
             i += 1
 
         return ParseResult(
-            file_path=self.current_file_path,
+            file_path=file_path,
             language="php",
             content=content,
             declarations=declarations,
             imports=imports,
+            engine_used="regex",
         )

@@ -15,11 +15,13 @@ from typing import List
 from tqdm import tqdm
 
 from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, WritableItem
-from codeconcat.collector.github_collector import collect_github_files
+from codeconcat.collector.remote_collector import collect_git_repo
 from codeconcat.collector.local_collector import collect_local_files
-from codeconcat.config.config_loader import load_config
+from codeconcat.config.config_builder import ConfigBuilder, load_config
+from codeconcat.diagnostics import verify_tree_sitter_dependencies, diagnose_parser
 from codeconcat.parser.doc_extractor import extract_docs
 from codeconcat.parser.file_parser import parse_code_files
+from codeconcat.parser.enhanced_pipeline import enhanced_parse_pipeline
 from codeconcat.quotes import get_random_quote
 from codeconcat.transformer.annotator import annotate
 from codeconcat.version import __version__
@@ -151,49 +153,153 @@ def build_parser() -> argparse.ArgumentParser:
 
     Defines all available CLI flags, options, and their help messages,
     organizing them into logical groups for better readability.
+    
+    CLI options are divided into "Basic" and "Advanced" categories, with advanced
+    options hidden by default unless the --advanced flag is specified.
 
     Returns:
         An configured argparse.ArgumentParser instance.
     """
-    parser = argparse.ArgumentParser(
+    # Create a custom argument parser that hides advanced options
+    class AdvancedHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
+        """Custom formatter that can hide advanced options."""
+        def _format_action_invocation(self, action):
+            if hasattr(action, 'advanced') and action.advanced and not args_namespace.advanced:
+                return argparse.SUPPRESS
+            return super()._format_action_invocation(action)
+    
+    # Create a wrapper for ArgumentParser to track advanced options
+    class AdvancedArgumentParser(argparse.ArgumentParser):
+        """Parser that supports hiding advanced options."""
+        def add_argument(self, *args, **kwargs):
+            # Extract and remove advanced flag if present
+            advanced = kwargs.pop('advanced', False)
+            action = super().add_argument(*args, **kwargs)
+            action.advanced = advanced
+            return action
+        
+        def add_argument_group(self, title=None, description=None, advanced=False):
+            group = super().add_argument_group(title, description)
+            group.advanced = advanced
+            
+            # Override add_argument for the group to track advanced status
+            original_add_argument = group.add_argument
+            def add_argument_with_advanced(*args, **kwargs):
+                # Determine the advanced status, defaulting to the group's status
+                is_advanced = kwargs.pop('advanced', group.advanced) # Use pop to get and remove
+
+                # Call the original add_argument without the 'advanced' kwarg
+                action = original_add_argument(*args, **kwargs)
+
+                # Set the custom attribute on the created action for the formatter
+                action.advanced = is_advanced
+                return action
+            group.add_argument = add_argument_with_advanced
+            
+            return group
+    
+    # Parse just the --advanced flag to determine if we should show advanced options
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument('--advanced', action='store_true', help='Show advanced options')
+    args_namespace, _ = pre_parser.parse_known_args()
+    
+    # Now create the real parser with the appropriate formatter
+    parser = AdvancedArgumentParser(
         prog="codeconcat",
         description="CodeConCat – LLM‑friendly code aggregator & doc extractor",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        formatter_class=AdvancedHelpFormatter,
     )
 
-    # positional
+    # === Positional Argument ===
     parser.add_argument(
-        "target_path", nargs="?", default=".", help="Directory to process."
+        "target_path",
+        nargs="?",
+        default=".",
+        help="Target directory or file to process. Defaults to the current directory.",
     )
 
-    # version + misc
-    parser.add_argument(
+    # === Basic Options ===
+    g_gen = parser.add_argument_group("Basic Options")
+    g_gen.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
-    parser.add_argument(
-        "--show-skip", action="store_true", help="Show skipped files list."
+    g_gen.add_argument(
+        "--config",
+        help="Path to a specific configuration file (.yaml/.yml). Overrides default search.",
+        metavar="FILE"
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging.")
-    parser.add_argument(
-        "--log-level",
-        default="WARNING",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Base logging level when --debug is absent.",
+    g_gen.add_argument(
+        "--init", action="store_true", help="Create default '.codeconcat.yml' and exit."
     )
-    parser.add_argument(
-        "--init", action="store_true", help="Create default config and exit."
-    )
-    parser.add_argument(
+    g_gen.add_argument(
         "--show-config", action="store_true", help="Print merged config and exit."
     )
+    g_gen.add_argument(
+        "--show-config-detail", action="store_true", 
+        help="Print detailed config showing the source of each setting (default/preset/YAML/CLI)."
+    )
+    parser.add_argument(
+        "--advanced", action="store_true", 
+        help="Show advanced options in help output."
+    )
 
-    # input
+    # === Logging & Verbosity ===
+    g_log = parser.add_argument_group("Logging & Verbosity")
+    g_log.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity level (-v for INFO, -vv for DEBUG).",
+    )
+    g_log.add_argument(
+        "--debug", 
+        action="store_true", 
+        default=False,
+        help="Enable debug logging (equivalent to -vv)."
+    )
+    g_log.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        default=False,
+        help="Quiet mode: suppress progress information but keep token summaries and success message",
+    )
+    g_log.add_argument(
+        "--log-level",
+        default=None,  # Default handled based on verbosity/debug flag
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        advanced=True,
+        help="Explicitly set logging level (overrides -v/-vv/--debug)."
+    )
+    g_log.add_argument(
+        "--disable-progress-bar",
+        action="store_true",
+        help="Disable progress bars during file processing."
+    )
+    g_log.add_argument(
+        "--show-skip", action="store_true", advanced=True,
+        help="Show skipped files list (requires -v or higher)."
+    )
+    
+    # === Diagnostic Options ===
+    g_diag = parser.add_argument_group("Diagnostic Tools", advanced=True)
+    g_diag.add_argument(
+        "--verify-dependencies", action="store_true",
+        help="Check if all Tree-sitter grammars are properly installed and exit."
+    )
+    g_diag.add_argument(
+        "--diagnose-parser", metavar="LANGUAGE",
+        help="Run diagnostic checks on the parser for a specific language using a test file."
+    )
+
+    # === Input Source ===
     g_in = parser.add_argument_group("Input Source")
-    g_in.add_argument("--github", help="GitHub URL or owner/repo shorthand.")
+    g_in.add_argument("--source-url", help="URL or owner/repo shorthand.")
     g_in.add_argument("--github-token", help="PAT for private repos.")
-    g_in.add_argument("--ref", help="Branch, tag or commit hash.")
+    g_in.add_argument("--source-ref", dest="source_ref", help="Branch, tag or commit hash for the Git source URL.")
 
-    # filtering
+    # === Filtering Options ===
     g_filt = parser.add_argument_group("Filtering Options")
     g_filt.add_argument(
         "-ip",
@@ -236,7 +342,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Languages to exclude (e.g., python, java). Overrides default/config.",
     )
 
-    # output
+    # === Output ===
     g_out = parser.add_argument_group("Output")
     g_out.add_argument("-o", "--output", help="Output file path.")
     g_out.add_argument(
@@ -254,20 +360,38 @@ def build_parser() -> argparse.ArgumentParser:
         "--sort-files", action="store_true", help="Sort files alphabetically."
     )
 
-    # feature toggles
+    # === Feature Toggles ===
     g_feat = parser.add_argument_group("Feature Toggles")
     g_feat.add_argument("--docs", action="store_true", help="Extract standalone docs.")
     g_feat.add_argument(
         "--merge-docs", action="store_true", help="Merge docs into main output."
     )
+    
+    # Replace confusing flag with clearer option
     g_feat.add_argument(
-        "--no-tree", action="store_true", help="Omit folder tree in output."
+        "--parser-engine",
+        choices=["tree_sitter", "regex"],
+        default=None,  # Will be determined by the config
+        help="Parser engine to use. 'tree_sitter' for advanced parsing, 'regex' for simpler and faster parsing."
     )
+    # Keep old flag for backward compatibility, but mark as deprecated
+    g_feat.add_argument(
+        "--no-tree", action="store_true", advanced=True,
+        help="DEPRECATED: Use --parser-engine=regex instead. Omit folder tree in output."
+    )
+    
     g_feat.add_argument(
         "--no-ai-context", action="store_true", help="Skip AI preamble."
     )
     g_feat.add_argument(
         "--no-annotations", action="store_true", help="Skip code annotation."
+    )
+    g_feat.add_argument(
+        "--mask-output",
+        dest="mask_output_content", 
+        action="store_true",
+        advanced=True,
+        help="Mask sensitive data directly in the final output content."
     )
     g_feat.add_argument("--no-symbols", action="store_true", help="Skip symbol index.")
     g_feat.add_argument(
@@ -276,70 +400,238 @@ def build_parser() -> argparse.ArgumentParser:
     g_feat.add_argument(
         "--cross-link-symbols",
         action="store_true",
+        advanced=True,
         help="Cross‑link symbol list ↔ definitions.",
     )
     g_feat.add_argument(
-        "--no-progress-bar", action="store_true", help="Disable tqdm progress bars."
+        "--no-progress-bar", action="store_true", 
+        advanced=True, 
+        help="Disable tqdm progress bars."
     )
 
-    # output & logging
-    g_out_log = parser.add_argument_group("Output & Logging")
-    g_out_log.add_argument(
-        "--verbose", action="store_true", help="Enable verbose debug logging."
-    )
-
-    # processing
-    parser.add_argument("--max-workers", type=int, default=4, help="Thread‑pool size.")
+    # === Processing ===
+    g_proc = parser.add_argument_group("Processing", advanced=True)
+    g_proc.add_argument("--max-workers", type=int, default=4, help="Thread‑pool size.")
 
     return parser
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def cli_entry_point() -> None:
+def cli_entry_point():
     """The main command-line interface entry point for CodeConCat.
 
     Parses command-line arguments, sets up logging, handles special flags
     like --init and --show-config, loads the configuration, runs the main
-    CodeConCat logic via run_codeconcat_in_memory, and writes the output.
+    CodeConCat logic via run_codeconcat, and writes the output.
     Handles potential errors and logs them appropriately.
     """
-    print(get_random_quote())
-
     parser = build_parser()
     args = parser.parse_args()
 
-    # logging setup
-    level = (
-        logging.DEBUG
-        if args.debug or args.verbose
-        else getattr(logging, args.log_level, logging.WARNING)
-    )
-    logging.basicConfig(level=level, format="%(levelname)s %(name)s: %(message)s")
-    logger.setLevel(level)
+    # Determine log level from verbosity flags
+    log_level_map = {
+        0: logging.WARNING,  # Default
+        1: logging.INFO,    # --verbose
+        2: logging.DEBUG,   # --verbose --verbose or --debug
+    }
+    
+    # Check for quiet mode first (overrides all other verbosity settings)
+    if args.quiet:
+        log_level = logging.ERROR  # Only show errors and the final success message
+    else:
+        # Set log level based on verbosity or debug flag
+        log_level = logging.DEBUG if args.debug else log_level_map.get(args.verbose, logging.WARNING)
 
-    # early exits
+    # Configure root logger
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    
+    # When in quiet mode, make sure progress bars are disabled and adjust logging further
+    if args.quiet:
+        # Force disable progress bars
+        args.disable_progress_bar = True
+        # Suppress internal logging for non-error messages
+        # But leave handlers in place for actual errors
+        for logger_name in [
+            "codeconcat", 
+            "codeconcat.collector", 
+            "codeconcat.parser", 
+            "codeconcat.writer",
+            "codeconcat.processor",
+            "codeconcat.transformer"
+        ]:
+            logging.getLogger(logger_name).setLevel(logging.ERROR)
+            
+    # Only log this if not in quiet mode
+    if not args.quiet:
+        logger.info(f"Logging level set to: {log_level}")
+    # Suppress overly verbose logs from libraries if not in debug mode
+    if log_level != "DEBUG":
+        logging.getLogger("charset_normalizer").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("filelock").setLevel(logging.WARNING)
+        # Add other noisy libraries here if needed
+
+    # --- Handle Special Flags --- #
     if args.init:
         create_default_config()
-        sys.exit(0)
+        return # Exit after creating config
+
+    # --- Handle compatibility between old and new flags --- #
+    cli_args = vars(args)
+    
+    # Convert --no-tree to --parser-engine for backward compatibility
+    if args.no_tree and 'parser_engine' not in cli_args:
+        logger.warning("The --no-tree flag is deprecated. Please use --parser-engine=regex instead.")
+        cli_args['parser_engine'] = 'regex'
+    
+    # --- Load Configuration using the new ConfigBuilder --- #
+    try:
+        # Get the preset name (if specified)
+        preset_name = args.preset or "medium"  # Default to medium if not specified
+        
+        # Create a config builder and apply settings in the proper order
+        config_builder = ConfigBuilder()
+        config_builder.with_defaults()
+        config_builder.with_preset(preset_name)
+        config_builder.with_yaml_config(args.config)  # Use config_path_override if provided
+        config_builder.with_cli_args(cli_args)  # Apply CLI arguments last
+        
+        # Build the final configuration
+        config = config_builder.build()
+        
+        # Print detailed configuration if requested
+        if args.show_config_detail:
+            config_builder.print_config_details()
+            return  # Exit after showing config details
+    except ConfigurationError as e:
+        logger.critical(f"Configuration error: {e}")
+        sys.exit(1)
+    except FileNotFoundError as e:
+        logger.critical(f"Configuration file not found: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.critical(f"Failed to load configuration: {e}")
+        if log_level == logging.DEBUG:
+            logger.exception("Detailed error information:")
+        sys.exit(1)
+
+    # Propagate verbosity to config for other modules
+    config.verbose = args.verbose > 0
 
     if args.show_config:
-        merged = load_config({k: v for k, v in vars(args).items() if v is not None})
-        print("--- Final merged configuration ---\n", merged)
-        sys.exit(0)
+        print("Current Configuration:")
+        print(config.model_dump_json(indent=2))
+        print("-----------------------------")
+        return # Exit after showing config
+    
+    # We already handled show_config_detail in the configuration loading step
+        
+    # Handle --verify-dependencies early exit case
+    if args.verify_dependencies:
+        print("\nVerifying Tree-sitter grammar dependencies...")
+        success, successful_langs, failed_langs = verify_tree_sitter_dependencies()
+        
+        # Print summary
+        if success:
+            print(f"\n✅ All {len(successful_langs)} Tree-sitter grammars are properly installed.")
+            print(f"Supported languages: {', '.join(sorted(successful_langs))}")
+            return 0
+        else:
+            print(f"\n❌ Tree-sitter dependency check failed.")
+            print(f"✅ Successful: {len(successful_langs)} languages")
+            print(f"❌ Failed: {len(failed_langs)} languages")
+            
+            # Print detailed errors
+            if failed_langs:
+                print("\nError details:")
+                for i, error in enumerate(failed_langs, 1):
+                    print(f"  {i}. {error}")
+                    
+            print("\nSuggestions for fixing:")
+            print("  1. Run 'pip install tree-sitter-languages' to install all grammar packages")
+            print("  2. Or install individual language grammars with 'pip install tree-sitter-<language>'")
+            print("  3. Check that your Python environment has the necessary compilers for native extensions")
+            return 1
+    
+    # Handle --diagnose-parser early exit case
+    if args.diagnose_parser:
+        language = args.diagnose_parser.lower()
+        print(f"\nRunning parser diagnostics for language: {language}")
+        
+        # Find a test file for this language in the test corpus if available
+        import os
+        test_file = None
+        test_corpus_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
+                                       "tests", "parser_test_corpus", language)
+        
+        if os.path.exists(test_corpus_path):
+            for filename in os.listdir(test_corpus_path):
+                if filename.startswith("basic.") or filename == "basic":
+                    test_file = os.path.join(test_corpus_path, filename)
+                    break
+        
+        if test_file:
+            print(f"Using test file: {test_file}")
+        else:
+            print(f"No test file found for {language}. Only checking parser availability.")
+        
+        success, results = diagnose_parser(language, test_file)
+        
+        # Print results
+        print("\nParser Availability:")
+        for parser_type, parser_name in results.get("parsers_found", {}).items():
+            if isinstance(parser_name, str):
+                print(f"  {parser_type.capitalize() + ':':12} {parser_name or 'Not available'}")
+        
+        if test_file and "parsers_tested" in results:
+            print("\nParser Test Results:")
+            for parser_type, result in results.get("parsers_tested", {}).items():
+                status = "✅ Success" if result.get("success") else "❌ Failed"
+                print(f"  {parser_type.capitalize() + ':':12} {status}")
+                
+                if "declarations_count" in result:
+                    print(f"    - Declarations: {result['declarations_count']}")
+                if "imports_count" in result:
+                    print(f"    - Imports: {result['imports_count']}")
+                if result.get("error"):
+                    print(f"    - Error: {result['error']}")
+        
+        if results.get("errors"):
+            print("\nDiagnostic Errors:")
+            for i, error in enumerate(results["errors"], 1):
+                print(f"  {i}. {error}")
+            return 1
+            
+        return 0 if success else 1
 
-    # merge CLI → pydantic config
-    config = load_config(vars(args))
-    # Add show_skip to config for downstream functions
-    config.show_skip = args.show_skip  # type: ignore[attr-defined]
-
+    # --- Run Main Logic --- #
     try:
-        output_text = run_codeconcat(config)
-        _write_output_files(output_text, config)
-    except CodeConcatError as exc:
-        logger.error("Operation failed: %s", exc)
+        # Quote only shown if not verbose
+        if not config.verbose:
+            print(get_random_quote())
+
+        # Pass the loaded and updated config
+        output_content = run_codeconcat(config)
+
+        # --- Write Output --- #
+        if output_content is not None:
+            _write_output_files(output_content, config)
+            print("✓ CodeConCat finished successfully.")
+            return 0
+        else:
+            logger.warning("CodeConCat finished, but no output was generated.")
+
+    except (ConfigurationError, FileProcessingError, OutputError) as e:
+        logger.error(f"CodeConCat failed: {e}")
+        if config.verbose:
+            logger.exception("Detailed traceback:") # Log traceback only in verbose
         sys.exit(1)
-    except Exception as exc:
-        logger.critical("Unexpected error occurred: %s", exc, exc_info=True)
+    except Exception as e:
+        logger.critical(f"An unexpected error occurred: {e}", exc_info=True)
         sys.exit(1)
 
 
@@ -424,13 +716,13 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         # Collect files
         logger.debug(
-            f"Starting file collection from: {config.target_path or config.github_url}"
+            f"Starting file collection from: {config.target_path or config.source_url}"
         )
         try:
-            temp_repo_path = ""  # Initialize for non-github case
-            if config.github_url:
-                code_files, temp_repo_path = collect_github_files(
-                    config.github_url, config
+            temp_repo_path = ""  # Initialize for non-remote case
+            if config.source_url:
+                code_files, temp_repo_path = collect_git_repo(
+                    config.source_url, config
                 )
             else:
                 code_files = collect_local_files(config.target_path, config)
@@ -445,8 +737,8 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         logger.info("[CodeConCat] Generating folder tree...")
         folder_tree_str = ""
         if not config.disable_tree:
-            # Use the temporary repo path for GitHub runs, otherwise the target path
-            tree_root = temp_repo_path if config.github_url else config.target_path
+            # Use the temporary repo path for remote runs, otherwise the target path
+            tree_root = temp_repo_path if config.source_url else config.target_path
             try:
                 folder_tree_str = generate_folder_tree(tree_root, config)  # Pass config
                 logger.info("[CodeConCat] Folder tree generated.")
@@ -459,8 +751,18 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             logger.info(
                 f"[CodeConCat] Found {len(code_files)} code files. Starting parsing..."
             )
-            # Pass the full ParsedFileData objects, which include content
-            parsed_files, errors = parse_code_files(code_files, config)
+            # Check if we should use the enhanced parsing pipeline
+            use_enhanced_pipeline = hasattr(config, 'use_enhanced_pipeline') and config.use_enhanced_pipeline
+            
+            if use_enhanced_pipeline:
+                logger.info("Using enhanced parsing pipeline with progressive fallbacks")
+                # Use the enhanced pipeline with progressive fallbacks
+                parsed_files, errors = enhanced_parse_pipeline(code_files, config)
+            else:
+                # Use the standard parsing pipeline
+                logger.info("Using standard parsing pipeline")
+                parsed_files, errors = parse_code_files(code_files, config)
+                
             if errors:
                 # Log errors encountered during parsing
                 for error in errors:
@@ -489,8 +791,8 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         logger.info("[CodeConCat] Starting annotation of parsed files...")
         # Annotate files if enabled
+        annotated_files = []
         try:
-            annotated_files = []
             if not config.disable_annotations:
                 # Wrap annotation loop with tqdm
                 annotation_iterator = tqdm(
@@ -556,8 +858,8 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                         )
                     )
         except Exception as e:
-            raise FileProcessingError(f"Error during annotation: {str(e)}")
-
+            raise FileProcessingError(f"Error during annotation phase: {str(e)}")
+            
         # --- Prepare list for polymorphic writers --- #
         items: List[WritableItem] = []
         items.extend(annotated_files)

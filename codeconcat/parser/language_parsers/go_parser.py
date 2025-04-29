@@ -1,273 +1,141 @@
 # file: codeconcat/parser/language_parsers/go_parser.py
-
 import logging
 import re
-from typing import List
+from typing import List, Set, Tuple
 
-from codeconcat.base_types import Declaration, ParseResult
-from codeconcat.errors import LanguageParserError
-from codeconcat.parser.language_parsers.base_parser import BaseParser
+from ...base_types import Declaration, ParseResult 
+from ...errors import LanguageParserError
+from .base_parser import BaseParser 
 
 logger = logging.getLogger(__name__)
 
+# Regex patterns for Go constructs
+FUNC_PATTERN = re.compile(r"^func\s+(?:\(\s*\w+\s+\*?\w+\s*\)\s+)?(?P<name>[\w\d_]+)\s*\(.*\)")
+TYPE_PATTERN = re.compile(r"^type\s+(?P<name>[\w\d_]+)\s+(?:struct|interface|\w+)")
+VAR_CONST_PATTERN = re.compile(r"^(?:var|const)\s+(?:\((?P<multiline>.*?)\)|(?P<name_single>[\w\d_]+))", re.DOTALL | re.MULTILINE)
+IMPORT_PATTERN = re.compile(r"^import\s+(?:\((?P<multiline_imports>.*?)\)|\"(?P<single_import>[^\"]+)\")", re.DOTALL | re.MULTILINE)
+SINGLE_IMPORT_IN_MULTI_PATTERN = re.compile(r'\"([^\"]+)\"')
+DOC_COMMENT_PATTERN = re.compile(r"^//\s*(?P<doc>.*)")
+PACKAGE_PATTERN = re.compile(r"^package\s+(\w+)")
 
-def parse_go(file_path: str, content: str) -> ParseResult:
-    parser = GoParser()
-    try:
-        declarations = parser.parse_file(content)
-    except Exception as e:
-        # Wrap internal parser errors in LanguageParserError
-        raise LanguageParserError(
-            message=f"Failed to parse Go file: {e}",
-            file_path=file_path,
-            original_exception=e,
-        )
-    return ParseResult(
-        file_path=file_path, language="go", content=content, declarations=declarations
-    )
-
-
+# Inherit from BaseParser
 class GoParser(BaseParser):
-    def __init__(self):
-        super().__init__()
-        self._setup_patterns()
+    """Parses Go code using Regex."""
 
-    def _setup_patterns(self):
-        """Set up patterns for Go code declarations."""
-        self.patterns = {}
+    # Update signature to match ParserInterface
+    def parse(self, content: str, file_path: str) -> ParseResult:
+        """Parses the given Go code content.
 
-        # Go uses curly braces
-        self.block_start = "{"
-        self.block_end = "}"
-        self.line_comment = "//"
-        self.block_comment_start = "/*"
-        self.block_comment_end = "*/"
+        Args:
+            content: The Go code as a string.
+            file_path: The path to the file being parsed.
 
-        # Function pattern (both regular and method)
-        func_pattern = r"^\s*func\s+(?:\([^)]+\)\s+)?(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s*\("
-        self.patterns["function"] = re.compile(func_pattern)
-
-        # Interface pattern
-        interface_pattern = r"^\s*type\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s+interface\s*"
-        self.patterns["interface"] = re.compile(interface_pattern)
-
-        # Struct pattern
-        struct_pattern = r"^\s*type\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)\s+struct\s*"
-        self.patterns["struct"] = re.compile(struct_pattern)
-
-        # Const pattern (both single and block)
-        const_pattern = r"^\s*(?:const\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|const\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
-        self.patterns["const"] = re.compile(const_pattern)
-
-        # Var pattern (both single and block)
-        var_pattern = r"^\s*(?:var\s+(?P<n>[a-zA-Z_][a-zA-Z0-9_]*)|var\s+\(\s*(?P<n2>[a-zA-Z_][a-zA-Z0-9_]*))"
-        self.patterns["var"] = re.compile(var_pattern)
-
-    def parse_file(self, content: str) -> List[Declaration]:
-        """Parse Go file content and return list of declarations."""
-        return self.parse(content)
-
-    def parse(self, content: str) -> ParseResult:
-        """Parse Go code content and return ParseResult with declarations and imports."""
+        Returns:
+            A ParseResult object containing declarations and imports.
+        """
         declarations = []
-        lines = content.split("\n")
-        i = 0
-        in_comment_block = False
-        in_const_block = False
-        in_var_block = False
+        imports: Set[str] = set()
+        package_name = "unknown"
+        lines = content.split('\n')
+        doc_buffer: List[str] = []
 
-        while i < len(lines):
-            line = lines[i].strip()
+        try:
+            logger.debug(f"Starting GoParser.parse (Regex) for file: {file_path}")
+            for i, line in enumerate(lines):
+                stripped_line = line.strip()
 
-            # Skip empty lines and comments
-            if not line or line.startswith("//"):
-                i += 1
-                continue
-
-            # Handle block comments
-            if "/*" in line and not in_comment_block:
-                in_comment_block = True
-                i += 1
-                continue
-            elif in_comment_block:
-                if "*/" in line:
-                    in_comment_block = False
-                i += 1
-                continue
-
-            # Handle const blocks
-            if line.startswith("const ("):
-                in_const_block = True
-                i += 1
-                continue
-            elif line.startswith("const") and "const (" not in line:
-                name = line.split("=")[0].strip().split()[1]
-                if name and name.isidentifier():
-                    declarations.append(
-                        Declaration(
-                            kind="const",
-                            name=name,
-                            start_line=i + 1,
-                            end_line=i + 1,
-                            modifiers=set(),
-                            docstring="",
-                        )
-                    )
-                i += 1
-                continue
-            elif line.startswith("var ("):
-                in_var_block = True
-                i += 1
-                continue
-            elif line.startswith("var") and "var (" not in line:
-                name = line.split("=")[0].strip().split()[1]
-                if name and name.isidentifier():
-                    declarations.append(
-                        Declaration(
-                            kind="var",
-                            name=name,
-                            start_line=i + 1,
-                            end_line=i + 1,
-                            modifiers=set(),
-                            docstring="",
-                        )
-                    )
-                i += 1
-                continue
-            elif in_const_block or in_var_block:
-                if line == ")":
-                    in_const_block = False
-                    in_var_block = False
-                    i += 1
-                    continue
-                else:
-                    # Parse constant declaration inside block
-                    name = line.split("=")[0].strip()
-                    if name and name.isidentifier():
-                        if in_const_block:
-                            declarations.append(
-                                Declaration(
-                                    kind="const",
-                                    name=name,
-                                    start_line=i + 1,
-                                    end_line=i + 1,
-                                    modifiers=set(),
-                                    docstring="",
-                                )
-                            )
-                        else:
-                            declarations.append(
-                                Declaration(
-                                    kind="var",
-                                    name=name,
-                                    start_line=i + 1,
-                                    end_line=i + 1,
-                                    modifiers=set(),
-                                    docstring="",
-                                )
-                            )
-                    i += 1
+                if not stripped_line:
+                    doc_buffer = [] # Reset doc buffer on empty lines
                     continue
 
-            # Try to match patterns
-            for kind, pattern in self.patterns.items():
-                match = pattern.match(line)
-                if match:
-                    name = match.group("n")
-                    if not name:
-                        continue
+                # Package
+                package_match = PACKAGE_PATTERN.match(line)
+                if package_match:
+                    package_name = package_match.group(1)
+                    doc_buffer = []
+                    continue
 
-                    # Find block end for block-based declarations
-                    end_line = i
-                    if kind in ("function", "interface", "struct"):
-                        brace_count = 0
-                        found_opening = False
+                # Comment handling (simple doc comment association)
+                doc_match = DOC_COMMENT_PATTERN.match(line)
+                if doc_match:
+                    # Allow multi-line doc comments by checking previous line
+                    if i > 0 and DOC_COMMENT_PATTERN.match(lines[i-1].strip()):
+                        doc_buffer.append(doc_match.group("doc"))
+                    else:
+                        doc_buffer = [doc_match.group("doc")]
+                    continue # Don't process comment lines further
+                elif stripped_line.startswith("//") or stripped_line.startswith("/*"):
+                    doc_buffer = [] # Reset on non-doc comments
+                    continue # Skip regular comments
 
-                        # Find the end of the block by counting braces
-                        j = i
-                        while j < len(lines):
-                            curr_line = lines[j].strip()
+                # Imports
+                import_match = IMPORT_PATTERN.match(line)
+                if import_match:
+                    if import_match.group("single_import"):
+                        imports.add(import_match.group("single_import"))
+                    elif import_match.group("multiline_imports"):
+                        multi_imports = SINGLE_IMPORT_IN_MULTI_PATTERN.findall(import_match.group("multiline_imports"))
+                        imports.update(multi_imports)
+                    # Need to consume potential multi-line block
+                    # Simplistic: assume it ends when ')' is found
+                    # A more robust parser would track nesting
+                    if "(" in line and ")" not in line:
+                         pass # Simple regex can't easily handle block end
+                    doc_buffer = [] # Imports clear doc buffer
+                    continue
 
-                            if "{" in curr_line:
-                                found_opening = True
-                                brace_count += curr_line.count("{")
-                            if "}" in curr_line:
-                                brace_count -= curr_line.count("}")
+                # Function declarations
+                func_match = FUNC_PATTERN.match(line)
+                if func_match:
+                    name = func_match.group("name")
+                    docstring = "\n".join(doc_buffer)
+                    declarations.append(Declaration(kind="function", name=name, start_line=i, end_line=i, docstring=docstring, modifiers=set())) # Placeholder end_line
+                    doc_buffer = []
+                    continue
 
-                            if found_opening and brace_count == 0:
-                                end_line = j
-                                break
-                            j += 1
+                # Type declarations
+                type_match = TYPE_PATTERN.match(line)
+                if type_match:
+                    name = type_match.group("name")
+                    kind = "type" # Could try to determine struct/interface if needed
+                    docstring = "\n".join(doc_buffer)
+                    declarations.append(Declaration(kind=kind, name=name, start_line=i, end_line=i, docstring=docstring, modifiers=set())) # Placeholder end_line
+                    doc_buffer = []
+                    continue
 
-                    # Extract docstring if present
-                    docstring = None
-                    if end_line > i:
-                        docstring = self.extract_docstring(lines, i, end_line)
+                # Var/Const declarations (basic handling)
+                var_match = VAR_CONST_PATTERN.match(line)
+                if var_match:
+                    if var_match.group("name_single"):
+                        name = var_match.group("name_single")
+                        kind = "variable" if line.startswith("var") else "constant"
+                        docstring = "\n".join(doc_buffer)
+                        declarations.append(Declaration(kind=kind, name=name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    # TODO: Handle multiline var/const blocks - regex is tricky here
+                    doc_buffer = []
+                    continue
 
-                    declarations.append(
-                        Declaration(
-                            kind=kind,
-                            name=name,
-                            start_line=i + 1,
-                            end_line=end_line + 1,
-                            modifiers=set(),
-                            docstring=docstring or "",
-                        )
-                    )
-                    i = end_line + 1
-                    break
-            else:
-                i += 1
+                # If line wasn't comment, import, or declaration, clear doc buffer
+                doc_buffer = []
 
-        # Extract imports from content
-        imports = []
-        import_lines = re.findall(r"import\s+\(([^)]+)\)", content, re.DOTALL)
-        for block in import_lines:
-            for line in block.split("\n"):
-                pkg = line.strip().strip('"').strip("'").strip()
-                if pkg:
-                    imports.append(pkg)
+            logger.debug(
+                 f"Finished GoParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} unique imports."
+             )
+            return ParseResult(
+                file_path=file_path,
+                language="go",
+                content=content,
+                declarations=declarations,
+                imports=sorted(list(imports)),
+                engine_used="regex",
+                token_stats=None,
+                security_issues=[]
+            )
 
-        # Also check for single line imports
-        single_imports = re.findall(r'import\s+"([^"]+)"', content)
-        imports.extend(single_imports)
-
-        logger.debug(
-            f"[GoParser] Finished parsing for {self.current_file_path}. Found {len(declarations)} declarations, {len(imports)} imports."
-        )
-
-        return ParseResult(
-            file_path=self.current_file_path,
-            language="go",
-            content=content,
-            declarations=declarations,
-            imports=imports,
-            token_stats=None,
-            security_issues=[],
-        )
-
-    def _find_block_end(self, lines: List[str], start: int) -> int:
-        """Find the end of a Go code block."""
-        brace_count = 0
-        i = start
-
-        # Find the opening brace
-        while i < len(lines):
-            line = lines[i]
-            if "{" in line:
-                brace_count += 1
-                break
-            i += 1
-
-        # Find the matching closing brace
-        while i < len(lines):
-            line = lines[i]
-            brace_count += line.count("{")
-            brace_count -= line.count("}")
-
-            if brace_count == 0:
-                return i + 1
-
-            i += 1
-
-        return len(lines)
+        except Exception as e:
+            logger.error(f"Error parsing Go file {file_path} with Regex: {e}", exc_info=True)
+            raise LanguageParserError(
+                message=f"Failed to parse Go file ({type(e).__name__}) using Regex: {e}",
+                file_path=file_path,
+                original_exception=e,
+            )
