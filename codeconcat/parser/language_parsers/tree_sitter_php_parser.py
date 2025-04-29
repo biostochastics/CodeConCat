@@ -329,7 +329,7 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                     doc_comment_map[node.end_point[0]] = comment_text.splitlines()
 
         except Exception as e:
-            logger.warning(f"Failed to execute PHP doc_comments query: {e}", exc_info=False)
+            logger.warning(f"Failed to execute PHP doc_comments query: {e}", exc_info=True)
 
         # --- Pass 2: Extract Imports and Declarations --- #
         current_namespace = ""

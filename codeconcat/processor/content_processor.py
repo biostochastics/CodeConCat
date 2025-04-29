@@ -25,30 +25,97 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
     lines = content.split("\n")
     processed_lines = []
 
-    for i, line in enumerate(lines):
-        # Skip if it's an empty line and we're removing empty lines
-        if config.remove_empty_lines and not line.strip():
-            continue
+    in_multiline_comment = False  # Track state for block comments /* ... */
 
-        # Skip if it's a comment and we're removing comments
+    for i, line in enumerate(lines):
+        processed_line = line
+
+        # --- Comment Removal (only if enabled) ---
         if config.remove_comments:
-            stripped = line.strip()
+            # 1. Handle Multi-line Block Comments /* ... */
+            if in_multiline_comment:
+                end_block_index = processed_line.find("*/")
+                if end_block_index != -1:
+                    # End of block comment found on this line
+                    in_multiline_comment = False
+                    processed_line = processed_line[end_block_index + 2 :]  # Keep content after */
+                else:
+                    # Line is entirely within a block comment
+                    continue  # Skip this line
+
+            # 2. Handle Start of Block Comments and Single-Line Block Comments /* ... */
+            start_block_index = processed_line.find("/*")
+            while start_block_index != -1:
+                # Basic quote check - ignore if inside quotes
+                if (
+                    processed_line[:start_block_index].count('"') % 2 == 0
+                    and processed_line[:start_block_index].count("'") % 2 == 0
+                ):
+
+                    end_block_index = processed_line.find("*/", start_block_index + 2)
+                    if end_block_index != -1:
+                        # Block comment starts and ends on the same line
+                        # Remove the comment section
+                        processed_line = (
+                            processed_line[:start_block_index]
+                            + processed_line[end_block_index + 2 :]
+                        )
+                        # Check again for more block comments on the same line
+                        start_block_index = processed_line.find("/*")
+                        continue  # Re-evaluate the modified line
+                    else:
+                        # Block comment starts but does not end on this line
+                        in_multiline_comment = True
+                        processed_line = processed_line[
+                            :start_block_index
+                        ]  # Keep content before /*
+                        break  # Move to next line or process remaining part
+                else:  # Inside quotes, find next potential start
+                    start_block_index = processed_line.find("/*", start_block_index + 1)
+
+            # If the line became empty after removing block comments, continue if removing empty lines
+            if not processed_line.strip() and config.remove_empty_lines:
+                continue
             if (
-                stripped.startswith("#")
-                or stripped.startswith("//")
-                or stripped.startswith("/*")
-                or stripped.startswith("*")
-                or stripped.startswith('"""')
-                or stripped.startswith("'''")
-                or stripped.endswith("*/")
-            ):
+                in_multiline_comment and not processed_line.strip()
+            ):  # If only /* was left and it started a block
                 continue
 
-        # Add line number if configured
-        if config.show_line_numbers:
-            line = f"{i + 1:4d} | {line}"
+            # 3. Handle Single-Line Comments (#, //)
+            # Check only if not inside a multi-line comment that started on this line
+            if not in_multiline_comment or (in_multiline_comment and processed_line.strip()):
+                hash_pos = processed_line.find("#")
+                slash_pos = processed_line.find("//")
 
-        processed_lines.append(line)
+                comment_pos = -1
+                if hash_pos != -1 and (slash_pos == -1 or hash_pos < slash_pos):
+                    # Basic quote check
+                    if (
+                        processed_line[:hash_pos].count('"') % 2 == 0
+                        and processed_line[:hash_pos].count("'") % 2 == 0
+                    ):
+                        comment_pos = hash_pos
+                elif slash_pos != -1:
+                    # Basic quote check
+                    if (
+                        processed_line[:slash_pos].count('"') % 2 == 0
+                        and processed_line[:slash_pos].count("'") % 2 == 0
+                    ):
+                        comment_pos = slash_pos
+
+                if comment_pos != -1:
+                    processed_line = processed_line[:comment_pos]  # Remove comment onwards
+        # --- End of Comment Removal ---
+
+        # Remove empty lines (check *after* potential comment removal)
+        if config.remove_empty_lines and not processed_line.strip():
+            continue
+
+        # Add line numbers (if enabled)
+        if config.show_line_numbers:
+            processed_line = f"{i + 1:4d} | {processed_line}"
+
+        processed_lines.append(processed_line)
 
     return "\n".join(processed_lines)
 
@@ -106,10 +173,27 @@ def generate_file_summary(file_data: ParsedFileData, config: CodeConCatConfig) -
     # Conditionally include token stats
     if config.include_tokens_in_summary and file_data.token_stats:
         summary.append("- **Token Counts:**")
-        summary.append(f"  - Input: `{file_data.token_stats.input_tokens:,}`")
-        # Output tokens aren't usually relevant here unless generated by AI
-        # summary.append(f"  - Output: {file_data.token_stats.output_tokens:,}")
-        summary.append(f"  - Total (approx): `{file_data.token_stats.total_tokens:,}`")
+        # Check for each token type individually
+        if (
+            hasattr(file_data.token_stats, "gpt3_tokens")
+            and file_data.token_stats.gpt3_tokens is not None
+        ):
+            summary.append(f"  - GPT-3: `{file_data.token_stats.gpt3_tokens:,}`")
+        if (
+            hasattr(file_data.token_stats, "gpt4_tokens")
+            and file_data.token_stats.gpt4_tokens is not None
+        ):
+            summary.append(f"  - GPT-4: `{file_data.token_stats.gpt4_tokens:,}`")
+        if (
+            hasattr(file_data.token_stats, "davinci_tokens")
+            and file_data.token_stats.davinci_tokens is not None
+        ):
+            summary.append(f"  - DaVinci: `{file_data.token_stats.davinci_tokens:,}`")
+        if (
+            hasattr(file_data.token_stats, "claude_tokens")
+            and file_data.token_stats.claude_tokens is not None
+        ):
+            summary.append(f"  - Claude: `{file_data.token_stats.claude_tokens:,}`")
 
     # Conditionally include security issues
     if config.include_security_in_summary and file_data.security_issues:

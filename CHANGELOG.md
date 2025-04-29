@@ -1,5 +1,22 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
+## [0.7.1] - 2025-04-29
+
+### Security
+- **Improved Network Security:** Changed default host from `0.0.0.0` to `127.0.0.1` in both CLI and API server to prevent inadvertent exposure on all network interfaces.
+- **Enhanced CORS Configuration:** Replaced overly permissive CORS settings with secure defaults and environment variable configuration (`CODECONCAT_ALLOWED_ORIGINS`).
+
+### Added
+- **Request Tracing:** Added request ID middleware for distributed tracing and correlation in API logs.
+- **Parser Documentation:** Added comprehensive documentation to README about parser types (legacy, enhanced, tree-sitter) and their testing structure.
+
+### Changed
+- **Code Quality Improvements:**
+  - Replaced HTTP status code magic numbers with `HTTPStatus` enum for better readability.
+  - Implemented proper redirect for API root endpoint using `RedirectResponse`.
+  - Optimized tree-sitter dependency checks to reduce redundant filesystem operations.
+  - Removed unused `BackgroundTasks` parameter from API upload endpoint.
+
 ## [0.7.0] - 2025-04-29
 
 ### Added

@@ -301,5 +301,5 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
                                 return doc_str[len(quote) : -len(quote)].strip()
                         return doc_str.strip()  # Fallback if quotes aren't standard
         except Exception as e:
-            logger.warning(f"Error trying to extract docstring: {e}", exc_info=False)
+            logger.warning(f"Error trying to extract docstring: {e}", exc_info=True)
         return ""

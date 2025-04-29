@@ -14,6 +14,7 @@ output_preset: medium
 
 # Path Settings
 include_paths:
+  # Programming Languages
   - "**/*.py"    # Python
   - "**/*.js"    # JavaScript
   - "**/*.ts"    # TypeScript
@@ -28,6 +29,10 @@ include_paths:
   - "**/*.h"     # C/C++ Headers
   - "**/*.cs"    # C#
   - "**/*.jl"    # Julia
+  
+  # Documentation files - these are treated as full documentation content
+  - "**/*.md"    # Markdown documentation
+  - "**/*.rst"   # reStructuredText documentation
   - "README*"    # Always include README files
   - "LICENSE*"   # Always include license files
 

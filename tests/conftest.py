@@ -11,15 +11,12 @@ import os
 import logging
 import pytest
 import sys
-from pathlib import Path
 
-# Ensure the project root is on the Python path so that 'codeconcat' can be imported successfully
-project_root_path = Path(__file__).resolve().parents[1]
-if str(project_root_path) not in sys.path:
-    sys.path.insert(0, str(project_root_path))
+# Add the project root to the Python path for reliable imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Now we can safely import from the codeconcat package
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging  # noqa: E402
 
 # Enable debug logging for all parsers by default for test runs
 enable_all_parser_debug_logging()

@@ -100,7 +100,6 @@ def verify_tree_sitter_dependencies() -> Tuple[bool, List[str], List[str]]:
                     continue
 
                 # Try to load the actual Language object for this language
-                ts_lang_var = None
 
                 # Attempt to locate the module where the Language object is defined
                 lang_module_path = os.path.join(
