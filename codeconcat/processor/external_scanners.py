@@ -4,6 +4,7 @@ This module provides functions to invoke and parse results from external
 security tools (e.g., Semgrep) and convert them to the internal
 SecurityIssue format.
 """
+
 import subprocess
 import json
 import sys
@@ -12,6 +13,7 @@ from typing import List, Optional
 
 from .security_types import SecurityIssue
 from ..base_types import CodeConCatConfig, SecuritySeverity
+
 
 def run_semgrep_scan(
     file_path: str | Path,
@@ -41,7 +43,7 @@ def run_semgrep_scan(
             capture_output=True,
             check=False,
             text=True,
-            encoding='utf-8', # Ensure consistent encoding
+            encoding="utf-8",  # Ensure consistent encoding
         )
         # Semgrep exit codes:
         # 0: clean run, no findings
@@ -52,29 +54,28 @@ def run_semgrep_scan(
             print(
                 f"Semgrep error scanning {path}. Exit code: {result.returncode}. "
                 f"Stderr: {result.stderr.strip()}",
-                file=sys.stderr
+                file=sys.stderr,
             )
             return []
         if not result.stdout:
             # Should only happen if --json wasn't respected or Semgrep errored early
             print(
-                f"Semgrep produced no JSON output for {path}. "
-                f"Stderr: {result.stderr.strip()}",
-                 file=sys.stderr
+                f"Semgrep produced no JSON output for {path}. " f"Stderr: {result.stderr.strip()}",
+                file=sys.stderr,
             )
             return []
         data = json.loads(result.stdout)
     except FileNotFoundError:
         print(
             f"Error: '{semgrep_path}' command not found. Is Semgrep installed and in PATH?",
-            file=sys.stderr
+            file=sys.stderr,
         )
         return []
     except json.JSONDecodeError:
         print(
             f"Error: Failed to decode Semgrep JSON output for {path}. "
             f"Output length: {len(result.stdout)}. First 100 chars: {result.stdout[:100]}",
-            file=sys.stderr
+            file=sys.stderr,
         )
         return []
     except Exception as e:
@@ -104,22 +105,24 @@ def run_semgrep_scan(
             for key in ("$X", "$VAR", "$FUNC", "$ARG", "$PARAM"):
                 if key in metavars and isinstance(metavars[key], dict):
                     raw_finding = metavars[key].get("abstract_content", "")
-                    if raw_finding: break
+                    if raw_finding:
+                        break
         if not raw_finding:
-             raw_finding = line_content # Fallback to line content
+            raw_finding = line_content  # Fallback to line content
 
         issues.append(
             SecurityIssue(
                 line_number=finding.get("start", {}).get("line", 0),
-                line_content=line_content, # Store the line Semgrep provides
+                line_content=line_content,  # Store the line Semgrep provides
                 issue_type=finding.get("check_id", "semgrep"),
                 severity=severity,
                 description=description,
-                raw_finding=str(raw_finding).strip(), # Store matched code or relevant part
-                file_path=finding.get("path", str(path)), # Use path from Semgrep result
+                raw_finding=str(raw_finding).strip(),  # Store matched code or relevant part
+                file_path=finding.get("path", str(path)),  # Use path from Semgrep result
             )
         )
     return issues
+
 
 # Example usage (if run directly for testing)
 # if __name__ == '__main__':

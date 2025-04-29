@@ -1,9 +1,7 @@
 from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedFileData
 
 
-def annotate(
-    parsed_data: ParsedFileData, config: CodeConCatConfig
-) -> AnnotatedFileData:
+def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> AnnotatedFileData:
     pieces = []
     pieces.append(f"## File: {parsed_data.file_path}\n")
 
@@ -54,11 +52,7 @@ def annotate(
     if symbols:
         summary_parts.append(f"{len(symbols)} symbols")
 
-    summary = (
-        f"Contains {', '.join(summary_parts)}"
-        if summary_parts
-        else "No declarations found"
-    )
+    summary = f"Contains {', '.join(summary_parts)}" if summary_parts else "No declarations found"
 
     # Generate tags
     tags = []

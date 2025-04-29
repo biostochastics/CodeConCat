@@ -212,26 +212,28 @@ R_QUERIES = {
         
         ; Roxygen comments (starting with #')
         (comment) @roxygen_comment (#match? @roxygen_comment "^#'")        
-    """
+    """,
 }
 
 # Patterns to clean R comments
-R_LINE_COMMENT_PATTERN = re.compile(r"^#+\s?'?\s?") # Handles #, ##, #', etc.
+R_LINE_COMMENT_PATTERN = re.compile(r"^#+\s?'?\s?")  # Handles #, ##, #', etc.
 R_ROXYGEN_PATTERN = re.compile(r"^#'\s?")
+
 
 def _clean_r_doc_comment(comment_block: List[str]) -> str:
     """Cleans a block of R comment lines."""
     cleaned_lines = []
     is_roxygen = any(line.strip().startswith("#'") for line in comment_block)
-    
+
     for line in comment_block:
         # Use the right pattern depending on comment type
         if is_roxygen:
-            line = R_ROXYGEN_PATTERN.sub('', line)
+            line = R_ROXYGEN_PATTERN.sub("", line)
         else:
-            line = R_LINE_COMMENT_PATTERN.sub('', line)
+            line = R_LINE_COMMENT_PATTERN.sub("", line)
         cleaned_lines.append(line.strip())
     return "\n".join(filter(None, cleaned_lines))
+
 
 class TreeSitterRParser(BaseTreeSitterParser):
     """Tree-sitter based parser for the R language."""
@@ -244,13 +246,15 @@ class TreeSitterRParser(BaseTreeSitterParser):
         """Returns the predefined Tree-sitter queries for R."""
         return R_QUERIES
 
-    def _run_queries(self, root_node: Node, byte_content: bytes) -> tuple[List[Declaration], List[str]]:
+    def _run_queries(
+        self, root_node: Node, byte_content: bytes
+    ) -> tuple[List[Declaration], List[str]]:
         """Runs R-specific queries and extracts declarations and imports."""
         queries = self.get_queries()
         declarations = []
         imports: Set[str] = set()
-        declaration_map = {} # node_id -> declaration info
-        doc_comment_map = {} # end_line -> List[str]
+        declaration_map = {}  # node_id -> declaration info
+        doc_comment_map = {}  # end_line -> List[str]
 
         # --- Pass 1: Extract Comments (potential docstrings) --- #
         try:
@@ -260,7 +264,9 @@ class TreeSitterRParser(BaseTreeSitterParser):
             current_doc_block: List[str] = []
 
             for node, _ in doc_captures:
-                comment_text = byte_content[node.start_byte:node.end_byte].decode("utf8", errors="ignore")
+                comment_text = byte_content[node.start_byte : node.end_byte].decode(
+                    "utf8", errors="ignore"
+                )
                 current_start_line = node.start_point[0]
                 # R comments are always line comments
                 if current_start_line == last_comment_line + 1:
@@ -280,7 +286,8 @@ class TreeSitterRParser(BaseTreeSitterParser):
 
         # --- Pass 2: Extract Imports and Declarations --- #
         for query_name, query_str in queries.items():
-            if query_name == "doc_comments": continue
+            if query_name == "doc_comments":
+                continue
 
             try:
                 query = self.ts_language.query(query_str)
@@ -290,7 +297,11 @@ class TreeSitterRParser(BaseTreeSitterParser):
                 if query_name == "imports":
                     for node, capture_name in captures:
                         if capture_name == "library_name":
-                            library_name = byte_content[node.start_byte:node.end_byte].decode("utf8", errors="ignore").strip("'\"")
+                            library_name = (
+                                byte_content[node.start_byte : node.end_byte]
+                                .decode("utf8", errors="ignore")
+                                .strip("'\"")
+                            )
                             imports.add(library_name)
 
                 elif query_name == "declarations":
@@ -300,85 +311,124 @@ class TreeSitterRParser(BaseTreeSitterParser):
                         decl_node = node
                         # Find the top-level expression node (assignment, call)
                         while decl_node.parent and decl_node.type not in [
-                            'assignment', 'call', 'program' # program is root
+                            "assignment",
+                            "call",
+                            "program",  # program is root
                         ]:
                             decl_node = decl_node.parent
-                        if not decl_node: decl_node = node # Fallback
+                        if not decl_node:
+                            decl_node = node  # Fallback
 
                         decl_id = decl_node.id
                         if decl_id not in node_capture_map:
-                            node_capture_map[decl_id] = {'node': decl_node, 'captures': [], 'kind': None}
-                        node_capture_map[decl_id]['captures'].append((node, capture_name))
+                            node_capture_map[decl_id] = {
+                                "node": decl_node,
+                                "captures": [],
+                                "kind": None,
+                            }
+                        node_capture_map[decl_id]["captures"].append((node, capture_name))
                         # Use the @kind capture name from the query if present
-                        if capture_name in ["function_assignment", "function_assignment_equals", "variable_assignment", "variable_assignment_equals", "s4_class", "s4_method", "r6_class"]:
-                            node_capture_map[decl_id]['kind'] = capture_name
+                        if capture_name in [
+                            "function_assignment",
+                            "function_assignment_equals",
+                            "variable_assignment",
+                            "variable_assignment_equals",
+                            "s4_class",
+                            "s4_method",
+                            "r6_class",
+                        ]:
+                            node_capture_map[decl_id]["kind"] = capture_name
 
                     # Process grouped captures
                     for decl_id, data in node_capture_map.items():
-                        decl_node = data['node']
-                        node_captures = data['captures']
-                        kind = data['kind'] # Derived from capture name
+                        decl_node = data["node"]
+                        node_captures = data["captures"]
+                        kind = data["kind"]  # Derived from capture name
 
-                        if not kind: continue # Skip if no kind was assigned
+                        if not kind:
+                            continue  # Skip if no kind was assigned
 
                         # Map capture kinds to Declaration kinds
                         kind_map = {
-                            'function_assignment': 'function', 'function_assignment_equals': 'function',
-                            'variable_assignment': 'variable', 'variable_assignment_equals': 'variable',
-                            's4_class': 'class', 's4_method': 'method',
-                            'r6_class': 'class'
+                            "function_assignment": "function",
+                            "function_assignment_equals": "function",
+                            "variable_assignment": "variable",
+                            "variable_assignment_equals": "variable",
+                            "s4_class": "class",
+                            "s4_method": "method",
+                            "r6_class": "class",
                         }
                         final_kind = kind_map.get(kind)
-                        if not final_kind: continue # Skip if mapping fails
+                        if not final_kind:
+                            continue  # Skip if mapping fails
 
                         name_node = next((n for n, cname in node_captures if cname == "name"), None)
-                        name = byte_content[name_node.start_byte:name_node.end_byte].decode("utf8", errors="ignore").strip("'\"") if name_node else "<unknown>"
+                        name = (
+                            byte_content[name_node.start_byte : name_node.end_byte]
+                            .decode("utf8", errors="ignore")
+                            .strip("'\"")
+                            if name_node
+                            else "<unknown>"
+                        )
 
-                        if name == "<unknown>": continue # Skip unnamed declarations
+                        if name == "<unknown>":
+                            continue  # Skip unnamed declarations
 
                         start_line = decl_node.start_point[0]
                         end_line = decl_node.end_point[0]
 
                         # Store declaration info, avoiding duplicates if multiple captures point to the same node
                         if decl_id not in declaration_map:
-                             declaration_map[decl_id] = {
-                                'kind': final_kind,
-                                'name': name,
-                                'start_line': start_line,
-                                'end_line': end_line,
-                                'modifiers': set(),
-                                'docstring': ""
+                            declaration_map[decl_id] = {
+                                "kind": final_kind,
+                                "name": name,
+                                "start_line": start_line,
+                                "end_line": end_line,
+                                "modifiers": set(),
+                                "docstring": "",
                             }
                         else:
                             # Ensure the most specific kind (e.g., function over variable) is kept if overlaps occur
-                            if final_kind == 'function' and declaration_map[decl_id]['kind'] == 'variable':
-                                declaration_map[decl_id]['kind'] = 'function'
-                            declaration_map[decl_id]['end_line'] = max(declaration_map[decl_id]['end_line'], end_line)
-                            if declaration_map[decl_id]['name'] == "<unknown>": declaration_map[decl_id]['name'] = name
+                            if (
+                                final_kind == "function"
+                                and declaration_map[decl_id]["kind"] == "variable"
+                            ):
+                                declaration_map[decl_id]["kind"] = "function"
+                            declaration_map[decl_id]["end_line"] = max(
+                                declaration_map[decl_id]["end_line"], end_line
+                            )
+                            if declaration_map[decl_id]["name"] == "<unknown>":
+                                declaration_map[decl_id]["name"] = name
 
             except Exception as e:
                 logger.warning(f"Failed to execute R query '{query_name}': {e}", exc_info=True)
 
         # --- Pass 3: Process declarations and associate comments --- #
         for decl_id, decl_info in declaration_map.items():
-             if decl_info.get('name') and decl_info['name'] != "<unknown>":
-                 # Check for comments ending on the line before the declaration
-                 raw_doc_block = doc_comment_map.get(decl_info['start_line'] - 1, [])
-                 # Use Roxygen convention: comments starting with #' are often documentation
-                 is_roxygen = any(line.strip().startswith("#'") for line in raw_doc_block)
-                 cleaned_docstring = _clean_r_doc_comment(raw_doc_block) if is_roxygen else "" # Only use if looks like Roxygen
+            if decl_info.get("name") and decl_info["name"] != "<unknown>":
+                # Check for comments ending on the line before the declaration
+                raw_doc_block = doc_comment_map.get(decl_info["start_line"] - 1, [])
+                # Use Roxygen convention: comments starting with #' are often documentation
+                is_roxygen = any(line.strip().startswith("#'") for line in raw_doc_block)
+                cleaned_docstring = (
+                    _clean_r_doc_comment(raw_doc_block) if is_roxygen else ""
+                )  # Only use if looks like Roxygen
 
-                 declarations.append(Declaration(
-                     kind=decl_info['kind'],
-                     name=decl_info['name'],
-                     start_line=decl_info['start_line'],
-                     end_line=decl_info['end_line'],
-                     docstring=cleaned_docstring,
-                     modifiers=decl_info['modifiers']
-                 ))
+                declarations.append(
+                    Declaration(
+                        kind=decl_info["kind"],
+                        name=decl_info["name"],
+                        start_line=decl_info["start_line"],
+                        end_line=decl_info["end_line"],
+                        docstring=cleaned_docstring,
+                        modifiers=decl_info["modifiers"],
+                    )
+                )
 
         declarations.sort(key=lambda d: d.start_line)
         sorted_imports = sorted(list(imports))
 
-        logger.debug(f"Tree-sitter R extracted {len(declarations)} declarations and {len(sorted_imports)} imports.")
+        logger.debug(
+            f"Tree-sitter R extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
+        )
         return declarations, sorted_imports

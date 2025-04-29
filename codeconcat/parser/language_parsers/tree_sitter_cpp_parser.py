@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 from tree_sitter import Node
 
@@ -258,7 +258,7 @@ CPP_QUERIES = {
         
         ; C style block comments
         (comment) @c_comment (#match? @c_comment "^/\\*")
-    """
+    """,
 }
 
 # Patterns to clean Doxygen comments
@@ -267,24 +267,26 @@ DOC_COMMENT_START_PATTERN = re.compile(r"^(/\*\*<?|/\*!<?|///<?|//!?)\s?")
 DOC_COMMENT_LINE_PREFIX_PATTERN = re.compile(r"^\s*\*\s?")
 DOC_COMMENT_END_PATTERN = re.compile(r"\s*\*/$")
 
+
 def _clean_cpp_doc_comment(comment_block: List[str]) -> str:
     """Cleans a block of Doxygen comment lines."""
     cleaned_lines = []
     is_block = comment_block[0].startswith(("/**", "/*!")) if comment_block else False
 
     for i, line in enumerate(comment_block):
-        original_line = line # Keep original for block end check
+        original_line = line  # Keep original for block end check
         if i == 0:
-            line = DOC_COMMENT_START_PATTERN.sub('', line)
+            line = DOC_COMMENT_START_PATTERN.sub("", line)
         if is_block:
-             line = DOC_COMMENT_LINE_PREFIX_PATTERN.sub('', line)
+            line = DOC_COMMENT_LINE_PREFIX_PATTERN.sub("", line)
         # Check original line for block comment end marker
         if is_block and original_line.endswith("*/"):
-            line = DOC_COMMENT_END_PATTERN.sub('', line)
+            line = DOC_COMMENT_END_PATTERN.sub("", line)
 
         cleaned_lines.append(line.strip())
     # Join lines, filtering empty ones that might result from cleaning
     return "\n".join(filter(None, cleaned_lines))
+
 
 class TreeSitterCppParser(BaseTreeSitterParser):
     """Tree-sitter based parser for the C/C++ language."""
@@ -298,19 +300,22 @@ class TreeSitterCppParser(BaseTreeSitterParser):
         """Returns the predefined Tree-sitter queries for C++."""
         return CPP_QUERIES
 
-    def _run_queries(self, root_node: Node, byte_content: bytes) -> tuple[List[Declaration], List[str]]:
+    def _run_queries(
+        self, root_node: Node, byte_content: bytes
+    ) -> tuple[List[Declaration], List[str]]:
         """Runs C++-specific queries and extracts declarations and imports."""
         queries = self.get_queries()
         declarations = []
         imports: List[str] = []
-        declaration_map = {} # node_id -> declaration info
-        doc_comment_map = {} # end_line -> raw comment_text (list of lines)
-        node_parent_map = {child.id: root_node.id for child in root_node.children} # Precompute parent IDs
+        declaration_map = {}  # node_id -> declaration info
+        doc_comment_map = {}  # end_line -> raw comment_text (list of lines)
+        node_parent_map = {
+            child.id: root_node.id for child in root_node.children
+        }  # Precompute parent IDs
         for child in root_node.children:
             for grandchild in child.children:
-                 node_parent_map[grandchild.id] = child.id
-                 # Add more levels if needed, or make recursive
-
+                node_parent_map[grandchild.id] = child.id
+                # Add more levels if needed, or make recursive
 
         # --- Pass 1: Extract Doc Comments --- #
         try:
@@ -320,36 +325,38 @@ class TreeSitterCppParser(BaseTreeSitterParser):
             current_doc_block: List[str] = []
 
             for node, _ in doc_captures:
-                comment_text = byte_content[node.start_byte:node.end_byte].decode("utf8", errors="ignore")
+                comment_text = byte_content[node.start_byte : node.end_byte].decode(
+                    "utf8", errors="ignore"
+                )
                 current_start_line = node.start_point[0]
                 current_end_line = node.end_point[0]
                 is_block_comment = comment_text.startswith(("/**", "/*!"))
 
                 if is_block_comment:
-                     # Store previous block if it exists and is different
-                     if current_doc_block:
-                         doc_comment_map[last_comment_line] = current_doc_block
-                     # Store the new block comment immediately, keyed by its end line
-                     doc_comment_map[current_end_line] = comment_text.splitlines()
-                     current_doc_block = [] # Reset tracker
-                     last_comment_line = current_end_line # Update last line seen
+                    # Store previous block if it exists and is different
+                    if current_doc_block:
+                        doc_comment_map[last_comment_line] = current_doc_block
+                    # Store the new block comment immediately, keyed by its end line
+                    doc_comment_map[current_end_line] = comment_text.splitlines()
+                    current_doc_block = []  # Reset tracker
+                    last_comment_line = current_end_line  # Update last line seen
                 elif comment_text.startswith(("///", "//!")):
-                     # If it continues a line comment block
-                     if current_start_line == last_comment_line + 1:
-                         current_doc_block.append(comment_text)
-                     else:
-                         # Store previous block if any
-                         if current_doc_block:
+                    # If it continues a line comment block
+                    if current_start_line == last_comment_line + 1:
+                        current_doc_block.append(comment_text)
+                    else:
+                        # Store previous block if any
+                        if current_doc_block:
                             doc_comment_map[last_comment_line] = current_doc_block
-                         # Start new line comment block
-                         current_doc_block = [comment_text]
-                     last_comment_line = current_start_line
+                        # Start new line comment block
+                        current_doc_block = [comment_text]
+                    last_comment_line = current_start_line
                 else:
-                     # Non-doc comment encountered, store pending block
-                     if current_doc_block:
-                         doc_comment_map[last_comment_line] = current_doc_block
-                     current_doc_block = []
-                     last_comment_line = current_end_line # Update last line seen
+                    # Non-doc comment encountered, store pending block
+                    if current_doc_block:
+                        doc_comment_map[last_comment_line] = current_doc_block
+                    current_doc_block = []
+                    last_comment_line = current_end_line  # Update last line seen
 
             # Store the last block if it exists
             if current_doc_block:
@@ -360,7 +367,8 @@ class TreeSitterCppParser(BaseTreeSitterParser):
 
         # --- Pass 2: Extract Imports and Declarations --- #
         for query_name, query_str in queries.items():
-            if query_name == "doc_comments": continue
+            if query_name == "doc_comments":
+                continue
 
             try:
                 query = self.ts_language.query(query_str)
@@ -371,7 +379,11 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                     for node, capture_name in captures:
                         if capture_name == "import_path":
                             # Includes <...> or "..."
-                            import_path = byte_content[node.start_byte:node.end_byte].decode("utf8", errors="ignore").strip('<>"')
+                            import_path = (
+                                byte_content[node.start_byte : node.end_byte]
+                                .decode("utf8", errors="ignore")
+                                .strip('<>"')
+                            )
                             if import_path not in imports:  # Maintain uniqueness behavior
                                 imports.append(import_path)
 
@@ -384,87 +396,153 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                         current_node = node
                         decl_node = None
                         while current_node:
-                             # Use the capture name on the node itself for primary identification
-                             node_type_capture = next((name for n, name in captures if n.id == current_node.id), None)
-                             if node_type_capture in ["namespace", "class", "struct", "union", "enum", "function", "function_declaration", "variable", "field", "using_symbol", "namespace_alias", "typedef"]:
-                                 decl_node = current_node
-                                 break
-                             parent_id = node_parent_map.get(current_node.id)
-                             if parent_id is None: break
-                             # Need a way to get parent node object from ID - tree-sitter doesn't provide this directly!
-                             # This part is flawed without parent node access.
-                             # Let's simplify: use the node where the @kind capture occurred.
-                             decl_node = node # Default to the captured node if kind matched
-                             break # Stop search
+                            # Use the capture name on the node itself for primary identification
+                            node_type_capture = next(
+                                (name for n, name in captures if n.id == current_node.id), None
+                            )
+                            if node_type_capture in [
+                                "namespace",
+                                "class",
+                                "struct",
+                                "union",
+                                "enum",
+                                "function",
+                                "function_declaration",
+                                "variable",
+                                "field",
+                                "using_symbol",
+                                "namespace_alias",
+                                "typedef",
+                            ]:
+                                decl_node = current_node
+                                break
+                            parent_id = node_parent_map.get(current_node.id)
+                            if parent_id is None:
+                                break
+                            # Need a way to get parent node object from ID - tree-sitter doesn't provide this directly!
+                            # This part is flawed without parent node access.
+                            # Let's simplify: use the node where the @kind capture occurred.
+                            decl_node = node  # Default to the captured node if kind matched
+                            break  # Stop search
                         # Fallback if loop didn't find ancestor
-                        if decl_node is None and capture_name in ["namespace", "class", "struct", "union", "enum", "function", "function_declaration", "variable", "field", "using_symbol", "namespace_alias", "typedef"]:
-                           decl_node = node
+                        if decl_node is None and capture_name in [
+                            "namespace",
+                            "class",
+                            "struct",
+                            "union",
+                            "enum",
+                            "function",
+                            "function_declaration",
+                            "variable",
+                            "field",
+                            "using_symbol",
+                            "namespace_alias",
+                            "typedef",
+                        ]:
+                            decl_node = node
 
                         if decl_node:
                             decl_id = decl_node.id
                             if decl_id not in node_capture_map:
-                                node_capture_map[decl_id] = {'node': decl_node, 'captures': []}
-                            node_capture_map[decl_id]['captures'].append((node, capture_name))
-
+                                node_capture_map[decl_id] = {"node": decl_node, "captures": []}
+                            node_capture_map[decl_id]["captures"].append((node, capture_name))
 
                     # Process the grouped captures
                     for decl_id, data in node_capture_map.items():
-                        decl_node = data['node']
-                        node_captures = data['captures']
+                        decl_node = data["node"]
+                        node_captures = data["captures"]
 
                         # Determine kind from the main node's capture name if possible
-                        kind = next((name for n, name in node_captures if n.id == decl_id and name in ["namespace", "class", "struct", "union", "enum", "function", "function_declaration", "variable", "field", "using_symbol", "namespace_alias", "typedef"]), None)
-                        if not kind: continue # Skip if we couldn't determine kind
+                        kind = next(
+                            (
+                                name
+                                for n, name in node_captures
+                                if n.id == decl_id
+                                and name
+                                in [
+                                    "namespace",
+                                    "class",
+                                    "struct",
+                                    "union",
+                                    "enum",
+                                    "function",
+                                    "function_declaration",
+                                    "variable",
+                                    "field",
+                                    "using_symbol",
+                                    "namespace_alias",
+                                    "typedef",
+                                ]
+                            ),
+                            None,
+                        )
+                        if not kind:
+                            continue  # Skip if we couldn't determine kind
 
                         # Extract name
                         name_node = next((n for n, name in node_captures if name == "name"), None)
-                        name_text = byte_content[name_node.start_byte:name_node.end_byte].decode("utf8", errors="ignore") if name_node else "<unknown>"
+                        name_text = (
+                            byte_content[name_node.start_byte : name_node.end_byte].decode(
+                                "utf8", errors="ignore"
+                            )
+                            if name_node
+                            else "<unknown>"
+                        )
 
                         # Handle potential template arguments in names (basic strip)
-                        name_text = re.sub(r'<.*>', '', name_text)
+                        name_text = re.sub(r"<.*>", "", name_text)
 
                         # Function declarations might not have a body
                         start_line = decl_node.start_point[0]
                         end_line = decl_node.end_point[0]
 
                         if decl_id not in declaration_map:
-                             declaration_map[decl_id] = {
-                                'kind': kind,
-                                'node': decl_node,
-                                'name': name_text,
-                                'start_line': start_line,
-                                'end_line': end_line,
-                                'modifiers': [], # TODO: Extract modifiers (using list instead of set for Python 3.12+ compatibility)
-                                'docstring': ""
+                            declaration_map[decl_id] = {
+                                "kind": kind,
+                                "node": decl_node,
+                                "name": name_text,
+                                "start_line": start_line,
+                                "end_line": end_line,
+                                "modifiers": [],  # TODO: Extract modifiers (using list instead of set for Python 3.12+ compatibility)
+                                "docstring": "",
                             }
                         else:
                             # Update end line if needed (e.g., subsequent capture extends range)
-                            declaration_map[decl_id]['end_line'] = max(declaration_map[decl_id]['end_line'], end_line)
+                            declaration_map[decl_id]["end_line"] = max(
+                                declaration_map[decl_id]["end_line"], end_line
+                            )
                             # Ensure name is captured if missed initially
-                            if declaration_map[decl_id]['name'] == "<unknown>" and name_text != "<unknown>":
-                                 declaration_map[decl_id]['name'] = name_text
+                            if (
+                                declaration_map[decl_id]["name"] == "<unknown>"
+                                and name_text != "<unknown>"
+                            ):
+                                declaration_map[decl_id]["name"] = name_text
 
             except Exception as e:
                 logger.warning(f"Failed to execute C++ query '{query_name}': {e}", exc_info=True)
 
         # --- Pass 3: Process declarations and associate docstrings --- #
         for decl_info in declaration_map.values():
-            if decl_info.get('name') and decl_info['name'] != "<unknown>":
+            if decl_info.get("name") and decl_info["name"] != "<unknown>":
                 # Check for doc comments ending on the line before the declaration
-                raw_doc_block = doc_comment_map.get(decl_info['start_line'] - 1, [])
+                raw_doc_block = doc_comment_map.get(decl_info["start_line"] - 1, [])
                 cleaned_docstring = _clean_cpp_doc_comment(raw_doc_block) if raw_doc_block else ""
 
-                declarations.append(Declaration(
-                    kind=decl_info['kind'],
-                    name=decl_info['name'],
-                    start_line=decl_info['start_line'],
-                    end_line=decl_info['end_line'],
-                    docstring=cleaned_docstring,
-                    modifiers=decl_info['modifiers']
-                ))
+                declarations.append(
+                    Declaration(
+                        kind=decl_info["kind"],
+                        name=decl_info["name"],
+                        start_line=decl_info["start_line"],
+                        end_line=decl_info["end_line"],
+                        docstring=cleaned_docstring,
+                        modifiers=decl_info["modifiers"],
+                    )
+                )
 
         declarations.sort(key=lambda d: d.start_line)
         sorted_imports = sorted(list(imports))
 
-        logger.debug(f"Tree-sitter C++ extracted {len(declarations)} declarations and {len(sorted_imports)} imports.")
+        logger.debug(
+            f"Tree-sitter C++ extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
+        )
         return declarations, sorted_imports

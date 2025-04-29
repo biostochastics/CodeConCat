@@ -4,18 +4,14 @@
 """
 Unit tests for the enhanced Go parser in CodeConCat.
 
-Tests the EnhancedGoParser class to ensure it properly handles 
+Tests the EnhancedGoParser class to ensure it properly handles
 Go-specific syntax, structs, interfaces, functions, and imports.
 """
 
-import os
 import logging
 import pytest
-from typing import List, Dict, Any, Optional
 
 from codeconcat.base_types import (
-    CodeConCatConfig,
-    Declaration,
     ParseResult,
     ParserInterface,
 )
@@ -37,11 +33,11 @@ logger = logging.getLogger(__name__)
 
 class TestEnhancedGoParser:
     """Test class for the EnhancedGoParser."""
-    
+
     @pytest.fixture
     def go_code_sample(self) -> str:
         """Fixture providing a sample Go code snippet for testing."""
-        return '''
+        return """
 // Basic Go test file for parser validation.
 //
 // This file contains common Go constructs that should be properly parsed.
@@ -125,17 +121,17 @@ func main() {
     fmt.Println("DefaultTimeout:", DefaultTimeout)
     fmt.Println("AppName:", AppName)
 }
-'''
-    
+"""
+
     def test_go_parser_initialization(self):
         """Test initializing the EnhancedGoParser."""
         # Create an instance
         parser = EnhancedGoParser()
-        
+
         # Check that it inherits from EnhancedBaseParser
         assert isinstance(parser, EnhancedBaseParser)
         assert isinstance(parser, ParserInterface)
-        
+
         # Check that Go-specific properties are set
         assert parser.language == "go"
         assert parser.line_comment == "//"
@@ -143,7 +139,7 @@ func main() {
         assert parser.block_comment_end == "*/"
         assert parser.block_start == "{"
         assert parser.block_end == "}"
-        
+
         # Check capabilities
         capabilities = parser.get_capabilities()
         assert capabilities["can_parse_functions"] is True
@@ -153,36 +149,36 @@ func main() {
         assert capabilities["can_parse_interfaces"] is True
         assert capabilities["can_parse_imports"] is True
         assert capabilities["can_extract_docstrings"] is True
-    
+
     def test_go_parser_parse(self, go_code_sample):
         """Test parsing a Go file with the EnhancedGoParser."""
         # Create parser and parse the code
         parser = EnhancedGoParser()
         result = parser.parse(go_code_sample, "test.go")
-        
+
         # Check that we got a ParseResult
         assert isinstance(result, ParseResult)
         assert result.error is None, f"Parse error: {result.error}"
-        
+
         # Log the declarations for debugging
         print(f"Found {len(result.declarations)} top-level declarations:")
         for decl in result.declarations:
             print(f"- {decl.kind}: {decl.name}")
-        
+
         # Check for imports
         print(f"Found {len(result.imports)} imports: {result.imports}")
         assert len(result.imports) >= 1, "No imports were detected"
         assert "fmt" in result.imports, "fmt import not detected"
-        
+
         # Ensure a minimum number of declarations were found
         assert len(result.declarations) >= 2, "Too few declarations detected"
-        
+
         # Try to find key declarations
         person_struct = None
         person_method = None
         processor_interface = None
         main_func = None
-        
+
         for decl in result.declarations:
             if decl.kind == "struct" and decl.name == "Person":
                 person_struct = decl
@@ -192,23 +188,27 @@ func main() {
                 processor_interface = decl
             elif decl.kind == "function" and decl.name == "main":
                 main_func = decl
-        
+
         # Check if key declarations were found (without being too strict)
         if person_struct:
-            print(f"Found Person struct at lines {person_struct.start_line}-{person_struct.end_line}")
+            print(
+                f"Found Person struct at lines {person_struct.start_line}-{person_struct.end_line}"
+            )
             # If docstring was captured, check its content
             if person_struct.docstring and "Person represents a human" in person_struct.docstring:
                 print("Struct docstring correctly detected")
-        
+
         if person_method:
             print(f"Found method at lines {person_method.start_line}-{person_method.end_line}")
-        
+
         if processor_interface:
-            print(f"Found Processor interface at lines {processor_interface.start_line}-{processor_interface.end_line}")
-        
+            print(
+                f"Found Processor interface at lines {processor_interface.start_line}-{processor_interface.end_line}"
+            )
+
         if main_func:
             print(f"Found main function at lines {main_func.start_line}-{main_func.end_line}")
-        
+
         # Check that at least some declarations have docstrings
         declarations_with_docstrings = [d for d in result.declarations if d.docstring]
         print(f"Found {len(declarations_with_docstrings)} declarations with docstrings")

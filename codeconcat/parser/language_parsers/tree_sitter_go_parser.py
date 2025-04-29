@@ -227,7 +227,7 @@ GO_QUERIES = {
         (package_clause
             (package_identifier) @package_name
         )
-    """
+    """,
 }
 
 
@@ -242,13 +242,15 @@ class TreeSitterGoParser(BaseTreeSitterParser):
         """Returns the predefined Tree-sitter queries for Go."""
         return GO_QUERIES
 
-    def _run_queries(self, root_node: Node, byte_content: bytes) -> tuple[List[Declaration], List[str]]:
+    def _run_queries(
+        self, root_node: Node, byte_content: bytes
+    ) -> tuple[List[Declaration], List[str]]:
         """Runs Go-specific queries and extracts declarations and imports."""
         queries = self.get_queries()
         declarations = []
         imports: Set[str] = set()
-        declaration_map = {} # node_id -> declaration info
-        doc_comment_map = {} # end_line -> comment_text (list of lines)
+        declaration_map = {}  # node_id -> declaration info
+        doc_comment_map = {}  # end_line -> comment_text (list of lines)
 
         # --- Pass 1: Extract Doc Comments --- #
         # Go doc comments are consecutive line comments preceding a declaration
@@ -259,17 +261,21 @@ class TreeSitterGoParser(BaseTreeSitterParser):
             current_doc_block: List[str] = []
 
             for node, _ in doc_captures:
-                comment_text = byte_content[node.start_byte:node.end_byte].decode("utf8", errors="ignore").strip()
+                comment_text = (
+                    byte_content[node.start_byte : node.end_byte]
+                    .decode("utf8", errors="ignore")
+                    .strip()
+                )
                 current_line = node.start_point[0]
 
                 # Check if this comment continues the previous block
                 if current_line == last_comment_line + 1:
-                    current_doc_block.append(comment_text[2:].strip()) # Remove // and strip
+                    current_doc_block.append(comment_text[2:].strip())  # Remove // and strip
                 else:
                     # Start a new block if the previous one wasn't empty
                     if current_doc_block:
-                         # Map the completed block to its end line
-                         doc_comment_map[last_comment_line] = "\n".join(current_doc_block)
+                        # Map the completed block to its end line
+                        doc_comment_map[last_comment_line] = "\n".join(current_doc_block)
                     # Start new block
                     current_doc_block = [comment_text[2:].strip()]
 
@@ -284,7 +290,8 @@ class TreeSitterGoParser(BaseTreeSitterParser):
 
         # --- Pass 2: Extract Imports and Declarations --- #
         for query_name, query_str in queries.items():
-            if query_name == "doc_comments": continue
+            if query_name == "doc_comments":
+                continue
 
             try:
                 query = self.ts_language.query(query_str)
@@ -295,7 +302,11 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                     for node, capture_name in captures:
                         if capture_name == "import_path":
                             # String nodes include quotes, remove them
-                            import_path = byte_content[node.start_byte:node.end_byte].decode("utf8", errors="ignore").strip('"')
+                            import_path = (
+                                byte_content[node.start_byte : node.end_byte]
+                                .decode("utf8", errors="ignore")
+                                .strip('"')
+                            )
                             imports.add(import_path)
 
                 elif query_name == "declarations":
@@ -304,57 +315,82 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                         node_id = node.id
 
                         # Identify the main declaration node
-                        if capture_name in ["function", "method", "type_struct_interface", "type_alias", "constant", "variable"]:
-                            current_decl_node_id = node.parent.id # Use parent ID for mapping spec to declaration
+                        if capture_name in [
+                            "function",
+                            "method",
+                            "type_struct_interface",
+                            "type_alias",
+                            "constant",
+                            "variable",
+                        ]:
+                            current_decl_node_id = (
+                                node.parent.id
+                            )  # Use parent ID for mapping spec to declaration
                             parent_node = node.parent
                             if current_decl_node_id not in declaration_map:
                                 # Determine specific kind if needed (e.g., struct vs interface)
                                 kind = capture_name
-                                if kind == 'type_struct_interface':
-                                    type_node = next((n for n, name in captures if n.id == node_id and name == "type"), None)
-                                    kind = type_node.type if type_node else 'type'
+                                if kind == "type_struct_interface":
+                                    type_node = next(
+                                        (
+                                            n
+                                            for n, name in captures
+                                            if n.id == node_id and name == "type"
+                                        ),
+                                        None,
+                                    )
+                                    kind = type_node.type if type_node else "type"
 
                                 declaration_map[current_decl_node_id] = {
-                                    'kind': kind,
-                                    'node': parent_node, # Store parent declaration node
-                                    'name': None,
-                                    'start_line': parent_node.start_point[0],
-                                    'end_line': parent_node.end_point[0],
-                                    'modifiers': set(),
-                                    'docstring': ""
+                                    "kind": kind,
+                                    "node": parent_node,  # Store parent declaration node
+                                    "name": None,
+                                    "start_line": parent_node.start_point[0],
+                                    "end_line": parent_node.end_point[0],
+                                    "modifiers": set(),
+                                    "docstring": "",
                                 }
                             # Update end line if needed
-                            declaration_map[current_decl_node_id]['end_line'] = max(declaration_map[current_decl_node_id]['end_line'], parent_node.end_point[0])
+                            declaration_map[current_decl_node_id]["end_line"] = max(
+                                declaration_map[current_decl_node_id]["end_line"],
+                                parent_node.end_point[0],
+                            )
 
                         # Capture name
                         elif capture_name == "name" and current_decl_node_id in declaration_map:
-                             # Check if name is already set
-                             if declaration_map[current_decl_node_id]['name'] is None:
-                                 name_text = byte_content[node.start_byte:node.end_byte].decode("utf8", errors="ignore")
-                                 declaration_map[current_decl_node_id]['name'] = name_text
+                            # Check if name is already set
+                            if declaration_map[current_decl_node_id]["name"] is None:
+                                name_text = byte_content[node.start_byte : node.end_byte].decode(
+                                    "utf8", errors="ignore"
+                                )
+                                declaration_map[current_decl_node_id]["name"] = name_text
 
             except Exception as e:
                 logger.warning(f"Failed to execute Go query '{query_name}': {e}", exc_info=True)
 
         # --- Pass 3: Process declarations and associate docstrings --- #
         for decl_info in declaration_map.values():
-            if decl_info.get('name'):
+            if decl_info.get("name"):
                 # Check if a doc comment block ended on the line before this declaration started
-                docstring = doc_comment_map.get(decl_info['start_line'] - 1, "")
+                docstring = doc_comment_map.get(decl_info["start_line"] - 1, "")
 
-                declarations.append(Declaration(
-                    kind=decl_info['kind'],
-                    name=decl_info['name'],
-                    start_line=decl_info['start_line'],
-                    end_line=decl_info['end_line'],
-                    docstring=docstring,
-                    modifiers=decl_info['modifiers']
-                ))
+                declarations.append(
+                    Declaration(
+                        kind=decl_info["kind"],
+                        name=decl_info["name"],
+                        start_line=decl_info["start_line"],
+                        end_line=decl_info["end_line"],
+                        docstring=docstring,
+                        modifiers=decl_info["modifiers"],
+                    )
+                )
 
         declarations.sort(key=lambda d: d.start_line)
         sorted_imports = sorted(list(imports))
 
-        logger.debug(f"Tree-sitter Go extracted {len(declarations)} declarations and {len(sorted_imports)} imports.")
+        logger.debug(
+            f"Tree-sitter Go extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
+        )
         return declarations, sorted_imports
 
     # No specific _clean_doc method needed for Go as comments are line-based

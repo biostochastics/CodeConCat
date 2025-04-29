@@ -32,9 +32,7 @@ def write_xml(
     if config.include_file_index:
         file_index = ET.SubElement(root, "file_index")
         # Sort items if needed for index consistency with file section
-        items_for_index = (
-            sorted(items, key=lambda x: x.file_path) if config.sort_files else items
-        )
+        items_for_index = sorted(items, key=lambda x: x.file_path) if config.sort_files else items
         for item in items_for_index:
             ET.SubElement(file_index, "file", path=item.file_path)
 
@@ -42,9 +40,7 @@ def write_xml(
     files_section = ET.SubElement(root, "files")
 
     # Sort items if requested before processing
-    items_to_process = (
-        sorted(items, key=lambda x: x.file_path) if config.sort_files else items
-    )
+    items_to_process = sorted(items, key=lambda x: x.file_path) if config.sort_files else items
 
     # Single loop processing all items polymorphically
     for item in items_to_process:

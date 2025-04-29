@@ -49,11 +49,11 @@ class RustParser(ParserInterface):
         """Parses Rust code using Regex to find declarations and imports."""
         declarations = []
         imports: Set[str] = set()
-        lines = content.split('\n')
+        lines = content.split("\n")
         doc_buffer: List[str] = []
         in_block_comment = False
         in_doc_comment = False
-        current_module_stack: List[str] = [] # Basic module tracking
+        current_module_stack: List[str] = []  # Basic module tracking
         bracket_level = 0
 
         try:
@@ -62,9 +62,10 @@ class RustParser(ParserInterface):
                 stripped_line = line.strip()
 
                 # Track scope (simple brace counting)
-                bracket_level += line.count('{')
-                bracket_level -= line.count('}')
-                if bracket_level < 0: bracket_level = 0
+                bracket_level += line.count("{")
+                bracket_level -= line.count("}")
+                if bracket_level < 0:
+                    bracket_level = 0
 
                 # Handle block comments /* ... */ (including doc comments /** ... */)
                 if in_block_comment:
@@ -72,13 +73,13 @@ class RustParser(ParserInterface):
                         in_block_comment = False
                         end_match = DOC_COMMENT_BLOCK_END_PATTERN.match(line.strip())
                         if in_doc_comment and end_match and end_match.group(1).strip():
-                            doc_buffer.append(end_match.group(1).strip().lstrip('*').strip())
+                            doc_buffer.append(end_match.group(1).strip().lstrip("*").strip())
                         stripped_line = stripped_line.split("*/", 1)[1].strip()
-                        in_doc_comment = False # Doc comment ends with */
+                        in_doc_comment = False  # Doc comment ends with */
                     else:
                         if in_doc_comment:
-                            doc_buffer.append(line.strip().lstrip('*').strip())
-                        continue # Skip lines entirely within block comments
+                            doc_buffer.append(line.strip().lstrip("*").strip())
+                        continue  # Skip lines entirely within block comments
 
                 if stripped_line.startswith("/*"):
                     block_doc_match = DOC_COMMENT_BLOCK_OUTER_PATTERN.match(line.strip())
@@ -87,19 +88,23 @@ class RustParser(ParserInterface):
                         in_doc_comment = True
                         comment_content = block_doc_match.group(1)
                         if comment_content.endswith("*/"):
-                             in_block_comment = False
-                             in_doc_comment = False
-                             end_match = DOC_COMMENT_BLOCK_END_PATTERN.match(comment_content)
-                             doc_buffer = [end_match.group(1).strip().lstrip('*').strip()] if end_match else []
+                            in_block_comment = False
+                            in_doc_comment = False
+                            end_match = DOC_COMMENT_BLOCK_END_PATTERN.match(comment_content)
+                            doc_buffer = (
+                                [end_match.group(1).strip().lstrip("*").strip()]
+                                if end_match
+                                else []
+                            )
                         else:
-                             doc_buffer = [comment_content.strip()] # Start buffer
+                            doc_buffer = [comment_content.strip()]  # Start buffer
                         continue
                     else:
                         # Regular block comment
                         if "*/" not in stripped_line:
                             in_block_comment = True
                         stripped_line = stripped_line.split("/*", 1)[0].strip()
-                        doc_buffer = [] # Regular block comments clear buffer
+                        doc_buffer = []  # Regular block comments clear buffer
 
                 # Handle line comments (//, ///, //!)
                 if stripped_line.startswith("//"):
@@ -112,8 +117,8 @@ class RustParser(ParserInterface):
                         # Treat similarly to outer for now, maybe refine later
                         doc_buffer.append(doc_block_inner_match.group(1).strip())
                     else:
-                        doc_buffer = [] # Regular line comment clears buffer
-                    stripped_line = "" # The rest of the line is comment
+                        doc_buffer = []  # Regular line comment clears buffer
+                    stripped_line = ""  # The rest of the line is comment
 
                 if not stripped_line:
                     # Don't clear doc buffer on empty lines
@@ -127,14 +132,16 @@ class RustParser(ParserInterface):
                     # Extract the full path used
                     import_path = use_match.group(2).strip()
                     # Basic handling for group imports
-                    if '{' in import_path and '}' in import_path and use_match.group(1):
+                    if "{" in import_path and "}" in import_path and use_match.group(1):
                         prefix = use_match.group(1)
                         items = re.findall(r"\b\w+\b", import_path)
                         for item in items:
                             imports.add(f"{prefix}{item}")
                     else:
-                         imports.add(use_match.group(1) + import_path if use_match.group(1) else import_path)
-                    doc_buffer = [] # Clear buffer after use statement
+                        imports.add(
+                            use_match.group(1) + import_path if use_match.group(1) else import_path
+                        )
+                    doc_buffer = []  # Clear buffer after use statement
                     continue
 
                 # Function
@@ -144,7 +151,16 @@ class RustParser(ParserInterface):
                     scope = "::".join(current_module_stack)
                     full_name = f"{scope}::{name}" if scope else name
                     docstring = "\n".join(filter(None, doc_buffer))
-                    declarations.append(Declaration(kind="function", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    declarations.append(
+                        Declaration(
+                            kind="function",
+                            name=full_name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )
                     doc_buffer = []
                     continue
 
@@ -155,7 +171,16 @@ class RustParser(ParserInterface):
                     scope = "::".join(current_module_stack)
                     full_name = f"{scope}::{name}" if scope else name
                     docstring = "\n".join(filter(None, doc_buffer))
-                    declarations.append(Declaration(kind="struct", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    declarations.append(
+                        Declaration(
+                            kind="struct",
+                            name=full_name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )
                     doc_buffer = []
                     continue
 
@@ -166,7 +191,16 @@ class RustParser(ParserInterface):
                     scope = "::".join(current_module_stack)
                     full_name = f"{scope}::{name}" if scope else name
                     docstring = "\n".join(filter(None, doc_buffer))
-                    declarations.append(Declaration(kind="enum", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    declarations.append(
+                        Declaration(
+                            kind="enum",
+                            name=full_name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )
                     doc_buffer = []
                     continue
 
@@ -177,22 +211,42 @@ class RustParser(ParserInterface):
                     scope = "::".join(current_module_stack)
                     full_name = f"{scope}::{name}" if scope else name
                     docstring = "\n".join(filter(None, doc_buffer))
-                    declarations.append(Declaration(kind="trait", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    declarations.append(
+                        Declaration(
+                            kind="trait",
+                            name=full_name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )
                     doc_buffer = []
                     continue
 
-                 # Impl block
+                # Impl block
                 impl_match = IMPL_PATTERN.match(stripped_line)
                 if impl_match:
                     impl_type = impl_match.group("type")
                     impl_trait = impl_match.group("trait")
                     scope = "::".join(current_module_stack)
                     # Name the impl block uniquely if possible
-                    name = f"impl {impl_trait} for {impl_type}" if impl_trait else f"impl {impl_type}"
+                    name = (
+                        f"impl {impl_trait} for {impl_type}" if impl_trait else f"impl {impl_type}"
+                    )
                     full_name = f"{scope}::{name}" if scope else name
                     docstring = "\n".join(filter(None, doc_buffer))
                     # Represent the whole block as one 'impl' declaration
-                    declarations.append(Declaration(kind="implementation", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    declarations.append(
+                        Declaration(
+                            kind="implementation",
+                            name=full_name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )
                     doc_buffer = []
                     continue
 
@@ -203,7 +257,16 @@ class RustParser(ParserInterface):
                     scope = "::".join(current_module_stack)
                     full_name = f"{scope}::{name}" if scope else name
                     docstring = "\n".join(filter(None, doc_buffer))
-                    declarations.append(Declaration(kind="module", name=full_name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                    declarations.append(
+                        Declaration(
+                            kind="module",
+                            name=full_name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )
                     # Basic tracking - assumes mods don't close immediately
                     # if stripped_line.endswith('{'): current_module_stack.append(name)
                     doc_buffer = []
@@ -217,8 +280,8 @@ class RustParser(ParserInterface):
                     #     current_module_stack.pop()
 
             logger.debug(
-                 f"Finished RustParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} imports."
-             )
+                f"Finished RustParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} imports."
+            )
             # TODO: Improve end_line detection
             return ParseResult(
                 file_path=file_path,
@@ -228,7 +291,7 @@ class RustParser(ParserInterface):
                 imports=sorted(list(imports)),
                 engine_used="regex",
                 token_stats=None,
-                security_issues=[]
+                security_issues=[],
             )
 
         except Exception as e:

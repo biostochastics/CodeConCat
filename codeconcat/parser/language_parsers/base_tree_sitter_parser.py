@@ -1,17 +1,15 @@
 import abc
 import logging
-import importlib
-import importlib.resources
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from codeconcat.base_types import Declaration, ParseResult, ParserInterface
 from tree_sitter import Language, Node, Parser, Tree
-from ...errors import ConfigurationError, LanguageParserError
+from ...errors import LanguageParserError
 
 # Import tree-sitter-language-pack for reliable language loading
 try:
     from tree_sitter_language_pack import get_language, get_parser
+
     TREE_SITTER_LANGUAGE_PACK_AVAILABLE = True
 except ImportError:
     # Fallback if the package isn't installed yet
@@ -48,13 +46,13 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
 
     def _load_language(self) -> Language:
         """Loads the Tree-sitter language object.
-        
+
         Uses tree-sitter-language-pack if available, which provides a simple and reliable
         way to load language grammars across different Python versions and platforms.
-        
+
         Returns:
             Language: The loaded Tree-sitter language object
-            
+
         Raises:
             LanguageParserError: If the language cannot be loaded
         """
@@ -63,20 +61,27 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             try:
                 # get_language returns a tree_sitter.Language object directly
                 language = get_language(self.language_name)
-                logger.debug(f"Successfully loaded Tree-sitter language for '{self.language_name}' via tree-sitter-language-pack")
+                logger.debug(
+                    f"Successfully loaded Tree-sitter language for '{self.language_name}' via tree-sitter-language-pack"
+                )
                 return language
             except (ImportError, KeyError, ValueError) as e:
-                # ImportError: Package not installed 
+                # ImportError: Package not installed
                 # KeyError: Language not found in pack
                 # ValueError: Invalid language name
-                logger.error(f"Failed to load '{self.language_name}' with tree-sitter-language-pack: {e}")
+                logger.error(
+                    f"Failed to load '{self.language_name}' with tree-sitter-language-pack: {e}"
+                )
                 raise LanguageParserError(
                     f"Could not load Tree-sitter language for {self.language_name} using tree-sitter-language-pack. "
                     f"Error: {e}. Ensure tree-sitter-language-pack is installed and the language name is correct."
                 ) from e
             except Exception as e:
                 # Any other unexpected error
-                logger.error(f"Unexpected error loading '{self.language_name}' with tree-sitter-language-pack: {e}", exc_info=True)
+                logger.error(
+                    f"Unexpected error loading '{self.language_name}' with tree-sitter-language-pack: {e}",
+                    exc_info=True,
+                )
                 raise LanguageParserError(
                     f"Unexpected error loading Tree-sitter language for {self.language_name} using tree-sitter-language-pack: {e}"
                 ) from e
@@ -94,13 +99,13 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
 
     def _create_parser(self) -> Parser:
         """Creates the Parser instance and sets its language.
-        
+
         Uses tree-sitter-language-pack's get_parser if available, which returns a pre-configured
         parser instance. Falls back to manual parser creation if not available.
-        
+
         Returns:
             Parser: A configured Tree-sitter parser for this language
-            
+
         Raises:
             LanguageParserError: If parser creation fails
         """
@@ -108,9 +113,11 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             # Use tree-sitter-language-pack's pre-configured parser if available
             if TREE_SITTER_LANGUAGE_PACK_AVAILABLE:
                 parser = get_parser(self.language_name)
-                logger.debug(f"Created parser for {self.language_name} via tree-sitter-language-pack")
+                logger.debug(
+                    f"Created parser for {self.language_name} via tree-sitter-language-pack"
+                )
                 return parser
-            
+
             # Fall back to manual parser creation if tree-sitter-language-pack is not available
             # This is a backup option and should generally not be needed
             parser = Parser()
@@ -119,7 +126,9 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             return parser
         except Exception as e:
             logger.error(f"Failed to create parser for {self.language_name}: {e}")
-            raise LanguageParserError(f"Failed to create parser for {self.language_name}: {e}") from e
+            raise LanguageParserError(
+                f"Failed to create parser for {self.language_name}: {e}"
+            ) from e
 
     @abc.abstractmethod
     def get_queries(self) -> Dict[str, str]:
@@ -158,7 +167,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         byte_content = content.encode("utf8")
         tree: Optional[Tree] = None
         try:
-            content_bytes = content.encode('utf-8')
+            content_bytes = content.encode("utf-8")
             logger.debug(f"Attempting self.parser.parse() for {file_path}")
             tree = self.parser.parse(content_bytes)
             logger.debug(f"Finished self.parser.parse() for {file_path}")
@@ -179,15 +188,17 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
 
         logger.debug(f"Root node type: {root_node.type}, Has Error: {root_node.has_error}")
         # Log node structure for debugging (modern tree-sitter API doesn't have sexp() method)
-        logger.debug(f"Root node structure - Type: {root_node.type}, Start: {root_node.start_point}, End: {root_node.end_point}")
+        logger.debug(
+            f"Root node structure - Type: {root_node.type}, Start: {root_node.start_point}, End: {root_node.end_point}"
+        )
         try:
             # Try to get string representation of the node structure instead of sexp
             # This is more compatible with different tree-sitter versions
             node_str = f"Node({root_node.type}, children: {len(root_node.children)})"
             logger.debug(f"Root node representation: {node_str}")
-            
+
             # Log some children information if available
-            if hasattr(root_node, 'children') and root_node.children:
+            if hasattr(root_node, "children") and root_node.children:
                 child_types = [child.type for child in root_node.children[:5]]
                 logger.debug(f"First few child types: {child_types}")
         except Exception as node_err:
@@ -220,14 +231,16 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                 engine_used="tree_sitter",
             )
 
-    def _run_queries(self, root_node: Node, byte_content: bytes) -> tuple[List[Declaration], List[str]]:
+    def _run_queries(
+        self, root_node: Node, byte_content: bytes
+    ) -> tuple[List[Declaration], List[str]]:
         """Runs the language-specific queries against the parsed tree."""
         queries = self.get_queries()
         declarations = []
         imports = []
 
         for query_name, query_str in queries.items():
-            if not query_str.strip(): # Skip empty queries
+            if not query_str.strip():  # Skip empty queries
                 logger.debug(f"Skipping empty query '{query_name}' for {self.language_name}")
                 continue
             try:
@@ -240,7 +253,9 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                     for node, capture_name in captures:
                         # Check capture name matches query (@import_statement or @import_from_statement)
                         if capture_name in ["import_statement", "import_from_statement"]:
-                            import_text = byte_content[node.start_byte:node.end_byte].decode("utf8", errors="ignore")
+                            import_text = byte_content[node.start_byte : node.end_byte].decode(
+                                "utf8", errors="ignore"
+                            )
                             # Basic cleanup: remove extra whitespace/newlines
                             imports.append(" ".join(import_text.split()))
 
@@ -266,23 +281,29 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                         # Add elif for async_function, lambda_function etc. if defined in query
 
                         if declaration_node and name_node and kind:
-                            decl_name = byte_content[name_node.start_byte:name_node.end_byte].decode("utf8", errors="ignore")
-                            start_line = declaration_node.start_point[0] + 1 # TS is 0-indexed
+                            decl_name = byte_content[
+                                name_node.start_byte : name_node.end_byte
+                            ].decode("utf8", errors="ignore")
+                            start_line = declaration_node.start_point[0] + 1  # TS is 0-indexed
                             end_line = declaration_node.end_point[0] + 1
 
                             # TODO: Extract signature and docstring if queries support them
-                            declarations.append(Declaration(
-                                name=decl_name,
-                                kind=kind,
-                                start_line=start_line,
-                                end_line=end_line,
-                                # signature="", # Placeholder
-                                # docstring=""  # Placeholder
-                            ))
+                            declarations.append(
+                                Declaration(
+                                    name=decl_name,
+                                    kind=kind,
+                                    start_line=start_line,
+                                    end_line=end_line,
+                                    # signature="", # Placeholder
+                                    # docstring=""  # Placeholder
+                                )
+                            )
                         else:
                             # Log if a match didn't yield the expected captures
                             capture_keys = list(captures_in_match.keys())
-                            logger.debug(f"Declaration match {match_id} did not yield expected nodes. Captures: {capture_keys}")
+                            logger.debug(
+                                f"Declaration match {match_id} did not yield expected nodes. Captures: {capture_keys}"
+                            )
 
                 # Add handling for other query types (e.g., comments, docstrings)
                 # elif query_name == "doc_comments": ...
@@ -290,12 +311,14 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             except Exception as e:
                 logger.warning(
                     f"Failed to execute or process Tree-sitter query '{query_name}' for {self.language_name}: {e}",
-                    exc_info=True # Log traceback for debugging
+                    exc_info=True,  # Log traceback for debugging
                 )
 
         # Deduplicate imports
         imports = sorted(list(set(imports)))
-        logger.debug(f"Tree-sitter extracted {len(declarations)} declarations and {len(imports)} imports.")
+        logger.debug(
+            f"Tree-sitter extracted {len(declarations)} declarations and {len(imports)} imports."
+        )
         return declarations, imports
 
     def _find_first_error_node(self, node: Node) -> Optional[Node]:

@@ -26,9 +26,7 @@ def count_tokens(text: str) -> int:
         encoder = tiktoken.get_encoding("cl100k_base")
         return len(encoder.encode(text))
     except Exception as e:
-        logger.info(
-            f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count"
-        )
+        logger.info(f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count")
         return len(text.split())
 
 
@@ -52,9 +50,7 @@ def print_quote_with_ascii(total_output_tokens: int = None):
     current_line = "|  "
     for word in words:
         if len(current_line) + len(word) + 1 > width - 2:
-            output_lines.append(
-                current_line + " " * (width - len(current_line) - 1) + "|"
-            )
+            output_lines.append(current_line + " " * (width - len(current_line) - 1) + "|")
             current_line = "|  " + word
         else:
             if current_line == "|  ":
@@ -133,9 +129,7 @@ def write_markdown(
         output_parts.append("## File Index")
         output_parts.append("```")
         # Sort items if needed for index consistency with file section
-        items_for_index = (
-            sorted(items, key=lambda x: x.file_path) if config.sort_files else items
-        )
+        items_for_index = sorted(items, key=lambda x: x.file_path) if config.sort_files else items
         for item in items_for_index:
             output_parts.append(item.file_path)
         output_parts.append("```")
@@ -146,9 +140,7 @@ def write_markdown(
     output_parts.append("\n")
 
     # Sort items if requested before processing
-    items_to_process = (
-        sorted(items, key=lambda x: x.file_path) if config.sort_files else items
-    )
+    items_to_process = sorted(items, key=lambda x: x.file_path) if config.sort_files else items
 
     # Single loop processing all items polymorphically
     if not items_to_process:
@@ -169,9 +161,7 @@ def write_markdown(
 
     # Add token count information at the end of the string
     final_str += "\n\n<!-- Token Count -->\n"
-    final_str += (
-        f"<!-- Total CodeConCat output tokens (cl100k_base): {output_tokens:,} -->\n"
-    )
+    final_str += f"<!-- Total CodeConCat output tokens (cl100k_base): {output_tokens:,} -->\n"
 
     spinner.succeed("Markdown generation complete")
     # Logging is handled by the caller (e.g., run_codeconcat)

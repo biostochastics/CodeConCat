@@ -2,7 +2,7 @@ import fnmatch
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Optional
 
@@ -117,7 +117,6 @@ DEFAULT_EXCLUDES = [
     "*.egg-info/",
     "**/*.egg-info/",
     "**/*.egg-info/**",
-    
     # Virtual environments - Comprehensive patterns
     # Match any venv directory or subdirectory
     "venv/",
@@ -128,7 +127,6 @@ DEFAULT_EXCLUDES = [
     "*venv/**",
     "**/*venv/",
     "**/*venv/**",  # More aggressive pattern to match any directory with 'venv' in the name
-    
     # Common environment directory names
     ".venv/",
     ".venv/**",
@@ -142,7 +140,6 @@ DEFAULT_EXCLUDES = [
     "*env/**",
     "**/*env/",
     "**/*env/**",
-    
     # Specific virtual envs in this project
     "codeconcat_venv/",
     "codeconcat_venv/**",
@@ -152,27 +149,23 @@ DEFAULT_EXCLUDES = [
     "venv_py312/**",
     "**/venv_py312/",
     "**/venv_py312/**",
-    
     # Exclude site-packages entirely
     "**/site-packages/",
     "**/site-packages/**",
-    
     # Hidden files and directories
-    "**/.*",       # All hidden files and directories
-    "**/.*/",      # All hidden directories
-    "**/.*/***",   # Contents of hidden directories
-    
+    "**/.*",  # All hidden files and directories
+    "**/.*/",  # All hidden directories
+    "**/.*/***",  # Contents of hidden directories
     # Test directories
-    "tests/",      # Root level tests directory
-    "**/tests/",   # Tests directory anywhere in tree
-    "**/tests/**", # Contents of tests directories
-    "**/test/",    # Test directory (singular)
+    "tests/",  # Root level tests directory
+    "**/tests/",  # Tests directory anywhere in tree
+    "**/tests/**",  # Contents of tests directories
+    "**/test/",  # Test directory (singular)
     "**/test/**",  # Contents of test directories
-    
     # Common large directories
     "**/libs/**",
     "**/vendor/**",
-    "**/third_party/**"
+    "**/third_party/**",
 ]
 
 
@@ -191,9 +184,7 @@ def get_gitignore_spec(root_path: str) -> PathSpec:
 
     if os.path.exists(gitignore_path):
         with open(gitignore_path, "r") as f:
-            patterns = [
-                line.strip() for line in f if line.strip() and not line.startswith("#")
-            ]
+            patterns = [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
     # Add common patterns that should always be ignored
     patterns.extend(
@@ -236,9 +227,7 @@ def should_include_file(
     """
     # Ensure target_path exists for relative path calculation
     base_path = (
-        config.target_path
-        if config.target_path and os.path.isdir(config.target_path)
-        else "."
+        config.target_path if config.target_path and os.path.isdir(config.target_path) else "."
     )
     try:
         rel_path = os.path.relpath(file_path, base_path)
@@ -252,9 +241,7 @@ def should_include_file(
 
     norm_path = Path(rel_path).as_posix()  # Normalize path for matching
     if config.verbose:
-        logger.debug(
-            f"Checking file: {rel_path} (Normalized: {norm_path}, Full: {file_path})"
-        )
+        logger.debug(f"Checking file: {rel_path} (Normalized: {norm_path}, Full: {file_path})")
 
     # --- Path Filtering --- #
 
@@ -285,9 +272,7 @@ def should_include_file(
     if config_include_spec:
         if not config_include_spec.match_file(norm_path):
             if config.verbose:
-                logger.debug(
-                    f"Skipped: '{rel_path}' does not match any include_paths pattern."
-                )
+                logger.debug(f"Skipped: '{rel_path}' does not match any include_paths pattern.")
             return None
         else:
             if config.verbose:
@@ -308,9 +293,7 @@ def should_include_file(
             language = get_language_guesslang(content_for_guess)
             if language:
                 if config.verbose:
-                    logger.debug(
-                        f"Language detected by guesslang as '{language}' for {rel_path}"
-                    )
+                    logger.debug(f"Language detected by guesslang as '{language}' for {rel_path}")
         except Exception as e:
             if config.verbose:
                 logger.debug(f"guesslang check failed for {rel_path}: {e}")
@@ -372,9 +355,7 @@ def should_include_file(
     return language  # Return the determined language string
 
 
-def collect_local_files(
-    root_path: str, config: CodeConCatConfig
-) -> List[ParsedFileData]:
+def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[ParsedFileData]:
     """Walks a directory tree or processes a single file, identifies, reads, and collects data for code files.
 
     This function orchestrates the file collection process:
@@ -404,7 +385,11 @@ def collect_local_files(
 
     # --- Compile PathSpec objects --- #
     # (These are needed for both file and directory cases)
-    gitignore_spec = get_gitignore_spec(root_path if os.path.isdir(root_path) else os.path.dirname(root_path)) if config.use_gitignore else None
+    gitignore_spec = (
+        get_gitignore_spec(root_path if os.path.isdir(root_path) else os.path.dirname(root_path))
+        if config.use_gitignore
+        else None
+    )
     default_exclude_spec = (
         PathSpec.from_lines(GitWildMatchPattern, DEFAULT_EXCLUDES)
         if config.use_default_excludes
@@ -434,7 +419,7 @@ def collect_local_files(
         language = should_include_file(
             root_path,
             config,
-            gitignore_spec, # May not be strictly needed but passed for consistency
+            gitignore_spec,  # May not be strictly needed but passed for consistency
             default_exclude_spec,
             config_exclude_spec,
             config_include_spec,
@@ -449,9 +434,7 @@ def collect_local_files(
                 else:
                     logger.warning(f"Processing single file '{root_path}' returned no data.")
             except Exception as exc:
-                logger.error(
-                    f"[CodeConCat] Error processing single file {root_path}: {exc}"
-                )
+                logger.error(f"[CodeConCat] Error processing single file {root_path}: {exc}")
         else:
             # Log exclusion reason if verbose
             if config.verbose:
@@ -464,9 +447,9 @@ def collect_local_files(
                     config_include_spec,
                 )
             else:
-                 logger.info(f"Single file '{root_path}' excluded based on criteria.")
+                logger.info(f"Single file '{root_path}' excluded based on criteria.")
 
-        return parsed_files_data # Return immediately after processing the single file
+        return parsed_files_data  # Return immediately after processing the single file
 
     # --- Handle case where root_path is a directory --- #
     elif os.path.isdir(root_path):
@@ -474,60 +457,73 @@ def collect_local_files(
         all_files = []
         # Use os.walk to recursively find all files
         for dirpath, dirnames, filenames in os.walk(root_path, topdown=True):
-                    # Filter dirnames based on exclusion rules (efficiency)
+            # Filter dirnames based on exclusion rules (efficiency)
             # Create paths relative to root_path for matching
-            relative_dirpath = os.path.relpath(dirpath, root_path) 
-            
+            relative_dirpath = os.path.relpath(dirpath, root_path)
+
             # Save original dirnames for logging
             original_dirnames = dirnames.copy()
-            
+
             # Enhanced list of directories to always skip
             # These are checked first for performance before more complex pattern matching
             skip_dirs = [
                 # Common cache and build directories
-                '__pycache__', '.git', 'node_modules', '.pytest_cache', 'build', 'dist',
+                "__pycache__",
+                ".git",
+                "node_modules",
+                ".pytest_cache",
+                "build",
+                "dist",
                 # IDE and editor directories
-                '.idea', '.vscode',
+                ".idea",
+                ".vscode",
                 # Virtual environments - by exact name
-                'venv', '.venv', 'env', 'codeconcat_venv', 'venv_py312',
+                "venv",
+                ".venv",
+                "env",
+                "codeconcat_venv",
+                "venv_py312",
                 # Common lib directories that are typically large
-                'site-packages', 'libs', 'vendor', 'third_party'
+                "site-packages",
+                "libs",
+                "vendor",
+                "third_party",
             ]
-            
+
             # Filter directories by name first (fast check)
             filtered_dirs = []
             for d in dirnames:
                 # Skip if in the explicit skip list
                 if d in skip_dirs:
                     continue
-                    
+
                 # Skip if starts with dot or ends with common patterns
-                if d.startswith('.') or 'venv' in d.lower() or 'env' in d.lower():
+                if d.startswith(".") or "venv" in d.lower() or "env" in d.lower():
                     continue
-                    
+
                 # Skip directories that match common virtual environment patterns
-                if any(pattern in d.lower() for pattern in ['env', 'venv', 'virtualenv', 'pyenv']):
+                if any(pattern in d.lower() for pattern in ["env", "venv", "virtualenv", "pyenv"]):
                     continue
-                    
+
                 # For remaining directories, check complex pattern exclusions
                 if not is_excluded(
-                    os.path.join(relative_dirpath, d) + "/", # Add '/' for directory match
+                    os.path.join(relative_dirpath, d) + "/",  # Add '/' for directory match
                     gitignore_spec,
                     default_exclude_spec,
                     config_exclude_spec,
                     None,  # Don't check include_spec for directories - we'll check the files within them
                     config,
-                    is_dir=True
+                    is_dir=True,
                 ):
                     filtered_dirs.append(d)
-                    
+
             # Update dirnames in-place with our filtered list
             dirnames[:] = filtered_dirs
             # Log pruned directories if verbose
             if config.verbose:
                 pruned_dirs = set(original_dirnames) - set(dirnames)
                 for pruned in pruned_dirs:
-                     logger.debug(f"Pruning excluded directory: {os.path.join(dirpath, pruned)}")
+                    logger.debug(f"Pruning excluded directory: {os.path.join(dirpath, pruned)}")
 
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
@@ -546,7 +542,7 @@ def collect_local_files(
                         all_files.append(os.path.abspath(file_path))
                     # Log exclusion if verbose
                     elif config.verbose:
-                         _log_exclusion_reason(
+                        _log_exclusion_reason(
                             file_path,
                             config,
                             gitignore_spec,
@@ -555,18 +551,17 @@ def collect_local_files(
                             config_include_spec,
                         )
 
-
         logger.info(
             f"[CodeConCat] Found {len(all_files)} files matching inclusion criteria. Processing..."
         )
 
         if not all_files:
             logger.warning("No files found to process in the specified directory after filtering.")
-            return [] # Return empty list if no files are left
+            return []  # Return empty list if no files are left
 
         # Use ThreadPoolExecutor for parallel processing
         # This part is only for directory scanning
-        parsed_files_data = [] # Initialize list for directory results
+        parsed_files_data = []  # Initialize list for directory results
         max_workers = (
             config.max_workers
             if config.max_workers and config.max_workers > 0
@@ -579,7 +574,7 @@ def collect_local_files(
 
         # Set a timeout for each file processing task
         timeout_seconds = 30  # Timeout after 30 seconds per file
-        
+
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Determine language *before* submitting to executor to avoid redundant checks
             future_to_file_lang = {}
@@ -588,29 +583,33 @@ def collect_local_files(
                 try:
                     file_size = os.path.getsize(file_path)
                     if file_size > 20 * 1024 * 1024:  # Skip files larger than 20MB
-                        logger.warning(f"Skipping large file ({file_size/1024/1024:.2f}MB): {file_path}")
+                        logger.warning(
+                            f"Skipping large file ({file_size/1024/1024:.2f}MB): {file_path}"
+                        )
                         continue
                 except Exception as e:
                     logger.error(f"Error checking file size: {file_path}: {e}")
-                
+
                 # We already filtered in the walk, but let's re-determine language for process_file
-                from codeconcat.language_map import ext_map, get_language_guesslang
+
                 lang = should_include_file(file_path, config)
-                if lang: # Should always be true if it made it to all_files
+                if lang:  # Should always be true if it made it to all_files
                     future = executor.submit(process_file, file_path, config, lang)
                     future_to_file_lang[future] = (file_path, lang)
                 else:
                     # This case should ideally not happen due to pre-filtering
-                    logger.warning(f"File {file_path} passed pre-filter but failed language determination.")
+                    logger.warning(
+                        f"File {file_path} passed pre-filter but failed language determination."
+                    )
 
             # Import the timeout utilities
             import concurrent.futures
             from concurrent.futures import TimeoutError
-            
+
             # Process results as they complete with timeouts
             completed = 0
             total = len(future_to_file_lang)
-            
+
             # Create progress bar
             with tqdm(
                 total=total,
@@ -628,23 +627,29 @@ def collect_local_files(
                             parsed_files_data.append(result)
                         # else: File processing returned None
                     except TimeoutError:
-                        logger.warning(f"[CodeConCat] Timeout processing file {file_path} after {timeout_seconds}s")
+                        logger.warning(
+                            f"[CodeConCat] Timeout processing file {file_path} after {timeout_seconds}s"
+                        )
                     except Exception as exc:
-                        logger.error(f"[CodeConCat] Error processing file {file_path} in worker: {exc}")
+                        logger.error(
+                            f"[CodeConCat] Error processing file {file_path} in worker: {exc}"
+                        )
                     finally:
                         # Always update progress regardless of success or failure
                         completed += 1
                         progress_bar.update(1)
-                        
+
                         # Periodically log progress
                         if completed % 50 == 0 or completed == total:
-                            logger.info(f"Processed {completed}/{total} files ({completed/total*100:.1f}%)")
-        return parsed_files_data # Return results from directory scan
+                            logger.info(
+                                f"Processed {completed}/{total} files ({completed/total*100:.1f}%)"
+                            )
+        return parsed_files_data  # Return results from directory scan
 
     # --- Handle case where root_path is neither file nor directory --- #
     else:
         logger.error(f"Target path '{root_path}' is not a valid file or directory.")
-        return [] # Return empty list for invalid path
+        return []  # Return empty list for invalid path
 
 
 # Function to process a single file (called by the executor)
@@ -699,9 +704,7 @@ def process_file(
         return None
 
 
-def should_skip_dir(
-    dirpath: str, config: CodeConCatConfig
-) -> bool:  # Accept config object
+def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept config object
     """Check if a directory should be skipped based on exclude patterns.
 
     Compares the directory path against the combined list of default excludes
@@ -714,17 +717,13 @@ def should_skip_dir(
     Returns:
         True if the directory matches any exclude pattern, False otherwise.
     """
-    all_excludes = DEFAULT_EXCLUDES + (
-        config.exclude_paths or []
-    )  # Access excludes from config
+    all_excludes = DEFAULT_EXCLUDES + (config.exclude_paths or [])  # Access excludes from config
     logger.debug(f"Checking directory: {dirpath} against patterns: {all_excludes}")
 
     # Convert to relative path for matching
     if os.path.isabs(dirpath):
         try:
-            rel_path = os.path.relpath(
-                dirpath, config.target_path
-            )  # Use config.target_path
+            rel_path = os.path.relpath(dirpath, config.target_path)  # Use config.target_path
         except ValueError:
             # Handle cases where dirpath is not under target_path (e.g., different drive on Windows)
             rel_path = dirpath
@@ -741,26 +740,28 @@ def should_skip_dir(
 
 def determine_language(file_path: str, config: CodeConCatConfig) -> Optional[str]:
     """Determine the language of a file based on extension or content.
-    
+
     This function extracts the language detection logic from should_include_file
     to make it accessible for other functions.
-    
+
     Args:
         file_path: Path to the file to determine language for
         config: Configuration object
-        
+
     Returns:
         The language as a string if detected, None otherwise
     """
     from codeconcat.language_map import ext_map, get_language_guesslang
-    
+
     # Try using guesslang if available and enabled
     language = None
     if GUESSLANG_AVAILABLE and config.parser_engine == "tree_sitter":
         try:
             language = get_language_guesslang(file_path)
             if language and language.lower() != "unknown" and config.verbose:
-                logger.debug(f"Using language '{language}' for {file_path} based on content analysis.")
+                logger.debug(
+                    f"Using language '{language}' for {file_path} based on content analysis."
+                )
         except Exception as e:
             if config.verbose:
                 logger.debug(f"guesslang check failed for {file_path}: {e}")
@@ -773,10 +774,12 @@ def determine_language(file_path: str, config: CodeConCatConfig) -> Optional[str
         ext_with_dot = os.path.splitext(file_path)[1].lower()
         language = ext_map.get(filename.lower(), ext_map.get(ext_with_dot))
         if language and config.verbose:
-            logger.debug(f"Using language '{language}' for {file_path} based on extension/filename.")
+            logger.debug(
+                f"Using language '{language}' for {file_path} based on extension/filename."
+            )
         elif config.verbose:
             logger.debug(f"Could not determine language for {file_path} using extension/filename.")
-            
+
     return language
 
 
@@ -797,67 +800,127 @@ def is_binary_file(file_path: str) -> bool:
     # Fast path: check by extension
     binary_exts = {
         # Images
-        "png", "jpg", "jpeg", "gif", "ico", "webp", "bmp", "tiff", "tif", "svg",
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "ico",
+        "webp",
+        "bmp",
+        "tiff",
+        "tif",
+        "svg",
         # Fonts
-        "woff", "woff2", "ttf", "eot", "otf",
+        "woff",
+        "woff2",
+        "ttf",
+        "eot",
+        "otf",
         # Documents
-        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+        "pdf",
+        "doc",
+        "docx",
+        "xls",
+        "xlsx",
+        "ppt",
+        "pptx",
         # Archives
-        "zip", "tar", "gz", "tgz", "7z", "rar", "bz2", "xz",
+        "zip",
+        "tar",
+        "gz",
+        "tgz",
+        "7z",
+        "rar",
+        "bz2",
+        "xz",
         # Audio/Video
-        "mp3", "mp4", "wav", "avi", "mov", "flac", "ogg", "mkv", "wmv", "mpg", "mpeg",
+        "mp3",
+        "mp4",
+        "wav",
+        "avi",
+        "mov",
+        "flac",
+        "ogg",
+        "mkv",
+        "wmv",
+        "mpg",
+        "mpeg",
         # Other binary formats
-        "exe", "dll", "so", "dylib", "bin", "dat", "db", "sqlite", "pyc", "pyo", "pyd",
+        "exe",
+        "dll",
+        "so",
+        "dylib",
+        "bin",
+        "dat",
+        "db",
+        "sqlite",
+        "pyc",
+        "pyo",
+        "pyd",
         # Python package files
-        "whl", "egg", 
+        "whl",
+        "egg",
         # JS/Node.js packaging
-        "tsbuildinfo", "min.js", "bundle.js",
+        "tsbuildinfo",
+        "min.js",
+        "bundle.js",
     }
     ext = os.path.splitext(file_path)[1].lstrip(".").lower()
     if ext in binary_exts:
         logger.debug(f"[is_binary_file] Extension match for binary: {file_path} (ext: {ext})")
         return True
-        
+
     # Path-based checks for known binary files or large text files we want to skip
     file_name = os.path.basename(file_path).lower()
     path_lower = file_path.lower()
-    
+
     # Skip lock files, minified files, and known large generated files
     skip_patterns = [
-        "lock.json", "package-lock", "yarn.lock", "pnpm-lock", 
-        ".min.js", ".bundle.js", "vendor.js", "polyfill", 
-        "compiled", "generated", "build/", "dist/"
+        "lock.json",
+        "package-lock",
+        "yarn.lock",
+        "pnpm-lock",
+        ".min.js",
+        ".bundle.js",
+        "vendor.js",
+        "polyfill",
+        "compiled",
+        "generated",
+        "build/",
+        "dist/",
     ]
     if any(pattern in path_lower for pattern in skip_patterns):
         logger.debug(f"[is_binary_file] Path pattern match for binary/skip: {file_path}")
         return True
-    
+
     # Check file size before opening - skip very large files
     try:
         file_size = os.path.getsize(file_path)
         # Skip files larger than 5MB
-        if file_size > 5 * 1024 * 1024:  
-            logger.debug(f"[is_binary_file] File too large (>{file_size/1024/1024:.2f}MB): {file_path}")
+        if file_size > 5 * 1024 * 1024:
+            logger.debug(
+                f"[is_binary_file] File too large (>{file_size/1024/1024:.2f}MB): {file_path}"
+            )
             return True
     except Exception as e:
         logger.error(f"[is_binary_file] Error checking file size for {file_path}: {str(e)}")
-    
+
     try:
         # First, quick check with binary read for null bytes
         with open(file_path, "rb") as f:
             # Read just the first few KB to detect binary content
             sample = f.read(4096)
-            if b'\0' in sample:  # Null bytes are a good indicator of binary content
+            if b"\0" in sample:  # Null bytes are a good indicator of binary content
                 logger.debug(f"[is_binary_file] Binary content detected in: {file_path}")
                 return True
-                
+
             # Additional binary indicators
             # Check for high concentration of non-ASCII characters
             non_ascii_count = sum(1 for b in sample if b > 127)
             if non_ascii_count > len(sample) * 0.3:  # More than 30% non-ASCII
                 logger.debug(f"[is_binary_file] High non-ASCII content in: {file_path}")
                 return True
-            
+
         # If passes binary checks, verify as text with a readline
         with open(file_path, "r", encoding="utf-8", errors="replace") as check_file:
             check_file.readline()
@@ -869,13 +932,14 @@ def is_binary_file(file_path: str) -> bool:
         logger.error(f"[is_binary_file] Error checking file {file_path}: {str(e)}")
         return False  # Assume not binary on error
 
+
 def is_excluded(
     path: str,
     gitignore_spec: Optional[PathSpec],
     default_exclude_spec: Optional[PathSpec],
     config_exclude_spec: Optional[PathSpec],
     config_include_spec: Optional[PathSpec],
-    config: CodeConCatConfig, # Add config here
+    config: CodeConCatConfig,  # Add config here
     is_dir: bool = False,
 ) -> bool:
     """Check if a path should be excluded based on various criteria.
@@ -913,6 +977,7 @@ def is_excluded(
         return True
 
     return False
+
 
 def _log_exclusion_reason(
     file_path: str,
@@ -953,9 +1018,7 @@ def _log_exclusion_reason(
 
     # If include paths are defined, the file MUST match one of them.
     if config_include_spec and not config_include_spec.match_file(file_path):
-        logger.debug(
-            f"Skipped: '{file_path}' does not match any include_paths pattern."
-        )
+        logger.debug(f"Skipped: '{file_path}' does not match any include_paths pattern.")
         return
 
     # If we got here, it's likely due to language filtering

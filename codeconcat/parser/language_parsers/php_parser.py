@@ -1,7 +1,6 @@
 import re
 
 from codeconcat.base_types import Declaration, ParseResult
-from codeconcat.errors import LanguageParserError
 from codeconcat.parser.language_parsers.base_parser import ParserInterface
 
 
@@ -22,8 +21,7 @@ class PhpParser(ParserInterface):
             ),
             "arrow_function": re.compile(r"^\$(?P<name>\w+)\s*=\s*fn\s*\([^)]*\)\s*=>"),
             "property": re.compile(
-                r"^(?:(?:public|private|protected|static|final|var)\s+)*"
-                r"\$(?P<name>\w+)"
+                r"^(?:(?:public|private|protected|static|final|var)\s+)*" r"\$(?P<name>\w+)"
             ),
         }
         # Patterns for imports and includes
@@ -53,9 +51,7 @@ class PhpParser(ParserInterface):
                 continue
             # Skip multi-line comments (basic check)
             if line.startswith(self.block_comment_start):
-                while i < len(lines) and not lines[i].strip().endswith(
-                    self.block_comment_end
-                ):
+                while i < len(lines) and not lines[i].strip().endswith(self.block_comment_end):
                     i += 1
                 i += 1  # Move past the closing comment line
                 continue
@@ -132,11 +128,7 @@ class PhpParser(ParserInterface):
                         elif kind == "arrow_function" and line.endswith(";"):
                             end_line = i  # Arrow functions are single line
                         # If no braces and not arrow func, assume single line (e.g., abstract method)
-                        elif (
-                            "{" not in line
-                            and kind != "arrow_function"
-                            and line.endswith(";")
-                        ):
+                        elif "{" not in line and kind != "arrow_function" and line.endswith(";"):
                             end_line = i
                     elif line.endswith(";"):  # Property or simple statement
                         end_line = i

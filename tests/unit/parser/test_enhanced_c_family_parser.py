@@ -4,18 +4,14 @@
 """
 Unit tests for the enhanced C-family parser in CodeConCat.
 
-Tests the EnhancedCFamilyParser class to ensure it properly handles 
+Tests the EnhancedCFamilyParser class to ensure it properly handles
 C and C++ syntax, structs, classes, functions, and includes.
 """
 
-import os
 import logging
 import pytest
-from typing import List, Dict, Any, Optional
 
 from codeconcat.base_types import (
-    CodeConCatConfig,
-    Declaration,
     ParseResult,
     ParserInterface,
 )
@@ -37,11 +33,11 @@ logger = logging.getLogger(__name__)
 
 class TestEnhancedCFamilyParser:
     """Test class for the EnhancedCFamilyParser."""
-    
+
     @pytest.fixture
     def c_code_sample(self) -> str:
         """Fixture providing a sample C code snippet for testing."""
-        return '''/**
+        return """/**
  * Example C file
  */
 #include <stdio.h>
@@ -82,12 +78,12 @@ int main(int argc, char** argv) {
     test_function(ts.field1, ts.field2);
     return 0;
 }
-'''
+"""
 
     @pytest.fixture
     def cpp_code_sample(self) -> str:
         """Fixture providing a sample C++ code snippet for testing."""
-        return '''/**
+        return """/**
  * Example C++ file
  */
 #include <iostream>
@@ -143,23 +139,23 @@ int main() {
     
     return 0;
 }
-'''
-    
+"""
+
     def test_c_family_parser_initialization(self):
         """Test initializing the EnhancedCFamilyParser."""
         # Create an instance - note that we don't normally use this directly,
         # but via subclasses. We're overriding this for testing.
         parser = EnhancedCFamilyParser()
         parser.language = "c"  # Override for testing
-        
+
         # Check that it inherits from EnhancedBaseParser
         assert isinstance(parser, EnhancedBaseParser)
         assert isinstance(parser, ParserInterface)
-        
+
         # Check that C-family specific properties are set
         assert parser.block_start == "{"
         assert parser.block_end == "}"
-        
+
         # Check capabilities
         capabilities = parser.get_capabilities()
         assert capabilities["can_parse_functions"] is True
@@ -168,23 +164,23 @@ int main() {
         # Not all C family parsers may report import parsing capability
         # assert capabilities["can_parse_imports"] is True
         assert capabilities["can_extract_docstrings"] is True
-    
+
     def test_c_parser_parse(self, c_code_sample):
         """Test parsing a C file with the EnhancedCFamilyParser."""
         # Create parser and parse the code
         parser = EnhancedCFamilyParser()
         parser.language = "c"  # Override for testing
         result = parser.parse(c_code_sample, "test.c")
-        
+
         # Check that we got a ParseResult
         assert isinstance(result, ParseResult)
         assert result.error is None, f"Parse error: {result.error}"
-        
+
         # Log the declarations for debugging
         print(f"Found {len(result.declarations)} top-level declarations in C code:")
         for decl in result.declarations:
             print(f"- {decl.kind}: {decl.name}")
-        
+
         # Check for imports (includes) - the current implementation may not detect them
         print(f"Found {len(result.imports)} imports: {result.imports}")
         if len(result.imports) > 0:
@@ -192,15 +188,15 @@ int main() {
             has_expected_includes = any("stdio.h" in imp for imp in result.imports)
             if has_expected_includes:
                 print("stdio.h include detected")
-        
+
         # Ensure a minimum number of declarations were found
         assert len(result.declarations) > 0, "No declarations detected"
-        
+
         # Try to find key declarations
         struct_decl = None
         main_func = None
         test_func = None
-        
+
         for decl in result.declarations:
             if decl.kind == "typedef" and "TestStruct" in decl.name:
                 struct_decl = decl
@@ -208,43 +204,43 @@ int main() {
                 main_func = decl
             elif decl.kind == "function" and decl.name == "test_function":
                 test_func = decl
-        
+
         # Print info about what was found (without being too strict)
         if struct_decl:
             print(f"Found TestStruct at lines {struct_decl.start_line}-{struct_decl.end_line}")
             if struct_decl.docstring and "test struct" in struct_decl.docstring:
                 print("Struct docstring correctly detected")
-        
+
         if main_func:
             print(f"Found main function at lines {main_func.start_line}-{main_func.end_line}")
             if main_func.docstring and "Main function" in main_func.docstring:
                 print("Main function docstring correctly detected")
-        
+
         if test_func:
             print(f"Found test_function at lines {test_func.start_line}-{test_func.end_line}")
             if test_func.docstring and "test function" in test_func.docstring:
                 print("Test function docstring correctly detected")
-        
+
         # Check that at least some declarations have docstrings
         declarations_with_docstrings = [d for d in result.declarations if d.docstring]
         print(f"Found {len(declarations_with_docstrings)} declarations with docstrings")
-    
+
     def test_cpp_parser_parse(self, cpp_code_sample):
         """Test parsing a C++ file with the EnhancedCFamilyParser."""
         # Create parser and parse the code
         parser = EnhancedCFamilyParser()
         parser.language = "cpp"  # Override for testing
         result = parser.parse(cpp_code_sample, "test.cpp")
-        
+
         # Check that we got a ParseResult
         assert isinstance(result, ParseResult)
         assert result.error is None, f"Parse error: {result.error}"
-        
+
         # Log the declarations for debugging
         print(f"Found {len(result.declarations)} top-level declarations in C++ code:")
         for decl in result.declarations:
             print(f"- {decl.kind}: {decl.name}")
-        
+
         # Check for imports (includes) - the current implementation may not detect them
         print(f"Found {len(result.imports)} imports: {result.imports}")
         if len(result.imports) > 0:
@@ -252,15 +248,15 @@ int main() {
             has_expected_includes = any("iostream" in imp for imp in result.imports)
             if has_expected_includes:
                 print("iostream include detected")
-        
+
         # Ensure a minimum number of declarations were found
         assert len(result.declarations) > 0, "No declarations detected"
-        
+
         # Try to find key declarations
         class_decl = None
         main_func = None
         test_func = None
-        
+
         for decl in result.declarations:
             if decl.kind == "class" and decl.name == "TestClass":
                 class_decl = decl
@@ -268,29 +264,29 @@ int main() {
                 main_func = decl
             elif decl.kind == "function" and decl.name == "testFunction":
                 test_func = decl
-        
+
         # Print info about what was found (without being too strict)
         if class_decl:
             print(f"Found TestClass at lines {class_decl.start_line}-{class_decl.end_line}")
             if class_decl.docstring and "test class" in class_decl.docstring:
                 print("Class docstring correctly detected")
-            
+
             # Check for methods in the class
             if class_decl.children:
                 print(f"Found {len(class_decl.children)} methods in TestClass:")
                 for method in class_decl.children:
                     print(f"  - {method.kind}: {method.name}")
-        
+
         if main_func:
             print(f"Found main function at lines {main_func.start_line}-{main_func.end_line}")
             if main_func.docstring and "Main function" in main_func.docstring:
                 print("Main function docstring correctly detected")
-        
+
         if test_func:
             print(f"Found testFunction at lines {test_func.start_line}-{test_func.end_line}")
             if test_func.docstring and "test function" in test_func.docstring:
                 print("Test function docstring correctly detected")
-        
+
         # Check that at least some declarations have docstrings
         declarations_with_docstrings = [d for d in result.declarations if d.docstring]
         print(f"Found {len(declarations_with_docstrings)} declarations with docstrings")

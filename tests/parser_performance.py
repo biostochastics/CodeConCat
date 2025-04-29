@@ -4,23 +4,22 @@
 """
 Parser Performance and Enhancement Testing Script
 
-This script performs direct comparisons between basic and enhanced parsers 
+This script performs direct comparisons between basic and enhanced parsers
 to validate enhancements in nested declaration handling, parent-child relationships,
 and overall parsing quality.
 """
 
-import os
 import sys
 import time
 import logging
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple, Set
+from typing import List
 
 # Add the project root to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Now import from codeconcat
-from codeconcat.base_types import ParseResult, Declaration
+from codeconcat.base_types import Declaration
 from codeconcat.parser.language_parsers.enhanced_python_parser import EnhancedPythonParser
 from codeconcat.parser.language_parsers.enhanced_julia_parser import EnhancedJuliaParser
 from codeconcat.parser.language_parsers.enhanced_js_ts_parser import EnhancedJSTypeScriptParser
@@ -68,7 +67,7 @@ def top_level_function():
     return NestedClass().nested_method()
 '''
 
-JS_SAMPLE = '''/**
+JS_SAMPLE = """/**
  * Module level comment
  */
 import { useState } from 'react';
@@ -111,7 +110,7 @@ function topLevelFunction() {
     
     return new NestedClass().nestedMethod();
 }
-'''
+"""
 
 JULIA_SAMPLE = '''"""
 Module level docstring.
@@ -154,12 +153,16 @@ end
 end # module TestModule
 '''
 
+
 def print_declaration_tree(declarations: List[Declaration], indent: int = 0):
     """Print a tree of declarations with proper indentation to show hierarchy."""
     for decl in declarations:
-        print(f"{'  ' * indent}|- {decl.kind}: {decl.name} (lines {decl.start_line}-{decl.end_line})")
+        print(
+            f"{'  ' * indent}|- {decl.kind}: {decl.name} (lines {decl.start_line}-{decl.end_line})"
+        )
         if decl.children:
             print_declaration_tree(decl.children, indent + 1)
+
 
 def count_declarations(declarations: List[Declaration]) -> int:
     """Count total declarations including nested ones."""
@@ -168,34 +171,36 @@ def count_declarations(declarations: List[Declaration]) -> int:
         total += count_declarations(decl.children)
     return total
 
+
 def measure_nesting_depth(declarations: List[Declaration], current_depth: int = 0) -> int:
     """Calculate the maximum nesting depth of declarations."""
     if not declarations:
         return current_depth
-    
+
     depths = [current_depth]
     for decl in declarations:
         depths.append(measure_nesting_depth(decl.children, current_depth + 1))
-    
+
     return max(depths)
+
 
 def test_python_parser():
     """Test the Python parser with the sample code."""
     print("\n===== PYTHON PARSER TEST =====")
-    
+
     parser = EnhancedPythonParser()
-    
+
     start_time = time.time()
     result = parser.parse(PYTHON_SAMPLE, "test.py")
     parse_time = (time.time() - start_time) * 1000
-    
+
     print(f"Parse time: {parse_time:.2f} ms")
     print(f"Total declarations: {count_declarations(result.declarations)}")
     print(f"Maximum nesting depth: {measure_nesting_depth(result.declarations)}")
     print(f"Imports detected: {len(result.imports)}")
     print("\nDeclaration Tree:")
     print_declaration_tree(result.declarations)
-    
+
     # Validate enhanced features
     # 1. Check for nested function detection
     nested_found = False
@@ -206,12 +211,12 @@ def test_python_parser():
                     if method.children and method.children[0].name == "nested_function":
                         nested_found = True
                         break
-    
+
     if nested_found:
         print("\n✅ Enhanced parser correctly found nested function!")
     else:
         print("\n❌ Enhanced parser failed to find nested function!")
-    
+
     # 2. Check for nested class detection
     nested_class_found = False
     for decl in result.declarations:
@@ -219,29 +224,30 @@ def test_python_parser():
             if decl.children and decl.children[0].name == "NestedClass":
                 nested_class_found = True
                 break
-    
+
     if nested_class_found:
         print("✅ Enhanced parser correctly found nested class!")
     else:
         print("❌ Enhanced parser failed to find nested class!")
 
+
 def test_javascript_parser():
     """Test the JavaScript parser with the sample code."""
     print("\n===== JAVASCRIPT PARSER TEST =====")
-    
+
     parser = EnhancedJSTypeScriptParser()
-    
+
     start_time = time.time()
     result = parser.parse(JS_SAMPLE, "test.js")
     parse_time = (time.time() - start_time) * 1000
-    
+
     print(f"Parse time: {parse_time:.2f} ms")
     print(f"Total declarations: {count_declarations(result.declarations)}")
     print(f"Maximum nesting depth: {measure_nesting_depth(result.declarations)}")
     print(f"Imports detected: {len(result.imports)}")
     print("\nDeclaration Tree:")
     print_declaration_tree(result.declarations)
-    
+
     # Validate enhanced features
     # 1. Check for nested function detection
     nested_found = False
@@ -252,12 +258,12 @@ def test_javascript_parser():
                     if method.children and method.children[0].name == "nestedFunction":
                         nested_found = True
                         break
-    
+
     if nested_found:
         print("\n✅ Enhanced parser correctly found nested function!")
     else:
         print("\n❌ Enhanced parser failed to find nested function!")
-    
+
     # 2. Check for nested class detection
     nested_class_found = False
     for decl in result.declarations:
@@ -265,29 +271,30 @@ def test_javascript_parser():
             if decl.children and decl.children[0].name == "NestedClass":
                 nested_class_found = True
                 break
-    
+
     if nested_class_found:
         print("✅ Enhanced parser correctly found nested class!")
     else:
         print("❌ Enhanced parser failed to find nested class!")
 
+
 def test_julia_parser():
     """Test the Julia parser with the sample code."""
     print("\n===== JULIA PARSER TEST =====")
-    
+
     parser = EnhancedJuliaParser()
-    
+
     start_time = time.time()
     result = parser.parse(JULIA_SAMPLE, "test.jl")
     parse_time = (time.time() - start_time) * 1000
-    
+
     print(f"Parse time: {parse_time:.2f} ms")
     print(f"Total declarations: {count_declarations(result.declarations)}")
     print(f"Maximum nesting depth: {measure_nesting_depth(result.declarations)}")
     print(f"Imports detected: {len(result.imports)}")
     print("\nDeclaration Tree:")
     print_declaration_tree(result.declarations)
-    
+
     # Validate enhanced features
     # 1. Check for nested function detection
     nested_found = False
@@ -298,12 +305,12 @@ def test_julia_parser():
                     if func.children and func.children[0].name == "inner_function":
                         nested_found = True
                         break
-    
+
     if nested_found:
         print("\n✅ Enhanced parser correctly found nested function!")
     else:
         print("\n❌ Enhanced parser failed to find nested function!")
-    
+
     # 2. Check for nested module detection
     nested_module_found = False
     for decl in result.declarations:
@@ -312,17 +319,19 @@ def test_julia_parser():
                 if child.kind == "module" and child.name == "NestedModule":
                     nested_module_found = True
                     break
-    
+
     if nested_module_found:
         print("✅ Enhanced parser correctly found nested module!")
     else:
         print("❌ Enhanced parser failed to find nested module!")
+
 
 def main():
     """Run all parser tests."""
     test_python_parser()
     test_javascript_parser()
     test_julia_parser()
+
 
 if __name__ == "__main__":
     main()

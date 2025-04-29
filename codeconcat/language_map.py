@@ -12,9 +12,7 @@ try:
 
     guesslang_instance = Guess()
     GUESSLANG_AVAILABLE = True
-    logger.info(
-        "Successfully imported guesslang. Advanced language detection is enabled."
-    )
+    logger.info("Successfully imported guesslang. Advanced language detection is enabled.")
 except ImportError:
     logger.info(
         "guesslang library not found. Falling back to basic extension-based language detection. "

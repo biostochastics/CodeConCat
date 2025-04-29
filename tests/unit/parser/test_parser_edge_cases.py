@@ -9,23 +9,14 @@ challenge the parsers, such as deeply nested structures, unusual formatting,
 non-standard comment placement, and other edge cases.
 """
 
-import os
-import re
 import logging
 import pytest
-from typing import List, Dict, Any, Optional
-from pathlib import Path
 
 from codeconcat.base_types import (
-    Declaration,
     ParseResult,
-    ParserInterface,
 )
-from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.enhanced_python_parser import EnhancedPythonParser
-from codeconcat.parser.language_parsers.enhanced_julia_parser import EnhancedJuliaParser
 from codeconcat.parser.language_parsers.enhanced_rust_parser import EnhancedRustParser
-from codeconcat.parser.language_parsers.enhanced_go_parser import EnhancedGoParser
 from codeconcat.parser.language_parsers.enhanced_js_ts_parser import EnhancedJSTypeScriptParser
 from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
@@ -43,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 class TestParserEdgeCases:
     """Test class for parser edge cases."""
-    
+
     @pytest.fixture
     def deeply_nested_python(self) -> str:
         """Fixture providing a deeply nested Python code sample."""
@@ -129,11 +120,11 @@ def decorated_function(x, y):
     """Function with multiple decorators."""
     return x + y
 '''
-    
+
     @pytest.fixture
     def unusual_rust_code(self) -> str:
         """Fixture providing Rust code with unusual formatting and edge cases."""
-        return '''//! This module contains unusual Rust code formatting for testing
+        return """//! This module contains unusual Rust code formatting for testing
 
 /* Block comment at file level */
 
@@ -224,12 +215,12 @@ fn main() {
     println!("{}", oddly_formatted_function(1, 2));
     println!("{}", outer::nested_fn());
 }
-'''
-    
+"""
+
     @pytest.fixture
     def typescript_with_jsx(self) -> str:
         """Fixture providing TypeScript code with JSX/TSX mixed in."""
-        return '''/**
+        return """/**
  * TypeScript file with JSX/TSX components and unusual formatting.
  */
 
@@ -349,139 +340,149 @@ export default (() => {
   
   return withContext(ComplexComponent);
 })();
-'''
-    
+"""
+
     def test_deeply_nested_python_parsing(self, deeply_nested_python):
         """Test parsing Python code with deep nesting levels."""
         parser = EnhancedPythonParser()
         result = parser.parse(deeply_nested_python, "nested.py")
-        
+
         # Check that we got a valid ParseResult
         assert isinstance(result, ParseResult)
         assert result.error is None, f"Parse error: {result.error}"
-        
+
         # Print the declarations for debugging
         print(f"Found {len(result.declarations)} top-level declarations in Python nested test:")
         for decl in result.declarations:
             print(f"- {decl.kind}: {decl.name}")
-        
+
         # Find the level1 function and check nesting
         level1 = next((d for d in result.declarations if d.name == "level1"), None)
         assert level1 is not None, "level1 function not found"
-        
+
         # Check if level1 has nested functions
         assert level1.children, "level1 should have nested functions (level2)"
-        
+
         # Recursively check nesting depth
         def get_max_nesting_depth(decl, current_depth=1):
             if not decl.children:
                 return current_depth
             return max(get_max_nesting_depth(child, current_depth + 1) for child in decl.children)
-        
+
         max_depth = get_max_nesting_depth(level1)
         print(f"Maximum nesting depth in level1 function: {max_depth}")
-        
+
         # With 6 levels of nesting, we should detect at least 3 levels
         # (parsers might have a practical limit to how deep they can detect)
         assert max_depth >= 3, f"Expected at least 3 levels of nesting, got {max_depth}"
-        
+
         # Check class nesting
         outer_class = next((d for d in result.declarations if d.name == "OuterClass"), None)
         assert outer_class is not None, "OuterClass not found"
-        
+
         if outer_class.children:
             middle_class = next((c for c in outer_class.children if c.name == "MiddleClass"), None)
             if middle_class and middle_class.children:
-                inner_class = next((c for c in middle_class.children if c.name == "InnerClass"), None)
+                inner_class = next(
+                    (c for c in middle_class.children if c.name == "InnerClass"), None
+                )
                 if inner_class:
                     print("Successfully parsed nested class structure")
-    
+
     def test_unusual_rust_code_parsing(self, unusual_rust_code):
         """Test parsing Rust code with unusual formatting and complex constructs."""
         parser = EnhancedRustParser()
         result = parser.parse(unusual_rust_code, "unusual.rs")
-        
+
         # Check that we got a valid ParseResult
         assert isinstance(result, ParseResult)
         assert result.error is None, f"Parse error: {result.error}"
-        
+
         # Print the declarations for debugging
         print(f"Found {len(result.declarations)} top-level declarations in Rust unusual test:")
         for decl in result.declarations:
             print(f"- {decl.kind}: {decl.name}")
-        
+
         # Find the oddly formatted function
-        odd_fn = next((d for d in result.declarations if d.name == "oddly_formatted_function"), None)
+        odd_fn = next(
+            (d for d in result.declarations if d.name == "oddly_formatted_function"), None
+        )
         print(f"Found oddly_formatted_function: {odd_fn is not None}")
-        
+
         # Find the complex trait
         complex_trait = next((d for d in result.declarations if d.name == "ComplexTrait"), None)
         print(f"Found ComplexTrait: {complex_trait is not None}")
-        
+
         # Check for nested modules
-        outer_mod = next((d for d in result.declarations if d.name == "outer" and d.kind == "module"), None)
+        outer_mod = next(
+            (d for d in result.declarations if d.name == "outer" and d.kind == "module"), None
+        )
         print(f"Found outer module: {outer_mod is not None}")
-        
+
         # The test is informative rather than strictly assertive since
         # different parsers might handle these edge cases differently
         print("Rust parser handled unusual formatting test without errors")
-    
+
     def test_typescript_jsx_parsing(self, typescript_with_jsx):
         """Test parsing TypeScript with JSX mixed in."""
         parser = EnhancedJSTypeScriptParser()
         result = parser.parse(typescript_with_jsx, "component.tsx")
-        
+
         # Check that we got a valid ParseResult
         assert isinstance(result, ParseResult)
         assert result.error is None, f"Parse error: {result.error}"
-        
+
         # Print the declarations for debugging
         print(f"Found {len(result.declarations)} top-level declarations in TS/JSX test:")
         for decl in result.declarations:
             print(f"- {decl.kind}: {decl.name}")
-        
+
         # Look for key TypeScript elements
         type_def = next((d for d in result.declarations if d.name == "ComplexType"), None)
         interface_def = next((d for d in result.declarations if d.name == "NestedInterface"), None)
         component_def = next((d for d in result.declarations if d.name == "ComplexComponent"), None)
-        
+
         print(f"Found ComplexType: {type_def is not None}")
         print(f"Found NestedInterface: {interface_def is not None}")
         print(f"Found ComplexComponent: {component_def is not None}")
-        
+
         # Check for JSX parsing (this is informative since JSX might be handled differently)
         print("TypeScript/JSX parser handled mixed code without errors")
-        
+
         # Check imports were detected
         if result.imports:
             print(f"Detected {len(result.imports)} imports in TypeScript/JSX file")
             assert "react" in " ".join(result.imports).lower(), "React import should be detected"
-    
+
     def test_mixed_language_samples(self):
         """Test parsers' robustness when faced with unexpected content or language mixing."""
         # Create parsers
         python_parser = EnhancedPythonParser()
         js_parser = EnhancedJSTypeScriptParser()
-        
+
         # Test JavaScript parser with Python code (should not crash)
         python_code = "def test_function():\n    print('Hello')\n"
         result = js_parser.parse(python_code, "wrong_language.js")
-        assert isinstance(result, ParseResult), "Parser should return a result even for wrong languages"
-        
+        assert isinstance(
+            result, ParseResult
+        ), "Parser should return a result even for wrong languages"
+
         # Test Python parser with JavaScript code (should not crash)
         js_code = "function testFunction() {\n    console.log('Hello');\n}\n"
         result = python_parser.parse(js_code, "wrong_language.py")
-        assert isinstance(result, ParseResult), "Parser should return a result even for wrong languages"
-        
+        assert isinstance(
+            result, ParseResult
+        ), "Parser should return a result even for wrong languages"
+
         # Test with empty file
         result = python_parser.parse("", "empty.py")
         assert isinstance(result, ParseResult), "Parser should handle empty files gracefully"
-        
+
         # Test with very long lines
         long_line = "x = " + "x + " * 1000 + "1"
         result = python_parser.parse(long_line, "long_line.py")
         assert isinstance(result, ParseResult), "Parser should handle very long lines"
-        
+
         print("All parsers handled incorrect or unexpected input without crashing")
 
 

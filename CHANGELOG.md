@@ -1,6 +1,6 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
-## [UNRELEASED] - IN PROGRESS
+## [0.7.0] - 2025-04-29
 
 ### Added
 - **Added tree parser support**

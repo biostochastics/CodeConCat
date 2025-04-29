@@ -12,12 +12,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 import abc
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-
-# Rename this file to base_types.py to avoid conflict with Python's types module
 from typing import Any, Dict, List, Optional, Set
 
-from pydantic import BaseModel, Field, field_validator, validator
+# Rename this file to base_types.py to avoid conflict with Python's types module
+
+from pydantic import BaseModel, Field, field_validator
 
 PROGRAMMING_QUOTES = [
     '"Clean code always looks like it was written by someone who cares." - Robert C. Martin',
@@ -62,7 +61,9 @@ class SecuritySeverity(Enum):
             try:
                 return order.index(self) < order.index(other)
             except ValueError:
-                return NotImplemented  # Handle cases where a value might not be in the defined order
+                return (
+                    NotImplemented  # Handle cases where a value might not be in the defined order
+                )
         return NotImplemented
 
 
@@ -91,9 +92,7 @@ class CustomSecurityPattern(BaseModel):
             return SecuritySeverity[value.upper()].name
         except KeyError:
             valid_severities = ", ".join([s.name for s in SecuritySeverity])
-            raise ValueError(
-                f"Invalid severity '{value}'. Must be one of: {valid_severities}"
-            )
+            raise ValueError(f"Invalid severity '{value}'. Must be one of: {valid_severities}")
 
     @field_validator("regex")
     def validate_regex(cls, value):
@@ -195,7 +194,7 @@ class WritableItem(ABC):
 @dataclass
 class AnnotatedFileData(WritableItem):
     """Data structure for annotated file content, including structured analysis results.
-    
+
     This class focuses solely on storing structured data and does not contain any rendering logic.
     Rendering is delegated to specialized rendering adapters for different output formats.
     """
@@ -205,10 +204,10 @@ class AnnotatedFileData(WritableItem):
     language: str
     content: str  # Original content
     annotated_content: str  # Potentially processed content (e.g., comments removed)
-    
+
     # Optional AI-generated additions
     summary: str = ""  # AI-generated overall summary
-    
+
     # Structured analysis results (passed from ParsedFileData) - parameters with defaults
     declarations: List[Declaration] = field(default_factory=list)
     imports: List[str] = field(default_factory=list)
@@ -218,18 +217,22 @@ class AnnotatedFileData(WritableItem):
 
     def render_text_lines(self, config: "CodeConCatConfig") -> List[str]:
         from codeconcat.writer.rendering_adapters import TextRenderAdapter
+
         return TextRenderAdapter.render_annotated_file(self, config)
 
     def render_markdown_chunks(self, config: "CodeConCatConfig") -> List[str]:
         from codeconcat.writer.rendering_adapters import MarkdownRenderAdapter
+
         return MarkdownRenderAdapter.render_annotated_file(self, config)
 
     def render_json_dict(self, config: "CodeConCatConfig") -> Dict[str, Any]:
         from codeconcat.writer.rendering_adapters import JsonRenderAdapter
+
         return JsonRenderAdapter.annotated_file_to_dict(self, config)
 
     def render_xml_element(self, config: "CodeConCatConfig") -> ET.Element:
         from codeconcat.writer.rendering_adapters import XmlRenderAdapter
+
         return XmlRenderAdapter.create_annotated_file_element(self, config)
 
 
@@ -254,14 +257,14 @@ class ParserInterface(abc.ABC):
 
 class EnhancedParserInterface(ParserInterface):
     """Enhanced interface for language parsers with improved capabilities.
-    
+
     This extends the base ParserInterface with methods for capability reporting
     and validation, supporting more robust parser selection and fallback logic.
     """
-    
+
     def get_capabilities(self) -> Dict[str, bool]:
         """Report the capabilities of this parser.
-        
+
         Returns:
             A dictionary mapping capability names to booleans indicating support.
             Examples include: 'can_parse_functions', 'can_parse_classes', etc.
@@ -272,13 +275,13 @@ class EnhancedParserInterface(ParserInterface):
             "can_parse_imports": True,
             "can_extract_docstrings": True,
         }
-    
+
     def validate(self) -> bool:
         """Validate that the parser is properly configured and ready to use.
-        
+
         This method can be used to check for required dependencies, valid
         configurations, or other prerequisites before attempting parsing.
-        
+
         Returns:
             True if the parser is valid and ready to use, False otherwise.
         """
@@ -301,18 +304,22 @@ class ParsedDocData(WritableItem):
     # Implement WritableItem properties and methods
     def render_text_lines(self, config: "CodeConCatConfig") -> List[str]:
         from codeconcat.writer.rendering_adapters import TextRenderAdapter
+
         return TextRenderAdapter.render_doc_file(self, config)
 
     def render_markdown_chunks(self, config: "CodeConCatConfig") -> List[str]:
         from codeconcat.writer.rendering_adapters import MarkdownRenderAdapter
+
         return MarkdownRenderAdapter.render_doc_file(self, config)
 
     def render_json_dict(self, config: "CodeConCatConfig") -> Dict[str, Any]:
         from codeconcat.writer.rendering_adapters import JsonRenderAdapter
+
         return JsonRenderAdapter.doc_file_to_dict(self, config)
 
     def render_xml_element(self, config: "CodeConCatConfig") -> ET.Element:
         from codeconcat.writer.rendering_adapters import XmlRenderAdapter
+
         return XmlRenderAdapter.create_doc_file_element(self, config)
 
 
@@ -349,13 +356,13 @@ class CodeConCatConfig(BaseModel):
         description="If tree-sitter parsing fails, fallback to the simpler regex parser.",
         validate_default=True,
     )
-    
+
     use_enhanced_parsers: bool = Field(
         True,
         description="Use enhanced regex parsers where available instead of standard ones.",
         validate_default=True,
     )
-    
+
     use_enhanced_pipeline: bool = Field(
         True,
         description="Use the enhanced parsing pipeline with progressive fallbacks (tree-sitter → enhanced → standard).",
@@ -363,17 +370,22 @@ class CodeConCatConfig(BaseModel):
     )
     # --- End added fields ---
 
-    target_path: str = Field(".", description="Local path to process if source_url is not provided.")
+    target_path: str = Field(
+        ".", description="Local path to process if source_url is not provided."
+    )
     # Rename github_url -> source_url
     source_url: Optional[str] = Field(
-        None, description="URL of the remote source (Git repository, ZIP archive). If set, target_path is ignored for input."
+        None,
+        description="URL of the remote source (Git repository, ZIP archive). If set, target_path is ignored for input.",
     )
     github_token: Optional[str] = Field(
-        None, description="GitHub token for accessing private repositories or increasing rate limits."
+        None,
+        description="GitHub token for accessing private repositories or increasing rate limits.",
     )
     # Rename github_ref -> source_ref
     source_ref: Optional[str] = Field(
-        None, description="Specific branch, tag, or commit SHA to use from the Git repository specified in source_url."
+        None,
+        description="Specific branch, tag, or commit SHA to use from the Git repository specified in source_url.",
     )
     include_languages: List[str] = Field(default_factory=list)
     exclude_languages: List[str] = Field(default_factory=list)
@@ -396,9 +408,7 @@ class CodeConCatConfig(BaseModel):
     extract_docs: bool = False
     show_skip: bool = False  # Whether to print skipped files after parsing
     merge_docs: bool = False
-    doc_extensions: List[str] = Field(
-        default_factory=lambda: [".md", ".rst", ".txt", ".rmd"]
-    )
+    doc_extensions: List[str] = Field(default_factory=lambda: [".md", ".rst", ".txt", ".rmd"])
     custom_extension_map: Dict[str, str] = Field(default_factory=dict)
     output: str = "code_concat_output.md"
     format: str = "markdown"
@@ -431,7 +441,8 @@ class CodeConCatConfig(BaseModel):
         True, description="Whether to enable external security scanning using Semgrep."
     )
     semgrep_ruleset: Optional[str] = Field(
-        "p/ci", description="Semgrep ruleset to use (e.g., 'p/ci', path to rules, or registry name). Set to None to use Semgrep defaults."
+        "p/ci",
+        description="Semgrep ruleset to use (e.g., 'p/ci', path to rules, or registry name). Set to None to use Semgrep defaults.",
     )
 
     # Sorting
@@ -443,9 +454,7 @@ class CodeConCatConfig(BaseModel):
     verbose: bool = False  # Added for verbose logging control
 
     # Markdown cross-linking
-    cross_link_symbols: bool = (
-        False  # Option to cross-link symbol summaries and definitions
-    )
+    cross_link_symbols: bool = False  # Option to cross-link symbol summaries and definitions
 
     # Progress Bar
     disable_progress_bar: bool = False  # Disable tqdm progress bars
@@ -467,7 +476,8 @@ class CodeConCatConfig(BaseModel):
     )
     # New flag for output masking
     mask_output_content: bool = Field(
-        False, description="Mask sensitive data directly in the final output content (if security scanning is enabled)."
+        False,
+        description="Mask sensitive data directly in the final output content (if security scanning is enabled).",
     )
 
     # --- Processing Options ---

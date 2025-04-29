@@ -114,7 +114,7 @@ class RParser(ParserInterface):
         imports: Set[str] = set()
 
         try:
-            lines = self._merge_multiline_assignments(content.split('\n'), also_for_classes=True)
+            lines = self._merge_multiline_assignments(content.split("\n"), also_for_classes=True)
 
             for line in lines:
                 import_match = self.import_pattern.match(line.strip())
@@ -123,14 +123,16 @@ class RParser(ParserInterface):
 
             parsed_symbols = self._parse_block(lines, 0, len(lines))
             for symbol in parsed_symbols:
-                declarations.append(Declaration(
-                    kind=symbol.type,
-                    name=symbol.name,
-                    start_line=symbol.start_idx,
-                    end_line=symbol.end_idx,
-                    docstring=symbol.docstring,
-                    modifiers=symbol.modifiers
-                ))
+                declarations.append(
+                    Declaration(
+                        kind=symbol.type,
+                        name=symbol.name,
+                        start_line=symbol.start_idx,
+                        end_line=symbol.end_idx,
+                        docstring=symbol.docstring,
+                        modifiers=symbol.modifiers,
+                    )
+                )
 
             logger.debug(
                 f"Finished RParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} imports."
@@ -144,7 +146,7 @@ class RParser(ParserInterface):
                 imports=sorted(list(imports)),
                 engine_used="regex",
                 token_stats=None,
-                security_issues=[]
+                security_issues=[],
             )
 
         except Exception as e:
@@ -164,9 +166,7 @@ class RParser(ParserInterface):
             self.docstring = docstring if docstring else ""
             self.modifiers = modifiers if modifiers else set()
 
-    def _parse_block(
-        self, lines: List[str], start_idx: int, end_idx: int
-    ) -> List[TempCodeSymbol]:
+    def _parse_block(self, lines: List[str], start_idx: int, end_idx: int) -> List[TempCodeSymbol]:
         """
         Parse lines from start_idx to end_idx (exclusive).
         Return a list of TempCodeSymbol objects.
@@ -194,9 +194,7 @@ class RParser(ParserInterface):
                 if s4_method_match.group("dot_name"):
                     method_name = s4_method_match.group("dot_name")
                 elif s4_method_match.group("dollar_obj") and s4_method_match.group("dollar_method"):
-                    method_name = (
-                        f"{s4_method_match.group('dollar_obj')}${s4_method_match.group('dollar_method')}"
-                    )
+                    method_name = f"{s4_method_match.group('dollar_obj')}${s4_method_match.group('dollar_method')}"
                 else:
                     method_name = s4_method_match.group("s4_name")
 
@@ -209,7 +207,7 @@ class RParser(ParserInterface):
                         start_idx=i,
                         end_idx=end_block,
                         docstring="\n".join(current_docstring_lines),
-                        modifiers=set()
+                        modifiers=set(),
                     )
                 )
 
@@ -235,7 +233,7 @@ class RParser(ParserInterface):
                         start_idx=i,
                         end_idx=end_block,
                         docstring="\n".join(current_docstring_lines),
-                        modifiers=set()
+                        modifiers=set(),
                     )
                 )
 
@@ -248,7 +246,10 @@ class RParser(ParserInterface):
             class_match = self.class_pattern.match(line)
             if class_match:
                 class_name = (
-                    class_match.group("cname1") or class_match.group("cname2") or class_match.group("cname3") or ""
+                    class_match.group("cname1")
+                    or class_match.group("cname2")
+                    or class_match.group("cname3")
+                    or ""
                 )
                 class_start, class_end = self._find_matching_parenthesis_block(lines, i)
 
@@ -259,7 +260,7 @@ class RParser(ParserInterface):
                         start_idx=i,
                         end_idx=class_end,
                         docstring="\n".join(current_docstring_lines),
-                        modifiers=set()
+                        modifiers=set(),
                     )
                 )
 
@@ -267,7 +268,9 @@ class RParser(ParserInterface):
                     methods = self._parse_r6_methods(lines, class_start + 1, class_end, class_name)
                     symbols.extend(methods)
                 elif "setRefClass" in line:
-                    methods = self._parse_refclass_methods(lines, class_start + 1, class_end, class_name)
+                    methods = self._parse_refclass_methods(
+                        lines, class_start + 1, class_end, class_name
+                    )
                     symbols.extend(methods)
 
                 nested_symbols = self._parse_block(lines, class_start + 1, class_end)
@@ -280,7 +283,9 @@ class RParser(ParserInterface):
 
         return symbols
 
-    def _merge_multiline_assignments(self, raw_lines: List[str], also_for_classes: bool = False) -> List[str]:
+    def _merge_multiline_assignments(
+        self, raw_lines: List[str], also_for_classes: bool = False
+    ) -> List[str]:
         """
         Fix for cases like:
           complex_func <- # comment
@@ -300,9 +305,7 @@ class RParser(ParserInterface):
             if re.search(r"(?:<<?-|=|->|->>|:=)\s*(?:#.*)?$", strip_line):
                 j = i + 1
                 comment_lines = []
-                while j < n and (
-                    not raw_lines[j].strip() or raw_lines[j].strip().startswith("#")
-                ):
+                while j < n and (not raw_lines[j].strip() or raw_lines[j].strip().startswith("#")):
                     comment_lines.append(raw_lines[j])
                     j += 1
                 if j < n:
@@ -320,10 +323,7 @@ class RParser(ParserInterface):
                         i = j + 1
                         continue
                     if also_for_classes:
-                        if any(
-                            x in next_strip
-                            for x in ["R6Class(", "setRefClass(", "setClass("]
-                        ):
+                        if any(x in next_strip for x in ["R6Class(", "setRefClass(", "setClass("]):
                             base_line = re.sub(r"#.*$", "", line).rstrip()
                             new_line = (
                                 base_line
@@ -370,17 +370,13 @@ class RParser(ParserInterface):
         Check if between start_idx and end_idx there's 'class(...) <- "fname"'
         or something that sets 'class(...)' to the same name, indicating an S3 constructor.
         """
-        pattern = re.compile(
-            rf'class\s*\(\s*[^\)]*\)\s*(?:<<?-|=)\s*["\']{re.escape(fname)}["\']'
-        )
+        pattern = re.compile(rf'class\s*\(\s*[^\)]*\)\s*(?:<<?-|=)\s*["\']{re.escape(fname)}["\']')
         for idx in range(start_idx, min(end_idx + 1, len(lines))):
             if pattern.search(lines[idx]):
                 return True
         return False
 
-    def _find_matching_parenthesis_block(
-        self, lines: List[str], start_idx: int
-    ) -> Tuple[int, int]:
+    def _find_matching_parenthesis_block(self, lines: List[str], start_idx: int) -> Tuple[int, int]:
         """
         For code like MyClass <- R6Class("MyClass", public=list(...)),
         we only track parentheses '(' and ')' -- not braces -- so we don't get confused by
@@ -427,13 +423,11 @@ class RParser(ParserInterface):
         block = lines[start_idx : end_idx + 1]
         combined = "\n".join(block)
 
-        method_pattern = re.compile(
-            r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE
-        )
+        method_pattern = re.compile(r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE)
 
         for match in method_pattern.finditer(combined):
             method_name = match.group(1)
-            if method_name not in ["fields", "methods"]:  
+            if method_name not in ["fields", "methods"]:
                 full_name = f"{class_name}.{method_name}"
                 start_line = start_idx + combined[: match.start()].count("\n")
                 end_line = start_idx + combined[: match.end()].count("\n")
@@ -444,7 +438,7 @@ class RParser(ParserInterface):
                         start_idx=start_line,
                         end_idx=end_line,
                         docstring="",
-                        modifiers=set()
+                        modifiers=set(),
                     )
                 )
         return methods
@@ -460,13 +454,11 @@ class RParser(ParserInterface):
         block = lines[start_idx : end_idx + 1]
         combined = "\n".join(block)
 
-        method_pattern = re.compile(
-            r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE
-        )
+        method_pattern = re.compile(r"([a-zA-Z_]\w*)\s*=\s*function\s*\([^{]*\)\s*{", re.MULTILINE)
 
         for match in method_pattern.finditer(combined):
             method_name = match.group(1)
-            if method_name not in ["fields", "methods"]:  
+            if method_name not in ["fields", "methods"]:
                 full_name = f"{class_name}.{method_name}"
                 start_line = start_idx + combined[: match.start()].count("\n")
                 end_line = start_idx + combined[: match.end()].count("\n")
@@ -477,14 +469,12 @@ class RParser(ParserInterface):
                         start_idx=start_line,
                         end_idx=end_line,
                         docstring="",
-                        modifiers=set()
+                        modifiers=set(),
                     )
                 )
         return methods
 
-    def _find_function_start_line(
-        self, lines: List[str], start_line: int, func_name: str
-    ) -> int:
+    def _find_function_start_line(self, lines: List[str], start_line: int, func_name: str) -> int:
         """
         Find the line number where the function definition starts
         """
@@ -493,20 +483,14 @@ class RParser(ParserInterface):
                 return line_num
         return -1
 
-    def _find_class_start_line(
-        self, lines: List[str], start_line: int, class_name: str
-    ) -> int:
+    def _find_class_start_line(self, lines: List[str], start_line: int, class_name: str) -> int:
         """
         Find the line number where the class definition starts
         """
         for line_num, line_content in enumerate(lines[start_line:], start=start_line):
-            if re.match(
-                rf"\s*setClass\s*\(\s*['\"]?{class_name}['\"]?\b", line_content
-            ):
+            if re.match(rf"\s*setClass\s*\(\s*['\"]?{class_name}['\"]?\b", line_content):
                 return line_num
         return -1
 
     def _print_no_matching_pattern_found(self):
-        logger.info(
-            "No matching pattern found in R code"
-        )  
+        logger.info("No matching pattern found in R code")

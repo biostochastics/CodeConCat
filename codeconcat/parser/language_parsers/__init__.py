@@ -22,7 +22,7 @@ from .pattern_library import (
     DocstringPatterns,
     FunctionPatterns,
     ImportPatterns,
-    C_FAMILY_MODIFIERS
+    C_FAMILY_MODIFIERS,
 )
 
 # Import mappers - will be used by get_language_parser
@@ -44,7 +44,6 @@ REGEX_PARSER_MAP = {
     "rust": "RustParser",
     "r": "RParser",
     "julia": "JuliaParser",
-    
     # Enhanced parsers (preferred regex-based parsers)
     "python_enhanced": "EnhancedPythonParser",
     "csharp_enhanced": "EnhancedCSharpParser",
@@ -54,7 +53,7 @@ REGEX_PARSER_MAP = {
     "go_enhanced": "EnhancedGoParser",
     "rust_enhanced": "EnhancedRustParser",
     "php_enhanced": "EnhancedPHPParser",
-    "r_enhanced": "EnhancedRParser"
+    "r_enhanced": "EnhancedRParser",
 }
 
 # Dictionary mapping languages to their parser class names for tree-sitter parsers
@@ -62,7 +61,7 @@ REGEX_PARSER_MAP = {
 # for more reliable language loading across different Python versions (including 3.12/3.13)
 # and platforms. This resolves previous compatibility issues with individual grammar packages.
 #
-# If you're experiencing issues loading any language, ensure you have the latest version of 
+# If you're experiencing issues loading any language, ensure you have the latest version of
 # tree-sitter-language-pack installed: pip install tree-sitter-language-pack>=0.7.2
 #
 TREE_SITTER_PARSER_MAP = {
@@ -77,7 +76,7 @@ TREE_SITTER_PARSER_MAP = {
     "php": "TreeSitterPhpParser",
     "rust": "TreeSitterRustParser",
     "julia": "TreeSitterJuliaParser",
-    "r": "TreeSitterRParser"
+    "r": "TreeSitterRParser",
 }
 
 # Dictionary mapping language extensions to language names
@@ -100,5 +99,5 @@ LANGUAGE_EXTENSION_MAP = {
     ".cs": "csharp",
     ".java": "java",
     ".go": "go",
-    ".php": "php"
+    ".php": "php",
 }

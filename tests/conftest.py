@@ -32,15 +32,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 # Ensure the test environment is properly set up
 def pytest_configure(config):
     """Set up the pytest environment."""
     logger.info("Setting up CodeConCat test environment")
-    
+
     # Make sure the package is importable
     import codeconcat
+
     logger.info(f"Testing CodeConCat version located at: {codeconcat.__file__}")
-    
+
     # Log pytest configuration
     logger.info(f"Running with pytest config: {config.option}")
 

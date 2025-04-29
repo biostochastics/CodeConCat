@@ -1,12 +1,12 @@
 # file: codeconcat/parser/language_parsers/base_parser.py
 
 import re
-from abc import ABC, abstractmethod
-import abc
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Pattern, Set
 
 from codeconcat.base_types import Declaration, ParseResult, ParserInterface
+
 
 @dataclass
 class CodeSymbol:
@@ -90,9 +90,7 @@ class BaseParser(ParserInterface):
 
         return len(lines) - 1
 
-    def _create_pattern(
-        self, base_pattern: str, modifiers: Optional[List[str]] = None
-    ) -> Pattern:
+    def _create_pattern(self, base_pattern: str, modifiers: Optional[List[str]] = None) -> Pattern:
         if modifiers:
             modifier_pattern = f"(?:{'|'.join(modifiers)})\\s+"
             return re.compile(f"^\\s*(?:{modifier_pattern})?{base_pattern}")

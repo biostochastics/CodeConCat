@@ -1,22 +1,29 @@
 # file: codeconcat/parser/language_parsers/go_parser.py
 import logging
 import re
-from typing import List, Set, Tuple
+from typing import List, Set
 
-from ...base_types import Declaration, ParseResult 
+from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
-from .base_parser import BaseParser 
+from .base_parser import BaseParser
 
 logger = logging.getLogger(__name__)
 
 # Regex patterns for Go constructs
 FUNC_PATTERN = re.compile(r"^func\s+(?:\(\s*\w+\s+\*?\w+\s*\)\s+)?(?P<name>[\w\d_]+)\s*\(.*\)")
 TYPE_PATTERN = re.compile(r"^type\s+(?P<name>[\w\d_]+)\s+(?:struct|interface|\w+)")
-VAR_CONST_PATTERN = re.compile(r"^(?:var|const)\s+(?:\((?P<multiline>.*?)\)|(?P<name_single>[\w\d_]+))", re.DOTALL | re.MULTILINE)
-IMPORT_PATTERN = re.compile(r"^import\s+(?:\((?P<multiline_imports>.*?)\)|\"(?P<single_import>[^\"]+)\")", re.DOTALL | re.MULTILINE)
-SINGLE_IMPORT_IN_MULTI_PATTERN = re.compile(r'\"([^\"]+)\"')
+VAR_CONST_PATTERN = re.compile(
+    r"^(?:var|const)\s+(?:\((?P<multiline>.*?)\)|(?P<name_single>[\w\d_]+))",
+    re.DOTALL | re.MULTILINE,
+)
+IMPORT_PATTERN = re.compile(
+    r"^import\s+(?:\((?P<multiline_imports>.*?)\)|\"(?P<single_import>[^\"]+)\")",
+    re.DOTALL | re.MULTILINE,
+)
+SINGLE_IMPORT_IN_MULTI_PATTERN = re.compile(r"\"([^\"]+)\"")
 DOC_COMMENT_PATTERN = re.compile(r"^//\s*(?P<doc>.*)")
 PACKAGE_PATTERN = re.compile(r"^package\s+(\w+)")
+
 
 # Inherit from BaseParser
 class GoParser(BaseParser):
@@ -36,7 +43,7 @@ class GoParser(BaseParser):
         declarations = []
         imports: Set[str] = set()
         package_name = "unknown"
-        lines = content.split('\n')
+        lines = content.split("\n")
         doc_buffer: List[str] = []
 
         try:
@@ -45,7 +52,7 @@ class GoParser(BaseParser):
                 stripped_line = line.strip()
 
                 if not stripped_line:
-                    doc_buffer = [] # Reset doc buffer on empty lines
+                    doc_buffer = []  # Reset doc buffer on empty lines
                     continue
 
                 # Package
@@ -59,14 +66,14 @@ class GoParser(BaseParser):
                 doc_match = DOC_COMMENT_PATTERN.match(line)
                 if doc_match:
                     # Allow multi-line doc comments by checking previous line
-                    if i > 0 and DOC_COMMENT_PATTERN.match(lines[i-1].strip()):
+                    if i > 0 and DOC_COMMENT_PATTERN.match(lines[i - 1].strip()):
                         doc_buffer.append(doc_match.group("doc"))
                     else:
                         doc_buffer = [doc_match.group("doc")]
-                    continue # Don't process comment lines further
+                    continue  # Don't process comment lines further
                 elif stripped_line.startswith("//") or stripped_line.startswith("/*"):
-                    doc_buffer = [] # Reset on non-doc comments
-                    continue # Skip regular comments
+                    doc_buffer = []  # Reset on non-doc comments
+                    continue  # Skip regular comments
 
                 # Imports
                 import_match = IMPORT_PATTERN.match(line)
@@ -74,14 +81,16 @@ class GoParser(BaseParser):
                     if import_match.group("single_import"):
                         imports.add(import_match.group("single_import"))
                     elif import_match.group("multiline_imports"):
-                        multi_imports = SINGLE_IMPORT_IN_MULTI_PATTERN.findall(import_match.group("multiline_imports"))
+                        multi_imports = SINGLE_IMPORT_IN_MULTI_PATTERN.findall(
+                            import_match.group("multiline_imports")
+                        )
                         imports.update(multi_imports)
                     # Need to consume potential multi-line block
                     # Simplistic: assume it ends when ')' is found
                     # A more robust parser would track nesting
                     if "(" in line and ")" not in line:
-                         pass # Simple regex can't easily handle block end
-                    doc_buffer = [] # Imports clear doc buffer
+                        pass  # Simple regex can't easily handle block end
+                    doc_buffer = []  # Imports clear doc buffer
                     continue
 
                 # Function declarations
@@ -89,7 +98,16 @@ class GoParser(BaseParser):
                 if func_match:
                     name = func_match.group("name")
                     docstring = "\n".join(doc_buffer)
-                    declarations.append(Declaration(kind="function", name=name, start_line=i, end_line=i, docstring=docstring, modifiers=set())) # Placeholder end_line
+                    declarations.append(
+                        Declaration(
+                            kind="function",
+                            name=name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )  # Placeholder end_line
                     doc_buffer = []
                     continue
 
@@ -97,9 +115,18 @@ class GoParser(BaseParser):
                 type_match = TYPE_PATTERN.match(line)
                 if type_match:
                     name = type_match.group("name")
-                    kind = "type" # Could try to determine struct/interface if needed
+                    kind = "type"  # Could try to determine struct/interface if needed
                     docstring = "\n".join(doc_buffer)
-                    declarations.append(Declaration(kind=kind, name=name, start_line=i, end_line=i, docstring=docstring, modifiers=set())) # Placeholder end_line
+                    declarations.append(
+                        Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )  # Placeholder end_line
                     doc_buffer = []
                     continue
 
@@ -110,7 +137,16 @@ class GoParser(BaseParser):
                         name = var_match.group("name_single")
                         kind = "variable" if line.startswith("var") else "constant"
                         docstring = "\n".join(doc_buffer)
-                        declarations.append(Declaration(kind=kind, name=name, start_line=i, end_line=i, docstring=docstring, modifiers=set()))
+                        declarations.append(
+                            Declaration(
+                                kind=kind,
+                                name=name,
+                                start_line=i,
+                                end_line=i,
+                                docstring=docstring,
+                                modifiers=set(),
+                            )
+                        )
                     # TODO: Handle multiline var/const blocks - regex is tricky here
                     doc_buffer = []
                     continue
@@ -119,8 +155,8 @@ class GoParser(BaseParser):
                 doc_buffer = []
 
             logger.debug(
-                 f"Finished GoParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} unique imports."
-             )
+                f"Finished GoParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} unique imports."
+            )
             return ParseResult(
                 file_path=file_path,
                 language="go",
@@ -129,7 +165,7 @@ class GoParser(BaseParser):
                 imports=sorted(list(imports)),
                 engine_used="regex",
                 token_stats=None,
-                security_issues=[]
+                security_issues=[],
             )
 
         except Exception as e:

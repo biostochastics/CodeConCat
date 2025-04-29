@@ -1,11 +1,11 @@
 # file: codeconcat/parser/language_parsers/julia_parser.py
 
 import re
-from typing import List, Set
+from typing import Set
 
-from codeconcat.errors import LanguageParserError
 from codeconcat.base_types import ParseResult, Declaration
 from abc import ABC, abstractmethod
+
 
 # Define a basic interface to match what the file_parser expects
 class ParserInterface(ABC):
@@ -138,6 +138,6 @@ class JuliaParser(ParserInterface):
             declarations=declarations,
             imports=imports,
             ast_root=None,  # No AST for regex parser
-            error=None,    # No errors to report
-            engine_used="regex"  # This is a regex parser
+            error=None,  # No errors to report
+            engine_used="regex",  # This is a regex parser
         )

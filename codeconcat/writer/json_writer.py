@@ -17,11 +17,7 @@ def write_json(
 
     # --- Top Level: Repository Overview --- #
     # Includes folder tree
-    if (
-        config.include_repo_overview
-        and config.include_directory_structure
-        and folder_tree_str
-    ):
+    if config.include_repo_overview and config.include_directory_structure and folder_tree_str:
         output_data["repository_overview"] = {"directory_structure": folder_tree_str}
 
     # --- Files Section --- #
@@ -43,7 +39,7 @@ def write_json(
     # Generate final JSON string
     # Use model_dump_json for Pydantic objects if applicable, else default encoder
     # Get indent parameter with a default of 2 if not defined in config
-    indent = getattr(config, 'json_indent', 2)
+    indent = getattr(config, "json_indent", 2)
     final_json = json.dumps(
         output_data, indent=indent, default=str
     )  # Use default=str for non-serializable

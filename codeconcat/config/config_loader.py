@@ -5,7 +5,6 @@ import yaml
 from pydantic import ValidationError
 
 from codeconcat.base_types import CodeConCatConfig
-from codeconcat.errors import ConfigurationError
 
 # Common directories and files to exclude by default
 DEFAULT_EXCLUDE_PATTERNS = [
@@ -133,7 +132,7 @@ def load_config(
         yaml.YAMLError: If the config file is malformed.
         Exception: For other unexpected errors during loading or processing.
     """
-    # --- Determine Config File Path --- # 
+    # --- Determine Config File Path --- #
     yaml_config_raw = {}
     actual_config_path: Optional[str] = None
 
@@ -153,7 +152,7 @@ def load_config(
             actual_config_path = os.path.abspath(potential_config_path)
             logging.info(f"Found config file: {actual_config_path}")
         else:
-             logging.info("No '.codeconcat.yml' found in target directory, using defaults/CLI args.")
+            logging.info("No '.codeconcat.yml' found in target directory, using defaults/CLI args.")
 
     # --- Load YAML Config (if path was determined) --- #
     if actual_config_path:
@@ -162,11 +161,13 @@ def load_config(
                 loaded_yaml = yaml.safe_load(f)
                 if isinstance(loaded_yaml, dict):
                     yaml_config_raw = loaded_yaml
-                elif loaded_yaml is not None: # Handle empty or non-dict YAML
-                     logging.warning(f"Config file '{actual_config_path}' does not contain a valid dictionary.")
+                elif loaded_yaml is not None:  # Handle empty or non-dict YAML
+                    logging.warning(
+                        f"Config file '{actual_config_path}' does not contain a valid dictionary."
+                    )
         except yaml.YAMLError as e:
-             logging.error(f"Error parsing YAML config file '{actual_config_path}': {e}")
-             raise # Re-raise YAML error
+            logging.error(f"Error parsing YAML config file '{actual_config_path}': {e}")
+            raise  # Re-raise YAML error
         except Exception as e:
             # Catch other potential errors like permission issues
             logging.error(f"Error reading config file '{actual_config_path}': {e}")
@@ -187,14 +188,10 @@ def load_config(
 
     # Validate presets found
     if cli_preset and cli_preset not in PRESET_CONFIGS:
-        logging.warning(
-            f"Invalid output_preset '{cli_preset}' from CLI. Using default."
-        )
+        logging.warning(f"Invalid output_preset '{cli_preset}' from CLI. Using default.")
         cli_preset = None
     if yaml_preset and yaml_preset not in PRESET_CONFIGS:
-        logging.warning(
-            f"Invalid output_preset '{yaml_preset}' from YAML. Using default."
-        )
+        logging.warning(f"Invalid output_preset '{yaml_preset}' from YAML. Using default.")
         yaml_preset = None
 
     effective_preset_name = (
@@ -203,9 +200,7 @@ def load_config(
     logging.debug(f"Using effective output preset: '{effective_preset_name}'")
 
     # 2. Get base config from the chosen preset
-    base_config_dict = PRESET_CONFIGS.get(
-        effective_preset_name, PRESET_CONFIGS["medium"]
-    )
+    base_config_dict = PRESET_CONFIGS.get(effective_preset_name, PRESET_CONFIGS["medium"])
 
     # Create an initial config object using Pydantic defaults + preset settings
     # Start with an empty dict and update with Pydantic defaults, then preset.
@@ -220,9 +215,7 @@ def load_config(
             if key != "output_preset":  # Don't overwrite the already determined preset
                 config_after_yaml[key] = value
         else:
-            logging.warning(
-                f"Ignoring unknown configuration key '{key}' from .codeconcat.yml"
-            )
+            logging.warning(f"Ignoring unknown configuration key '{key}' from .codeconcat.yml")
 
     # 4. Layer Explicit CLI args on top
     # Assume cli_args contains only explicitly provided values or None/defaults that should override
@@ -236,17 +229,20 @@ def load_config(
                 # Convert integer count to boolean
                 config_after_cli[key] = value > 0
             elif key == "debug" and value is True:
-                 # Handle deprecated --debug flag, equivalent to verbose > 1
-                 config_after_cli["verbose"] = True # Set verbose to True if debug is set
+                # Handle deprecated --debug flag, equivalent to verbose > 1
+                config_after_cli["verbose"] = True  # Set verbose to True if debug is set
             elif key == "target_path":
                 # Ensure target_path is absolute before validation
                 config_after_cli[key] = os.path.abspath(value) if value else os.path.abspath(".")
-            elif key != "config": # Don't store the config file path itself in the config object
+            elif key != "config":  # Don't store the config file path itself in the config object
                 config_after_cli[key] = value
-        elif key not in CodeConCatConfig.model_fields and key not in ["config", "log_level"]: # Ignore keys not in the model, except special CLI ones
-             # Log ignored CLI args if needed, but might be noisy
-             # logger.debug(f"Ignoring CLI argument '{key}' not in config model.")
-             pass
+        elif key not in CodeConCatConfig.model_fields and key not in [
+            "config",
+            "log_level",
+        ]:  # Ignore keys not in the model, except special CLI ones
+            # Log ignored CLI args if needed, but might be noisy
+            # logger.debug(f"Ignoring CLI argument '{key}' not in config model.")
+            pass
 
     # --- Final Processing & Validation --- #
     final_config_dict = config_after_cli
@@ -255,11 +251,13 @@ def load_config(
     if "target_path" not in final_config_dict or not final_config_dict["target_path"]:
         final_config_dict["target_path"] = os.path.abspath(".")
     elif not os.path.isabs(final_config_dict["target_path"]):
-         final_config_dict["target_path"] = os.path.abspath(final_config_dict["target_path"])
+        final_config_dict["target_path"] = os.path.abspath(final_config_dict["target_path"])
 
     # Set default output path based on format if not provided
     if not final_config_dict.get("output"):
-        output_format = final_config_dict.get("format", "markdown") # Default to markdown if format missing
+        output_format = final_config_dict.get(
+            "format", "markdown"
+        )  # Default to markdown if format missing
         final_config_dict["output"] = f"code_concat_output.{output_format}"
 
     # Handle default excludes
@@ -267,7 +265,7 @@ def load_config(
     user_excludes = final_config_dict.get("exclude_paths") or []
     default_excludes = []
     # Check the boolean flag which should now be correctly set (True/False)
-    if final_config_dict.get('use_default_excludes', True):
+    if final_config_dict.get("use_default_excludes", True):
         default_excludes = DEFAULT_EXCLUDE_PATTERNS
     final_config_dict["exclude_paths"] = list(set(default_excludes + user_excludes))
 
@@ -291,6 +289,7 @@ def load_config(
         # Optionally print more details about the failed config
         # logger.error(f"Failed config data: {final_config_dict}")
         raise
+
 
 # Keep apply_dict_to_config for potential future use (e.g., API)
 # but it's not directly used in the new load_config flow.

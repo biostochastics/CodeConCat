@@ -116,7 +116,7 @@ PYTHON_QUERIES = {
         ;
         ; Removed invalid type_comment capture
         ; (type_comment) @type_comment 
-    """
+    """,
 }
 
 
@@ -132,7 +132,9 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         return PYTHON_QUERIES
 
     # Override _run_queries to implement Python-specific extraction logic
-    def _run_queries(self, root_node: Node, byte_content: bytes) -> tuple[List[Declaration], List[str]]:
+    def _run_queries(
+        self, root_node: Node, byte_content: bytes
+    ) -> tuple[List[Declaration], List[str]]:
         """Runs Python-specific queries and extracts declarations and imports."""
         # Direct manual extraction for reliability in tests
         # This approach does not rely on Tree-sitter queries or S-expressions
@@ -140,38 +142,40 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         declarations = []
         classes = {}  # Store class declarations by name for populating children
         imports = set()
-        
+
         # Function to process the tree node by node
         def visit_node(node, parent=None, class_node=None):
             if not node:
                 return
-            
+
             # Check node type
-            if node.type == 'function_definition':
+            if node.type == "function_definition":
                 # Extract function name
                 name_node = None
                 for child in node.children:
-                    if child.type == 'identifier':
+                    if child.type == "identifier":
                         name_node = child
                         break
-                        
+
                 if name_node:
-                    name = byte_content[name_node.start_byte:name_node.end_byte].decode('utf8', errors='ignore')
+                    name = byte_content[name_node.start_byte : name_node.end_byte].decode(
+                        "utf8", errors="ignore"
+                    )
                     start_line = node.start_point[0] + 1  # Convert to 1-indexed line numbers
                     end_line = node.end_point[0] + 1
-                    
+
                     # Try to find docstring
                     docstring = self._find_docstring(node, byte_content)
-                    
+
                     # Create a declaration for this function
                     func_decl = Declaration(
-                        kind='function',
+                        kind="function",
                         name=name,
                         start_line=start_line,
                         end_line=end_line,
-                        docstring=docstring
+                        docstring=docstring,
                     )
-                    
+
                     # If inside a class, add as child to class declaration
                     # Otherwise add to top-level declarations
                     if class_node:
@@ -181,78 +185,86 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
                     else:
                         # This is a standalone function
                         declarations.append(func_decl)
-                    
-            elif node.type == 'class_definition':
+
+            elif node.type == "class_definition":
                 # Extract class name
                 name_node = None
                 for child in node.children:
-                    if child.type == 'identifier':
+                    if child.type == "identifier":
                         name_node = child
                         break
-                        
+
                 if name_node:
-                    name = byte_content[name_node.start_byte:name_node.end_byte].decode('utf8', errors='ignore')
+                    name = byte_content[name_node.start_byte : name_node.end_byte].decode(
+                        "utf8", errors="ignore"
+                    )
                     start_line = node.start_point[0] + 1  # Convert to 1-indexed line numbers
                     end_line = node.end_point[0] + 1
-                    
+
                     # Try to find docstring
                     docstring = self._find_docstring(node, byte_content)
-                    
+
                     # Create a declaration for this class
                     class_decl = Declaration(
-                        kind='class',
+                        kind="class",
                         name=name,
                         start_line=start_line,
                         end_line=end_line,
                         docstring=docstring,
-                        children=[]
+                        children=[],
                     )
-                    
+
                     # Store class declaration for child methods
                     classes[name] = class_decl
                     declarations.append(class_decl)
-                    
+
                     # Process class body to find methods
                     body_node = None
                     for child in node.children:
-                        if child.type == 'block':
+                        if child.type == "block":
                             body_node = child
                             break
-                    
+
                     if body_node:
                         # Process class body with class context
                         for class_child in body_node.children:
                             visit_node(class_child, node, name)
-                    
+
                     # Continue with normal traversal after processing class body
                     return
-            elif node.type == 'import_statement':
+            elif node.type == "import_statement":
                 # Extract import statement
-                import_text = byte_content[node.start_byte:node.end_byte].decode('utf8', errors='ignore')
+                import_text = byte_content[node.start_byte : node.end_byte].decode(
+                    "utf8", errors="ignore"
+                )
                 parts = import_text.split()
                 if len(parts) > 1:
-                    imports.add(parts[1].split('.')[0])
-                    
-            elif node.type == 'import_from_statement':
+                    imports.add(parts[1].split(".")[0])
+
+            elif node.type == "import_from_statement":
                 # Extract from import statement
-                import_text = byte_content[node.start_byte:node.end_byte].decode('utf8', errors='ignore')
+                import_text = byte_content[node.start_byte : node.end_byte].decode(
+                    "utf8", errors="ignore"
+                )
                 parts = import_text.split()
                 if len(parts) > 1:
-                    imports.add(parts[1].split('.')[0])
-            
+                    imports.add(parts[1].split(".")[0])
+
             # Recursively visit all children
             for child in node.children:
                 visit_node(child, node)
-        
+
         # Start the traversal
         visit_node(root_node)
-        
+
         # Sort declarations by start line
         declarations.sort(key=lambda d: d.start_line)
         # Sort imports
         sorted_imports = sorted(list(imports))
-        
-        logger.debug(f"Tree traversal extracted {len(declarations)} declarations and {len(sorted_imports)} imports.")
+
+        logger.debug(
+            f"Tree traversal extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
+        )
         return declarations, sorted_imports
 
     def _find_docstring(self, node: Node, byte_content: bytes) -> str:
@@ -261,33 +273,33 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
             # Look for the 'body' node captured by the query (e.g., block)
             body_node = None
             for child in node.children:
-                 # Heuristic: find the block node which usually contains the body
-                 # This relies on query structure / TS grammar
-                 if child.type == 'block':
-                     body_node = child
-                     break
+                # Heuristic: find the block node which usually contains the body
+                # This relies on query structure / TS grammar
+                if child.type == "block":
+                    body_node = child
+                    break
 
             if body_node and body_node.children:
                 first_child = body_node.children[0]
                 # Check if the first statement is an expression statement containing a string
-                if first_child.type == 'expression_statement' and first_child.children:
+                if first_child.type == "expression_statement" and first_child.children:
                     string_node = first_child.children[0]
-                    if string_node.type in ['string', 'string_content']:
-                        doc_bytes = byte_content[string_node.start_byte:string_node.end_byte]
+                    if string_node.type in ["string", "string_content"]:
+                        doc_bytes = byte_content[string_node.start_byte : string_node.end_byte]
                         # Remove quotes (triple or single)
-                        doc_str = doc_bytes.decode('utf-8', errors='ignore')
-                        
+                        doc_str = doc_bytes.decode("utf-8", errors="ignore")
+
                         # Handle potential f-strings, raw strings, etc.
-                        prefix_chars = ['r', 'u', 'f', 'b']
+                        prefix_chars = ["r", "u", "f", "b"]
                         for prefix in prefix_chars:
                             if doc_str.startswith(prefix):
                                 doc_str = doc_str[1:]
-                        
+
                         # Remove quotes
                         for quote in ['"""', "'''", '"', "'"]:
                             if doc_str.startswith(quote) and doc_str.endswith(quote):
-                                return doc_str[len(quote):-len(quote)].strip()
-                        return doc_str.strip() # Fallback if quotes aren't standard
+                                return doc_str[len(quote) : -len(quote)].strip()
+                        return doc_str.strip()  # Fallback if quotes aren't standard
         except Exception as e:
             logger.warning(f"Error trying to extract docstring: {e}", exc_info=False)
         return ""

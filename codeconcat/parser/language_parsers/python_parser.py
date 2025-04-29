@@ -2,12 +2,11 @@
 
 import logging
 import re
-from typing import List, Tuple
+from typing import List
 
 # Moved imports back to top
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.errors import LanguageParserError
-from .interface import ParserInterface  # Corrected import
 from codeconcat.parser.language_parsers.base_parser import BaseParser
 
 logger = logging.getLogger(__name__)
@@ -100,9 +99,7 @@ class PythonParser(BaseParser):
                             imports.append(from_part.strip("."))
 
                         if len(parts) > 1:
-                            import_names = (
-                                parts[1].replace("(", "").replace(")", "").split(",")
-                            )
+                            import_names = parts[1].replace("(", "").replace(")", "").split(",")
                             for name in import_names:
                                 module_name = name.strip().split(" as ")[0]
                                 if module_name and module_name != "*":
@@ -150,9 +147,9 @@ class PythonParser(BaseParser):
                                 if next_line and not next_line.startswith("#"):
                                     curr_indent = len(lines[j]) - len(lines[j].lstrip())
                                     if curr_indent > base_indent:
-                                        if next_line.startswith(
-                                            '"""'
-                                        ) or next_line.startswith("'''"):
+                                        if next_line.startswith('"""') or next_line.startswith(
+                                            "'''"
+                                        ):
                                             logger.debug(
                                                 f"[PyParse Loop 1] Found potential docstring start at line {j + 1}"
                                             )
@@ -175,9 +172,7 @@ class PythonParser(BaseParser):
                                                     )
                                                     doc_line = lines[k].strip()
                                                     if doc_line.endswith(quote_char):
-                                                        doc_lines.append(
-                                                            doc_line[:-3].strip()
-                                                        )
+                                                        doc_lines.append(doc_line[:-3].strip())
                                                         logger.debug(
                                                             f"[PyParse Loop 1.1] Found docstring end at line {k + 1}"
                                                         )
@@ -217,12 +212,8 @@ class PythonParser(BaseParser):
                                 )
                                 curr_line_full = lines[j]
                                 curr_line_stripped = curr_line_full.strip()
-                                if curr_line_stripped and not curr_line_stripped.startswith(
-                                    "#"
-                                ):
-                                    curr_indent = len(curr_line_full) - len(
-                                        curr_line_full.lstrip()
-                                    )
+                                if curr_line_stripped and not curr_line_stripped.startswith("#"):
+                                    curr_indent = len(curr_line_full) - len(curr_line_full.lstrip())
                                     if curr_indent <= base_indent:
                                         logger.debug(
                                             f"[PyParse Loop 2] Found block end at line {j + 1} (indent <= base)"

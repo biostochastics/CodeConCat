@@ -1,18 +1,14 @@
 import functools
 import logging
 import os
-import traceback
-from typing import Callable, List, Optional, Set, Tuple, Dict, Type
+from typing import List, Optional, Set, Tuple
 
 from tqdm import tqdm
 
-from ..base_types import CodeConCatConfig, ParsedFileData, ParseResult, ParserInterface
+from ..base_types import CodeConCatConfig, ParsedFileData, ParserInterface
 from ..processor.security_processor import SecurityProcessor
 from ..processor.token_counter import get_token_stats
 from ..errors import (
-    ConfigurationError,
-    FileProcessingError,
-    LanguageParserError,
     ParserError,
     UnsupportedLanguageError,
 )
@@ -21,9 +17,7 @@ from ..errors import (
 logger = logging.getLogger(__name__)
 
 # +++ Log after imports +++
-logger.debug(
-    "file_parser.py module loaded successfully (parsers will be imported lazily)."
-)
+logger.debug("file_parser.py module loaded successfully (parsers will be imported lazily).")
 
 
 def parse_code_files(
@@ -125,12 +119,18 @@ def parse_code_files(
                     f"[parse_code_files] Successfully got parser: {type(parser_instance).__name__} for file {file_path}"
                 )
                 # Add check right before calling parse
-                if hasattr(parser_instance, 'parser'):
-                    logger.debug(f"[parse_code_files Pre-Parse Check] Parser for {file_path}. parser.parser is None? {parser_instance.parser is None}")
+                if hasattr(parser_instance, "parser"):
+                    logger.debug(
+                        f"[parse_code_files Pre-Parse Check] Parser for {file_path}. parser.parser is None? {parser_instance.parser is None}"
+                    )
                 else:
-                    logger.debug(f"[parse_code_files Pre-Parse Check] Parser for {file_path} has no 'parser' attribute.")
+                    logger.debug(
+                        f"[parse_code_files Pre-Parse Check] Parser for {file_path} has no 'parser' attribute."
+                    )
             else:
-                logger.warning(f"[parse_code_files] No parser instance returned for language '{language}', skipping file {file_path}")
+                logger.warning(
+                    f"[parse_code_files] No parser instance returned for language '{language}', skipping file {file_path}"
+                )
                 # Raise error if no parser found and language was detected
                 raise UnsupportedLanguageError(
                     f"No parser implementation available for language: {language}",
@@ -143,9 +143,13 @@ def parse_code_files(
                 f"[parse_code_files] Attempting to call parser: {type(parser_instance).__name__} for {file_path}"
             )
             # --- Call the parser and handle potential tuple return --- #
-            logger.debug(f"[parse_code_files] Calling {type(parser_instance).__name__}.parse() for {file_path}")
+            logger.debug(
+                f"[parse_code_files] Calling {type(parser_instance).__name__}.parse() for {file_path}"
+            )
             parse_result = parser_instance.parse(content, file_path)
-            logger.debug(f"[parse_code_files] Finished parsing {file_path}. Engine: {parse_result.engine_used}, Error: {parse_result.error}")
+            logger.debug(
+                f"[parse_code_files] Finished parsing {file_path}. Engine: {parse_result.engine_used}, Error: {parse_result.error}"
+            )
 
             # --- Update file_data with parse results --- #
             file_data.parse_result = parse_result
@@ -154,7 +158,9 @@ def parse_code_files(
 
             if parse_result.error:
                 # Log the parsing error but continue processing (security/tokens)
-                logger.warning(f"[parse_code_files] Parser returned error for {file_path}: {parse_result.error}")
+                logger.warning(
+                    f"[parse_code_files] Parser returned error for {file_path}: {parse_result.error}"
+                )
                 errors.append(ParserError(parse_result.error, file_path=file_path))
 
             # Reset security issues before potential scan
@@ -195,9 +201,7 @@ def parse_code_files(
                     )
                     # Keep original content if scanning/masking failed
                     errors.append(
-                        ParserError(
-                            f"Security scan failed: {security_exc}", file_path=file_path
-                        )
+                        ParserError(f"Security scan failed: {security_exc}", file_path=file_path)
                     )
             # ---------------------------------------------- #
 
@@ -273,7 +277,9 @@ def get_all_known_extensions() -> Set[str]:
     }
 
 
-def get_language_parser(language: str, config: CodeConCatConfig, parser_type: str = None) -> Optional[ParserInterface]:
+def get_language_parser(
+    language: str, config: CodeConCatConfig, parser_type: str = None
+) -> Optional[ParserInterface]:
     """
     Get the appropriate parser instance based on language, config, and explicit parser type.
 
@@ -291,7 +297,6 @@ def get_language_parser(language: str, config: CodeConCatConfig, parser_type: st
         otherwise None.
     """
     # Import parser maps from language_parsers module
-    from .language_parsers import TREE_SITTER_PARSER_MAP, REGEX_PARSER_MAP
 
     normalized_language = language.lower()
     logger.debug(
@@ -303,7 +308,7 @@ def get_language_parser(language: str, config: CodeConCatConfig, parser_type: st
     use_enhanced = False
 
     # Check if we should use enhanced parsers
-    if hasattr(config, 'use_enhanced_parsers') and config.use_enhanced_parsers:
+    if hasattr(config, "use_enhanced_parsers") and config.use_enhanced_parsers:
         use_enhanced = True
         logger.debug(f"Using enhanced parsers where available for {normalized_language}")
 
@@ -346,7 +351,9 @@ def get_language_parser(language: str, config: CodeConCatConfig, parser_type: st
 
     # Should not be reached if logic is correct, but acts as a final fallback
     if attempted_tree_sitter:
-        logger.error(f"Failed to load Tree-sitter parser for {language} and fallback to regex failed or was disabled.")
+        logger.error(
+            f"Failed to load Tree-sitter parser for {language} and fallback to regex failed or was disabled."
+        )
     else:
         logger.error(f"Failed to load Regex parser for {language}.")
     return None
@@ -355,32 +362,32 @@ def get_language_parser(language: str, config: CodeConCatConfig, parser_type: st
 def _try_tree_sitter_parser(language: str) -> Optional[ParserInterface]:
     """
     Try to load a Tree-sitter parser for the given language.
-    
+
     Args:
         language: The normalized language identifier.
-        
+
     Returns:
         A parser instance if successful, None otherwise.
     """
     import importlib
     from codeconcat.parser.language_parsers import TREE_SITTER_PARSER_MAP
-    
+
     logger.debug(f"Attempting to load Tree-sitter parser for {language}")
     parser_class_name = TREE_SITTER_PARSER_MAP.get(language)
-    
+
     if not parser_class_name:
         logger.debug(f"No Tree-sitter parser defined for {language}")
         return None
-    
+
     try:
         module_name = f"codeconcat.parser.language_parsers.tree_sitter_{language}_parser"
-        
+
         # Special cases for JS/TS and C/C++
         if language in ["javascript", "typescript"]:
             module_name = "codeconcat.parser.language_parsers.tree_sitter_js_ts_parser"
         elif language in ["c", "cpp"]:
             module_name = "codeconcat.parser.language_parsers.tree_sitter_cpp_parser"
-            
+
         module = importlib.import_module(module_name)
         parser_class = getattr(module, parser_class_name)
         parser_instance = parser_class()
@@ -394,39 +401,41 @@ def _try_tree_sitter_parser(language: str) -> Optional[ParserInterface]:
         return None
 
 
-def _try_enhanced_regex_parser(language: str, use_enhanced: bool = True) -> Optional[ParserInterface]:
+def _try_enhanced_regex_parser(
+    language: str, use_enhanced: bool = True
+) -> Optional[ParserInterface]:
     """
     Try to load an enhanced regex parser for the given language.
-    
+
     Args:
         language: The normalized language identifier.
         use_enhanced: Whether to try enhanced parsers (default True).
-        
+
     Returns:
         A parser instance if successful, None otherwise.
     """
     import importlib
     from codeconcat.parser.language_parsers import REGEX_PARSER_MAP
-    
+
     if not use_enhanced:
         logger.debug(f"Enhanced parsers disabled, skipping for {language}")
         return None
-    
+
     logger.debug(f"Attempting to load Enhanced Regex parser for {language}")
     enhanced_name = f"{language}_enhanced"
     parser_class_name = REGEX_PARSER_MAP.get(enhanced_name)
-    
+
     if not parser_class_name:
         logger.debug(f"No Enhanced Regex parser defined for {language}")
         return None
-    
+
     try:
         module_name = f"codeconcat.parser.language_parsers.enhanced_{language}_parser"
-        
+
         # Special case for JavaScript/TypeScript
         if language in ["javascript", "typescript"]:
             module_name = "codeconcat.parser.language_parsers.enhanced_js_ts_parser"
-        
+
         module = importlib.import_module(module_name)
         parser_class = getattr(module, parser_class_name)
         parser_instance = parser_class()
@@ -443,32 +452,32 @@ def _try_enhanced_regex_parser(language: str, use_enhanced: bool = True) -> Opti
 def _try_standard_regex_parser(language: str) -> Optional[ParserInterface]:
     """
     Try to load a standard regex parser for the given language.
-    
+
     Args:
         language: The normalized language identifier.
-        
+
     Returns:
         A parser instance if successful, None otherwise.
     """
     import importlib
     from codeconcat.parser.language_parsers import REGEX_PARSER_MAP
-    
+
     logger.debug(f"Attempting to load Standard Regex parser for {language}")
     parser_class_name = REGEX_PARSER_MAP.get(language)
-    
+
     if not parser_class_name:
         logger.debug(f"No Standard Regex parser defined for {language}")
         return None
-    
+
     try:
         module_name = f"codeconcat.parser.language_parsers.{language}_parser"
-        
+
         # Special cases for JS/TS and C/C++
         if language in ["javascript", "typescript"]:
             module_name = "codeconcat.parser.language_parsers.js_ts_parser"
         elif language in ["c", "cpp"]:
             module_name = "codeconcat.parser.language_parsers.cpp_parser"
-        
+
         module = importlib.import_module(module_name)
         parser_class = getattr(module, parser_class_name)
         parser_instance = parser_class()

@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import List, Optional, Set, Tuple
+from typing import List, Set
 
 from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
@@ -60,8 +60,8 @@ class CSharpParser(BaseParser):
             A ParseResult object containing declarations and imports (usings).
         """
         declarations = []
-        imports: Set[str] = set() # Using directives
-        lines = content.split('\n')
+        imports: Set[str] = set()  # Using directives
+        lines = content.split("\n")
         doc_buffer: List[str] = []
         in_multiline_comment = False
         current_namespace = ""
@@ -80,27 +80,27 @@ class CSharpParser(BaseParser):
                         continue
                 if stripped_line.startswith("/*") and "*/" not in stripped_line:
                     in_multiline_comment = True
-                    doc_buffer = [] # Block comments clear doc buffer
+                    doc_buffer = []  # Block comments clear doc buffer
                     continue
                 elif stripped_line.startswith("//") and not stripped_line.startswith("///"):
-                    doc_buffer = [] # Regular line comments clear doc buffer
-                    continue # Skip regular comments
+                    doc_buffer = []  # Regular line comments clear doc buffer
+                    continue  # Skip regular comments
 
                 # Handle doc comments ///
                 doc_match = DOC_COMMENT_PATTERN.match(line)
                 if doc_match:
-                     # Allow multi-line doc comments by checking previous line
-                    if i > 0 and DOC_COMMENT_PATTERN.match(lines[i-1].strip()):
+                    # Allow multi-line doc comments by checking previous line
+                    if i > 0 and DOC_COMMENT_PATTERN.match(lines[i - 1].strip()):
                         doc_buffer.append(doc_match.group(1))
                     else:
-                        doc_buffer = [doc_match.group(1)] # Start new buffer
-                    continue # Don't process doc comment lines further
+                        doc_buffer = [doc_match.group(1)]  # Start new buffer
+                    continue  # Don't process doc comment lines further
 
                 # Using directives (Imports)
                 using_match = USING_PATTERN.match(stripped_line)
                 if using_match:
                     imports.add(using_match.group(1))
-                    doc_buffer = [] # Clear doc buffer after using
+                    doc_buffer = []  # Clear doc buffer after using
                     continue
 
                 # Namespace
@@ -115,11 +115,20 @@ class CSharpParser(BaseParser):
                 cie_match = CLASS_INTERFACE_ENUM_PATTERN.match(stripped_line)
                 if cie_match:
                     kind = cie_match.group("kind")
-                    name = cie_match.group("name").strip() # Clean up potential generics noise
+                    name = cie_match.group("name").strip()  # Clean up potential generics noise
                     # Remove generics part for simpler name matching if needed
                     # name = re.sub(r'<.*>', '', name)
                     docstring = self._format_docstring(doc_buffer)
-                    declarations.append(Declaration(kind=kind, name=name, start_line=i, end_line=i, docstring=docstring, modifiers=set())) # Placeholder end_line
+                    declarations.append(
+                        Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )  # Placeholder end_line
                     doc_buffer = []
                     continue
 
@@ -127,11 +136,25 @@ class CSharpParser(BaseParser):
                 mc_match = METHOD_CONSTRUCTOR_PATTERN.match(stripped_line)
                 if mc_match:
                     name = mc_match.group("name")
-                    kind = "method" if name and not name.startswith("~") and '.' not in name else "constructor" # Basic heuristic
+                    kind = (
+                        "method"
+                        if name and not name.startswith("~") and "." not in name
+                        else "constructor"
+                    )  # Basic heuristic
                     # Heuristic to exclude explicit interface implementations for now
-                    if '.' in name: continue
+                    if "." in name:
+                        continue
                     docstring = self._format_docstring(doc_buffer)
-                    declarations.append(Declaration(kind=kind, name=name, start_line=i, end_line=i, docstring=docstring, modifiers=set())) # Placeholder end_line
+                    declarations.append(
+                        Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )  # Placeholder end_line
                     doc_buffer = []
                     continue
 
@@ -139,9 +162,18 @@ class CSharpParser(BaseParser):
                 pf_match = PROPERTY_FIELD_PATTERN.match(stripped_line)
                 if pf_match:
                     name = pf_match.group("name")
-                    kind = "property/field" # Cannot easily distinguish with simple regex
+                    kind = "property/field"  # Cannot easily distinguish with simple regex
                     docstring = self._format_docstring(doc_buffer)
-                    declarations.append(Declaration(kind=kind, name=name, start_line=i, end_line=i, docstring=docstring, modifiers=set())) # Placeholder end_line
+                    declarations.append(
+                        Declaration(
+                            kind=kind,
+                            name=name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
+                        )
+                    )  # Placeholder end_line
                     doc_buffer = []
                     continue
 
@@ -150,17 +182,17 @@ class CSharpParser(BaseParser):
                     doc_buffer = []
 
             logger.debug(
-                 f"Finished CSharpParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} usings."
-             )
+                f"Finished CSharpParser.parse (Regex) for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} usings."
+            )
             return ParseResult(
                 file_path=file_path,
                 language="csharp",
                 content=content,
                 declarations=declarations,
-                imports=sorted(list(imports)), # Usings are treated as imports
+                imports=sorted(list(imports)),  # Usings are treated as imports
                 engine_used="regex",
                 token_stats=None,
-                security_issues=[]
+                security_issues=[],
             )
 
         except Exception as e:

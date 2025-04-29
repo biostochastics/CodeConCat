@@ -52,9 +52,7 @@ def write_text(
     output_lines.append("#" * SEPARATOR_LENGTH)
     output_lines.append("\n")
 
-    items_to_process = (
-        sorted(items, key=lambda x: x.file_path) if config.sort_files else items
-    )
+    items_to_process = sorted(items, key=lambda x: x.file_path) if config.sort_files else items
 
     if not items_to_process:
         output_lines.append("_No files or documents found._")
