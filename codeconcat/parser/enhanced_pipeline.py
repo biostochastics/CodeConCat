@@ -40,7 +40,7 @@ def enhanced_parse_pipeline(
     This pipeline attempts parsing in the following order:
     1. Tree-sitter (if enabled)
     2. Enhanced regex parsers
-    3. Standard regex parsers
+    3. Standard regex parsers (slated for deprecation)
 
     It accumulates partial results and provides detailed error information.
 
