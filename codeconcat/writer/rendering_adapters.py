@@ -127,7 +127,9 @@ class MarkdownRenderAdapter:
         return "\n".join(result)
 
     @staticmethod
-    def render_file_content(content: str, language: str, config: CodeConCatConfig) -> str:
+    def render_file_content(
+        content: str, language: str, config: CodeConCatConfig, file_path: str = None
+    ) -> str:
         """Render file content as a markdown code block with appropriate language tag."""
         # Special case for empty content
         if not content:
@@ -151,11 +153,22 @@ class MarkdownRenderAdapter:
             and hasattr(config, "_compressed_segments")
             and config._compressed_segments
         ):
-            # This is a workaround since we can't pass segments directly to this method
-            # In a real implementation, we would refactor the interfaces to support segments directly
-            return MarkdownRenderAdapter._render_compressed_content(
-                config._compressed_segments, language
-            )
+            # Handle both formats: dictionary with file paths as keys or direct list of segments
+            segments_to_use = None
+
+            # Check if segments are stored as a dictionary with file path as key
+            if (
+                file_path is not None
+                and isinstance(config._compressed_segments, dict)
+                and file_path in config._compressed_segments
+            ):
+                segments_to_use = config._compressed_segments[file_path]
+            # Check if segments are stored directly as a list (for tests)
+            elif isinstance(config._compressed_segments, list):
+                segments_to_use = config._compressed_segments
+
+            if segments_to_use:
+                return MarkdownRenderAdapter._render_compressed_content(segments_to_use, language)
 
         # Use language tag if available
         lang_tag = language if language and language != "unknown" else ""
@@ -173,8 +186,8 @@ class MarkdownRenderAdapter:
 
         for segment in segments:
             if segment.segment_type == ContentSegmentType.OMITTED:
-                # Style the placeholder differently
-                result.append(f"\n/* {segment.content} */\n")
+                # Style the placeholder differently - ensure the placeholder is visible
+                result.append(f"\n{segment.content}\n")
             else:
                 # Regular code segment
                 result.append(segment.content)
@@ -235,7 +248,7 @@ class MarkdownRenderAdapter:
             file_data.annotated_content if file_data.annotated_content else file_data.content
         )
         content_md = MarkdownRenderAdapter.render_file_content(
-            content_to_render, file_data.language, config
+            content_to_render, file_data.language, config, file_data.file_path
         )
         result.append(content_md)
 
@@ -356,19 +369,21 @@ class JsonRenderAdapter:
         if config.enable_token_counting and file_data.token_stats:
             result["token_stats"] = JsonRenderAdapter.token_stats_to_dict(file_data.token_stats)
 
-        # Handle compressed content if enabled
+        # Handle compression if enabled
         if (
             config.enable_compression
             and hasattr(config, "_compressed_segments")
             and config._compressed_segments
+            and file_data.file_path in config._compressed_segments
         ):
+            file_segments = config._compressed_segments[file_data.file_path]
             result["compression_applied"] = True
-            result["content_segments"] = [
-                JsonRenderAdapter.segment_to_dict(s) for s in config._compressed_segments
-            ]
-            # Include a flat version of the content too
+            result["segments"] = [JsonRenderAdapter.segment_to_dict(s) for s in file_segments]
+
+            # Count lines for each segment type
+            result["segment_stats"] = {"total_lines": 0, "kept_lines": 0, "omitted_lines": 0}
             segments_content = []
-            for segment in config._compressed_segments:
+            for segment in file_segments:
                 segments_content.append(segment.content)
             result["content"] = "\n".join(segments_content)
         else:
@@ -511,12 +526,15 @@ class XmlRenderAdapter:
             config.enable_compression
             and hasattr(config, "_compressed_segments")
             and config._compressed_segments
+            and file_data.file_path in config._compressed_segments
         ):
+            file_segments = config._compressed_segments[file_data.file_path]
             file_element.set("compression_applied", "true")
-            segments_elem = ET.SubElement(file_element, "content_segments")
 
-            for segment in config._compressed_segments:
-                segment_elem = ET.SubElement(segments_elem, "segment")
+            # Create an element for each segment
+            segments_element = ET.SubElement(file_element, "segments")
+            for segment in file_segments:
+                segment_elem = ET.SubElement(segments_element, "segment")
                 segment_elem.set("type", segment.segment_type.value)
                 segment_elem.set("start_line", str(segment.start_line))
                 segment_elem.set("end_line", str(segment.end_line))

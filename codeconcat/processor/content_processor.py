@@ -5,6 +5,7 @@ import re
 from typing import List
 
 from ..base_types import CodeConCatConfig, ParsedFileData
+from .string_utils import is_inside_string
 
 
 def process_file_content(content: str, config: CodeConCatConfig) -> str:
@@ -46,11 +47,8 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
             # 2. Handle Start of Block Comments and Single-Line Block Comments /* ... */
             start_block_index = processed_line.find("/*")
             while start_block_index != -1:
-                # Basic quote check - ignore if inside quotes
-                if (
-                    processed_line[:start_block_index].count('"') % 2 == 0
-                    and processed_line[:start_block_index].count("'") % 2 == 0
-                ):
+                # Use robust string detection - ignore if inside quotes
+                if not is_inside_string(processed_line, start_block_index):
 
                     end_block_index = processed_line.find("*/", start_block_index + 2)
                     if end_block_index != -1:
@@ -89,18 +87,12 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
 
                 comment_pos = -1
                 if hash_pos != -1 and (slash_pos == -1 or hash_pos < slash_pos):
-                    # Basic quote check
-                    if (
-                        processed_line[:hash_pos].count('"') % 2 == 0
-                        and processed_line[:hash_pos].count("'") % 2 == 0
-                    ):
+                    # Use robust string detection
+                    if not is_inside_string(processed_line, hash_pos):
                         comment_pos = hash_pos
                 elif slash_pos != -1:
-                    # Basic quote check
-                    if (
-                        processed_line[:slash_pos].count('"') % 2 == 0
-                        and processed_line[:slash_pos].count("'") % 2 == 0
-                    ):
+                    # Use robust string detection
+                    if not is_inside_string(processed_line, slash_pos):
                         comment_pos = slash_pos
 
                 if comment_pos != -1:

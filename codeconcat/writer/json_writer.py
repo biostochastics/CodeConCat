@@ -34,6 +34,28 @@ def write_json(
         item_dict = item.render_json_dict(config)
         # Only append if the render method returned something (it should always return dict)
         if item_dict:
+            # Add compression segments if available
+            if (
+                config.enable_compression
+                and hasattr(config, "_compressed_segments")
+                and hasattr(item, "file_path")
+            ):
+                # Find segments related to this file
+                file_segments = [
+                    s for s in config._compressed_segments if hasattr(item, "file_path")
+                ]
+                if file_segments:
+                    # Add segments to the item
+                    item_dict["content_segments"] = [
+                        {
+                            "type": segment.segment_type.value,
+                            "start_line": segment.start_line,
+                            "end_line": segment.end_line,
+                            "content": segment.content,
+                            "metadata": segment.metadata,
+                        }
+                        for segment in file_segments
+                    ]
             output_data["files"].append(item_dict)
 
     # Generate final JSON string

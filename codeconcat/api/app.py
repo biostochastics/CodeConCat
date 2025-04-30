@@ -10,6 +10,7 @@ import logging
 import tempfile
 import uvicorn
 import uuid
+from contextvars import ContextVar
 from http import HTTPStatus
 from typing import Dict, List, Optional, Any, Callable
 
@@ -23,6 +24,9 @@ from codeconcat.config.config_builder import ConfigBuilder
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# Context variable for request ID tracking
+request_id_var = ContextVar("request_id", default=None)
 
 
 # ────────────────────────────────────────────────────────────
@@ -123,13 +127,17 @@ def create_app() -> FastAPI:
     class RequestTracingMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next: Callable):
             request_id = str(uuid.uuid4())
-            # Add request_id to each log record
-            logger_adapter = logging.LoggerAdapter(logger, {"request_id": request_id})
-            request.state.logger = logger_adapter
+            # Store request_id in context variable
+            token = request_id_var.set(request_id)
             request.state.request_id = request_id
-            response = await call_next(request)
-            response.headers["X-Request-ID"] = request_id
-            return response
+
+            try:
+                response = await call_next(request)
+                response.headers["X-Request-ID"] = request_id
+                return response
+            finally:
+                # Reset the context variable token
+                request_id_var.reset(token)
 
     app.add_middleware(RequestTracingMiddleware)
 
@@ -333,6 +341,12 @@ def start_server(
     # Configure uvicorn logging
     uvicorn_log_config = uvicorn.config.LOGGING_CONFIG
     uvicorn_log_config["formatters"]["access"]["fmt"] = "%(asctime)s - %(levelname)s - %(message)s"
+
+    # Set up custom formatter with request ID
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] - %(message)s",
+    )
 
     # Start the server
     uvicorn.run(

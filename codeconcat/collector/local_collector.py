@@ -281,6 +281,25 @@ def should_include_file(
     # else: # No include_paths means include all by default (subject to excludes)
     #     if config.verbose: logger.debug(f"Included by default (no include_paths specified): {rel_path}")
 
+    # --- Check if file is a documentation file and should be excluded from code parsing --- #
+    # Documentation files should be handled separately by doc_extractor, not code parsers
+    ext_with_dot = os.path.splitext(file_path)[1].lower()
+    if ext_with_dot in config.doc_extensions:
+        if config.verbose:
+            logger.debug(
+                f"Skipping {rel_path} as it's a documentation file (extension: {ext_with_dot})"
+            )
+        return None
+
+    # Special handling for known file types that should be excluded from code parsing
+    # but aren't in doc_extensions
+    filename = os.path.basename(file_path).lower()
+    special_files = ["makefile", "dockerfile", "jenkinsfile", "vagrantfile"]
+    if filename in special_files:
+        if config.verbose:
+            logger.debug(f"Skipping {rel_path} as it's a special file type (name: {filename})")
+        return None
+
     # --- Language Determination and Filtering --- #
     language: Optional[str] = None
     # Try guesslang first if available and enabled (check config? maybe not needed here)

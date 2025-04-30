@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# SPDX‑License‑Identifier: MIT
+
 """
 Main entry point for the CodeConCat CLI application.
 
@@ -5,20 +8,38 @@ This module handles command-line argument parsing, configuration loading,
 file collection, processing, and output generation.
 """
 
+# Ensure os is imported at the global scope
+import os
 import argparse
 import importlib.resources
 import logging
-import os
 import sys
 from typing import List, Union
 from typing import Literal
+
 from tqdm import tqdm
+
 from codeconcat.base_types import (
     ContentSegmentType,
     AnnotatedFileData,
     CodeConCatConfig,
     WritableItem,
 )
+
+
+# Import or define error classes
+class ConfigurationError(Exception):
+    """Raised when there is an error in the configuration."""
+
+    pass
+
+
+class CodeConcatError(Exception):
+    """Base exception for CodeConCat errors."""
+
+    pass
+
+
 from codeconcat.collector.remote_collector import collect_git_repo
 from codeconcat.collector.local_collector import collect_local_files
 from codeconcat.config.config_builder import ConfigBuilder
@@ -37,9 +58,6 @@ from codeconcat.writer.xml_writer import write_xml
 
 # Suppress HuggingFace tokenizers parallelism warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-#!/usr/bin/env python3
-# SPDX‑License‑Identifier: MIT
 
 # ------------------------------------------------------------------------------
 # Set up logging for CodeConCat
@@ -133,10 +151,13 @@ class OutputError(CodeConcatError):
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
+    # Import os in this scope to avoid any potential shadowing
+    import os as local_os
+
     """Write the final concatenated output to one or more files.
 
     Handles splitting the output into multiple parts if requested in the config
-    (currently only for Markdown format) and optionally copies the content
+    and optionally copies the content
     to the clipboard.
 
     Args:
@@ -144,13 +165,47 @@ def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
         config: The CodeConCatConfig object containing output settings like
                 output path, format, split_output, and disable_copy.
     """
-    output_path = config.output or f"code_concat_output.{config.format}"
+    # Debug print to check what output path is set in config
+    # print(f"[DEBUG OUTPUT] Config output path: '{config.output}'")
+
+    # Determine the output path from config
+    # If output is None or empty string, use the folder name-based default
+    if config.output is None or config.output == "":
+        # Get the directory name from target_path
+        if config.target_path:
+            # Normalize path and get base folder name
+            folder_name = local_os.path.basename(local_os.path.normpath(config.target_path))
+
+            # Special case - if target_path is a single file, use its containing folder
+            if local_os.path.isfile(config.target_path):
+                parent_dir = local_os.path.dirname(config.target_path)
+                if parent_dir:
+                    folder_name = local_os.path.basename(local_os.path.normpath(parent_dir))
+
+            # Remove any unsafe characters
+            folder_name = "".join(c for c in folder_name if c.isalnum() or c in "._- ")
+
+            # If folder_name is empty after cleaning, use a fallback
+            if not folder_name.strip():
+                folder_name = "codeconcat"
+
+            output_path = f"{folder_name}_ccc.{config.format}"
+            print(f"[Info] Using folder-based output name: {output_path}")
+        else:
+            # Fallback if no target_path is available
+            output_path = f"codeconcat_output.{config.format}"
+    else:
+        output_path = config.output
+
+    # Debug print the final output path
+    # print(f"[DEBUG OUTPUT] Final output path: '{output_path}'")
+
     parts = max(1, getattr(config, "split_output", 1))
 
     if parts > 1 and config.format == "markdown":
         lines = output_text.splitlines(keepends=True)
         chunk_size = (len(lines) + parts - 1) // parts
-        base, ext = os.path.splitext(output_path)
+        base, ext = local_os.path.splitext(output_path)
 
         # Wrap loop with tqdm for progress
         write_iterator = tqdm(
@@ -221,17 +276,20 @@ def create_default_config(interactive: bool = True) -> None:
 
 def _create_basic_config() -> None:
     """Creates a basic default '.codeconcat.yml' configuration file from the template."""
+    # Ensure os is properly imported in this scope
+    import os as local_os
+
     config_filename = ".codeconcat.yml"
-    if os.path.exists(config_filename):
+    if local_os.path.exists(config_filename):
         logger.warning(f"{config_filename} already exists; aborting.")
         return
 
     try:
         # First try to use the file directly
-        template_path = os.path.join(
-            os.path.dirname(__file__), "config", "templates", "default_config.template.yml"
+        template_path = local_os.path.join(
+            local_os.path.dirname(__file__), "config", "templates", "default_config.template.yml"
         )
-        if os.path.exists(template_path):
+        if local_os.path.exists(template_path):
             with open(template_path, "r") as src, open(config_filename, "w") as dest:
                 dest.write(src.read())
         else:
@@ -513,6 +571,39 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-progress-bar", action="store_true", advanced=True, help="Disable tqdm progress bars."
     )
 
+    # === Compression Options ===
+    g_comp = parser.add_argument_group("Compression Options")
+    g_comp.add_argument(
+        "--enable-compression",
+        action="store_true",
+        help="Enable intelligent code compression to reduce output size.",
+    )
+    g_comp.add_argument(
+        "--compression-level",
+        choices=["low", "medium", "high", "aggressive"],
+        default="medium",
+        help="Compression intensity level (default: medium).",
+    )
+    g_comp.add_argument(
+        "--compression-placeholder",
+        type=str,
+        help="Template for placeholder text replacing omitted segments. Use {lines} and {issues} as placeholders.",
+    )
+    g_comp.add_argument(
+        "--compression-keep-threshold",
+        type=int,
+        default=3,
+        advanced=True,
+        help="Minimum lines to consider keeping a segment (smaller segments always kept).",
+    )
+    g_comp.add_argument(
+        "--compression-keep-tags",
+        nargs="+",
+        metavar="TAG",
+        advanced=True,
+        help="Special comment tags that mark segments to always keep during compression.",
+    )
+
     # === Processing ===
     g_proc = parser.add_argument_group("Processing", advanced=True)
     g_proc.add_argument("--max-workers", type=int, default=4, help="Thread‑pool size.")
@@ -522,6 +613,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 # ──────────────────────────────────────────────────────────────────────────────
 def cli_entry_point():
+    # Ensure os is properly imported in this scope
+    import os as local_os  # Use a different name to avoid any potential shadowing
+
     """The main command-line interface entry point for CodeConCat.
 
     Parses command-line arguments, sets up logging, handles special flags
@@ -549,6 +643,14 @@ def cli_entry_point():
         # Convert args namespace to dictionary for easier handling
         cli_args = vars(args)
 
+        # Print important CLI args for debugging
+        # if 'output' in cli_args:
+        #    print(f"\n[DEBUG CLI] Output path from CLI: {cli_args['output']}")
+        # if 'enable_compression' in cli_args:
+        #    print(f"[DEBUG CLI] Compression enabled from CLI: {cli_args['enable_compression']}")
+        # if 'compression_level' in cli_args:
+        #    print(f"[DEBUG CLI] Compression level from CLI: {cli_args['compression_level']}")
+
         # Handle backward compatibility for parser engine selection
         if hasattr(args, "no_tree") and args.no_tree and "parser_engine" not in cli_args:
             logger.warning(
@@ -560,22 +662,81 @@ def cli_entry_point():
         print(f"\n❌ Error initializing CodeConCat: {e}")
         return 1
 
-    # We already handled the no_tree flag in the try block above
-
-    # --- Load Configuration using the new ConfigBuilder --- #
+    # --- Load Configuration using the ConfigBuilder --- #
     try:
         # Get the preset name (if specified)
         preset_name = args.preset or "medium"  # Default to medium if not specified
 
-        # Create a config builder and apply settings in the proper order
+        # Debug: Show what CLI arguments were received
+        if args.verbose > 1:
+            print("\n[DEBUG] CLI arguments received:")
+            for key, value in cli_args.items():
+                if value is not None and key not in ["verbose", "debug", "quiet"]:
+                    print(f"  {key}: {value}")
+
+        # Create a config builder and apply settings in the proper order of precedence:
+        # 1. Defaults, 2. Preset, 3. YAML file, 4. CLI arguments
         config_builder = ConfigBuilder()
         config_builder.with_defaults()
         config_builder.with_preset(preset_name)
         config_builder.with_yaml_config(args.config)  # Use config_path_override if provided
-        config_builder.with_cli_args(cli_args)  # Apply CLI arguments last
 
-        # Build the final configuration
+        # Apply CLI arguments which have the highest precedence
+        config_builder.with_cli_args(cli_args)
+
+        # Build the final configuration with all settings applied in proper order
         config = config_builder.build()
+
+        # Show what CLI arguments were applied to config
+        if hasattr(config_builder, "_cli_values") and config_builder._cli_values:
+            print("\n[CLI Settings Applied]")
+            for config_key, value in config_builder._cli_values.items():
+                print(f"  {config_key}: {value}")
+
+        # Direct application of critical CLI arguments to ensure they take effect
+        # This is necessary in case the with_cli_args method isn't applying them correctly
+        if "format" in cli_args and cli_args["format"] is not None:
+            print(f"[Direct Override] Setting format from CLI: {cli_args['format']}")
+            config.format = cli_args["format"].lower()
+
+        # Verify that key settings are correctly applied
+        if args.verbose > 0:
+            print("\n[CONFIG VALUES]")
+            for key in ["format", "output", "enable_compression", "compression_level"]:
+                print(f"  {key}: {getattr(config, key, None)}")
+
+        # Force lowercase format to ensure consistent comparison later
+        if config.format:
+            config.format = config.format.lower()
+
+        # Ensure default output filename uses correct format extension when format is specified via CLI
+        if config.output is None or config.output == "code_concat_output.md":
+            # Target_path could be a directory or file
+            if hasattr(config, "target_path") and config.target_path:
+                # Normalize path and get base folder name
+                folder_name = local_os.path.basename(local_os.path.normpath(config.target_path))
+
+                # Special case - if target_path is a single file, use its containing folder
+                if local_os.path.isfile(config.target_path):
+                    parent_dir = local_os.path.dirname(config.target_path)
+                    if parent_dir:
+                        folder_name = local_os.path.basename(local_os.path.normpath(parent_dir))
+                    else:
+                        folder_name = "codeconcat"
+
+                # Remove any unsafe characters
+                folder_name = "".join(c for c in folder_name if c.isalnum() or c in "._- ")
+
+                # If folder_name is empty after cleaning, use a fallback
+                if not folder_name.strip():
+                    folder_name = "codeconcat"
+
+                # Set the output path with the correct format extension
+                config.output = f"{folder_name}_ccc.{config.format}"
+                print(f"[Info] Using folder-based output name: {config.output}")
+            else:
+                # Fallback if no target_path is available
+                config.output = f"codeconcat_output.{config.format}"
 
         # Print detailed configuration if requested
         if args.show_config_detail:
@@ -641,17 +802,19 @@ def cli_entry_point():
         print(f"\nRunning parser diagnostics for language: {language}")
 
         # Find a test file for this language in the test corpus if available
-        import os
 
         test_file = None
-        test_corpus_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "tests", "parser_test_corpus", language
+        test_corpus_path = local_os.path.join(
+            local_os.path.dirname(local_os.path.dirname(__file__)),
+            "tests",
+            "parser_test_corpus",
+            language,
         )
 
-        if os.path.exists(test_corpus_path):
-            for filename in os.listdir(test_corpus_path):
+        if local_os.path.exists(test_corpus_path):
+            for filename in local_os.listdir(test_corpus_path):
                 if filename.startswith("basic.") or filename == "basic":
-                    test_file = os.path.join(test_corpus_path, filename)
+                    test_file = local_os.path.join(test_corpus_path, filename)
                     break
 
         if test_file:
@@ -941,7 +1104,19 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         # Apply compression if enabled
         if config.enable_compression:
             logger.info(f"[CodeConCat] Applying compression (level: {config.compression_level})...")
+            # Print detailed compression configuration information as standard output
+            print("\n[Compression Config]")
+            print(f"  Level: {config.compression_level}")
+            print(
+                f"  Threshold: {config.compression_keep_threshold} lines (segments smaller than this are always kept)"
+            )
+            print(f"  Preserved tags: {', '.join(config.compression_keep_tags)}")
+            print(f"  Placeholder: {config.compression_placeholder}")
+
             compression_processor = CompressionProcessor(config)
+
+            # Initialize dictionary to store compressed segments by file path
+            config._compressed_segments = {}
 
             # Apply compression to each annotated file
             for i, item in enumerate(items):
@@ -953,10 +1128,10 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                         # Store the compressed content in the item for rendering
                         item.content = compression_processor.apply_compression(item)
 
-                        # Store segments in config for the renderer to access
+                        # Store segments in config for the renderer to access, properly indexed by file path
                         # This is a workaround since we can't modify the WritableItem interface
                         # without more substantial refactoring
-                        config._compressed_segments = compressed_segments
+                        config._compressed_segments[item.file_path] = compressed_segments
 
                         # Log compression stats
                         original_lines = len(item.content.split("\n"))
@@ -965,31 +1140,116 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                             for s in compressed_segments
                             if s.segment_type == ContentSegmentType.CODE
                         )
+
+                        # Only print detailed file compression stats for large or high-compression-ratio files
+                        if original_lines > 15 or original_lines - compressed_lines > 5:
+                            # Format the file path to make it more readable
+                            rel_path = (
+                                item.file_path.split("codeconcat/")[-1]
+                                if "codeconcat/" in item.file_path
+                                else os.path.basename(item.file_path)
+                            )
+                            compression_percent = (1 - compressed_lines / original_lines) * 100
+
+                            # Use color indicators for compression ratio
+                            ratio_indicator = (
+                                "🟢"
+                                if compression_percent > 70
+                                else "🟡" if compression_percent > 40 else "🔴"
+                            )
+
+                            print(
+                                f"  {ratio_indicator} {rel_path}: {compressed_lines}/{original_lines} lines kept ({compression_percent:.1f}% reduction)"
+                            )
+
+                        # Calculate segment counts for statistics (commented out for now)
+                        # Uncomment if you need to track these metrics
+                        # code_segments = sum(
+                        #     1
+                        #     for s in compressed_segments
+                        #     if s.segment_type == ContentSegmentType.CODE
+                        # )
+                        # omitted_segments = sum(
+                        #     1
+                        #     for s in compressed_segments
+                        #     if s.segment_type == ContentSegmentType.OMITTED
+                        # )
+
                         logger.debug(
                             f"Compressed {item.file_path}: {compressed_lines} retained of {original_lines} lines"
                         )
 
+            # Calculate and display overall compression statistics
+            total_original_lines = 0
+            total_compressed_lines = 0
+            total_files_compressed = 0
+            high_compression_files = 0  # >70% reduction
+            medium_compression_files = 0  # 40-70% reduction
+            low_compression_files = 0  # <40% reduction
+
+            for item in items:
+                if isinstance(item, AnnotatedFileData) and hasattr(item, "_compression_stats"):
+                    total_files_compressed += 1
+                    stats = item._compression_stats
+                    total_original_lines += stats["original_lines"]
+                    total_compressed_lines += stats["compressed_lines"]
+
+                    compression_percent = (
+                        1 - stats["compressed_lines"] / stats["original_lines"]
+                    ) * 100
+                    if compression_percent > 70:
+                        high_compression_files += 1
+                    elif compression_percent > 40:
+                        medium_compression_files += 1
+                    else:
+                        low_compression_files += 1
+
+            if total_files_compressed > 0 and total_original_lines > 0:
+                overall_reduction = (1 - total_compressed_lines / total_original_lines) * 100
+
+                print("\n[Compression Summary]")
+                print(f"  Files compressed: {total_files_compressed}")
+                print(
+                    f"  Total lines: {total_original_lines:,} → {total_compressed_lines:,} ({overall_reduction:.1f}% reduction)"
+                )
+                print("  Compression breakdown:")
+                print(f"    🟢 High (>70%): {high_compression_files} files")
+                print(f"    🟡 Medium (40-70%): {medium_compression_files} files")
+                print(f"    🔴 Low (<40%): {low_compression_files} files")
+
             logger.info("[CodeConCat] Compression complete.")
 
+        # Make sure format is lowercase for consistent comparison
+        if hasattr(config, "format") and config.format:
+            config.format = config.format.lower()
+
+        print(f"\n[OutputFormat] Using: {config.format}")
         logger.info(f"[CodeConCat] Writing output in {config.format} format...")
+
         # Write output in requested format
         try:
             output = None
             if config.format == "markdown":
                 # Pass the combined & sorted items list
-                # Updated call signature
                 output = write_markdown(items, config, folder_tree_str)
+                print("Using markdown writer")
             elif config.format == "json":
                 # Pass the combined & sorted items list
                 output = write_json(items, config, folder_tree_str)
+                print("Using JSON writer")
             elif config.format == "xml":
                 # Pass the combined & sorted items list
-                # Corrected call signature
                 output = write_xml(items, config, folder_tree_str)
+                print("Using XML writer")
             elif config.format == "text":
                 # Pass the combined & sorted items list
-                # Corrected call to use the actual writer function
                 output = write_text(items, config, folder_tree_str)
+                print("Using text writer")
+            else:
+                # Default to markdown if format is unrecognized
+                logger.warning(f"Unrecognized format '{config.format}', defaulting to markdown")
+                config.format = "markdown"
+                output = write_markdown(items, config, folder_tree_str)
         except Exception as e:
             raise OutputError(f"Error generating {config.format} output: {str(e)}")
 
@@ -1011,11 +1271,16 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             print(f"  Davinci:  {total_davinci_uncompressed}")
 
             # If compression was enabled, also show compressed tokens for comparison
-            if config.enable_compression and hasattr(config, "_compressed_segments"):
+            if (
+                config.enable_compression
+                and hasattr(config, "_compressed_segments")
+                and config._compressed_segments
+            ):
                 total_gpt4_compressed = total_davinci_compressed = total_claude_compressed = 0
 
                 # Calculate compressed tokens by using the compressed segments
-                for file_segments in config._compressed_segments.values():
+                for file_path, file_segments in config._compressed_segments.items():
+                    # Concatenate the content of all segments in this file
                     compressed_content = "\n".join(segment.content for segment in file_segments)
                     stats = get_token_stats(compressed_content)
                     total_gpt4_compressed += stats.gpt4_tokens
