@@ -1,5 +1,7 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
+## [Unreleased]
+
 ## [0.7.1] - 2025-04-29
 
 ### Security
@@ -9,6 +11,11 @@
 ### Added
 - **Request Tracing:** Added request ID middleware for distributed tracing and correlation in API logs.
 - **Parser Documentation:** Added comprehensive documentation to README about parser types (legacy, enhanced, tree-sitter) and their testing structure.
+- **CLI Compression Support:** Added CLI arguments for the compression feature, making it accessible via command line:
+  - `--enable-compression`: Enable intelligent code compression to reduce output size
+  - `--compression-level`: Set compression intensity (low/medium/high/aggressive)
+  - `--compression-placeholder`: Customize placeholder text for omitted segments
+  - Advanced options like `--compression-keep-threshold` and `--compression-keep-tags`
 
 ### Changed
 - **Code Quality Improvements:**

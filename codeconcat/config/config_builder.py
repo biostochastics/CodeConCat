@@ -309,28 +309,72 @@ class ConfigBuilder:
         if not self._initialized:
             self.with_defaults()
 
-        # Store raw CLI values (only those that are not None)
-        self._cli_values = {k: v for k, v in cli_args.items() if v is not None}
+        # Map CLI argument names to config field names
+        # This handles cases where CLI args use different naming than config fields
+        # or where transformations need to be applied
+        cli_to_config_map = {
+            # Basic flag conversions
+            "disable_tree": "disable_tree",  # Direct mapping
+            "no_tree": "disable_tree",  # Map no_tree to disable_tree
+            "no_ai_context": "disable_ai_context",  # no_X maps to disable_X
+            "no_annotations": "disable_annotations",
+            "no_symbols": "disable_symbols",
+            "no_progress_bar": "disable_progress_bar",
+            # Output settings
+            "output": "output",
+            "format": "format",
+            # Compression settings
+            "enable_compression": "enable_compression",
+            "compression_level": "compression_level",
+            "compression_placeholder": "compression_placeholder",
+            "compression_keep_threshold": "compression_keep_threshold",
+            "compression_keep_tags": "compression_keep_tags",
+            # Other direct mappings
+            "preset": "preset",
+            "parser_engine": "parser_engine",
+            "sort_files": "sort_files",
+            "docs": "extract_docs",
+            "merge_docs": "merge_docs",
+            "remove_docstrings": "remove_docstrings",
+            "cross_link_symbols": "cross_link_symbols",
+            "max_workers": "max_workers",
+            "split_output": "split_output",
+        }
 
-        # Handle compatibility with old flag names
-        if "parser_engine" in self._cli_values:
-            parser_engine = self._cli_values.pop("parser_engine")
-            # Convert new parser_engine to old disable_tree flag for backward compatibility
-            self._cli_values["disable_tree"] = parser_engine != "tree_sitter"
+        # Prepare processed CLI values
+        processed_cli_values = {}
 
-        # Apply CLI args, overriding all previous settings
-        for key, value in self._cli_values.items():
-            # Skip None values, indicating option not provided
-            if value is None:
+        # Process each CLI argument that has a value (not None)
+        for cli_key, cli_value in cli_args.items():
+            if cli_value is None:
                 continue
 
-            # Check if key exists in the model fields (defensive)
-            # This might need adjusting based on how CLI args are structured
+            # Check if this CLI argument maps to a config field
+            config_key = cli_to_config_map.get(cli_key)
+
+            if config_key:
+                # Store in processed values with the correct config field name
+                processed_cli_values[config_key] = cli_value
+            elif cli_key in CodeConCatConfig.model_fields:
+                # If CLI key is already a valid config field (direct match)
+                processed_cli_values[cli_key] = cli_value
+
+        # Store processed values for use in debugging
+        self._cli_values = processed_cli_values
+
+        # Apply compatibility fixes and special handling
+        if "parser_engine" in processed_cli_values:
+            parser_engine = processed_cli_values.pop("parser_engine")
+            # Convert new parser_engine to old disable_tree flag for backward compatibility
+            processed_cli_values["disable_tree"] = parser_engine != "tree_sitter"
+
+        # Apply CLI args, overriding all previous settings
+        for key, value in processed_cli_values.items():
             if key in CodeConCatConfig.model_fields:
                 self._config_dict[key] = value
                 self._sources[key] = ConfigSource.CLI
 
-        logger.debug(f"Applied CLI overrides: {self._cli_values}")
+        logger.debug(f"Applied CLI overrides: {processed_cli_values}")
         return self
 
     def _finalize_paths(self) -> None:

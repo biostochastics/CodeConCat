@@ -45,6 +45,46 @@ def write_xml(
     # Single loop processing all items polymorphically
     for item in items_to_process:
         item_element = item.render_xml_element(config)
+
+        # Add compression information if available
+        if (
+            config.enable_compression
+            and hasattr(config, "_compressed_segments")
+            and hasattr(item, "file_path")
+        ):
+            # Find segments related to this file
+            file_segments = [s for s in config._compressed_segments if hasattr(item, "file_path")]
+            if file_segments:
+                # Add compression attribute
+                item_element.set("compression_applied", "true")
+
+                # Create segments container
+                segments_element = ET.SubElement(item_element, "content_segments")
+
+                # Add each segment
+                for segment in file_segments:
+                    seg_element = ET.SubElement(
+                        segments_element,
+                        "segment",
+                        {
+                            "type": segment.segment_type.value,
+                            "start_line": str(segment.start_line),
+                            "end_line": str(segment.end_line),
+                        },
+                    )
+
+                    # Add content as CDATA to preserve formatting
+                    content_element = ET.SubElement(seg_element, "content")
+                    content_element.text = f"<![CDATA[{segment.content}]]>"
+
+                    # Add metadata if present
+                    if segment.metadata:
+                        metadata_element = ET.SubElement(seg_element, "metadata")
+                        for key, value in segment.metadata.items():
+                            if isinstance(value, (str, int, float, bool)):
+                                meta_item = ET.SubElement(metadata_element, "item", {"key": key})
+                                meta_item.text = str(value)
+
         # Append the generated element (either <file> or <doc>) directly
         files_section.append(item_element)
 
