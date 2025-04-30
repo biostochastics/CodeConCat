@@ -35,6 +35,14 @@ include_paths:
   - "**/*.rst"   # reStructuredText documentation
   - "README*"    # Always include README files
   - "LICENSE*"   # Always include license files
+  
+  # Configuration files - these are treated as configuration content
+  - "**/*.yml"   # YAML configuration
+  - "**/*.yaml"  # YAML configuration
+  - "**/*.toml"  # TOML configuration
+  - "**/*.ini"   # INI configuration
+  - "**/*.cfg"   # CFG configuration
+  - "**/*.conf"  # CONF configuration
 
 # Commonly excluded directories and files
 exclude_paths:

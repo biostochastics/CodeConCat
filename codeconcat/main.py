@@ -699,6 +699,17 @@ def cli_entry_point():
             print(f"[Direct Override] Setting format from CLI: {cli_args['format']}")
             config.format = cli_args["format"].lower()
 
+        # Fix: Ensure compression flags are directly applied from CLI to config
+        if "enable_compression" in cli_args and cli_args["enable_compression"]:
+            print("[Direct Override] Enabling compression from CLI")
+            config.enable_compression = True
+
+        if "compression_level" in cli_args and cli_args["compression_level"]:
+            print(
+                f"[Direct Override] Setting compression level from CLI: {cli_args['compression_level']}"
+            )
+            config.compression_level = cli_args["compression_level"]
+
         # Verify that key settings are correctly applied
         if args.verbose > 0:
             print("\n[CONFIG VALUES]")

@@ -57,6 +57,8 @@ REGEX_PARSER_MAP = {
     "rust": "RustParser",
     "r": "RParser",
     "julia": "JuliaParser",
+    "config": "TomlParser",
+    "toml": "TomlParser",
     # Enhanced parsers (preferred regex-based parsers)
     "python_enhanced": "EnhancedPythonParser",
     "csharp_enhanced": "EnhancedCSharpParser",
