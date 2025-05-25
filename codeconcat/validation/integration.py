@@ -52,9 +52,9 @@ def validate_input_files(files_to_process: List[ParsedFileData], config: CodeCon
                 continue
                 
             # 1. Basic path validation
-            logger_int.debug(f"[validate_input_files] config.target_path: {config.target_path}")
+            logger_int.debug(f"[validate_input_files] Processing file: {Path(file_path).name}")
             validation_base_dir = Path(config.target_path).resolve() if config.target_path else None
-            logger_int.debug(f"[validate_input_files] validation_base_dir for '{file_path}': {validation_base_dir}")
+            logger_int.debug(f"[validate_input_files] Using validation base directory")
             IV.validate_file_path(file_path, base_dir=validation_base_dir)
             
             # 2. File size validation
@@ -188,10 +188,10 @@ def setup_semgrep(config: CodeConCatConfig) -> bool:
     # Install Semgrep if requested
     if config.install_semgrep:
         logger.info("Installing Semgrep...")
-        if install_semgrep():
-            import shutil
+        try:
+            semgrep_path = install_semgrep()
             # Refresh the validator's semgrep path
-            semgrep_validator.semgrep_path = shutil.which("semgrep")
+            semgrep_validator.semgrep_path = semgrep_path
             
             # Install the Apiiro ruleset if no custom ruleset is specified
             if not config.semgrep_ruleset:
@@ -200,15 +200,16 @@ def setup_semgrep(config: CodeConCatConfig) -> bool:
                     semgrep_validator.ruleset_path = ruleset_path
                     logger.info(f"Installed Apiiro ruleset to {ruleset_path}")
                 except ValidationError as e:
-                    logger.warning(f"Failed to install Apiiro ruleset: {e}")
+                    logger.error(f"Failed to install Apiiro ruleset: {e}")
+                    raise ConfigurationError(f"Security ruleset installation failed: {e}") from e
             else:
                 # Use the custom ruleset
                 semgrep_validator.ruleset_path = config.semgrep_ruleset
                 logger.info(f"Using custom Semgrep ruleset: {config.semgrep_ruleset}")
                 
             return True
-        else:
-            logger.warning("Failed to install Semgrep. Security scanning will be limited.")
+        except ValidationError as e:
+            logger.warning(f"Failed to install Semgrep: {e}. Security scanning will be limited.")
             return False
     
     # Semgrep not available and not requested to be installed

@@ -553,7 +553,7 @@ class XmlRenderAdapter:
 
             # Also include the combined content
             content_elem = ET.SubElement(file_element, "content")
-            content_elem.text = "\n".join(s.content for s in config._compressed_segments)
+            content_elem.text = "\n".join(s.content for s in file_segments)
         else:
             # Add the file content without compression
             file_element.set("compression_applied", "false")
