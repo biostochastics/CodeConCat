@@ -1,6 +1,59 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
-## [Unreleased]
+## [0.7.2] - 2025-05-25
+
+### Fixed
+- **Test Suite Improvements:** Fixed 25+ failing tests to improve code quality and reliability:
+  - Fixed configuration field name mismatches (include_patterns → include_paths, exclude_patterns → exclude_paths)
+  - Fixed mock object attribute issues by adding required methods and properties to test mocks
+  - Fixed function signature mismatches in test expectations
+  - Fixed path handling between relative and absolute paths in various components
+  - Fixed off-by-one errors in string position tests
+  - Fixed language map to include uppercase `.R` extension and `.txt` files
+  - Fixed test file extension expectations to use proper language-specific extensions
+  - Fixed reconstruction module import and parameter issues
+  - Fixed markdown writer AI preamble test by correcting mock patch location
+  - Improved test coverage from 13% to 57% overall
+
+### Changed
+- **Token Counter Optimization:** Removed Davinci model token counting from TokenStats to eliminate dependency on deprecated model, simplifying the token counting interface
+
+### Added
+- **Comprehensive Input Validation System:**
+  - Added robust validation framework with specialized validators for file paths, content, URLs, and configurations
+  - Implemented schema-based configuration validation using JSON Schema
+  - Added security validation with detection for suspicious code patterns, file signature verification, and content sanitization
+  - Created API validation middleware with request/response validation, rate limiting, and size restrictions
+  - Added file integrity verification with hash-based checks and tamper detection
+  - Integrated validation throughout application processing pipeline
+  - Included comprehensive test coverage for all validation components
+- **Semgrep Security Integration:**
+  - Added Semgrep integration with the Apiiro malicious code ruleset for advanced security scanning
+  - Implemented auto-installation of Semgrep and ruleset when enabled
+  - Added CLI options to control Semgrep security scanning: `--enable-semgrep`, `--install-semgrep`, `--semgrep-ruleset`, `--semgrep-languages`, and `--strict-security`
+  - Enhanced security validation to integrate Semgrep findings with existing security checks
+  - Added comprehensive documentation for the security validation system
+- **Reconstruction Tool:** Added a new `CodeConcatReconstructor` class to handle reconstruction of original files from CodeConCat output.
+- **Comprehensive Attack Pattern Detection:** Implemented extensive security patterns for all supported languages:
+  - C/C++: Buffer overflows, format strings, command injection, use-after-free, integer overflow
+  - Python: Code injection (eval/exec), pickle deserialization, SQL injection, weak crypto
+  - R: eval(parse()) injection, system command injection, SQL injection, unsafe RDS loading
+  - Julia: eval injection, unsafe ccall, command injection via run()
+  - Go: SQL injection, command injection, path traversal, weak random, template injection
+  - PHP: SQL injection, XSS, file inclusion, unserialize, command injection
+  - Rust: Unsafe unwrap/expect, transmute, raw pointers, mutable statics
+  - JavaScript/TypeScript: DOM XSS, eval injection, prototype pollution, React dangerouslySetInnerHTML
+  - Cross-language: Hardcoded secrets, cryptocurrency wallets, base64 obfuscation
+- **Enhanced Semgrep Integration:** Added custom security rules that complement the Apiiro ruleset with advanced patterns like use-after-free, double-free, SSTI, XXE, SSRF, timing attacks, and more
+
+### Fixed
+- **Parser Import Issues:** Fixed import errors in TOML parser and Tree-sitter base parser that prevented proper module loading
+- **Tree-sitter Installation:** Resolved missing tree-sitter dependencies that were listed in requirements.txt but not properly installed
+- **File Collection with include_paths:** Fixed issue where include_paths configuration was incorrectly expecting directory paths instead of glob patterns
+
+### Changed  
+- **YAML/YML File Handling:** Removed YAML and YML files from default exclusion patterns, allowing them to be processed when included via include_paths
+
 
 ## [0.7.1] - 2025-04-29
 

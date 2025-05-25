@@ -9,7 +9,13 @@ compression token comparison features.
 """
 
 import pytest
-from codeconcat.processor.token_counter import get_token_stats, count_tokens
+from unittest.mock import patch, MagicMock, call
+from codeconcat.processor.token_counter import (
+    get_token_stats, 
+    count_tokens,
+    get_encoder,
+    _ENCODER_CACHE
+)
 from codeconcat.base_types import TokenStats
 
 
@@ -123,6 +129,93 @@ def example():
         assert stats.gpt4_tokens > 30
         assert stats.davinci_tokens > 30
         assert stats.claude_tokens > 30
+
+
+class TestGetEncoder:
+    """Test suite for get_encoder function."""
+
+    @patch('codeconcat.processor.token_counter.tiktoken.encoding_for_model')
+    def test_get_encoder_creates_new(self, mock_encoding_for_model):
+        """Test creating a new encoder for a model."""
+        # Clear cache first
+        _ENCODER_CACHE.clear()
+        
+        # Mock encoder
+        mock_encoder = MagicMock()
+        mock_encoding_for_model.return_value = mock_encoder
+        
+        # Get encoder
+        encoder = get_encoder("gpt-3.5-turbo")
+        
+        assert encoder == mock_encoder
+        assert "gpt-3.5-turbo" in _ENCODER_CACHE
+        assert _ENCODER_CACHE["gpt-3.5-turbo"] == mock_encoder
+        mock_encoding_for_model.assert_called_once_with("gpt-3.5-turbo")
+
+    @patch('codeconcat.processor.token_counter.tiktoken.encoding_for_model')
+    def test_get_encoder_uses_cache(self, mock_encoding_for_model):
+        """Test using cached encoder for a model."""
+        # Clear cache and add a cached encoder
+        _ENCODER_CACHE.clear()
+        cached_encoder = MagicMock()
+        _ENCODER_CACHE["gpt-3.5-turbo"] = cached_encoder
+        
+        # Get encoder (should use cache)
+        encoder = get_encoder("gpt-3.5-turbo")
+        
+        assert encoder == cached_encoder
+        mock_encoding_for_model.assert_not_called()
+
+
+class TestMockedCountTokens:
+    """Test suite for count_tokens function with mocks."""
+
+    @patch('codeconcat.processor.token_counter.get_encoder')
+    def test_count_tokens_mocked(self, mock_get_encoder):
+        """Test basic token counting with mocks."""
+        # Mock encoder
+        mock_encoder = MagicMock()
+        mock_encoder.encode.return_value = [1, 2, 3, 4, 5]  # 5 tokens
+        mock_get_encoder.return_value = mock_encoder
+        
+        # Count tokens
+        count = count_tokens("Hello world", "gpt-3.5-turbo")
+        
+        assert count == 5
+        mock_get_encoder.assert_called_once_with("gpt-3.5-turbo")
+        mock_encoder.encode.assert_called_once_with("Hello world")
+
+
+class TestMockedGetTokenStats:
+    """Test suite for get_token_stats function with mocks."""
+
+    @patch('codeconcat.processor.token_counter._CLAUDE_TOKENIZER')
+    @patch('codeconcat.processor.token_counter.count_tokens')
+    def test_get_token_stats_mocked(self, mock_count_tokens, mock_claude_tokenizer):
+        """Test getting token statistics with mocks."""
+        # Mock token counts
+        mock_count_tokens.side_effect = [10, 12, 8]  # GPT-3.5, GPT-4, Davinci
+        mock_claude_tokenizer.encode.return_value = [1] * 15  # 15 tokens for Claude
+        
+        # Get token stats
+        text = "This is a test text"
+        stats = get_token_stats(text)
+        
+        # Verify stats
+        assert isinstance(stats, TokenStats)
+        assert stats.gpt3_tokens == 10
+        assert stats.gpt4_tokens == 12
+        assert stats.davinci_tokens == 8
+        assert stats.claude_tokens == 15
+        
+        # Verify calls
+        expected_calls = [
+            call(text, "gpt-3.5-turbo"),
+            call(text, "gpt-4"),
+            call(text, "text-davinci-003")
+        ]
+        mock_count_tokens.assert_has_calls(expected_calls)
+        mock_claude_tokenizer.encode.assert_called_once_with(text)
 
 
 if __name__ == "__main__":

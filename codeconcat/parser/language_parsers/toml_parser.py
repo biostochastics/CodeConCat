@@ -4,7 +4,7 @@ import tomli
 from typing import List
 
 from codeconcat.base_types import ParsedFileData, Declaration, ParseResult
-from codeconcat.parser.base_parser import BaseParser
+from .base_parser import BaseParser
 
 
 class TomlParser(BaseParser):

@@ -155,7 +155,6 @@ class TokenStats:
 
     gpt3_tokens: int
     gpt4_tokens: int
-    davinci_tokens: int
     claude_tokens: int
 
 
@@ -413,11 +412,11 @@ class CodeConCatConfig(BaseModel):
     )
     include_languages: List[str] = Field(default_factory=list)
     exclude_languages: List[str] = Field(default_factory=list)
-    include_paths: Optional[List[str]] = Field(
-        None, description="Patterns for files/directories to include."
+    include_paths: List[str] = Field(
+        default_factory=list, description="Patterns for files/directories to include."
     )
-    exclude_paths: Optional[List[str]] = Field(
-        None, description="Patterns for files/directories to exclude."
+    exclude_paths: List[str] = Field(
+        default_factory=list, description="Patterns for files/directories to exclude."
     )
     use_gitignore: bool = Field(
         True, description="Whether to respect rules found in .gitignore files."
@@ -459,7 +458,29 @@ class CodeConCatConfig(BaseModel):
     )  # Regex for findings content to ignore
     security_custom_patterns: List[CustomSecurityPattern] = Field(
         default_factory=list
-    )  # User-defined rules
+    )
+    
+    # Semgrep integration options
+    enable_semgrep: bool = Field(
+        False, 
+        description="Enable semgrep security scanning using the Apiiro malicious code ruleset"
+    )
+    semgrep_ruleset: Optional[str] = Field(
+        None,
+        description="Path to custom semgrep ruleset (defaults to Apiiro ruleset)"
+    )
+    semgrep_languages: Optional[List[str]] = Field(
+        None,
+        description="List of languages to scan with semgrep (defaults to all detected languages)"
+    )
+    install_semgrep: bool = Field(
+        False,
+        description="Install semgrep and the Apiiro ruleset if not already installed"
+    )
+    strict_security: bool = Field(
+        False,
+        description="Fail validation when suspicious content is detected"
+    )  # Fail validation when suspicious content is detected
     # External Semgrep Scanning
     enable_external_semgrep: bool = Field(
         True, description="Whether to enable external security scanning using Semgrep."

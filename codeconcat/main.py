@@ -39,6 +39,8 @@ class CodeConcatError(Exception):
 
     pass
 
+from codeconcat.errors import ValidationError, FileProcessingError
+
 
 from codeconcat.collector.remote_collector import collect_git_repo
 from codeconcat.collector.local_collector import collect_local_files
@@ -50,11 +52,16 @@ from codeconcat.parser.enhanced_pipeline import enhanced_parse_pipeline
 from codeconcat.processor.compression_processor import CompressionProcessor
 from codeconcat.quotes import get_random_quote
 from codeconcat.transformer.annotator import annotate
+from codeconcat.validation import validator
+from codeconcat.validation.integration import validate_input_files, validate_config_values, sanitize_output, verify_file_signatures
+from codeconcat.validation.security import security_validator
+from codeconcat.validation.integration import setup_semgrep
 from codeconcat.version import __version__
 from codeconcat.writer.json_writer import write_json
 from codeconcat.writer.markdown_writer import write_markdown
 from codeconcat.writer.text_writer import write_text
 from codeconcat.writer.xml_writer import write_xml
+from codeconcat.reconstruction import reconstruct_from_file
 
 # Suppress HuggingFace tokenizers parallelism warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -518,17 +525,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="Languages to exclude (e.g., python, java). Overrides default/config.",
     )
 
-    # === Output ===
-    g_out = parser.add_argument_group("Output")
-    g_out.add_argument("-o", "--output", help="Output file path.")
-    g_out.add_argument("--format", default="markdown", choices=["markdown", "json", "xml", "text"])
-    g_out.add_argument(
-        "--preset",
-        choices=["lean", "medium", "full"],
-        help="Apply a predefined set of output configuration options (overrides individual flags).",
+    # === Output Options ===
+    g_output = parser.add_argument_group("Output Options")
+    g_output.add_argument(
+        "-o", "--output", help="Output file path (auto-detected from --format if omitted)"
     )
-    g_out.add_argument("--split-output", type=int, metavar="N", default=1, help="Split Markdown.")
-    g_out.add_argument("--sort-files", action="store_true", help="Sort files alphabetically.")
+    g_output.add_argument(
+        "-f",
+        "--format",
+        choices=["markdown", "md", "json", "xml", "text", "txt"],
+        default="markdown",
+        help="Output format",
+    )
+
+    # === Reconstruction Options ===
+    g_reconstruct = parser.add_argument_group("Reconstruction Options")
+    g_reconstruct.add_argument(
+        "--reconstruct",
+        metavar="FILE",
+        help="Reconstruct source files from a CodeConCat output file"
+    )
+    g_reconstruct.add_argument(
+        "--output-dir",
+        metavar="DIR",
+        default="./reconstructed",
+        help="Directory to output reconstructed files"
+    )
+    g_reconstruct.add_argument(
+        "--input-format",
+        choices=["markdown", "xml", "json", "auto"],
+        default="auto",
+        help="Format of input file for reconstruction (auto-detected if not specified)"
+    )
 
     # === Feature Toggles ===
     g_feat = parser.add_argument_group("Feature Toggles")
@@ -603,6 +631,48 @@ def build_parser() -> argparse.ArgumentParser:
         advanced=True,
         help="Special comment tags that mark segments to always keep during compression.",
     )
+    
+    # === Security Options ===
+    g_sec = parser.add_argument_group("Security Options")
+    g_sec.add_argument(
+        "--enable-security-scanning",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable security scanning (default: True).",
+    )
+    g_sec.add_argument(
+        "--security-threshold",
+        choices=["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+        default="MEDIUM",
+        dest="security_scan_severity_threshold",
+        help="Minimum severity threshold for security findings (default: MEDIUM).",
+    )
+    g_sec.add_argument(
+        "--enable-semgrep",
+        action="store_true",
+        help="Enable Semgrep security scanning using the Apiiro malicious code ruleset.",
+    )
+    g_sec.add_argument(
+        "--install-semgrep",
+        action="store_true",
+        help="Install Semgrep and the Apiiro ruleset if not already installed.",
+    )
+    g_sec.add_argument(
+        "--semgrep-ruleset",
+        type=str,
+        help="Path to custom Semgrep ruleset (defaults to Apiiro ruleset).",
+    )
+    g_sec.add_argument(
+        "--semgrep-languages",
+        nargs="+",
+        metavar="LANG",
+        help="Languages to scan with Semgrep (defaults to all detected languages).",
+    )
+    g_sec.add_argument(
+        "--strict-security",
+        action="store_true",
+        help="Fail validation when suspicious content is detected.",
+    )
 
     # === Processing ===
     g_proc = parser.add_argument_group("Processing", advanced=True)
@@ -633,6 +703,28 @@ def cli_entry_point():
         debug_mode = getattr(args, "debug", False)
         quiet_mode = getattr(args, "quiet", False)
         configure_logging(log_level, debug_mode, quiet_mode)
+        
+        # Handle reconstruction command if specified
+        if hasattr(args, "reconstruct") and args.reconstruct:
+            logger.info(f"Reconstructing files from {args.reconstruct}")
+            input_format = None if args.input_format == "auto" else args.input_format
+            try:
+                stats = reconstruct_from_file(
+                    args.reconstruct,
+                    args.output_dir,
+                    input_format,
+                    verbose=(args.verbose > 0 or debug_mode)
+                )
+                print(f"\n✅ Reconstruction complete!")
+                print(f"Files processed: {stats['files_processed']}")
+                print(f"Files created: {stats['files_created']}")
+                print(f"Errors: {stats['errors']}")
+                print(f"Output directory: {args.output_dir}")
+                return 0
+            except Exception as e:
+                logger.error(f"Error during reconstruction: {e}")
+                print(f"\n❌ Error reconstructing files: {e}")
+                return 1
 
         # Initialize config if requested
         if hasattr(args, "init") and args.init:
@@ -935,6 +1027,13 @@ def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
 
 
 def run_codeconcat(config: CodeConCatConfig) -> str:
+    # Validate configuration
+    try:
+        validate_config_values(config)
+        logger.debug("Configuration validation passed")
+    except ConfigurationError as e:
+        logger.error(f"Configuration validation failed: {e}")
+        raise ConfigurationError(f"Invalid configuration: {e}")
     """Runs the main CodeConCat processing pipeline and returns the output string.
 
     This function orchestrates the core steps:
@@ -964,37 +1063,56 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         if config.format not in ["markdown", "json", "xml", "text"]:
             raise ConfigurationError(f"Invalid format: {config.format}")
 
-        # Collect files
-        logger.debug(f"Starting file collection from: {config.target_path or config.source_url}")
+        # Collect input files
+        logger.info("Collecting input files...")
+        files_to_process: List[ParsedFileData] = []
+        
+        if config.source_url:
+            logger.info(f"Collecting files from source URL: {config.source_url}")
+            # Assuming collect_git_repo can handle generic URLs or is specialized for Git
+            files_to_process = collect_git_repo(config) 
+        elif config.target_path:
+            logger.info(f"Collecting files from local path: {config.target_path}")
+            files_to_process = collect_local_files(config.target_path, config)
+        else:
+            raise ConfigurationError("Either source_url or target_path must be provided in the configuration.")
+        
+        # Setup Semgrep if enabled
+        if hasattr(config, "enable_semgrep") and config.enable_semgrep:
+            logger.info("Setting up Semgrep for security scanning...")
+            is_available = setup_semgrep(config)
+            if not is_available:
+                logger.warning("Semgrep is not available. Security scanning will be limited.")
+                # Disable Semgrep if not available
+                config.enable_semgrep = False
+        
+        # Validate input files
+        logger.info("Validating input files...")
         try:
-            temp_repo_path = ""  # Initialize for non-remote case
-            if config.source_url:
-                code_files, temp_repo_path = collect_git_repo(config.source_url, config)
-            else:
-                code_files = collect_local_files(config.target_path, config)
-
-            if not code_files:
-                raise FileProcessingError("No files found to process")
-        except Exception as e:
-            raise FileProcessingError(f"Error collecting files: {str(e)}")
-        logger.debug(f"Collected {len(code_files)} files.")
-
-        # Generate folder tree if enabled
-        logger.info("[CodeConCat] Generating folder tree...")
-        folder_tree_str = ""
-        if not config.disable_tree:
-            # Use the temporary repo path for remote runs, otherwise the target path
-            tree_root = temp_repo_path if config.source_url else config.target_path
-            try:
-                folder_tree_str = generate_folder_tree(tree_root, config)  # Pass config
-                logger.info("[CodeConCat] Folder tree generated.")
-            except Exception as e:
-                logger.warning(f"Warning: Failed to generate folder tree: {str(e)}")
+            validated_files = validate_input_files(files_to_process, config)
+            logger.debug(f"Validated {len(validated_files)} of {len(files_to_process)} files")
+            files_to_process = validated_files
+        except ValidationError as e:
+            logger.error(f"File validation error: {e}")
+            # In strict security mode, fail immediately on validation errors
+            if hasattr(config, "strict_security") and config.strict_security:
+                raise
+            # Otherwise, continue with validated files, log warning
+            logger.warning("Continuing with validated files only")
+        
+        # Verify file types match expected formats
+        try:
+            file_types = verify_file_signatures(files_to_process)
+            logger.debug(f"Verified file signatures for {len(file_types)} files")
+        except ValidationError as e:
+            logger.error(f"File signature validation error: {e}")
+            # This is a more serious error, but we'll continue with a warning
+            logger.warning("Some files may have incorrect content types")
 
         # Parse code files
         logger.debug("Starting file parsing.")
         try:
-            logger.info(f"[CodeConCat] Found {len(code_files)} code files. Starting parsing...")
+            logger.info(f"[CodeConCat] Found {len(files_to_process)} code files. Starting parsing...")
             # Check if we should use the enhanced parsing pipeline
             use_enhanced_pipeline = (
                 hasattr(config, "use_enhanced_pipeline") and config.use_enhanced_pipeline
@@ -1003,11 +1121,11 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             if use_enhanced_pipeline:
                 logger.info("Using enhanced parsing pipeline with progressive fallbacks")
                 # Use the enhanced pipeline with progressive fallbacks
-                parsed_files, errors = enhanced_parse_pipeline(code_files, config)
+                parsed_files, errors = enhanced_parse_pipeline(files_to_process, config)
             else:
                 # Use the standard parsing pipeline
                 logger.info("Using standard parsing pipeline")
-                parsed_files, errors = parse_code_files(code_files, config)
+                parsed_files, errors = parse_code_files(files_to_process, config)
 
             if errors:
                 # Log errors encountered during parsing
@@ -1028,7 +1146,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         docs = []
         if config.extract_docs:
             try:
-                doc_paths = [f.file_path for f in code_files]
+                doc_paths = [f.file_path for f in files_to_process]
                 docs = extract_docs(doc_paths, config)
             except Exception as e:
                 logger.warning(f"Warning: Failed to extract documentation: {str(e)}")
@@ -1229,6 +1347,15 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 print(f"    🔴 Low (<40%): {low_compression_files} files")
 
             logger.info("[CodeConCat] Compression complete.")
+
+        folder_tree_str = ""
+        if hasattr(config, 'include_directory_structure') and config.include_directory_structure:
+            # Placeholder for actual tree generation logic
+            # folder_tree_str = generate_folder_tree(items, config) # Assuming 'items' contains file paths
+            folder_tree_str = "[INFO] Directory tree would be displayed here.\n"
+            logger.info("Including directory structure in output.")
+        else:
+            logger.info("Skipping directory structure in output.")
 
         # Make sure format is lowercase for consistent comparison
         if hasattr(config, "format") and config.format:

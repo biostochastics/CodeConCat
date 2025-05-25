@@ -1,10 +1,43 @@
 # Define custom exceptions for CodeConCat
 
+from typing import Any
+
 
 class CodeConcatError(Exception):
     """Base class for CodeConCat errors."""
-
     pass
+
+
+class ValidationError(CodeConcatError):
+    """Raised when input validation fails.
+    
+    This error is raised when input data fails validation checks, such as invalid
+    file paths, unsupported file types, or malformed configurations.
+    
+    Attributes:
+        message: Explanation of the validation error
+        field: The name of the field that failed validation (optional)
+        value: The invalid value that caused the error (optional)
+        original_exception: The original exception that caused this error (optional)
+    """
+    
+    def __init__(self, message: str, field: str = None, value: Any = None, 
+                 original_exception: Exception = None):
+        self.message = message
+        self.field = field
+        self.value = value
+        self.original_exception = original_exception
+        super().__init__(message)
+    
+    def __str__(self) -> str:
+        parts = [self.message]
+        if self.field:
+            parts.append(f"Field: {self.field}")
+        if self.value is not None:
+            parts.append(f"Value: {self.value!r}")
+        if self.original_exception:
+            parts.append(f"Original error: {str(self.original_exception)}")
+        return " | ".join(parts)
 
 
 class ConfigurationError(CodeConcatError):
