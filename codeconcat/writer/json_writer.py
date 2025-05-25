@@ -41,9 +41,7 @@ def write_json(
                 and hasattr(item, "file_path")
             ):
                 # Find segments related to this file
-                file_segments = [
-                    s for s in config._compressed_segments if hasattr(item, "file_path")
-                ]
+                file_segments = config._compressed_segments.get(item.file_path, []) if hasattr(config, "_compressed_segments") else []
                 if file_segments:
                     # Add segments to the item
                     item_dict["content_segments"] = [

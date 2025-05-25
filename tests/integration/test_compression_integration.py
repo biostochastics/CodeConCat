@@ -97,7 +97,8 @@ class TestCompressionIntegration(unittest.TestCase):
         compression_processor = CompressionProcessor(self.config)
         compressed_segments = compression_processor.process_file(self.file_data)
         self.file_data.content = compression_processor.apply_compression(self.file_data)
-        self.config._compressed_segments = compressed_segments
+        # Store segments as a dictionary with file path as key
+        self.config._compressed_segments = {self.file_data.file_path: compressed_segments}
 
         # Generate Markdown output
         output_file = os.path.join(self.output_dir, "output.md")
@@ -132,7 +133,8 @@ class TestCompressionIntegration(unittest.TestCase):
         compression_processor = CompressionProcessor(self.config)
         compressed_segments = compression_processor.process_file(self.file_data)
         self.file_data.content = compression_processor.apply_compression(self.file_data)
-        self.config._compressed_segments = compressed_segments
+        # Store segments as a dictionary with file path as key
+        self.config._compressed_segments = {self.file_data.file_path: compressed_segments}
 
         # Generate JSON output
         output_file = os.path.join(self.output_dir, "output.json")
@@ -174,8 +176,8 @@ class TestCompressionIntegration(unittest.TestCase):
             code_content = "\n".join(s.get("content", "") for s in code_segments)
             self.assertIn("critical_function", code_content)
 
-            # Check metadata for OMITTED segments
-            omitted_segments = [s for s in segments if s.get("type") == "OMITTED"]
+            # Check metadata for OMITTED segments (lowercase, as per ContentSegmentType.OMITTED.value)
+            omitted_segments = [s for s in segments if s.get("type") == "omitted"]
             for segment in omitted_segments:
                 self.assertIn("metadata", segment)
                 self.assertIn("lines", segment["metadata"])
@@ -186,7 +188,8 @@ class TestCompressionIntegration(unittest.TestCase):
         compression_processor = CompressionProcessor(self.config)
         compressed_segments = compression_processor.process_file(self.file_data)
         self.file_data.content = compression_processor.apply_compression(self.file_data)
-        self.config._compressed_segments = compressed_segments
+        # Store segments as a dictionary with file path as key
+        self.config._compressed_segments = {self.file_data.file_path: compressed_segments}
 
         # Generate XML output
         output_file = os.path.join(self.output_dir, "output.xml")
@@ -223,7 +226,8 @@ class TestCompressionIntegration(unittest.TestCase):
         compression_processor = CompressionProcessor(self.config)
         compressed_segments = compression_processor.process_file(self.file_data)
         self.file_data.content = compression_processor.apply_compression(self.file_data)
-        self.config._compressed_segments = compressed_segments
+        # Store segments as a dictionary with file path as key
+        self.config._compressed_segments = {self.file_data.file_path: compressed_segments}
 
         # Generate text output
         output_file = os.path.join(self.output_dir, "output.txt")

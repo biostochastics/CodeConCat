@@ -70,6 +70,7 @@ pip install -e ".[all]"
 - **Token Counting**: Accurate GPT-4 token counting for all processed content
 - **Progress Tracking**: Real-time progress indication during processing (multi-stage progress bars for file collection, parsing, annotation, doc extraction, output writing; toggle with `--no-progress-bar`)
 - **Comprehensive Code Analysis**: Functions, classes, structs, and symbols are listed in the Markdown output under each file's analysis section for full visibility.
+- **File Reconstruction**: Reconstruct original source files from any CodeConCat output format (markdown, XML, JSON) using the `--reconstruct` command.
 - **Advanced Language Support**: Dual-parser system with both regex-based and Tree-sitter parsers (select with `--parser-engine={tree_sitter,regex}`):
   - **Tree-sitter Parsers**: High-accuracy parsing for 10 major languages with modern language feature support:
     - Python (type hints, async functions, dataclasses)
@@ -558,10 +559,15 @@ CodeConCat provides multiple ways to control which files are processed:
    include_paths:
      - "**/*.{py,js,ts}"
      - "**/README*"
+     - "**/*.yml"  # YAML files are no longer excluded by default
    exclude_paths:
      - "**/tests/**"
      - "**/build/**"
    ```
+   
+   **Note:** The `include_paths` option uses glob patterns, not directory paths. For example:
+   - ✅ Correct: `"**/*.py"` (matches all Python files)
+   - ❌ Incorrect: `"/path/to/directory"` (this won't match files)
 
 3. **Command Line**
    ```bash
@@ -573,6 +579,73 @@ Priority order for file filtering:
 2. Command line arguments
 3. Configuration file
 4. Default settings
+
+## Security Scanning
+
+CodeConCat includes built-in security scanning capabilities to help identify potential security issues in your codebase:
+
+### Basic Security Scanning
+
+Basic security scanning is enabled by default and detects common patterns like:
+- Hardcoded credentials (API keys, passwords, tokens)
+- SQL injection vulnerabilities
+- Command injection risks
+- Path traversal vulnerabilities
+
+```bash
+# Enable security scanning (enabled by default)
+codeconcat --enable-security-scanning
+
+# Strict mode - fails processing if security issues are found
+codeconcat --enable-security-scanning --strict-security
+```
+
+### Advanced Semgrep Integration
+
+For more comprehensive security analysis, CodeConCat integrates with Semgrep and the Apiiro malicious code ruleset:
+
+```bash
+# Enable Semgrep security scanning with auto-installation
+codeconcat --enable-semgrep --install-semgrep
+
+# Use with strict mode to fail on any findings
+codeconcat --enable-semgrep --strict-security
+
+# Specify languages for Semgrep scanning
+codeconcat --enable-semgrep --semgrep-languages python,javascript
+
+# Use custom ruleset directory
+codeconcat --enable-semgrep --semgrep-ruleset /path/to/custom/rules
+```
+
+### Configuration File Options
+
+```yaml
+# .codeconcat.yml
+enable_security_scanning: true
+enable_semgrep: true
+install_semgrep: true
+strict_security: false
+semgrep_languages:
+  - python
+  - javascript
+  - go
+```
+
+### Security Features
+
+1. **Pattern-based Detection**: Identifies common security anti-patterns
+2. **Comprehensive Attack Patterns**: Language-specific detection for:
+   - Buffer overflows, format string bugs, use-after-free (C/C++)
+   - Code injection, SQL injection, deserialization (Python, PHP, R, Julia)
+   - XSS, prototype pollution, DOM manipulation (JavaScript/TypeScript)
+   - Command injection, path traversal, SSRF (Go)
+   - Memory safety, race conditions (Rust)
+   - Cross-language patterns (hardcoded secrets, crypto wallets, obfuscation)
+3. **Semgrep Integration**: Uses industry-standard static analysis with custom rules
+4. **Apiiro Ruleset**: Automatically installs and uses the Apiiro malicious code detection rules
+5. **Configurable Strictness**: Choose between warning mode and strict failure mode
+6. **CWE Mapping**: Security findings are mapped to Common Weakness Enumeration IDs
 
 ## Testing
 

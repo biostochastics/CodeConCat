@@ -1,0 +1,216 @@
+rules:
+  # C/C++ Advanced Patterns
+  - id: c-use-after-free-advanced
+    languages: [c, cpp]
+    message: Potential use-after-free vulnerability detected
+    severity: ERROR
+    patterns:
+      - pattern: |
+          free($PTR);
+          ...
+          $PTR->$FIELD
+      - pattern: |
+          free($PTR);
+          ...
+          *$PTR
+  
+  - id: c-double-free
+    languages: [c, cpp]
+    message: Double free vulnerability detected
+    severity: ERROR
+    pattern: |
+      free($PTR);
+      ...
+      free($PTR);
+  
+  # Python Advanced Patterns
+  - id: python-jinja2-ssti
+    languages: [python]
+    message: Server-Side Template Injection in Jinja2
+    severity: ERROR
+    patterns:
+      - pattern-either:
+        - pattern: |
+            Template($INPUT).render(...)
+        - pattern: |
+            Environment(...).from_string($INPUT)
+      - pattern-not: |
+          Template("...").render(...)
+  
+  - id: python-xxe-vulnerability
+    languages: [python]
+    message: XML External Entity (XXE) vulnerability
+    severity: ERROR
+    patterns:
+      - pattern: etree.XMLParser(resolve_entities=True)
+      - pattern: etree.parse(..., parser=etree.XMLParser())
+  
+  # JavaScript/TypeScript Advanced Patterns
+  - id: js-postmessage-origin-validation
+    languages: [javascript, typescript]
+    message: Missing origin validation in postMessage handler
+    severity: ERROR
+    patterns:
+      - pattern: |
+          addEventListener('message', function($E) {
+            ...
+          })
+      - pattern-not-inside: |
+          if ($E.origin === '...' || $E.origin !== '...') { ... }
+  
+  - id: js-regex-dos
+    languages: [javascript, typescript]
+    message: Regular expression vulnerable to ReDoS
+    severity: WARNING
+    patterns:
+      - pattern-regex: '/(.*[+*]){2,}/'
+      - pattern-regex: '/(\w+\s*)+/'
+  
+  # Go Advanced Patterns
+  - id: go-ssrf-vulnerability
+    languages: [go]
+    message: Server-Side Request Forgery (SSRF) vulnerability
+    severity: ERROR
+    patterns:
+      - pattern-either:
+        - pattern: http.Get($URL)
+        - pattern: http.Post($URL, ...)
+      - metavariable-pattern:
+          metavariable: $URL
+          patterns:
+            - pattern-either:
+              - pattern: fmt.Sprintf(...)
+              - pattern: $VAR
+            - pattern-not: |
+                "..."
+  
+  - id: go-timing-attack
+    languages: [go]
+    message: Potential timing attack in comparison
+    severity: WARNING
+    patterns:
+      - pattern: $X == $Y
+      - metavariable-pattern:
+          metavariable: $X
+          patterns:
+            - pattern-either:
+              - pattern: $FUNC.Sum()
+              - pattern: $PASSWORD
+              - pattern: $TOKEN
+              - pattern: $SECRET
+  
+  # PHP Advanced Patterns
+  - id: php-ldap-injection
+    languages: [php]
+    message: LDAP injection vulnerability
+    severity: ERROR
+    patterns:
+      - pattern: ldap_search($CONN, $BASE, $FILTER, ...)
+      - metavariable-pattern:
+          metavariable: $FILTER
+          patterns:
+            - pattern-regex: '.*\$_(GET|POST|REQUEST).*'
+  
+  - id: php-xpath-injection
+    languages: [php]
+    message: XPath injection vulnerability
+    severity: ERROR
+    patterns:
+      - pattern: $XPATH->query($QUERY)
+      - metavariable-pattern:
+          metavariable: $QUERY
+          patterns:
+            - pattern-regex: '.*\$_(GET|POST|REQUEST).*'
+  
+  # Rust Advanced Patterns
+  - id: rust-unsafe-block-misuse
+    languages: [rust]
+    message: Unsafe block without proper validation
+    severity: WARNING
+    patterns:
+      - pattern: |
+          unsafe {
+            ...
+            $DEREF
+          }
+      - metavariable-pattern:
+          metavariable: $DEREF
+          patterns:
+            - pattern: '*$PTR'
+      - pattern-not-inside: |
+          if !$PTR.is_null() { ... }
+  
+  - id: rust-uninitialized-memory
+    languages: [rust]
+    message: Use of uninitialized memory
+    severity: ERROR
+    pattern: std::mem::uninitialized()
+  
+  # R Advanced Patterns
+  - id: r-shiny-reactive-sql-injection
+    languages: [r]
+    message: SQL injection in Shiny reactive context
+    severity: ERROR
+    patterns:
+      - pattern-inside: |
+          reactive({
+            ...
+          })
+      - pattern: dbGetQuery($CONN, paste(..., input$..., ...))
+  
+  - id: r-system2-command-injection
+    languages: [r]
+    message: Command injection via system2
+    severity: ERROR
+    patterns:
+      - pattern: system2($CMD, args = $ARGS)
+      - metavariable-pattern:
+          metavariable: $ARGS
+          patterns:
+            - pattern: paste(...)
+  
+  # Julia Advanced Patterns
+  - id: julia-unsafe-pointer-load
+    languages: [julia]
+    message: Unsafe pointer operation
+    severity: ERROR
+    patterns:
+      - pattern: unsafe_load($PTR, ...)
+      - pattern-not-inside: |
+          if $PTR != C_NULL ... end
+  
+  - id: julia-eval-main-module
+    languages: [julia]
+    message: Eval in Main module context
+    severity: ERROR
+    pattern: Main.eval($EXPR)
+  
+  # Cross-Language Patterns
+  - id: weak-tls-version
+    languages: [python, go, javascript, typescript, rust]
+    message: Use of weak TLS version
+    severity: WARNING
+    pattern-regex: 'TLS(v?1\.0|v?1\.1|10|11)'
+  
+  - id: hardcoded-database-password
+    languages: [python, javascript, typescript, go, php, java, csharp]
+    message: Hardcoded database password
+    severity: ERROR
+    patterns:
+      - pattern-regex: '(password|passwd|pwd)\s*[:=]\s*["\']\w{6,}["\']'
+      - pattern-not-regex: '(password|passwd|pwd)\s*[:=]\s*["\'](\$\{|\%\(|<\%)'
+  
+  - id: jwt-none-algorithm
+    languages: [python, javascript, typescript, go, php, java]
+    message: JWT none algorithm vulnerability
+    severity: CRITICAL
+    pattern-regex: '["\'](alg|algorithm)["\']:\s*["\'](none|None|NONE)["\']'
+  
+  - id: cryptominer-detection
+    languages: [python, javascript, typescript, go, php]
+    message: Potential cryptocurrency miner detected
+    severity: ERROR
+    pattern-either:
+      - pattern-regex: 'stratum\+tcp://[\w\.\-]+:\d+'
+      - pattern-regex: '(monero|xmr|bitcoin|btc)\.minergate\.com'
+      - pattern-regex: 'cryptonight|cn/gpu|cn-heavy'

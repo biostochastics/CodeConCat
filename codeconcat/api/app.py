@@ -15,9 +15,13 @@ from http import HTTPStatus
 from typing import Dict, List, Optional, Any, Callable
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from codeconcat.validation.schema_validation import SCHEMAS
+from codeconcat.api.validation_middleware import add_validation_middleware
 
 from codeconcat.main import run_codeconcat_in_memory
 from codeconcat.config.config_builder import ConfigBuilder
@@ -27,6 +31,16 @@ logger = logging.getLogger(__name__)
 
 # Context variable for request ID tracking
 request_id_var = ContextVar("request_id", default=None)
+
+# Security headers
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "Content-Security-Policy": "default-src 'self'",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
 
 
 # ────────────────────────────────────────────────────────────
@@ -141,6 +155,17 @@ def create_app() -> FastAPI:
 
     app.add_middleware(RequestTracingMiddleware)
 
+    # Add security headers middleware
+    class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next: Callable):
+            response = await call_next(request)
+            # Add security headers to all responses
+            for header, value in SECURITY_HEADERS.items():
+                response.headers[header] = value
+            return response
+    
+    app.add_middleware(SecurityHeadersMiddleware)
+
     # Configure CORS for frontend access
     # Get allowed origins from environment variable or use a secure default
     allowed_origins = os.environ.get("CODECONCAT_ALLOWED_ORIGINS", "http://localhost:3000").split(
@@ -154,6 +179,70 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST"],  # Restrict to required methods only
         allow_headers=["Authorization", "Content-Type"],  # Restrict to required headers only
     )
+    
+    # Add validation middleware for request/response validation
+    add_validation_middleware(
+        app,
+        request_schemas={
+            "/api/concat": SCHEMAS["api_request"],
+            "/api/upload": SCHEMAS["api_request"]
+        },
+        max_request_size=20 * 1024 * 1024,  # 20MB limit
+        rate_limit=100,  # 100 requests per minute
+        rate_limit_window=60,  # 1 minute window
+        skip_validation_paths={"/", "/api/docs", "/api/redoc", "/api/openapi.json"}
+    )
+
+    # ────────────────────────────────────────────────────────────
+    # Exception Handlers
+    # ────────────────────────────────────────────────────────────
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        """Handle all unhandled exceptions."""
+        request_id = getattr(request.state, 'request_id', 'unknown')
+        logger.error(
+            f"Unhandled exception in request {request_id}: {type(exc).__name__}: {str(exc)}",
+            exc_info=True
+        )
+        
+        # Don't expose internal error details in production
+        if os.environ.get("CODECONCAT_ENV") == "production":
+            error_message = "An internal error occurred. Please try again later."
+            error_details = {"request_id": request_id}
+        else:
+            error_message = f"Internal server error: {type(exc).__name__}"
+            error_details = {
+                "request_id": request_id,
+                "error_type": type(exc).__name__,
+                "error_message": str(exc)
+            }
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": error_message,
+                "details": error_details
+            },
+            headers={"X-Request-ID": request_id}
+        )
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        """Handle HTTP exceptions with consistent format."""
+        request_id = getattr(request.state, 'request_id', 'unknown')
+        
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": exc.detail,
+                "details": {
+                    "request_id": request_id,
+                    "status_code": exc.status_code
+                }
+            },
+            headers={"X-Request-ID": request_id}
+        )
 
     # ────────────────────────────────────────────────────────────
     # API Routes
@@ -194,6 +283,21 @@ def create_app() -> FastAPI:
 
             # Build and validate the configuration
             config = config_builder.build()
+            
+            # Validate configuration values explicitly
+            from codeconcat.validation.integration import validate_config_values
+            from codeconcat.errors import ConfigurationError
+            
+            try:
+                validate_config_values(config)
+                logger.debug(f"Request ID: {request_id_var.get()} - Configuration validation passed")
+            except ConfigurationError as e:
+                logger.error(f"Request ID: {request_id_var.get()} - Configuration validation failed: {e}")
+                return CodeConcatErrorResponse(
+                    error="Configuration validation failed",
+                    detail=str(e),
+                    status=HTTPStatus.BAD_REQUEST
+                )
 
             # Process the code
             logger.info(f"Processing request with format: {config.format}")
@@ -214,10 +318,11 @@ def create_app() -> FastAPI:
             )
 
         except Exception as e:
-            logger.error(f"Error processing request: {e}")
+            request_id = request_id_var.get()
+            logger.error(f"Error processing request {request_id}: {e}", exc_info=True)
             raise HTTPException(
                 status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail={"error": "Failed to process code", "details": str(e)},
+                detail="Failed to process code. Please check your configuration and try again."
             )
 
     @app.post(
@@ -245,8 +350,14 @@ def create_app() -> FastAPI:
         try:
             # Create a temporary directory to extract the zip file
             with tempfile.TemporaryDirectory() as temp_dir:
+                # Sanitize filename to prevent path traversal
+                import re
+                safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', os.path.basename(file.filename))
+                if not safe_filename.endswith('.zip'):
+                    safe_filename += '.zip'
+                
                 # Save the uploaded file
-                zip_path = os.path.join(temp_dir, file.filename)
+                zip_path = os.path.join(temp_dir, safe_filename)
                 with open(zip_path, "wb") as f:
                     contents = await file.read()
                     f.write(contents)
@@ -291,10 +402,18 @@ def create_app() -> FastAPI:
                 )
 
         except Exception as e:
-            logger.error(f"Error processing uploaded file: {e}")
+            request_id = request_id_var.get()
+            logger.error(f"Error processing uploaded file in request {request_id}: {e}", exc_info=True)
+            
+            # Provide user-friendly error message
+            if "zip" in str(e).lower():
+                error_msg = "Failed to extract zip file. Please ensure the file is a valid zip archive."
+            else:
+                error_msg = "Failed to process uploaded file. Please check the file format and try again."
+            
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail={"error": "Failed to extract or process zip file", "details": str(e)},
+                detail=error_msg
             )
 
     @app.get("/api/ping")

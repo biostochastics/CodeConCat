@@ -40,12 +40,6 @@ DEFAULT_EXCLUDES = [
     ".idea/**",
     ".vscode/**",
     # Configuration Files
-    "*.yml",
-    "./*.yml",
-    "**/*.yml",
-    "*.yaml",
-    "./*.yaml",
-    "**/*.yaml",
     ".codeconcat.yml",
     # Build and Dependencies
     "node_modules/",

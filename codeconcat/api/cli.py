@@ -66,7 +66,11 @@ def cli_entry_point() -> int:
 
     # Show version and exit if requested
     if args.version:
-        print(f"CodeConCat API v{version.VERSION}")
+        try:
+            version_str = version.__version__
+        except AttributeError:
+            version_str = 'unknown'
+        print(f"CodeConCat API v{version_str}")
         return 0
 
     # Configure basic logging
@@ -77,7 +81,11 @@ def cli_entry_point() -> int:
     )
 
     try:
-        logger.info(f"Starting CodeConCat API server v{version.VERSION}")
+        try:
+            version_str = version.__version__
+        except AttributeError:
+            version_str = 'unknown'
+        logger.info(f"Starting CodeConCat API server v{version_str}")
         logger.info(f"Binding to {args.host}:{args.port}")
 
         # Start the server

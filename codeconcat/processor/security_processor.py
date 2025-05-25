@@ -25,6 +25,7 @@ from typing import Dict, List, Tuple, Optional
 from ..base_types import CodeConCatConfig, CustomSecurityPattern, SecuritySeverity
 from .security_types import SecurityIssue
 from .external_scanners import run_semgrep_scan
+from .attack_patterns import scan_content as scan_attack_patterns, Severity as AttackSeverity
 
 __all__ = ["SecurityProcessor"]
 
@@ -307,6 +308,55 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                     )
                     issues.append(issue)
 
+        # Integrate comprehensive attack pattern scanning
+        if config.enable_security_scanning:
+            # Detect the language from file extension
+            language = cls._detect_language(abs_path)
+            if language:
+                attack_findings = scan_attack_patterns(content, language)
+                for finding in attack_findings:
+                    # Convert attack pattern severity to SecuritySeverity
+                    severity_map = {
+                        AttackSeverity.CRITICAL.value: SecuritySeverity.CRITICAL,
+                        AttackSeverity.HIGH.value: SecuritySeverity.HIGH,
+                        AttackSeverity.MEDIUM.value: SecuritySeverity.MEDIUM,
+                        AttackSeverity.LOW.value: SecuritySeverity.LOW,
+                        AttackSeverity.INFO.value: SecuritySeverity.INFO,
+                    }
+                    severity = severity_map.get(finding["severity"], SecuritySeverity.MEDIUM)
+                    
+                    # Check if this finding meets the threshold
+                    threshold = cls._resolve_threshold(config)
+                    try:
+                        current_sev_index = cls.SEVERITY_ORDER.index(severity)
+                        threshold_index = cls.SEVERITY_ORDER.index(threshold)
+                        if current_sev_index < threshold_index:
+                            continue
+                    except ValueError:
+                        continue
+                    
+                    # Extract the line content
+                    line_idx = finding["line"] - 1
+                    if 0 <= line_idx < len(lines):
+                        line_content = lines[line_idx]
+                    else:
+                        line_content = finding.get("snippet", "")
+                    
+                    issue = SecurityIssue(
+                        line_number=finding["line"],
+                        line_content=line_content,
+                        issue_type=finding["name"],
+                        severity=severity,
+                        description=finding["message"],
+                        raw_finding=finding.get("snippet", ""),
+                        file_path=str(abs_path),
+                    )
+                    
+                    # Check for duplicates
+                    if not cls._is_duplicate(issues, issue.line_number, issue.issue_type, 
+                                           issue.raw_finding, abs_path):
+                        issues.append(issue)
+
         # Optional: integrate external scanners (e.g., Semgrep)
         if getattr(config, "enable_external_semgrep", False):
             semgrep_issues = run_semgrep_scan(
@@ -330,6 +380,34 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     # ----------------------------------------------------------------------------------
     # Internal helpers -------------------------------------------------------------------
     # ----------------------------------------------------------------------------------
+    @classmethod
+    def _detect_language(cls, file_path: Path) -> Optional[str]:
+        """Detect programming language from file extension."""
+        extension_map = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.jsx': 'javascript',
+            '.ts': 'typescript', 
+            '.tsx': 'typescript',
+            '.c': 'c',
+            '.cpp': 'cpp',
+            '.cc': 'cpp',
+            '.cxx': 'cpp',
+            '.h': 'c',
+            '.hpp': 'cpp',
+            '.cs': 'csharp',
+            '.go': 'go',
+            '.php': 'php',
+            '.r': 'r',
+            '.R': 'r',
+            '.jl': 'julia',
+            '.rs': 'rust',
+            '.java': 'java',
+        }
+        
+        suffix = file_path.suffix.lower()
+        return extension_map.get(suffix)
+    
     @classmethod
     def _compile_patterns(
         cls, config: CodeConCatConfig
