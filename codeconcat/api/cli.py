@@ -68,8 +68,9 @@ def cli_entry_point() -> int:
     if args.version:
         try:
             version_str = version.__version__
-        except AttributeError:
-            version_str = 'unknown'
+        except AttributeError as e:
+            version_str = "unknown"
+            logger.debug(f"Could not retrieve version: {e}. Using default value.")
         print(f"CodeConCat API v{version_str}")
         return 0
 
@@ -83,8 +84,9 @@ def cli_entry_point() -> int:
     try:
         try:
             version_str = version.__version__
-        except AttributeError:
-            version_str = 'unknown'
+        except AttributeError as e:
+            version_str = "unknown"
+            logger.debug(f"Could not retrieve version: {e}. Using default value.")
         logger.info(f"Starting CodeConCat API server v{version_str}")
         logger.info(f"Binding to {args.host}:{args.port}")
 

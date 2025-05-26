@@ -21,6 +21,12 @@ JS_TS_QUERIES = {
             source: (string) @import_source
         ) @import_stmt
         
+        ; TypeScript type-only imports
+        ; (import_statement
+        ;     "type" @type_keyword 
+        ;     source: (string) @import_source
+        ; ) @import_stmt
+        
         ; Default imports (import Name from 'module')
         (import_statement
             (import_clause
@@ -55,28 +61,22 @@ JS_TS_QUERIES = {
         ; Dynamic import expressions (import('module'))
         (call_expression
             function: (import)
-            arguments: (arguments (string) @import_source_dynamic)
+            arguments: (arguments (_) @import_source_dynamic_node) ; Generalized capture
         ) @dynamic_import
         
         ; Type-only imports (import type { Type } from 'module')
-        (import_statement
-            import_kind: "type"
-            (import_clause
-                (named_imports
-                    (import_specifier
-                        name: (identifier) @type_import
-                    )+
-                )
-            )
-            source: (string) @type_import_source
-        ) @type_import_stmt
+        ; (import_statement
+        ;     import_kind: "type"
+        ;     (import_clause
+        ;         (named_imports
+        ;             (import_specifier
+        ;                 name: (identifier) @type_import
+        ;             )+
+        ;         )
+        ;     )
+        ;     source: (string) @type_import_source
+        ; ) @type_import_stmt
 
-        ; CommonJS require
-        (call_expression
-            function: (identifier) @require_func (#eq? @require_func "require")
-            arguments: (arguments (string) @require_source)
-        ) @require_stmt
-        
         ; ES Module exports
         (export_statement
             source: (string)? @re_export_source
@@ -93,7 +93,7 @@ JS_TS_QUERIES = {
         
         ; Default exports (export default value)
         (export_statement
-            default: "default"
+            "default"
             value: (_) @default_export_value
         ) @default_export_stmt
     """,
@@ -140,19 +140,22 @@ JS_TS_QUERIES = {
         ; Class declarations with extends, implements and decorators
         (class_declaration
             decorator: (decorator
-                expression: [(identifier) (call_expression)] @decorator_expr
+                (_) @decorator_expr_child
             )* @class_decorator
             name: (identifier) @name
-            extends: (class_heritage
-                (extends_clause
-                    value: [(identifier) (member_expression)] @extends_class
-                )
+            (class_heritage
+                value: [
+                    (identifier)
+                    (member_expression)
+                    (call_expression)
+                ] @extends_name
             )?
-            implements: (class_heritage
-                (implements_clause
-                    value: (type_list)? @implements_interfaces
-                )
-            )?
+            (class_heritage
+                [
+                    (identifier)
+                    (member_expression)
+                ] @implements_type
+            )* 
             body: (class_body) @body
         ) @class
 
@@ -329,29 +332,25 @@ JS_TS_QUERIES = {
                 name: [(identifier) (nested_identifier)] @ambient_namespace_name
                 body: (statement_block) @ambient_namespace_body
             )
-        ) @ambient_namespace
         
-        ; TypeScript declare module
-        (ambient_declaration
-            (module_declaration
-                name: [(string) (identifier)] @ambient_module_name
-                body: (statement_block) @ambient_module_body
-            )
-        ) @ambient_module
-    """,
+; TypeScript declare module
+(ambient_declaration
+    (module_declaration
+        name: [(string) (identifier)] @ambient_module_name
+        body: (statement_block) @ambient_module_body
+    )
+) @ambient_module
+
+; Exported declarations (e.g. export function foo() {}, export const bar = ...)
+(export_statement
+    declaration: (_) @exported_declaration
+) @export_declaration
+
+""",
     "doc_comments": """
-        ; JSDoc format block comments
-        (comment) @doc_comment (#match? @doc_comment "^\\/\\*\\*")
-        
-        ; TypeScript triple-slash reference directives
-        (comment) @triple_slash_directive (#match? @triple_slash_directive "^\\/\\/\\/")
-        
-        ; Regular line comments
-        (comment) @line_comment (#match? @line_comment "^\\/\\/")
-        
-        ; Regular block comments
-        (comment) @block_comment
-    """,
+    ; Capturing all comments for diagnostic purposes
+    (comment) @doc_comment
+""",
 }
 
 

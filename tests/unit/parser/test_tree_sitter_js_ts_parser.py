@@ -28,7 +28,6 @@ def mock_tree_sitter_classes():
         patch(f"{ts_patch}.get_language") as mock_get_language,
         patch(f"{ts_patch}.get_parser") as mock_get_parser,
     ):
-
         # Create mock Language and Parser
         mock_language = MagicMock()
         mock_parser = MagicMock()

@@ -163,7 +163,7 @@ def create_app() -> FastAPI:
             for header, value in SECURITY_HEADERS.items():
                 response.headers[header] = value
             return response
-    
+
     app.add_middleware(SecurityHeadersMiddleware)
 
     # Configure CORS for frontend access
@@ -179,18 +179,18 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST"],  # Restrict to required methods only
         allow_headers=["Authorization", "Content-Type"],  # Restrict to required headers only
     )
-    
+
     # Add validation middleware for request/response validation
     add_validation_middleware(
         app,
         request_schemas={
             "/api/concat": SCHEMAS["api_request"],
-            "/api/upload": SCHEMAS["api_request"]
+            "/api/upload": SCHEMAS["api_request"],
         },
         max_request_size=20 * 1024 * 1024,  # 20MB limit
         rate_limit=100,  # 100 requests per minute
         rate_limit_window=60,  # 1 minute window
-        skip_validation_paths={"/", "/api/docs", "/api/redoc", "/api/openapi.json"}
+        skip_validation_paths={"/", "/api/docs", "/api/redoc", "/api/openapi.json"},
     )
 
     # ────────────────────────────────────────────────────────────
@@ -200,12 +200,12 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
         """Handle all unhandled exceptions."""
-        request_id = getattr(request.state, 'request_id', 'unknown')
+        request_id = getattr(request.state, "request_id", "unknown")
         logger.error(
             f"Unhandled exception in request {request_id}: {type(exc).__name__}: {str(exc)}",
-            exc_info=True
+            exc_info=True,
         )
-        
+
         # Don't expose internal error details in production
         if os.environ.get("CODECONCAT_ENV") == "production":
             error_message = "An internal error occurred. Please try again later."
@@ -215,33 +215,27 @@ def create_app() -> FastAPI:
             error_details = {
                 "request_id": request_id,
                 "error_type": type(exc).__name__,
-                "error_message": str(exc)
+                "error_message": str(exc),
             }
-        
+
         return JSONResponse(
             status_code=500,
-            content={
-                "error": error_message,
-                "details": error_details
-            },
-            headers={"X-Request-ID": request_id}
+            content={"error": error_message, "details": error_details},
+            headers={"X-Request-ID": request_id},
         )
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         """Handle HTTP exceptions with consistent format."""
-        request_id = getattr(request.state, 'request_id', 'unknown')
-        
+        request_id = getattr(request.state, "request_id", "unknown")
+
         return JSONResponse(
             status_code=exc.status_code,
             content={
                 "error": exc.detail,
-                "details": {
-                    "request_id": request_id,
-                    "status_code": exc.status_code
-                }
+                "details": {"request_id": request_id, "status_code": exc.status_code},
             },
-            headers={"X-Request-ID": request_id}
+            headers={"X-Request-ID": request_id},
         )
 
     # ────────────────────────────────────────────────────────────
@@ -283,20 +277,24 @@ def create_app() -> FastAPI:
 
             # Build and validate the configuration
             config = config_builder.build()
-            
+
             # Validate configuration values explicitly
             from codeconcat.validation.integration import validate_config_values
             from codeconcat.errors import ConfigurationError
-            
+
             try:
                 validate_config_values(config)
-                logger.debug(f"Request ID: {request_id_var.get()} - Configuration validation passed")
+                logger.debug(
+                    f"Request ID: {request_id_var.get()} - Configuration validation passed"
+                )
             except ConfigurationError as e:
-                logger.error(f"Request ID: {request_id_var.get()} - Configuration validation failed: {e}")
+                logger.error(
+                    f"Request ID: {request_id_var.get()} - Configuration validation failed: {e}"
+                )
                 return CodeConcatErrorResponse(
                     error="Configuration validation failed",
                     detail=str(e),
-                    status=HTTPStatus.BAD_REQUEST
+                    status=HTTPStatus.BAD_REQUEST,
                 )
 
             # Process the code
@@ -322,7 +320,7 @@ def create_app() -> FastAPI:
             logger.error(f"Error processing request {request_id}: {e}", exc_info=True)
             raise HTTPException(
                 status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail="Failed to process code. Please check your configuration and try again."
+                detail="Failed to process code. Please check your configuration and try again.",
             )
 
     @app.post(
@@ -352,10 +350,11 @@ def create_app() -> FastAPI:
             with tempfile.TemporaryDirectory() as temp_dir:
                 # Sanitize filename to prevent path traversal
                 import re
-                safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', os.path.basename(file.filename))
-                if not safe_filename.endswith('.zip'):
-                    safe_filename += '.zip'
-                
+
+                safe_filename = re.sub(r"[^a-zA-Z0-9._-]", "_", os.path.basename(file.filename))
+                if not safe_filename.endswith(".zip"):
+                    safe_filename += ".zip"
+
                 # Save the uploaded file
                 zip_path = os.path.join(temp_dir, safe_filename)
                 with open(zip_path, "wb") as f:
@@ -403,18 +402,21 @@ def create_app() -> FastAPI:
 
         except Exception as e:
             request_id = request_id_var.get()
-            logger.error(f"Error processing uploaded file in request {request_id}: {e}", exc_info=True)
-            
+            logger.error(
+                f"Error processing uploaded file in request {request_id}: {e}", exc_info=True
+            )
+
             # Provide user-friendly error message
             if "zip" in str(e).lower():
-                error_msg = "Failed to extract zip file. Please ensure the file is a valid zip archive."
+                error_msg = (
+                    "Failed to extract zip file. Please ensure the file is a valid zip archive."
+                )
             else:
-                error_msg = "Failed to process uploaded file. Please check the file format and try again."
-            
-            raise HTTPException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                detail=error_msg
-            )
+                error_msg = (
+                    "Failed to process uploaded file. Please check the file format and try again."
+                )
+
+            raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail=error_msg)
 
     @app.get("/api/ping")
     async def ping():

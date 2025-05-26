@@ -39,20 +39,20 @@ def run_semgrep_scan(
     if not Path(path).exists():
         print(f"Error: File not found: {path}", file=sys.stderr)
         return []
-    
+
     # Validate semgrep_path - must be alphanumeric with optional path separators
-    if not re.match(r'^[a-zA-Z0-9_./\\-]+$', semgrep_path):
+    if not re.match(r"^[a-zA-Z0-9_./\\-]+$", semgrep_path):
         print(f"Error: Invalid semgrep path: {semgrep_path}", file=sys.stderr)
         return []
-    
+
     # Validate rules parameter - allow only safe patterns
     if rules:
         # Allow: p/something, path/to/file.yml, ./rules, etc.
         # Disallow: shell metacharacters and command separators
-        if not re.match(r'^[a-zA-Z0-9_./\\:@-]+$', rules):
+        if not re.match(r"^[a-zA-Z0-9_./\\:@-]+$", rules):
             print(f"Error: Invalid rules parameter: {rules}", file=sys.stderr)
             return []
-    
+
     cmd = [semgrep_path, "--json", "--quiet", path]
     if rules:
         cmd.extend(["--config", rules])

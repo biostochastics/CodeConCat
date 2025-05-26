@@ -3,7 +3,7 @@
 import tomli
 from typing import List
 
-from codeconcat.base_types import ParsedFileData, Declaration, ParseResult
+from codeconcat.base_types import Declaration, ParseResult
 from .base_parser import BaseParser
 
 
@@ -15,7 +15,7 @@ class TomlParser(BaseParser):
         """Return the list of languages this parser supports."""
         return ["config", "toml"]
 
-    def parse_file(self, content: str, file_path: str) -> ParsedFileData:
+    def parse(self, file_path: str, content: str) -> ParseResult:
         """Parse a TOML file and extract structure."""
         try:
             # Parse the TOML content
@@ -47,36 +47,19 @@ class TomlParser(BaseParser):
 
                 declarations.append(section_decl)
 
-            # Create the ParsedFileData
-            result = ParsedFileData(
-                file_path=file_path,
-                language="toml",
-                content=content,
+            return ParseResult(
                 declarations=declarations,
                 imports=[],  # TOML doesn't have imports
-                parse_result=ParseResult(
-                    declarations=declarations,
-                    imports=[],
-                    engine_used="tomli",
-                ),
+                engine_used="tomli",
             )
 
-            return result
-
         except Exception as e:
-            # Return empty result with error message
-            return ParsedFileData(
-                file_path=file_path,
-                language="toml",
-                content=content,
+            # Return ParseResult with error message
+            return ParseResult(
                 declarations=[],
                 imports=[],
-                parse_result=ParseResult(
-                    declarations=[],
-                    imports=[],
-                    error=f"Error parsing TOML: {str(e)}",
-                    engine_used="tomli",
-                ),
+                error=f"Error parsing TOML: {str(e)}",
+                engine_used="tomli",
             )
 
     def _find_section_line(self, content: str, section_name: str) -> int:

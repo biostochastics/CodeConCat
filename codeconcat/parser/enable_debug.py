@@ -56,7 +56,9 @@ def enable_debug_for_parsers():
                                     # Check if it's actually a logger object (not a property)
                                     if hasattr(cls.logger, "setLevel"):
                                         cls.logger.setLevel(logging.DEBUG)
-                                        PARSER_DEBUG.debug(f"Enabled debug logging for {class_name}")
+                                        PARSER_DEBUG.debug(
+                                            f"Enabled debug logging for {class_name}"
+                                        )
                                 except Exception:
                                     # Skip if logger is a property or other non-logger object
                                     pass

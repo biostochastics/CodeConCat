@@ -41,19 +41,27 @@ def write_json(
                 and hasattr(item, "file_path")
             ):
                 # Find segments related to this file
-                file_segments = config._compressed_segments.get(item.file_path, []) if hasattr(config, "_compressed_segments") else []
-                if file_segments:
-                    # Add segments to the item
-                    item_dict["content_segments"] = [
-                        {
-                            "type": segment.segment_type.value,
-                            "start_line": segment.start_line,
-                            "end_line": segment.end_line,
-                            "content": segment.content,
-                            "metadata": segment.metadata,
-                        }
-                        for segment in file_segments
-                    ]
+                compressed_segments = getattr(config, "_compressed_segments", None)
+                if compressed_segments:
+                    # Handle both dict and list formats for backward compatibility
+                    if isinstance(compressed_segments, dict):
+                        file_segments = compressed_segments.get(item.file_path, [])
+                    else:
+                        # Legacy format: list of segments (assume all belong to current file)
+                        file_segments = compressed_segments
+
+                    if file_segments:
+                        # Add segments to the item
+                        item_dict["content_segments"] = [
+                            {
+                                "type": segment.segment_type.value,
+                                "start_line": segment.start_line,
+                                "end_line": segment.end_line,
+                                "content": segment.content,
+                                "metadata": segment.metadata,
+                            }
+                            for segment in file_segments
+                        ]
             output_data["files"].append(item_dict)
 
     # Generate final JSON string

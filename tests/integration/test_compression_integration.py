@@ -180,7 +180,8 @@ class TestCompressionIntegration(unittest.TestCase):
             omitted_segments = [s for s in segments if s.get("type") == "omitted"]
             for segment in omitted_segments:
                 self.assertIn("metadata", segment)
-                self.assertIn("lines", segment["metadata"])
+                self.assertIn("line_count", segment["metadata"])
+                self.assertIn("issue_count", segment["metadata"])
 
     def test_xml_compression(self):
         """Test that compression works with XML output."""

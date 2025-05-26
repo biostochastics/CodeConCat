@@ -8,6 +8,7 @@ from pathlib import Path
 try:
     import jsonschema
     from jsonschema.exceptions import ValidationError as JsonSchemaError
+
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
@@ -24,18 +25,9 @@ SCHEMAS = {
         "properties": {
             "format": {"type": "string", "enum": ["markdown", "json", "xml", "text"]},
             "output": {"type": "string"},
-            "include_paths": {
-                "type": "array",
-                "items": {"type": "string"}
-            },
-            "exclude_paths": {
-                "type": "array", 
-                "items": {"type": "string"}
-            },
-            "include_languages": {
-                "type": "array",
-                "items": {"type": "string"}
-            },
+            "include_paths": {"type": "array", "items": {"type": "string"}},
+            "exclude_paths": {"type": "array", "items": {"type": "string"}},
+            "include_languages": {"type": "array", "items": {"type": "string"}},
             "max_workers": {"type": "integer", "minimum": 1},
             "disable_ai_context": {"type": "boolean"},
             "remove_comments": {"type": "boolean"},
@@ -46,9 +38,12 @@ SCHEMAS = {
             "github": {"type": ["string", "null"]},
             "cross_link_symbols": {"type": "boolean"},
             "enable_compression": {"type": "boolean"},
-            "compression_level": {"type": "string", "enum": ["low", "medium", "high", "aggressive"]},
+            "compression_level": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "aggressive"],
+            },
         },
-        "additionalProperties": True
+        "additionalProperties": True,
     },
     "api_request": {
         "type": "object",
@@ -61,10 +56,10 @@ SCHEMAS = {
                 "properties": {
                     "include_paths": {"type": "array", "items": {"type": "string"}},
                     "exclude_paths": {"type": "array", "items": {"type": "string"}},
-                    "include_languages": {"type": "array", "items": {"type": "string"}}
-                }
-            }
-        }
+                    "include_languages": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
     },
     "api_response": {
         "type": "object",
@@ -73,39 +68,30 @@ SCHEMAS = {
             "status": {"type": "string", "enum": ["success", "error"]},
             "data": {"type": "object"},
             "error": {"type": "string"},
-            "metadata": {"type": "object"}
+            "metadata": {"type": "object"},
         },
         "additionalProperties": False,
         "allOf": [
-            {
-                "if": {
-                    "properties": {"status": {"const": "error"}}
-                },
-                "then": {
-                    "required": ["error"]
-                }
-            }
-        ]
-    }
+            {"if": {"properties": {"status": {"const": "error"}}}, "then": {"required": ["error"]}}
+        ],
+    },
 }
 
 
 def validate_against_schema(
-    data: Dict[str, Any], 
-    schema: Union[Dict[str, Any], str], 
-    context: Optional[str] = None
+    data: Dict[str, Any], schema: Union[Dict[str, Any], str], context: Optional[str] = None
 ) -> bool:
     """
     Validate data against a JSON schema.
-    
+
     Args:
         data: The data to validate
         schema: Either a schema dictionary or a key in the SCHEMAS dictionary
         context: Optional context information for error messages
-        
+
     Returns:
         True if validation passes
-        
+
     Raises:
         ValidationError: If validation fails or jsonschema is not installed
     """
@@ -121,7 +107,7 @@ def validate_against_schema(
         schema_dict = SCHEMAS[schema]
     else:
         schema_dict = schema
-        
+
     try:
         jsonschema.validate(instance=data, schema=schema_dict)
         logger.debug(f"Schema validation passed for {context or 'data'}")
@@ -132,45 +118,43 @@ def validate_against_schema(
         message = f"Schema validation failed{context_str}: {e.message}"
         if error_path:
             message += f" (path: {error_path})"
-            
+
         logger.error(message)
         raise ValidationError(
-            message, 
-            field=error_path or None,
-            value=e.instance,
-            original_exception=e
+            message, field=error_path or None, value=e.instance, original_exception=e
         )
-        
+
+
 def load_schema_from_file(schema_path: Union[str, Path]) -> Dict[str, Any]:
     """
     Load a JSON schema from a file.
-    
+
     Args:
         schema_path: Path to the schema file
-        
+
     Returns:
         The loaded schema as a dictionary
-        
+
     Raises:
         ValidationError: If the schema file cannot be loaded or is invalid
     """
     try:
-        with open(schema_path, 'r') as f:
+        with open(schema_path, "r") as f:
             schema = json.load(f)
-        
+
         # Basic validation that it's actually a schema
         if not isinstance(schema, dict):
             raise ValidationError(f"Schema must be a JSON object: {schema_path}")
-            
+
         return schema
     except (IOError, json.JSONDecodeError) as e:
-        raise ValidationError(f"Failed to load schema from {schema_path}", 
-                             original_exception=e)
+        raise ValidationError(f"Failed to load schema from {schema_path}", original_exception=e)
+
 
 def register_schema(name: str, schema: Dict[str, Any]) -> None:
     """
     Register a new schema or update an existing one.
-    
+
     Args:
         name: The name to register the schema under
         schema: The schema dictionary
@@ -178,28 +162,31 @@ def register_schema(name: str, schema: Dict[str, Any]) -> None:
     SCHEMAS[name] = schema
     logger.debug(f"Registered schema: {name}")
 
-def generate_schema_from_example(example: Dict[str, Any], required_fields: Optional[list] = None) -> Dict[str, Any]:
+
+def generate_schema_from_example(
+    example: Dict[str, Any], required_fields: Optional[list] = None
+) -> Dict[str, Any]:
     """
     Generate a JSON schema from an example object.
-    
+
     This is useful for quickly creating a validation schema based on a known-good example.
     The generated schema will match the structure and types of the example.
-    
+
     Args:
         example: An example object to generate a schema from
         required_fields: List of field names that should be required
-        
+
     Returns:
         A JSON schema that would validate the example
     """
     if not isinstance(example, dict):
         raise ValidationError("Example must be a dictionary")
-    
+
     schema = {"type": "object", "properties": {}}
-    
+
     if required_fields:
         schema["required"] = required_fields
-    
+
     for key, value in example.items():
         if isinstance(value, dict):
             schema["properties"][key] = generate_schema_from_example(value)
@@ -207,17 +194,19 @@ def generate_schema_from_example(example: Dict[str, Any], required_fields: Optio
             if value and all(isinstance(item, dict) for item in value):
                 # List of objects
                 item_schema = generate_schema_from_example(value[0])
-                schema["properties"][key] = {
-                    "type": "array",
-                    "items": item_schema
-                }
+                schema["properties"][key] = {"type": "array", "items": item_schema}
             elif value:
                 # List of primitives
                 item_type = type(value[0]).__name__
-                type_mapping = {"str": "string", "int": "integer", "float": "number", "bool": "boolean"}
+                type_mapping = {
+                    "str": "string",
+                    "int": "integer",
+                    "float": "number",
+                    "bool": "boolean",
+                }
                 schema["properties"][key] = {
                     "type": "array",
-                    "items": {"type": type_mapping.get(item_type, item_type)}
+                    "items": {"type": type_mapping.get(item_type, item_type)},
                 }
             else:
                 # Empty list
@@ -233,5 +222,5 @@ def generate_schema_from_example(example: Dict[str, Any], required_fields: Optio
             schema["properties"][key] = {"type": "number"}
         elif value is None:
             schema["properties"][key] = {"type": "null"}
-    
+
     return schema

@@ -1,13 +1,10 @@
 """Simple tests for AI context generation."""
 
-import pytest
-from unittest.mock import Mock
 
 from codeconcat.writer.ai_context import generate_ai_preamble
 from codeconcat.base_types import (
     AnnotatedFileData,
     ParsedDocData,
-    WritableItem,
     Declaration,
 )
 
@@ -33,15 +30,15 @@ class TestAIContextSimple:
                 ),
             ],
         )
-        
+
         doc_file = ParsedDocData(
             file_path="/test/README.md",
             content="# Test Project",
         )
-        
+
         items = [code_file, doc_file]
         result = generate_ai_preamble(items)
-        
+
         # Basic checks
         assert "# AI-Friendly Code Summary" in result
         assert "Total code files: 1" in result
@@ -51,7 +48,7 @@ class TestAIContextSimple:
     def test_generate_ai_preamble_empty(self):
         """Test AI preamble with empty items."""
         result = generate_ai_preamble([])
-        
+
         assert "Total code files: 0" in result
         assert "Documentation files: 0" in result
         assert "Total functions found: 0" in result
@@ -65,17 +62,17 @@ class TestAIContextSimple:
             annotated_content="if __name__ == '__main__':",
             language="python",
         )
-        
+
         app_file = AnnotatedFileData(
             file_path="/project/app.py",
             content="app = Flask(__name__)",
             annotated_content="app = Flask(__name__)",
             language="python",
         )
-        
+
         items = [main_file, app_file]
         result = generate_ai_preamble(items)
-        
+
         assert "- `/project/main.py`" in result
         assert "- `/project/app.py`" in result
 
@@ -101,9 +98,9 @@ class TestAIContextSimple:
                 language="javascript",
             ),
         ]
-        
+
         result = generate_ai_preamble(files)
-        
+
         assert "- py: 2 files" in result
         assert "- js: 1 files" in result
 
@@ -125,9 +122,9 @@ class TestAIContextSimple:
                 summary="",  # Empty summary
             ),
         ]
-        
+
         result = generate_ai_preamble(files)
-        
+
         assert "- `/test/core.py`: Core functionality" in result
         assert "utils.py" not in result  # Should not show files without summaries
 
@@ -161,9 +158,9 @@ class TestAIContextSimple:
                 ],
             ),
         ]
-        
+
         result = generate_ai_preamble(files)
-        
+
         # Should count only functions, not classes
         assert "Total functions found: 2" in result
         # Average: (2 + 3) / 2 = 2.5

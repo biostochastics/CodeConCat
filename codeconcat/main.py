@@ -24,22 +24,16 @@ from codeconcat.base_types import (
     AnnotatedFileData,
     CodeConCatConfig,
     WritableItem,
+    ParsedFileData,
 )
 
 
-# Import or define error classes
-class ConfigurationError(Exception):
-    """Raised when there is an error in the configuration."""
-
-    pass
-
-
-class CodeConcatError(Exception):
-    """Base exception for CodeConCat errors."""
-
-    pass
-
-from codeconcat.errors import ValidationError, FileProcessingError
+from codeconcat.errors import (
+    ValidationError,
+    FileProcessingError,
+    ConfigurationError,
+    CodeConcatError,
+)
 
 
 from codeconcat.collector.remote_collector import collect_git_repo
@@ -52,9 +46,11 @@ from codeconcat.parser.enhanced_pipeline import enhanced_parse_pipeline
 from codeconcat.processor.compression_processor import CompressionProcessor
 from codeconcat.quotes import get_random_quote
 from codeconcat.transformer.annotator import annotate
-from codeconcat.validation import validator
-from codeconcat.validation.integration import validate_input_files, validate_config_values, sanitize_output, verify_file_signatures
-from codeconcat.validation.security import security_validator
+from codeconcat.validation.integration import (
+    validate_input_files,
+    validate_config_values,
+    verify_file_signatures,
+)
 from codeconcat.validation.integration import setup_semgrep
 from codeconcat.version import __version__
 from codeconcat.writer.json_writer import write_json
@@ -136,21 +132,10 @@ def configure_logging(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Exception hierarchy
-# ──────────────────────────────────────────────────────────────────────────────
-class CodeConcatError(Exception):
-    """Base exception for CodeConCat."""
-
-
-class ConfigurationError(CodeConcatError):
-    pass
-
-
-class FileProcessingError(CodeConcatError):
-    pass
-
-
+# Exception hierarchy - import OutputError from errors
 class OutputError(CodeConcatError):
+    """Errors during output generation."""
+
     pass
 
 
@@ -537,25 +522,31 @@ def build_parser() -> argparse.ArgumentParser:
         default="markdown",
         help="Output format",
     )
+    g_output.add_argument(
+        "--output-preset",
+        choices=["lean", "medium", "full"],
+        default=None,  # Default will be handled by ConfigBuilder or load_config
+        help="Configuration preset to use (lean, medium, full). Overrides parts of the config file.",
+    )
 
     # === Reconstruction Options ===
     g_reconstruct = parser.add_argument_group("Reconstruction Options")
     g_reconstruct.add_argument(
         "--reconstruct",
         metavar="FILE",
-        help="Reconstruct source files from a CodeConCat output file"
+        help="Reconstruct source files from a CodeConCat output file",
     )
     g_reconstruct.add_argument(
         "--output-dir",
         metavar="DIR",
         default="./reconstructed",
-        help="Directory to output reconstructed files"
+        help="Directory to output reconstructed files",
     )
     g_reconstruct.add_argument(
         "--input-format",
         choices=["markdown", "xml", "json", "auto"],
         default="auto",
-        help="Format of input file for reconstruction (auto-detected if not specified)"
+        help="Format of input file for reconstruction (auto-detected if not specified)",
     )
 
     # === Feature Toggles ===
@@ -631,7 +622,7 @@ def build_parser() -> argparse.ArgumentParser:
         advanced=True,
         help="Special comment tags that mark segments to always keep during compression.",
     )
-    
+
     # === Security Options ===
     g_sec = parser.add_argument_group("Security Options")
     g_sec.add_argument(
@@ -703,7 +694,7 @@ def cli_entry_point():
         debug_mode = getattr(args, "debug", False)
         quiet_mode = getattr(args, "quiet", False)
         configure_logging(log_level, debug_mode, quiet_mode)
-        
+
         # Handle reconstruction command if specified
         if hasattr(args, "reconstruct") and args.reconstruct:
             logger.info(f"Reconstructing files from {args.reconstruct}")
@@ -713,9 +704,9 @@ def cli_entry_point():
                     args.reconstruct,
                     args.output_dir,
                     input_format,
-                    verbose=(args.verbose > 0 or debug_mode)
+                    verbose=(args.verbose > 0 or debug_mode),
                 )
-                print(f"\n✅ Reconstruction complete!")
+                print("\n✅ Reconstruction complete!")
                 print(f"Files processed: {stats['files_processed']}")
                 print(f"Files created: {stats['files_created']}")
                 print(f"Errors: {stats['errors']}")
@@ -757,7 +748,9 @@ def cli_entry_point():
     # --- Load Configuration using the ConfigBuilder --- #
     try:
         # Get the preset name (if specified)
-        preset_name = args.preset or "medium"  # Default to medium if not specified
+        preset_name = (
+            cli_args.get("output_preset") or "medium"
+        )  # Default to medium if not specified
 
         # Debug: Show what CLI arguments were received
         if args.verbose > 1:
@@ -1066,17 +1059,19 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         # Collect input files
         logger.info("Collecting input files...")
         files_to_process: List[ParsedFileData] = []
-        
+
         if config.source_url:
             logger.info(f"Collecting files from source URL: {config.source_url}")
             # Assuming collect_git_repo can handle generic URLs or is specialized for Git
-            files_to_process = collect_git_repo(config) 
+            files_to_process = collect_git_repo(config)
         elif config.target_path:
             logger.info(f"Collecting files from local path: {config.target_path}")
             files_to_process = collect_local_files(config.target_path, config)
         else:
-            raise ConfigurationError("Either source_url or target_path must be provided in the configuration.")
-        
+            raise ConfigurationError(
+                "Either source_url or target_path must be provided in the configuration."
+            )
+
         # Setup Semgrep if enabled
         if hasattr(config, "enable_semgrep") and config.enable_semgrep:
             logger.info("Setting up Semgrep for security scanning...")
@@ -1085,7 +1080,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 logger.warning("Semgrep is not available. Security scanning will be limited.")
                 # Disable Semgrep if not available
                 config.enable_semgrep = False
-        
+
         # Validate input files
         logger.info("Validating input files...")
         try:
@@ -1099,7 +1094,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 raise
             # Otherwise, continue with validated files, log warning
             logger.warning("Continuing with validated files only")
-        
+
         # Verify file types match expected formats
         try:
             file_types = verify_file_signatures(files_to_process)
@@ -1112,7 +1107,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         # Parse code files
         logger.debug("Starting file parsing.")
         try:
-            logger.info(f"[CodeConCat] Found {len(files_to_process)} code files. Starting parsing...")
+            logger.info(
+                f"[CodeConCat] Found {len(files_to_process)} code files. Starting parsing..."
+            )
             # Check if we should use the enhanced parsing pipeline
             use_enhanced_pipeline = (
                 hasattr(config, "use_enhanced_pipeline") and config.use_enhanced_pipeline
@@ -1349,7 +1346,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             logger.info("[CodeConCat] Compression complete.")
 
         folder_tree_str = ""
-        if hasattr(config, 'include_directory_structure') and config.include_directory_structure:
+        if hasattr(config, "include_directory_structure") and config.include_directory_structure:
             # Placeholder for actual tree generation logic
             # folder_tree_str = generate_folder_tree(items, config) # Assuming 'items' contains file paths
             folder_tree_str = "[INFO] Directory tree would be displayed here.\n"

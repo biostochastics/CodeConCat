@@ -3,16 +3,14 @@
 import json
 import os
 import pytest
-from pathlib import Path
 import tempfile
-from unittest.mock import patch, MagicMock
 
 from codeconcat.validation.schema_validation import (
     validate_against_schema,
     load_schema_from_file,
     register_schema,
     generate_schema_from_example,
-    SCHEMAS
+    SCHEMAS,
 )
 from codeconcat.errors import ValidationError
 
@@ -25,14 +23,11 @@ class TestSchemaValidation:
         schema = {
             "type": "object",
             "required": ["name", "age"],
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "integer", "minimum": 0}
-            }
+            "properties": {"name": {"type": "string"}, "age": {"type": "integer", "minimum": 0}},
         }
-        
+
         data = {"name": "Test User", "age": 30}
-        
+
         # Should not raise an exception
         assert validate_against_schema(data, schema) is True
 
@@ -41,18 +36,15 @@ class TestSchemaValidation:
         schema = {
             "type": "object",
             "required": ["name", "age"],
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "integer", "minimum": 0}
-            }
+            "properties": {"name": {"type": "string"}, "age": {"type": "integer", "minimum": 0}},
         }
-        
+
         # Missing required field 'age'
         data = {"name": "Test User"}
-        
+
         with pytest.raises(ValidationError) as excinfo:
             validate_against_schema(data, schema)
-        
+
         assert "required property" in str(excinfo.value).lower()
 
     def test_validate_against_schema_by_name(self):
@@ -60,36 +52,29 @@ class TestSchemaValidation:
         data = {
             "source": "https://github.com/user/repo",
             "format": "markdown",
-            "options": {
-                "include_paths": ["src/**/*.py"]
-            }
+            "options": {"include_paths": ["src/**/*.py"]},
         }
-        
+
         # Should not raise an exception
         assert validate_against_schema(data, "api_request") is True
 
     def test_validate_against_unknown_schema(self):
         """Test validating against an unknown schema name."""
         data = {"key": "value"}
-        
+
         with pytest.raises(ValidationError) as excinfo:
             validate_against_schema(data, "unknown_schema")
-        
+
         assert "unknown schema" in str(excinfo.value).lower()
 
     def test_load_schema_from_file(self):
         """Test loading a schema from a file."""
-        schema = {
-            "type": "object",
-            "properties": {
-                "test": {"type": "string"}
-            }
-        }
-        
+        schema = {"type": "object", "properties": {"test": {"type": "string"}}}
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as temp:
             json.dump(schema, temp)
             temp_path = temp.name
-        
+
         try:
             loaded_schema = load_schema_from_file(temp_path)
             assert loaded_schema == schema
@@ -102,11 +87,11 @@ class TestSchemaValidation:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as temp:
             temp.write("This is not valid JSON")
             temp_path = temp.name
-        
+
         try:
             with pytest.raises(ValidationError) as excinfo:
                 load_schema_from_file(temp_path)
-            
+
             assert "failed to load schema" in str(excinfo.value).lower()
         finally:
             # Clean up the temporary file
@@ -116,10 +101,10 @@ class TestSchemaValidation:
         """Test registering a new schema."""
         schema_name = "test_schema"
         schema = {"type": "object", "properties": {"test": {"type": "string"}}}
-        
+
         # Register the schema
         register_schema(schema_name, schema)
-        
+
         # Check that it was registered
         assert schema_name in SCHEMAS
         assert SCHEMAS[schema_name] == schema
@@ -130,22 +115,19 @@ class TestSchemaValidation:
             "name": "User",
             "age": 30,
             "is_active": True,
-            "address": {
-                "street": "123 Main St",
-                "city": "Anytown"
-            },
+            "address": {"street": "123 Main St", "city": "Anytown"},
             "tags": ["user", "active"],
-            "settings": None
+            "settings": None,
         }
-        
+
         schema = generate_schema_from_example(example, required_fields=["name", "age"])
-        
+
         # Check schema structure
         assert schema["type"] == "object"
         assert "properties" in schema
         assert "required" in schema
         assert schema["required"] == ["name", "age"]
-        
+
         # Check property types
         assert schema["properties"]["name"]["type"] == "string"
         assert schema["properties"]["age"]["type"] == "integer"
@@ -159,5 +141,5 @@ class TestSchemaValidation:
         """Test generating a schema from a non-dictionary."""
         with pytest.raises(ValidationError) as excinfo:
             generate_schema_from_example("not a dict")
-        
+
         assert "must be a dictionary" in str(excinfo.value).lower()

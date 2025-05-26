@@ -10,6 +10,32 @@ from codeconcat.base_types import (
 )
 
 
+def _get_file_segments(config, item_file_path):
+    """
+    Get compressed segments for a specific file, handling both dict and legacy list formats.
+
+    Args:
+        config: CodeConCatConfig instance
+        item_file_path: Path of the file to get segments for
+
+    Returns:
+        List of segments for the file, or empty list if none found
+    """
+    compressed_segments = getattr(config, "_compressed_segments", None)
+    if not compressed_segments:
+        return []
+
+    if isinstance(compressed_segments, dict):
+        return compressed_segments.get(item_file_path, [])
+
+    # Legacy format: filter segments belonging to current file
+    return [
+        segment
+        for segment in compressed_segments
+        if hasattr(segment, "file_path") and segment.file_path == item_file_path
+    ]
+
+
 def write_xml(
     items: List[WritableItem],
     config: CodeConCatConfig,
@@ -52,8 +78,7 @@ def write_xml(
             and hasattr(config, "_compressed_segments")
             and hasattr(item, "file_path")
         ):
-            # Find segments related to this file
-            file_segments = config._compressed_segments.get(item.file_path, []) if hasattr(config, "_compressed_segments") else []
+            file_segments = _get_file_segments(config, item.file_path)
             if file_segments:
                 # Add compression attribute
                 item_element.set("compression_applied", "true")

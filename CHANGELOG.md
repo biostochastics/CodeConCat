@@ -1,5 +1,55 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
+## [0.7.3] - 2025-05-26
+
+### Fixed
+- **Error Handling Improvements**: Fixed various error handling issues identified by static analysis:
+  - Added debug logging with context when version retrieval fails in API CLI
+  - Improved error logging in `get_node_text_safe` from DEBUG to ERROR level with full context
+  - Fixed inconsistent error handling documentation in `install_semgrep` function
+  
+- **Code Quality Improvements**:
+  - Extracted duplicated parser instance extraction logic into `_get_parser_name` helper function
+  - Fixed invalid legacy format segment assignment in XML writer by validating segments belong to current file
+  - Extracted mixed format handling into separate `_get_file_segments` function for better maintainability
+  - Added input context (args/kwargs) to unexpected error logs for better debugging
+  - Improved `safe_parser_method` decorator docstring with usage examples and return value details
+  - Enhanced type hints documentation in `get_node_text_safe` to clarify expected node type
+
+### Changed
+- **Logging Improvements**:
+  - Critical errors in parser utilities are now logged at ERROR level instead of DEBUG
+  - Node text extraction failures now include node type and source type in error messages
+
+## [0.7.2] - 2025-05-25
+
+### Added
+- **Common Utilities Module**: Created `parser_utils.py` with reusable parser utilities:
+  - `safe_parser_method` decorator for consistent error handling across parsers
+  - `extract_safe_substring` for bounds-checked string extraction
+  - `get_node_text_safe` for safe tree-sitter node text extraction
+
+- **Centralized Constants Module**: Added `constants.py` to consolidate shared configuration:
+  - `DEFAULT_EXCLUDE_PATTERNS`: Unified file exclusion patterns used across collectors and config modules
+  - `COMPRESSION_SETTINGS`: Centralized compression level configurations
+  - `TOKEN_LIMITS`: Model-specific token limits
+  - `SOURCE_CODE_EXTENSIONS`: Recognized source code file extensions
+  - `SECURITY_PATTERNS`: Common security scanning patterns
+
+### Changed
+- **Thread Safety Improvements**: 
+  - Added thread locks to global caches in `token_counter.py` and `security.py`
+  - Prevents race conditions in multi-threaded environments
+  - Thread-safe access to `_ENCODER_CACHE` and `FILE_HASH_CACHE`
+
+- **Code Organization**:
+  - Removed duplicate `DEFAULT_EXCLUDE_PATTERNS` definitions from multiple modules
+  - All modules now import from centralized `constants.py`
+  - Simplified compression processor to use constants dictionary
+
+### Fixed
+- **Import Organization**: Fixed leftover code fragments in `config_builder.py` from refactoring
+
 ## [0.7.2] - 2025-05-25
 
 ### Fixed

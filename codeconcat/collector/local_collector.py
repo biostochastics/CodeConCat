@@ -12,155 +12,10 @@ from tqdm import tqdm
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 from codeconcat.language_map import GUESSLANG_AVAILABLE, ext_map, get_language_guesslang
+from codeconcat.constants import DEFAULT_EXCLUDE_PATTERNS
 
 logger = logging.getLogger(__name__)
 # Do not set up handlers or formatters here; let the CLI configure logging.
-DEFAULT_EXCLUDES = [
-    # Version Control
-    ".git/",  # Match the .git directory itself
-    ".git/**",  # Match contents of .git directory
-    "**/.git/",  # Match .git directory anywhere in tree
-    "**/.git/**",  # Match contents of .git directory anywhere in tree
-    ".gitignore",
-    "**/.gitignore",
-    # R Specific
-    ".Rcheck/",
-    "**/.Rcheck/",
-    "**/.Rcheck/**",
-    ".Rhistory",
-    "**/.Rhistory",
-    ".RData",
-    "**/.RData",
-    # OS and Editor Files
-    ".DS_Store",
-    "**/.DS_Store",
-    "Thumbs.db",
-    "**/*.swp",
-    "**/*.swo",
-    ".idea/**",
-    ".vscode/**",
-    # Configuration Files
-    ".codeconcat.yml",
-    # Build and Dependencies
-    "node_modules/",
-    "**/node_modules/",
-    "**/node_modules/**",
-    "build/",
-    "**/build/",
-    "**/build/**",
-    "dist/",
-    "**/dist/",
-    "**/dist/**",
-    # Next.js specific
-    ".next/",
-    "**/.next/",
-    "**/.next/**",
-    "**/static/chunks/**",
-    "**/server/chunks/**",
-    "**/BUILD_ID",
-    "**/trace",
-    "**/*.map",
-    "**/webpack-*.js",
-    "**/manifest*.js",
-    "**/server-reference-manifest.js",
-    "**/middleware-manifest.js",
-    "**/client-reference-manifest.js",
-    "**/webpack-runtime.js",
-    "**/server-reference-manifest.js",
-    "**/middleware-build-manifest.js",
-    "**/middleware-react-loadable-manifest.js",
-    "**/server-reference-manifest.js",
-    "**/interception-route-rewrite-manifest.js",
-    "**/next-font-manifest.js",
-    "**/polyfills-*.js",
-    "**/main-*.js",
-    "**/framework-*.js",
-    # Package Files
-    "package-lock.json",
-    "**/package-lock.json",
-    "yarn.lock",
-    "**/yarn.lock",
-    "pnpm-lock.yaml",
-    "**/pnpm-lock.yaml",
-    # Cache and Temporary Files
-    ".cache/",
-    "**/.cache/",
-    "**/.cache/**",
-    "tmp/",
-    "**/tmp/",
-    "**/tmp/**",
-    # Test Coverage
-    "coverage/",
-    "**/coverage/",
-    "**/coverage/**",
-    # Environment Files
-    ".env",
-    "**/.env",
-    ".env.*",
-    "**/.env.*",
-    # Python specific
-    "__pycache__/",
-    "**/__pycache__/",
-    "**/__pycache__/**",
-    "*.pyc",
-    "**/*.pyc",
-    "*.pyo",
-    "**/*.pyo",
-    "*.pyd",
-    "**/*.pyd",
-    "*.egg-info/",
-    "**/*.egg-info/",
-    "**/*.egg-info/**",
-    # Virtual environments - Comprehensive patterns
-    # Match any venv directory or subdirectory
-    "venv/",
-    "venv/**",
-    "**/venv/",
-    "**/venv/**",
-    "*venv/",
-    "*venv/**",
-    "**/*venv/",
-    "**/*venv/**",  # More aggressive pattern to match any directory with 'venv' in the name
-    # Common environment directory names
-    ".venv/",
-    ".venv/**",
-    "**/.venv/",
-    "**/.venv/**",
-    "env/",
-    "env/**",
-    "**/env/",
-    "**/env/**",
-    "*env/",
-    "*env/**",
-    "**/*env/",
-    "**/*env/**",
-    # Specific virtual envs in this project
-    "codeconcat_venv/",
-    "codeconcat_venv/**",
-    "**/codeconcat_venv/",
-    "**/codeconcat_venv/**",
-    "venv_py312/",
-    "venv_py312/**",
-    "**/venv_py312/",
-    "**/venv_py312/**",
-    # Exclude site-packages entirely
-    "**/site-packages/",
-    "**/site-packages/**",
-    # Hidden files and directories
-    "**/.*",  # All hidden files and directories
-    "**/.*/",  # All hidden directories
-    "**/.*/***",  # Contents of hidden directories
-    # Test directories
-    "tests/",  # Root level tests directory
-    "**/tests/",  # Tests directory anywhere in tree
-    "**/tests/**",  # Contents of tests directories
-    "**/test/",  # Test directory (singular)
-    "**/test/**",  # Contents of test directories
-    # Common large directories
-    "**/libs/**",
-    "**/vendor/**",
-    "**/third_party/**",
-]
 
 
 def get_gitignore_spec(root_path: str) -> PathSpec:
@@ -404,7 +259,7 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
         else None
     )
     default_exclude_spec = (
-        PathSpec.from_lines(GitWildMatchPattern, DEFAULT_EXCLUDES)
+        PathSpec.from_lines(GitWildMatchPattern, DEFAULT_EXCLUDE_PATTERNS)
         if config.use_default_excludes
         else None
     )
@@ -730,7 +585,9 @@ def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept c
     Returns:
         True if the directory matches any exclude pattern, False otherwise.
     """
-    all_excludes = DEFAULT_EXCLUDES + (config.exclude_paths or [])  # Access excludes from config
+    all_excludes = DEFAULT_EXCLUDE_PATTERNS + (
+        config.exclude_paths or []
+    )  # Access excludes from config
     logger.debug(f"Checking directory: {dirpath} against patterns: {all_excludes}")
 
     # Convert to relative path for matching

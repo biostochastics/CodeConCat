@@ -155,6 +155,7 @@ class TokenStats:
 
     gpt3_tokens: int
     gpt4_tokens: int
+    davinci_tokens: int
     claude_tokens: int
 
 
@@ -456,30 +457,25 @@ class CodeConCatConfig(BaseModel):
     security_ignore_patterns: List[str] = Field(
         default_factory=list
     )  # Regex for findings content to ignore
-    security_custom_patterns: List[CustomSecurityPattern] = Field(
-        default_factory=list
-    )
-    
+    security_custom_patterns: List[CustomSecurityPattern] = Field(default_factory=list)
+
     # Semgrep integration options
     enable_semgrep: bool = Field(
-        False, 
-        description="Enable semgrep security scanning using the Apiiro malicious code ruleset"
+        False,
+        description="Enable semgrep security scanning using the Apiiro malicious code ruleset",
     )
     semgrep_ruleset: Optional[str] = Field(
-        None,
-        description="Path to custom semgrep ruleset (defaults to Apiiro ruleset)"
+        None, description="Path to custom semgrep ruleset (defaults to Apiiro ruleset)"
     )
     semgrep_languages: Optional[List[str]] = Field(
         None,
-        description="List of languages to scan with semgrep (defaults to all detected languages)"
+        description="List of languages to scan with semgrep (defaults to all detected languages)",
     )
     install_semgrep: bool = Field(
-        False,
-        description="Install semgrep and the Apiiro ruleset if not already installed"
+        False, description="Install semgrep and the Apiiro ruleset if not already installed"
     )
     strict_security: bool = Field(
-        False,
-        description="Fail validation when suspicious content is detected"
+        False, description="Fail validation when suspicious content is detected"
     )  # Fail validation when suspicious content is detected
     # External Semgrep Scanning
     enable_external_semgrep: bool = Field(
