@@ -68,8 +68,6 @@ def get_token_stats(text: str) -> TokenStats:
     """Get token statistics for different models."""
     tokenizer = get_claude_tokenizer()
     return TokenStats(
-        gpt3_tokens=count_tokens(text, "gpt-3.5-turbo"),
         gpt4_tokens=count_tokens(text, "gpt-4"),
-        davinci_tokens=count_tokens(text, "text-davinci-003"),
         claude_tokens=len(tokenizer.encode(text)),
     )

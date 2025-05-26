@@ -153,9 +153,7 @@ class Declaration:
 class TokenStats:
     """Token statistics for a file."""
 
-    gpt3_tokens: int
     gpt4_tokens: int
-    davinci_tokens: int
     claude_tokens: int
 
 

@@ -105,6 +105,8 @@ The codebase includes three types of parsers, each with specific strengths and u
    - Support for advanced language features and precise source locations
    - Best handling of nested declarations and complex constructs
    - Located in `codeconcat/parser/language_parsers/tree_sitter_{language}_parser.py`
+   - **v0.7.4 Update**: Fixed compatibility issues with various tree-sitter grammar versions
+   - Gracefully handles both older and newer tree-sitter API versions
 
 ### Parser Engine Selection
 

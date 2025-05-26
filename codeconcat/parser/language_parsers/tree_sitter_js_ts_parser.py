@@ -162,7 +162,7 @@ JS_TS_QUERIES = {
         ; Class methods (instance methods, static methods, constructors)
         (method_definition
             decorator: (decorator
-                expression: [(identifier) (call_expression)] @method_decorator_expr
+                left: [(identifier) (call_expression)] @method_decorator_expr
             )* @method_decorator
             "static"? @static
             "async"? @async_method
@@ -402,7 +402,12 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 logger.debug(f"Running JS/TS query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         if (
                             capture_name.startswith("import_source")
                             or capture_name == "require_source"
@@ -417,7 +422,12 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
 
                 elif query_name == "declarations":
                     current_decl_node_id = None
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         node_id = node.id
 
                         # Identify the main declaration node

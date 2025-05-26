@@ -17,19 +17,19 @@ PHP_QUERIES = {
     "imports": """
         ; Basic use statement (class import)
         (use_declaration
-          (namespace_use_clause path: (name) @import_path)
+          (namespace_use_clause name: (name) @import_path)
         ) @use_statement
         
         ; Function imports with 'use function'
         (use_declaration
           kind: "function"
-          (namespace_use_clause path: (name) @function_import_path)
+          (namespace_use_clause name: (name) @function_import_path)
         ) @function_use_statement
         
         ; Constant imports with 'use const'
         (use_declaration
           kind: "const"
-          (namespace_use_clause path: (name) @const_import_path)
+          (namespace_use_clause name: (name) @const_import_path)
         ) @const_use_statement
 
         ; Group use statements - namespace part
@@ -41,7 +41,7 @@ PHP_QUERIES = {
         (namespace_use_declaration
             (namespace_use_group
                 (namespace_use_clause
-                    path: (name) @group_import_item
+                    name: (name) @group_import_item
                 )
             )
         )
@@ -49,7 +49,7 @@ PHP_QUERIES = {
         ; Function use statements with aliases
         (use_declaration
           (namespace_use_clause 
-            path: (name) @import_path
+            name: (name) @import_path
             alias: (name) @import_alias
           )
         ) @use_statement_with_alias
@@ -79,7 +79,6 @@ PHP_QUERIES = {
                     arguments: (arguments)? @class_attr_args
                 )
             )* @class_attributes
-            modifier: ["abstract" "final"]? @class_modifier
             name: (name) @name
             extends: (base_clause
                 (name) @extends_name
@@ -258,13 +257,13 @@ PHP_QUERIES = {
     # Capture PHPDoc style comments /** ... */ and line comments with // starting with @
     "doc_comments": """
         ; PHPDoc block comments
-        (comment) @doc_comment (#match? @doc_comment "^/\\*\\*")
+        (comment) @doc_comment (#match? @doc_comment "^/\\\\*\\\\*")
         
         ; Single line annotations (less common but used in some codebases)
-        (comment) @line_annotation (#match? @line_annotation "^//\\s*@")
+        (comment) @line_annotation (#match? @line_annotation "^//\\\\s*@")
         
         ; File-level docblock
-        (program . (comment) @file_doc_comment (#match? @file_doc_comment "^/\\*\\*"))
+        (program . (comment) @file_doc_comment (#match? @file_doc_comment "^/\\\\*\\\\*"))
     """,
 }
 
@@ -343,7 +342,12 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                 logger.debug(f"Running PHP query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         if capture_name == "import_path":
                             import_path = (
                                 byte_content[node.start_byte : node.end_byte]
@@ -377,7 +381,12 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                 elif query_name == "declarations":
                     # Group captures by the main declaration node ID
                     node_capture_map = {}
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         # Heuristic: Use the node associated with the @declaration_kind capture
                         decl_node = node  # Start with the captured node
                         # Find the ancestor that represents the whole declaration

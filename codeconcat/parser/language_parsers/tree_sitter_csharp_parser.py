@@ -24,7 +24,7 @@ CSHARP_QUERIES = {
         
         ; Static using directives
         (using_directive
-            (using_static_directive)
+            (using_directive)
             name: (qualified_name) @static_import_path)
         
         ; Using aliases
@@ -55,7 +55,7 @@ CSHARP_QUERIES = {
             (attribute_list)? @attributes
             (modifier)* @modifiers 
             name: (identifier) @name
-            type_parameter_list: (type_parameter_list
+            type_parameters: (type_parameters
                 (type_parameter)+ @type_params
             )?
             base_list: (base_list)? @inheritance
@@ -67,7 +67,7 @@ CSHARP_QUERIES = {
             (attribute_list)? @attributes
             (modifier)* @modifiers
             name: (identifier) @name
-            type_parameter_list: (type_parameter_list)? @type_params
+            type_parameters: (type_parameters)? @type_params
             parameter_list: (parameter_list)? @params
             body: (class_body)? @body
         ) @record
@@ -77,7 +77,7 @@ CSHARP_QUERIES = {
             (attribute_list)? @attributes
             (modifier)* @modifiers
             name: (identifier) @name
-            type_parameter_list: (type_parameter_list)? @type_params
+            type_parameters: (type_parameters)? @type_params
             parameter_list: (parameter_list)? @params
             body: (struct_body)? @body
         ) @record_struct
@@ -87,7 +87,7 @@ CSHARP_QUERIES = {
             (attribute_list)? @attributes
             (modifier)* @modifiers
             name: (identifier) @name
-            type_parameter_list: (type_parameter_list
+            type_parameters: (type_parameters
                 (type_parameter)+ @type_params
             )?
             base_list: (base_list)? @inheritance
@@ -99,7 +99,7 @@ CSHARP_QUERIES = {
             (attribute_list)? @attributes
             (modifier)* @modifiers
             name: (identifier) @name
-            type_parameter_list: (type_parameter_list)? @type_params
+            type_parameters: (type_parameters)? @type_params
             base_list: (base_list)? @inheritance
             body: (struct_body) @body
         ) @struct
@@ -124,7 +124,7 @@ CSHARP_QUERIES = {
             (modifier)* @modifiers
             return_type: (_) @return_type
             name: (identifier) @name
-            type_parameter_list: (type_parameter_list)? @type_params
+            type_parameters: (type_parameters)? @type_params
             parameter_list: (parameter_list
                 (parameter)* @params
             )
@@ -203,7 +203,7 @@ CSHARP_QUERIES = {
             (modifier)* @modifiers
             return_type: (_) @return_type
             name: (identifier) @name
-            type_parameter_list: (type_parameter_list)? @type_params
+            type_parameters: (type_parameters)? @type_params
             parameter_list: (parameter_list
                 (parameter)* @params
             )
@@ -376,7 +376,12 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
                 logger.debug(f"Running C# query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         # Capture all import paths regardless of specific capture name
                         import_path = byte_content[node.start_byte : node.end_byte].decode(
                             "utf8", errors="ignore"
@@ -395,7 +400,12 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
                 elif query_name == "declarations":
                     current_decl_node_id = None
                     current_decl_info = None
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         # Identify the main declaration node using the @kind capture
                         if capture_name in [
                             "namespace",

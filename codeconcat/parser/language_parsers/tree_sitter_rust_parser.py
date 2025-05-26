@@ -24,30 +24,31 @@ RUST_QUERIES = {
         ) @extern_crate
     """,
     "declarations": """
+        (visibility_modifier)? @visibility
+
         (function_item
-            visibility: (visibility_modifier)? @visibility
             name: (identifier) @name
             parameters: (parameters)? @params
             return_type: (_)? @return_type
             body: (block)? @body
         ) @function
 
+        (visibility_modifier)? @visibility
+
+
         (struct_item
-            visibility: (visibility_modifier)? @visibility
             name: (type_identifier) @name
             type_parameters: (type_parameters)? @type_params
             fields: (_)? @fields
         ) @struct
 
         (enum_item
-            visibility: (visibility_modifier)? @visibility
             name: (type_identifier) @name
             type_parameters: (type_parameters)? @type_params
             variants: (_)? @variants
         ) @enum
 
         (trait_item
-            visibility: (visibility_modifier)? @visibility
             name: (type_identifier) @name
             type_parameters: (type_parameters)? @type_params
             supertraits: (_)? @supertraits
@@ -73,27 +74,23 @@ RUST_QUERIES = {
         ) @impl
 
         (mod_item
-            visibility: (visibility_modifier)? @visibility
             name: (identifier) @name
             body: (_)? @body
         ) @module
 
         (const_item
-            visibility: (visibility_modifier)? @visibility
             name: (identifier) @name
             type: (_)? @type
             value: (_)? @value
         ) @constant
 
         (static_item
-            visibility: (visibility_modifier)? @visibility
             name: (identifier) @name
             type: (_)? @type
             value: (_)? @value
         ) @static
 
         (type_item
-            visibility: (visibility_modifier)? @visibility
             name: (type_identifier) @name
             type_parameters: (type_parameters)? @type_params
             type: (_)? @type
@@ -106,8 +103,9 @@ RUST_QUERIES = {
         ; Better detection of methods within impl blocks
         (impl_item
             body: (declaration_list
+                  (visibility_modifier)? @visibility
+
                   (function_item
-                    visibility: (visibility_modifier)? @method_visibility
                     name: (identifier) @method_name
                     parameters: (parameters)? @method_params
                     return_type: (_)? @method_return_type
@@ -120,7 +118,6 @@ RUST_QUERIES = {
         (impl_item
             body: (declaration_list
                   (type_item
-                    visibility: (visibility_modifier)? @assoc_type_visibility
                     name: (type_identifier) @assoc_type_name
                     type_parameters: (type_parameters)? @assoc_type_params
                     type: (_)? @assoc_type_value
@@ -132,7 +129,6 @@ RUST_QUERIES = {
         (impl_item
             body: (declaration_list
                   (const_item
-                    visibility: (visibility_modifier)? @assoc_const_visibility
                     name: (identifier) @assoc_const_name
                     type: (_)? @assoc_const_type
                     value: (_)? @assoc_const_value
@@ -143,7 +139,7 @@ RUST_QUERIES = {
     # Enhance doc comment detection - capture both line and block doc comments
     "doc_comments": """
         (line_comment) @doc_comment (#match? @doc_comment "^///|^//!")
-        (block_comment) @doc_comment (#match? @doc_comment "^/\\*\\*|^/\\*!")
+        (block_comment) @doc_comment (#match? @doc_comment "^/\\\\*\\\\*|^/\\\\*!")
     """,
 }
 
@@ -265,7 +261,12 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                 logger.debug(f"Running Rust query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         if capture_name == "import_path":
                             import_path = byte_content[node.start_byte : node.end_byte].decode(
                                 "utf8", errors="ignore"
@@ -276,7 +277,12 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                 elif query_name == "declarations":
                     # Group captures by the main declaration node ID
                     node_capture_map = {}
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         # Find the ancestor that is the actual declaration item
                         decl_node = node
                         while decl_node.parent and decl_node.type not in [

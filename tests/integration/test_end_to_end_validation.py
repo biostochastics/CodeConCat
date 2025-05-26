@@ -407,7 +407,7 @@ rules:
         # Mock sys.argv
         with patch("sys.argv", cli_args):
             # Mock exit to prevent actual program exit
-            with patch("sys.exit") as mock_exit:
+            with patch("sys.exit"):
                 # Mock command line argument parsing
                 with patch("codeconcat.main.run_codeconcat") as mock_run:
                     mock_run.return_value = "Mock output"

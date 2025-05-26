@@ -71,9 +71,7 @@ class TestClass:
                 ),
             ],
             token_stats=TokenStats(
-                gpt3_tokens=100,
                 gpt4_tokens=120,
-                davinci_tokens=90,
                 claude_tokens=110,
             ),
             security_issues=[
@@ -234,9 +232,7 @@ class MyClass:
 
         # Check that token stats are included
         self.assertIn("**Token Counts:**", summary)
-        self.assertIn("GPT-3: `100`", summary)
         self.assertIn("GPT-4: `120`", summary)
-        self.assertIn("DaVinci: `90`", summary)
         self.assertIn("Claude: `110`", summary)
 
         # Check that security issues are included

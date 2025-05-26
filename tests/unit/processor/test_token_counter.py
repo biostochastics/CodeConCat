@@ -32,16 +32,12 @@ class TestTokenCounter:
         assert isinstance(stats, TokenStats)
 
         # Verify token counts are positive numbers
-        assert stats.gpt3_tokens > 0
         assert stats.gpt4_tokens > 0
-        assert stats.davinci_tokens > 0
         assert stats.claude_tokens > 0
 
         # Simple text should have similar token counts across models
         # They won't be exactly the same due to different tokenization algorithms
-        assert 5 <= stats.gpt3_tokens <= 15
         assert 5 <= stats.gpt4_tokens <= 15
-        assert 5 <= stats.davinci_tokens <= 15
         assert 5 <= stats.claude_tokens <= 15
 
     def test_empty_text(self):
@@ -49,9 +45,7 @@ class TestTokenCounter:
         stats = get_token_stats("")
 
         # Empty text should have 0 or 1 tokens depending on the model
-        assert 0 <= stats.gpt3_tokens <= 1
         assert 0 <= stats.gpt4_tokens <= 1
-        assert 0 <= stats.davinci_tokens <= 1
         assert 0 <= stats.claude_tokens <= 1
 
     def test_code_text(self):
@@ -66,9 +60,7 @@ def hello_world():
         stats = get_token_stats(code)
 
         # Code should have more tokens than the simple text
-        assert stats.gpt3_tokens > 15
         assert stats.gpt4_tokens > 15
-        assert stats.davinci_tokens > 15
         assert stats.claude_tokens > 15
 
     def test_count_tokens_specific_model(self):
@@ -76,20 +68,14 @@ def hello_world():
         text = "Testing specific model token counting"
 
         # Count tokens for each model explicitly
-        gpt3_tokens = count_tokens(text, "gpt-3.5-turbo")
         gpt4_tokens = count_tokens(text, "gpt-4")
-        davinci_tokens = count_tokens(text, "text-davinci-003")
 
         # Verify counts are reasonable
-        assert 4 <= gpt3_tokens <= 8
         assert 4 <= gpt4_tokens <= 8
-        assert 4 <= davinci_tokens <= 8
 
         # Also verify that the stats object has matching counts
         stats = get_token_stats(text)
-        assert stats.gpt3_tokens == gpt3_tokens
         assert stats.gpt4_tokens == gpt4_tokens
-        assert stats.davinci_tokens == davinci_tokens
 
     def test_special_characters(self):
         """Test token counting with special characters."""
@@ -98,13 +84,11 @@ def hello_world():
         stats = get_token_stats(text)
 
         # Verify counts are positive
-        assert stats.gpt3_tokens > 0
         assert stats.gpt4_tokens > 0
-        assert stats.davinci_tokens > 0
         assert stats.claude_tokens > 0
 
         # Emojis and special characters often require more tokens
-        assert stats.gpt3_tokens > 10
+        assert stats.gpt4_tokens > 10
 
     def test_markdown_text(self):
         """Test token counting with markdown formatting."""
@@ -125,9 +109,7 @@ def example():
         stats = get_token_stats(markdown)
 
         # Markdown should have a significant number of tokens
-        assert stats.gpt3_tokens > 30
         assert stats.gpt4_tokens > 30
-        assert stats.davinci_tokens > 30
         assert stats.claude_tokens > 30
 
 
@@ -194,7 +176,7 @@ class TestMockedGetTokenStats:
     def test_get_token_stats_mocked(self, mock_count_tokens, mock_claude_tokenizer):
         """Test getting token statistics with mocks."""
         # Mock token counts
-        mock_count_tokens.side_effect = [10, 12, 8]  # GPT-3.5, GPT-4, Davinci
+        mock_count_tokens.side_effect = [12]  # GPT-4
         mock_claude_tokenizer.encode.return_value = [1] * 15  # 15 tokens for Claude
 
         # Get token stats
@@ -203,16 +185,12 @@ class TestMockedGetTokenStats:
 
         # Verify stats
         assert isinstance(stats, TokenStats)
-        assert stats.gpt3_tokens == 10
         assert stats.gpt4_tokens == 12
-        assert stats.davinci_tokens == 8
         assert stats.claude_tokens == 15
 
         # Verify calls
         expected_calls = [
-            call(text, "gpt-3.5-turbo"),
             call(text, "gpt-4"),
-            call(text, "text-davinci-003"),
         ]
         mock_count_tokens.assert_has_calls(expected_calls)
         mock_claude_tokenizer.encode.assert_called_once_with(text)

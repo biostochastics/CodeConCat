@@ -329,7 +329,12 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                 logger.debug(f"Running Go query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         if capture_name == "import_path":
                             # String nodes include quotes, remove them
                             import_path = (
@@ -341,7 +346,12 @@ class TreeSitterGoParser(BaseTreeSitterParser):
 
                 elif query_name == "declarations":
                     current_decl_node_id = None
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         node_id = node.id
 
                         # Identify the main declaration node

@@ -195,9 +195,7 @@ This is a test project for integration testing.
             summary="Sample Python file for testing",
             declarations=parsed_data.parse_result.declarations,
             imports=parsed_data.imports,
-            token_stats=TokenStats(
-                gpt3_tokens=100, gpt4_tokens=120, davinci_tokens=90, claude_tokens=110
-            ),
+            token_stats=TokenStats(gpt4_tokens=120, claude_tokens=110),
             tags=["test", "python"],
         )
 
@@ -245,9 +243,7 @@ This is a test project for integration testing.
             summary="Sample Python file for testing",
             declarations=parsed_data.parse_result.declarations,
             imports=parsed_data.imports,
-            token_stats=TokenStats(
-                gpt3_tokens=100, gpt4_tokens=120, davinci_tokens=90, claude_tokens=110
-            ),
+            token_stats=TokenStats(gpt4_tokens=120, claude_tokens=110),
             tags=["test", "python"],
         )
 

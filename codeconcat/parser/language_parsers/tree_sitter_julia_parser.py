@@ -16,19 +16,19 @@ logger = logging.getLogger(__name__)
 JULIA_QUERIES = {
     "imports": """
         (using_statement
-          (module_expression module: (identifier) @import_path)
+          (module_statement module: (identifier) @import_path)
         ) @using_module
 
         (using_statement
-          (module_expression module: (scoped_identifier) @import_path)
+          (module_statement module: (scoped_identifier) @import_path)
         ) @using_scoped_module
 
         (import_statement
-           (module_expression module: (identifier) @import_path)
+           (module_statement module: (identifier) @import_path)
         ) @import_module
 
         (import_statement
-           (module_expression module: (scoped_identifier) @import_path)
+           (module_statement module: (scoped_identifier) @import_path)
         ) @import_scoped_module
 
         ; Import statements with specific symbols
@@ -53,12 +53,12 @@ JULIA_QUERIES = {
     "declarations": """
         (module_definition
             name: (identifier) @name
-            body: (block) @body
+            body: (block_expression) @body
         ) @module
 
         (baremodule_definition
             name: (identifier) @name
-            body: (block) @body
+            body: (block_expression) @body
         ) @baremodule
 
         ; Standard function definitions
@@ -71,7 +71,7 @@ JULIA_QUERIES = {
                 (operator) @name    ; For operator overloading
             ]
             parameters: (parameter_list)? @params
-            body: (block) @body
+            body: (block_expression) @body
         ) @function
         
         ; Short-form function definitions: f(x) = expr
@@ -92,7 +92,7 @@ JULIA_QUERIES = {
         (macro_definition
             name: (macro_identifier) @name
             parameters: (parameter_list)? @params
-            body: (block) @body
+            body: (block_expression) @body
         ) @macro
 
         ; Struct definitions with better type parameter capture and field detection
@@ -128,36 +128,40 @@ JULIA_QUERIES = {
         ) @constant
 
     """,
-    # Capture Julia docstrings (triple-quoted strings before declarations) and comments
-    "doc_comments": """
-        ; Regular comments
-        (comment) @comment
+    # Capture Julia docstrings (triple-quoted strings before declarations) and line_comments
+    "doc_line_comments": """
+        ; Regular line_comments
+        (line_comment) @line_comment
         
         ; Julia docstrings - triple-quoted strings that appear before declarations
         (string_literal) @docstring
     """,
 }
 
-# Patterns to clean Julia comments
+# Patterns to clean Julia line_comments
 JULIA_LINE_COMMENT_PATTERN = re.compile(r"^#\s?")
 JULIA_BLOCK_COMMENT_START_PATTERN = re.compile(r"^#=\s?")
 JULIA_BLOCK_COMMENT_END_PATTERN = re.compile(r"\s*=#$")
 
 
-def _clean_julia_doc_comment(comment_block: List[str]) -> str:
-    """Cleans a block of Julia comment lines."""
+def _clean_julia_doc_line_comment(line_comment_block_expression: List[str]) -> str:
+    """Cleans a block_expression of Julia line_comment lines."""
     cleaned_lines = []
-    is_block = comment_block[0].startswith("#=") if comment_block else False
+    is_block_expression = (
+        line_comment_block_expression[0].startswith("#=")
+        if line_comment_block_expression
+        else False
+    )
 
-    for i, line in enumerate(comment_block):
-        original_line = line  # Keep original for block end check
-        if is_block:
+    for i, line in enumerate(line_comment_block_expression):
+        original_line = line  # Keep original for block_expression end check
+        if is_block_expression:
             if i == 0:
                 line = JULIA_BLOCK_COMMENT_START_PATTERN.sub("", line)
-            # No standard line prefix like '*' for block comments
+            # No standard line prefix like '*' for block_expression line_comments
             if original_line.strip().endswith("=#"):
                 line = JULIA_BLOCK_COMMENT_END_PATTERN.sub("", line)
-        else:  # Line comment
+        else:  # Line line_comment
             line = JULIA_LINE_COMMENT_PATTERN.sub("", line)
 
         cleaned_lines.append(line.strip())
@@ -184,48 +188,50 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
         declarations = []
         imports: Set[str] = set()
         declaration_map = {}  # node_id -> declaration info
-        doc_comment_map = {}  # end_line -> List[str]
+        doc_line_comment_map = {}  # end_line -> List[str]
 
         # --- Pass 1: Extract Comments (potential docstrings) --- #
         try:
-            doc_query = self.ts_language.query(queries.get("doc_comments", ""))
+            doc_query = self.ts_language.query(queries.get("doc_line_comments", ""))
             doc_captures = doc_query.captures(root_node)
-            last_comment_line = -2
-            current_doc_block: List[str] = []
+            last_line_comment_line = -2
+            current_doc_block_expression: List[str] = []
 
             for node, _ in doc_captures:
-                comment_text = byte_content[node.start_byte : node.end_byte].decode(
+                line_comment_text = byte_content[node.start_byte : node.end_byte].decode(
                     "utf8", errors="ignore"
                 )
                 current_start_line = node.start_point[0]
                 current_end_line = node.end_point[0]
-                is_block = comment_text.startswith("#=")
+                is_block_expression = line_comment_text.startswith("#=")
 
-                if is_block:
-                    if current_doc_block:
-                        doc_comment_map[last_comment_line] = current_doc_block
-                    doc_comment_map[current_end_line] = comment_text.splitlines()
-                    current_doc_block = []
-                    last_comment_line = current_end_line
-                else:  # Line comment
-                    if current_start_line == last_comment_line + 1:
-                        current_doc_block.append(comment_text)
+                if is_block_expression:
+                    if current_doc_block_expression:
+                        doc_line_comment_map[last_line_comment_line] = current_doc_block_expression
+                    doc_line_comment_map[current_end_line] = line_comment_text.splitlines()
+                    current_doc_block_expression = []
+                    last_line_comment_line = current_end_line
+                else:  # Line line_comment
+                    if current_start_line == last_line_comment_line + 1:
+                        current_doc_block_expression.append(line_comment_text)
                     else:
-                        if current_doc_block:
-                            doc_comment_map[last_comment_line] = current_doc_block
-                        current_doc_block = [comment_text]
-                    last_comment_line = current_start_line
+                        if current_doc_block_expression:
+                            doc_line_comment_map[
+                                last_line_comment_line
+                            ] = current_doc_block_expression
+                        current_doc_block_expression = [line_comment_text]
+                    last_line_comment_line = current_start_line
 
-            # Store the last block if it exists
-            if current_doc_block:
-                doc_comment_map[last_comment_line] = current_doc_block
+            # Store the last block_expression if it exists
+            if current_doc_block_expression:
+                doc_line_comment_map[last_line_comment_line] = current_doc_block_expression
 
         except Exception as e:
-            logger.warning(f"Failed to execute Julia doc_comments query: {e}", exc_info=True)
+            logger.warning(f"Failed to execute Julia doc_line_comments query: {e}", exc_info=True)
 
         # --- Pass 2: Extract Imports and Declarations --- #
         for query_name, query_str in queries.items():
-            if query_name == "doc_comments":
+            if query_name == "doc_line_comments":
                 continue
 
             try:
@@ -234,7 +240,12 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
                 logger.debug(f"Running Julia query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         if capture_name in ["import_path", "imported_symbol"]:
                             import_path = byte_content[node.start_byte : node.end_byte].decode(
                                 "utf8", errors="ignore"
@@ -246,7 +257,12 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
                 elif query_name == "declarations":
                     # Group captures by declaration node ID
                     node_capture_map = {}
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         decl_node = node
                         while decl_node.parent and decl_node.type not in [
                             "module_definition",
@@ -354,12 +370,16 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
             except Exception as e:
                 logger.warning(f"Failed to execute Julia query '{query_name}': {e}", exc_info=True)
 
-        # --- Pass 3: Process declarations and associate comments --- #
+        # --- Pass 3: Process declarations and associate line_comments --- #
         for decl_id, decl_info in declaration_map.items():
             if decl_info.get("name") and decl_info["name"] != "<unknown>":
-                # Check for comments ending on the line before the declaration
-                raw_doc_block = doc_comment_map.get(decl_info["start_line"] - 1, [])
-                cleaned_docstring = _clean_julia_doc_comment(raw_doc_block) if raw_doc_block else ""
+                # Check for line_comments ending on the line before the declaration
+                raw_doc_block_expression = doc_line_comment_map.get(decl_info["start_line"] - 1, [])
+                cleaned_docstring = (
+                    _clean_julia_doc_line_comment(raw_doc_block_expression)
+                    if raw_doc_block_expression
+                    else ""
+                )
 
                 declarations.append(
                     Declaration(

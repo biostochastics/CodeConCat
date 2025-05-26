@@ -11,11 +11,9 @@ class TestTokenCounter:
 
     def test_token_stats_creation(self):
         """Test TokenStats data class creation."""
-        stats = TokenStats(gpt3_tokens=90, gpt4_tokens=100, davinci_tokens=95, claude_tokens=110)
+        stats = TokenStats(gpt4_tokens=100, claude_tokens=110)
 
-        assert stats.gpt3_tokens == 90
         assert stats.gpt4_tokens == 100
-        assert stats.davinci_tokens == 95
         assert stats.claude_tokens == 110
 
     def test_get_token_stats_empty_text(self):
@@ -23,9 +21,7 @@ class TestTokenCounter:
         stats = get_token_stats("")
 
         assert isinstance(stats, TokenStats)
-        assert stats.gpt3_tokens == 0
         assert stats.gpt4_tokens == 0
-        assert stats.davinci_tokens == 0
         assert stats.claude_tokens == 0
 
     def test_get_token_stats_simple_text(self):
@@ -35,9 +31,7 @@ class TestTokenCounter:
 
         assert isinstance(stats, TokenStats)
         # Token counts should be positive for non-empty text
-        assert stats.gpt3_tokens > 0
         assert stats.gpt4_tokens > 0
-        assert stats.davinci_tokens > 0
         assert stats.claude_tokens > 0
 
     def test_get_token_stats_code_snippet(self):
@@ -51,9 +45,7 @@ def hello_world():
 
         assert isinstance(stats, TokenStats)
         # Code should have more tokens than simple text
-        assert stats.gpt3_tokens > 5
         assert stats.gpt4_tokens > 5
-        assert stats.davinci_tokens > 5
         assert stats.claude_tokens > 5
 
     def test_get_token_stats_unicode(self):
@@ -62,9 +54,7 @@ def hello_world():
         stats = get_token_stats(text)
 
         assert isinstance(stats, TokenStats)
-        assert stats.gpt3_tokens > 0
         assert stats.gpt4_tokens > 0
-        assert stats.davinci_tokens > 0
         assert stats.claude_tokens > 0
 
     @patch("codeconcat.processor.token_counter._CLAUDE_TOKENIZER")
@@ -85,10 +75,8 @@ def hello_world():
         stats = get_token_stats("Test text")
 
         # Should have called tiktoken for different models
-        assert mock_encoding_for_model.call_count >= 3  # GPT-3.5, GPT-4, and Davinci
-        assert stats.gpt3_tokens == 5
+        assert mock_encoding_for_model.call_count >= 1  # GPT-4
         assert stats.gpt4_tokens == 5
-        assert stats.davinci_tokens == 5
         assert stats.claude_tokens == 6
 
     def test_get_token_stats_long_text(self):
@@ -99,9 +87,7 @@ def hello_world():
 
         assert isinstance(stats, TokenStats)
         # Should have many tokens
-        assert stats.gpt3_tokens > 100
         assert stats.gpt4_tokens > 100
-        assert stats.davinci_tokens > 100
         assert stats.claude_tokens > 100
 
     def test_token_stats_different_models(self):
@@ -111,7 +97,5 @@ def hello_world():
 
         # Different tokenizers should give slightly different results
         # but they should all be positive
-        assert stats.gpt3_tokens > 0
         assert stats.gpt4_tokens > 0
-        assert stats.davinci_tokens > 0
         assert stats.claude_tokens > 0

@@ -45,7 +45,7 @@ CPP_QUERIES = {
         ; Template class definitions
         (template_declaration
             parameters: (template_parameter_list) @template_params
-            declaration: (class_specifier
+            declarator: (class_specifier
                 name: (type_identifier) @name
                 body: (field_declaration_list)? @body
             ) @template_class_body
@@ -63,7 +63,7 @@ CPP_QUERIES = {
         ; Template struct definitions
         (template_declaration
             parameters: (template_parameter_list) @template_params
-            declaration: (struct_specifier
+            declarator: (struct_specifier
                 name: (type_identifier) @name
                 body: (field_declaration_list)? @body
             ) @template_struct_body
@@ -150,7 +150,7 @@ CPP_QUERIES = {
         ; Template function definitions
         (template_declaration
             parameters: (template_parameter_list) @template_params
-            declaration: (function_definition
+            declarator: (function_definition
                 type: (_)? @return_type
                 declarator: (function_declarator
                     declarator: [(identifier) (field_identifier)] @name
@@ -248,10 +248,10 @@ CPP_QUERIES = {
     # Enhanced doc comment capture including Doxygen and regular comments
     "doc_comments": """
         ; Doxygen-style line comments
-        (comment) @doxygen_comment (#match? @doxygen_comment "^///|^//\\!")
+        (comment) @doxygen_comment (#match? @doxygen_comment "^///|^//!")
         
         ; Doxygen-style block comments
-        (comment) @doxygen_block (#match? @doxygen_block "^/\\*\\*|^/\\*\\!")
+        (comment) @doxygen_block (#match? @doxygen_block "^/\\\\*\\\\*|^/\\\\*!")
         
         ; C++ style line comments
         (comment) @cpp_comment (#match? @cpp_comment "^//")
@@ -376,7 +376,12 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                 logger.debug(f"Running C++ query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         if capture_name == "import_path":
                             # Includes <...> or "..."
                             import_path = (
@@ -390,7 +395,12 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                 elif query_name == "declarations":
                     # Map captures to their main declaration node ID
                     node_capture_map = {}
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         # Heuristic: Find the ancestor node that corresponds to the @declaration capture name
                         # This is tricky because captures can be nested.
                         current_node = node

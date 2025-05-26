@@ -109,9 +109,7 @@ class TestRenderingAdapters:
     @pytest.fixture
     def sample_token_stats(self) -> TokenStats:
         """Fixture providing sample token statistics."""
-        return TokenStats(
-            gpt3_tokens=1000, gpt4_tokens=1200, davinci_tokens=900, claude_tokens=1100
-        )
+        return TokenStats(gpt4_tokens=1200, claude_tokens=1100)
 
     @pytest.fixture
     def sample_file_data(
@@ -191,7 +189,6 @@ class TestRenderingAdapters:
         # Check expected output
         assert "### Token Statistics" in result
         assert "| Model | Token Count |" in result
-        assert "| GPT-3 | 1,000 |" in result
         assert "| GPT-4 | 1,200 |" in result
         assert "| Claude | 1,100 |" in result
 
@@ -287,9 +284,7 @@ class TestRenderingAdapters:
         result = JsonRenderAdapter.token_stats_to_dict(sample_token_stats)
 
         # Check expected structure
-        assert result["gpt3_tokens"] == 1000
         assert result["gpt4_tokens"] == 1200
-        assert result["davinci_tokens"] == 900
         assert result["claude_tokens"] == 1100
 
     def test_json_render_annotated_file_to_dict(self, sample_file_data, config):
@@ -400,13 +395,11 @@ class TestRenderingAdapters:
 
         # Check model elements
         model_elems = stats_elem.findall("model")
-        assert len(model_elems) == 4
+        assert len(model_elems) == 2
 
         # Check individual models
         model_map = {elem.get("name"): int(elem.get("tokens")) for elem in model_elems}
-        assert model_map["gpt3"] == 1000
         assert model_map["gpt4"] == 1200
-        assert model_map["davinci"] == 900
         assert model_map["claude"] == 1100
 
     def test_xml_render_create_annotated_file_element(self, sample_file_data, config):
@@ -528,7 +521,6 @@ class TestRenderingAdapters:
 
         # Check expected output
         assert "=== TOKEN STATISTICS ===" in result
-        assert "GPT-3: 1,000" in result
         assert "GPT-4: 1,200" in result
         assert "Claude: 1,100" in result
 

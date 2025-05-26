@@ -150,7 +150,7 @@ class TestRepositoryValidation:
         ):
             with patch("codeconcat.validation.setup_semgrep.install_semgrep", return_value=False):
                 try:
-                    import semgrep
+                    import semgrep  # noqa: F401
                 except ImportError:
                     pytest.skip("Semgrep is not available and cannot be installed")
 
