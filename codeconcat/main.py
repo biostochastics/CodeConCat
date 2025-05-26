@@ -1281,9 +1281,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                             ratio_indicator = (
                                 "🟢"
                                 if compression_percent > 70
-                                else "🟡"
-                                if compression_percent > 40
-                                else "🔴"
+                                else "🟡" if compression_percent > 40 else "🔴"
                             )
 
                             print(

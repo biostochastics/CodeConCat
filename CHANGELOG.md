@@ -1,6 +1,27 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
-## [0.7.3] - 2025-05-25
+## [0.7.3] - 2025-05-26
+
+### Fixed
+- **Error Handling Improvements**: Fixed various error handling issues identified by static analysis:
+  - Added debug logging with context when version retrieval fails in API CLI
+  - Improved error logging in `get_node_text_safe` from DEBUG to ERROR level with full context
+  - Fixed inconsistent error handling documentation in `install_semgrep` function
+  
+- **Code Quality Improvements**:
+  - Extracted duplicated parser instance extraction logic into `_get_parser_name` helper function
+  - Fixed invalid legacy format segment assignment in XML writer by validating segments belong to current file
+  - Extracted mixed format handling into separate `_get_file_segments` function for better maintainability
+  - Added input context (args/kwargs) to unexpected error logs for better debugging
+  - Improved `safe_parser_method` decorator docstring with usage examples and return value details
+  - Enhanced type hints documentation in `get_node_text_safe` to clarify expected node type
+
+### Changed
+- **Logging Improvements**:
+  - Critical errors in parser utilities are now logged at ERROR level instead of DEBUG
+  - Node text extraction failures now include node type and source type in error messages
+
+## [0.7.2] - 2025-05-25
 
 ### Added
 - **Common Utilities Module**: Created `parser_utils.py` with reusable parser utilities:

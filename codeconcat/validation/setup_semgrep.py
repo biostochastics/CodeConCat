@@ -22,9 +22,6 @@ def install_semgrep():
 
     Returns:
         bool: True if installation successful, False otherwise
-
-    Raises:
-        ValidationError: If installation fails
     """
     try:
         logger.info("Installing semgrep...")

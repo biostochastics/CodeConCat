@@ -9,15 +9,25 @@ logger = logging.getLogger(__name__)
 F = TypeVar("F", bound=Callable[..., Any])
 
 
+def _get_parser_name(args) -> str:
+    """Extract parser name from function arguments."""
+    parser_instance = args[0] if args else None
+    return parser_instance.__class__.__name__ if parser_instance else "Unknown"
+
+
 def safe_parser_method(default_return: Any = None) -> Callable[[F], F]:
     """
-    Decorator for parser methods to handle common exceptions gracefully.
+    Decorator for parser methods to handle common exceptions gracefully during parsing operations.
+
+    Use this decorator on parser methods that might fail due to invalid node structure
+    or missing data to ensure graceful fallback behavior.
 
     Args:
         default_return: Value to return if an exception occurs
 
     Returns:
-        Decorated function that catches IndexError and KeyError
+        Decorated function that handles IndexError and KeyError, returning default_return,
+        while logging and re-raising other exceptions
     """
 
     def decorator(func: F) -> F:
@@ -26,19 +36,14 @@ def safe_parser_method(default_return: Any = None) -> Callable[[F], F]:
             try:
                 return func(*args, **kwargs)
             except (IndexError, KeyError) as e:
-                # Get the parser instance (first argument)
-                parser_instance = args[0] if args else None
-                parser_name = parser_instance.__class__.__name__ if parser_instance else "Unknown"
-
+                parser_name = _get_parser_name(args)
                 logger.debug(f"{parser_name}.{func.__name__} encountered {type(e).__name__}: {e}")
                 return default_return
             except Exception as e:
                 # Log unexpected exceptions but re-raise them
-                parser_instance = args[0] if args else None
-                parser_name = parser_instance.__class__.__name__ if parser_instance else "Unknown"
-
+                parser_name = _get_parser_name(args)
                 logger.error(
-                    f"{parser_name}.{func.__name__} encountered unexpected error: {e}",
+                    f"{parser_name}.{func.__name__} encountered unexpected error: {e}. Args: {args}, Kwargs: {kwargs}",
                     exc_info=True,
                 )
                 raise
@@ -70,12 +75,12 @@ def extract_safe_substring(text: str, start: int, end: int) -> str:
     return text[start:end]
 
 
-def get_node_text_safe(node: Any, source_code: Union[str, bytes]) -> Optional[str]:
+def get_node_text_safe(node: Optional[Any], source_code: Union[str, bytes]) -> Optional[str]:
     """
     Safely extract text from a tree-sitter node.
 
     Args:
-        node: Tree-sitter node
+        node: Tree-sitter node (tree_sitter.Node when available)
         source_code: Source code text
 
     Returns:
@@ -90,5 +95,8 @@ def get_node_text_safe(node: Any, source_code: Union[str, bytes]) -> Optional[st
 
         return extract_safe_substring(source_code, node.start_byte, node.end_byte)
     except Exception as e:
-        logger.debug(f"Failed to extract node text: {e}")
+        logger.error(
+            f"Failed to extract node text - Node type: {type(node)}, Source type: {type(source_code)}, Error: {e}",
+            exc_info=True,
+        )
         return None
