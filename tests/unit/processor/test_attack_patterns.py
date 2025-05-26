@@ -1,24 +1,11 @@
 """Tests for comprehensive attack pattern detection."""
 
-import pytest
-from codeconcat.processor.attack_patterns import (
-    scan_content, 
-    get_patterns_for_language,
-    C_PATTERNS,
-    PYTHON_PATTERNS,
-    R_PATTERNS,
-    JULIA_PATTERNS,
-    GO_PATTERNS,
-    PHP_PATTERNS,
-    RUST_PATTERNS,
-    JS_TS_PATTERNS,
-    Severity
-)
+from codeconcat.processor.attack_patterns import scan_content, get_patterns_for_language, Severity
 
 
 class TestAttackPatterns:
     """Test attack pattern detection across languages."""
-    
+
     def test_c_buffer_overflow_detection(self):
         """Test detection of buffer overflow vulnerabilities in C."""
         c_code = """
@@ -30,13 +17,16 @@ class TestAttackPatterns:
             gets(buffer);  // Dangerous function
         }
         """
-        
+
         findings = scan_content(c_code, "c")
         assert len(findings) >= 4
         assert any(f["name"] == "buffer_overflow_strcpy" for f in findings)
-        assert all(f["severity"] == Severity.CRITICAL.value for f in findings 
-                  if f["name"] == "buffer_overflow_strcpy")
-    
+        assert all(
+            f["severity"] == Severity.CRITICAL.value
+            for f in findings
+            if f["name"] == "buffer_overflow_strcpy"
+        )
+
     def test_python_code_injection(self):
         """Test detection of code injection in Python."""
         python_code = """
@@ -57,23 +47,23 @@ class TestAttackPatterns:
             eval("2 + 2")
             os.system("echo hello")
         """
-        
+
         findings = scan_content(python_code, "python")
-        
+
         # Check eval/exec injection
         eval_findings = [f for f in findings if "eval" in f["name"]]
         exec_findings = [f for f in findings if "exec" in f["name"]]
         assert len(eval_findings) >= 1
         assert len(exec_findings) >= 1
-        
+
         # Check command injection
         cmd_findings = [f for f in findings if "command" in f["name"]]
         assert len(cmd_findings) >= 2
-        
+
         # Check SQL injection
         sql_findings = [f for f in findings if "sql" in f["name"].lower()]
         assert len(sql_findings) >= 1
-    
+
     def test_r_injection_patterns(self):
         """Test R-specific injection vulnerabilities."""
         r_code = """
@@ -95,14 +85,14 @@ class TestAttackPatterns:
         # Unsafe RDS loading
         data <- readRDS(input_file)
         """
-        
+
         findings = scan_content(r_code, "r")
-        
+
         assert any(f["name"] == "r_eval_parse_injection" for f in findings)
         assert any(f["name"] == "r_system_command_injection" for f in findings)
         assert any(f["name"] == "r_sql_injection" for f in findings)
         assert any(f["name"] == "r_unsafe_rds_load" for f in findings)
-    
+
     def test_javascript_xss_detection(self):
         """Test XSS vulnerability detection in JavaScript."""
         js_code = """
@@ -123,17 +113,17 @@ class TestAttackPatterns:
             obj['constructor'] = evil;
         }
         """
-        
+
         findings = scan_content(js_code, "javascript")
-        
+
         # Check DOM XSS
         xss_findings = [f for f in findings if "xss" in f["name"].lower()]
         assert len(xss_findings) >= 3
-        
+
         # Check prototype pollution
         proto_findings = [f for f in findings if "prototype" in f["name"]]
         assert len(proto_findings) >= 2
-    
+
     def test_go_security_patterns(self):
         """Test Go security pattern detection."""
         go_code = """
@@ -154,14 +144,14 @@ class TestAttackPatterns:
             token := math/rand.Intn(1000000)
         }
         """
-        
+
         findings = scan_content(go_code, "go")
-        
+
         assert any(f["name"] == "go_sql_injection" for f in findings)
         assert any(f["name"] == "go_command_injection" for f in findings)
         assert any(f["name"] == "go_path_traversal" for f in findings)
         assert any(f["name"] == "go_weak_random" for f in findings)
-    
+
     def test_php_vulnerabilities(self):
         """Test PHP vulnerability detection."""
         php_code = """
@@ -184,15 +174,15 @@ class TestAttackPatterns:
         echo "Welcome " . $_GET['name'];
         ?>
         """
-        
+
         findings = scan_content(php_code, "php")
-        
+
         assert any(f["name"] == "php_sql_injection" for f in findings)
         assert any(f["name"] == "php_command_injection" for f in findings)
         assert any(f["name"] == "php_file_inclusion" for f in findings)
         assert any(f["name"] == "php_unserialize" for f in findings)
         assert any(f["name"] == "php_xss" for f in findings)
-    
+
     def test_rust_safety_issues(self):
         """Test Rust safety issue detection."""
         rust_code = """
@@ -211,14 +201,14 @@ class TestAttackPatterns:
             static mut COUNTER: i32 = 0;
         }
         """
-        
+
         findings = scan_content(rust_code, "rust")
-        
+
         assert any(f["name"] == "rust_unsafe_unwrap" for f in findings)
         assert any(f["name"] == "rust_unsafe_transmute" for f in findings)
         assert any(f["name"] == "rust_unsafe_raw_pointer" for f in findings)
         assert any(f["name"] == "rust_static_mut" for f in findings)
-    
+
     def test_julia_patterns(self):
         """Test Julia security patterns."""
         julia_code = """
@@ -237,14 +227,14 @@ class TestAttackPatterns:
         # Including untrusted code
         include(user_file)
         """
-        
+
         findings = scan_content(julia_code, "julia")
-        
+
         assert any(f["name"] == "julia_eval_injection" for f in findings)
         assert any(f["name"] == "julia_command_injection" for f in findings)
         assert any(f["name"] == "julia_unsafe_ccall" for f in findings)
         assert any(f["name"] == "julia_include_injection" for f in findings)
-    
+
     def test_cross_language_patterns(self):
         """Test patterns that apply across languages."""
         code_with_secrets = """
@@ -260,36 +250,36 @@ class TestAttackPatterns:
         btc_wallet = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
         eth_wallet = "0x742d35Cc6634C0532925a3b844Bc9e7595f7e8E7"
         """
-        
+
         # Test with Python
         findings = scan_content(code_with_secrets, "python")
-        
+
         secret_findings = [f for f in findings if "secret" in f["name"] or "hardcoded" in f["name"]]
         assert len(secret_findings) >= 2
-        
+
         crypto_findings = [f for f in findings if "cryptocurrency" in f["name"]]
         assert len(crypto_findings) >= 2
-        
+
         base64_findings = [f for f in findings if "base64" in f["name"]]
         assert len(base64_findings) >= 1
-    
+
     def test_language_pattern_mapping(self):
         """Test that language pattern mapping works correctly."""
         # Test known languages
         c_patterns = get_patterns_for_language("c")
         assert any(p.name == "buffer_overflow_strcpy" for p in c_patterns)
-        
+
         python_patterns = get_patterns_for_language("python")
         assert any(p.name == "python_eval_injection" for p in python_patterns)
-        
+
         # Test case insensitivity
         python_patterns_upper = get_patterns_for_language("PYTHON")
         assert len(python_patterns) == len(python_patterns_upper)
-        
+
         # Test unknown language gets cross-language patterns only
         unknown_patterns = get_patterns_for_language("unknown_lang")
         assert all(p.languages == ["all"] for p in unknown_patterns)
-    
+
     def test_severity_levels(self):
         """Test that severity levels are correctly assigned."""
         # Critical severity patterns
@@ -300,8 +290,8 @@ class TestAttackPatterns:
         findings = scan_content(critical_code, "python")
         critical_findings = [f for f in findings if f["severity"] == Severity.CRITICAL.value]
         assert len(critical_findings) >= 2
-        
-        # Medium severity patterns  
+
+        # Medium severity patterns
         medium_code = """
         import hashlib
         password_hash = hashlib.md5(password)
@@ -309,7 +299,7 @@ class TestAttackPatterns:
         findings = scan_content(medium_code, "python")
         medium_findings = [f for f in findings if f["severity"] == Severity.MEDIUM.value]
         assert len(medium_findings) >= 1
-    
+
     def test_line_number_calculation(self):
         """Test that line numbers are correctly calculated."""
         multiline_code = """line 1
@@ -318,19 +308,19 @@ eval(user_input)  # Should be line 3
 line 4
 exec(another_input)  # Should be line 5
 """
-        
+
         findings = scan_content(multiline_code, "python")
         eval_finding = next(f for f in findings if "eval" in f["name"])
         exec_finding = next(f for f in findings if "exec" in f["name"])
-        
+
         assert eval_finding["line"] == 3
         assert exec_finding["line"] == 5
-    
+
     def test_cwe_ids(self):
         """Test that CWE IDs are properly assigned."""
         sql_injection_code = "cursor.execute('SELECT * FROM users WHERE id = ' + user_id)"
         findings = scan_content(sql_injection_code, "python")
-        
+
         sql_findings = [f for f in findings if "sql" in f["name"]]
         assert len(sql_findings) > 0
         assert sql_findings[0]["cwe_id"] == "CWE-89"  # SQL Injection CWE

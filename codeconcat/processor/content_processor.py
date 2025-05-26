@@ -49,7 +49,6 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
             while start_block_index != -1:
                 # Use robust string detection - ignore if inside quotes
                 if not is_inside_string(processed_line, start_block_index):
-
                     end_block_index = processed_line.find("*/", start_block_index + 2)
                     if end_block_index != -1:
                         # Block comment starts and ends on the same line

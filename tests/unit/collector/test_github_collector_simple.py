@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-import tempfile
 import subprocess
 
 from codeconcat.collector.github_collector import (
@@ -67,9 +66,9 @@ class TestBuildGitCloneUrl:
 class TestCollectGitRepo:
     """Test Git repository collection."""
 
-    @patch('codeconcat.collector.github_collector.tempfile.TemporaryDirectory')
-    @patch('codeconcat.collector.github_collector.subprocess.run')
-    @patch('codeconcat.collector.github_collector.collect_local_files')
+    @patch("codeconcat.collector.github_collector.tempfile.TemporaryDirectory")
+    @patch("codeconcat.collector.github_collector.subprocess.run")
+    @patch("codeconcat.collector.github_collector.collect_local_files")
     def test_collect_success(self, mock_collect_local, mock_run, mock_temp_dir):
         """Test successful repository collection."""
         # Mock temp directory
@@ -77,30 +76,30 @@ class TestCollectGitRepo:
         mock_temp_context.__enter__.return_value = "/tmp/test"
         mock_temp_context.__exit__.return_value = None
         mock_temp_dir.return_value = mock_temp_context
-        
+
         # Mock successful git operations
         mock_run.return_value = Mock(returncode=0)
-        
+
         # Mock local file collection
         mock_files = [
             ParsedFileData(
                 file_path="/tmp/test/Hello-World/README.md",
                 content="# Hello World",
-                language="markdown"
+                language="markdown",
             ),
         ]
         mock_collect_local.return_value = mock_files
-        
+
         config = CodeConCatConfig()
         result, temp_path = collect_git_repo("octocat/Hello-World", config)
-        
+
         assert len(result) == 1
         # Check that we got the expected file (path is absolute from local collector)
         assert result[0].file_path.endswith("Hello-World/README.md")
         assert temp_path == "/tmp/test"
 
-    @patch('codeconcat.collector.github_collector.tempfile.TemporaryDirectory')
-    @patch('codeconcat.collector.github_collector.subprocess.run')
+    @patch("codeconcat.collector.github_collector.tempfile.TemporaryDirectory")
+    @patch("codeconcat.collector.github_collector.subprocess.run")
     def test_collect_clone_failure(self, mock_run, mock_temp_dir):
         """Test handling clone failure."""
         # Mock temp directory
@@ -108,13 +107,13 @@ class TestCollectGitRepo:
         mock_temp_context.__enter__.return_value = "/tmp/test"
         mock_temp_context.__exit__.return_value = None
         mock_temp_dir.return_value = mock_temp_context
-        
+
         # Mock clone failure
         mock_run.side_effect = subprocess.CalledProcessError(1, "git clone")
-        
+
         config = CodeConCatConfig()
         result, temp_path = collect_git_repo("octocat/Hello-World", config)
-        
+
         assert result == []
         assert temp_path == ""
 
@@ -122,13 +121,13 @@ class TestCollectGitRepo:
         """Test handling invalid URL."""
         config = CodeConCatConfig()
         result, temp_path = collect_git_repo("not-a-valid-url", config)
-        
+
         assert result == []
         assert temp_path == ""
 
-    @patch('codeconcat.collector.github_collector.tempfile.TemporaryDirectory')
-    @patch('codeconcat.collector.github_collector.subprocess.run')
-    @patch('codeconcat.collector.github_collector.collect_local_files')
+    @patch("codeconcat.collector.github_collector.tempfile.TemporaryDirectory")
+    @patch("codeconcat.collector.github_collector.subprocess.run")
+    @patch("codeconcat.collector.github_collector.collect_local_files")
     def test_collect_with_ref(self, mock_collect_local, mock_run, mock_temp_dir):
         """Test collection with specific ref/branch."""
         # Mock temp directory
@@ -136,14 +135,14 @@ class TestCollectGitRepo:
         mock_temp_context.__enter__.return_value = "/tmp/test"
         mock_temp_context.__exit__.return_value = None
         mock_temp_dir.return_value = mock_temp_context
-        
+
         # Mock successful git operations
         mock_run.return_value = Mock(returncode=0)
         mock_collect_local.return_value = []
-        
+
         config = CodeConCatConfig()
         result, temp_path = collect_git_repo("octocat/Hello-World/develop", config)
-        
+
         # Should have cloned and checked out develop branch
         assert any("develop" in str(call) for call in mock_run.call_args_list)
 
@@ -162,7 +161,7 @@ class TestEdgeCases:
         owner, repo, ref = parse_git_url("octocat/Hello-World.git")
         assert repo == "Hello-World"  # .git should be removed
 
-    @patch.dict('os.environ', {'GITHUB_TOKEN': ''})
+    @patch.dict("os.environ", {"GITHUB_TOKEN": ""})
     def test_build_url_no_token(self):
         """Test building URL without token."""
         url = build_git_clone_url("octocat/Hello-World", "octocat", "Hello-World")

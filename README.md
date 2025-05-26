@@ -647,28 +647,6 @@ semgrep_languages:
 5. **Configurable Strictness**: Choose between warning mode and strict failure mode
 6. **CWE Mapping**: Security findings are mapped to Common Weakness Enumeration IDs
 
-## Testing
-
-CodeConCat includes a comprehensive test suite:
-
-```bash
-# Install test dependencies
-pip install -e ".[test]"
-
-# Run tests with coverage report
-pytest tests/ -v --cov=codeconcat
-
-# Or run directly using the test file
-python tests/test_codeconcat.py
-```
-
-The test suite includes:
-- Unit tests for parsers and processors
-- Integration tests for end-to-end workflows
-- Performance tests for concurrent processing
-- Edge case tests for special characters and large files
-- Security tests for sensitive data detection
-
 ## Best Practices
 
 1. **Performance**:

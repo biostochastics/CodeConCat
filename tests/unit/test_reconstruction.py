@@ -3,7 +3,6 @@
 This module tests the ability to reconstruct files from various output formats.
 """
 
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -68,8 +67,13 @@ function greet() {
         with open(file2_path, "r") as f:
             file2_content = f.read()
 
-        self.assertEqual(file1_content, 'def hello():\n    print("Hello World!")\n    \n# This is a comment')
-        self.assertEqual(file2_content, 'function greet() {\n    console.log("Hello from JavaScript!");\n    // JS comment\n}')
+        self.assertEqual(
+            file1_content, 'def hello():\n    print("Hello World!")\n    \n# This is a comment'
+        )
+        self.assertEqual(
+            file2_content,
+            'function greet() {\n    console.log("Hello from JavaScript!");\n    // JS comment\n}',
+        )
 
     def test_json_format(self):
         """Test reconstructing from JSON format."""
@@ -108,8 +112,13 @@ function greet() {
         with open(file2_path, "r") as f:
             file2_content = f.read()
 
-        self.assertEqual(file1_content, 'def hello():\n    print("Hello World!")\n    \n# This is a comment')
-        self.assertEqual(file2_content, 'function greet() {\n    console.log("Hello from JavaScript!");\n    // JS comment\n}')
+        self.assertEqual(
+            file1_content, 'def hello():\n    print("Hello World!")\n    \n# This is a comment'
+        )
+        self.assertEqual(
+            file2_content,
+            'function greet() {\n    console.log("Hello from JavaScript!");\n    // JS comment\n}',
+        )
 
     def test_xml_format(self):
         """Test reconstructing from XML format."""
@@ -154,8 +163,13 @@ function greet() {
         with open(file2_path, "r") as f:
             file2_content = f.read()
 
-        self.assertEqual(file1_content, 'def hello():\n    print("Hello World!")\n    \n# This is a comment')
-        self.assertEqual(file2_content, 'function greet() {\n    console.log("Hello from JavaScript!");\n    // JS comment\n}')
+        self.assertEqual(
+            file1_content, 'def hello():\n    print("Hello World!")\n    \n# This is a comment'
+        )
+        self.assertEqual(
+            file2_content,
+            'function greet() {\n    console.log("Hello from JavaScript!");\n    // JS comment\n}',
+        )
 
     def test_compressed_content(self):
         """Test handling of compressed content in reconstructed files."""
@@ -191,38 +205,40 @@ def start_function():
             content = f.read()
 
         self.assertIn("def start_function():", content)
-        self.assertIn('[...code omitted: 15 lines, 0 issues]', content)
+        self.assertIn("[...code omitted: 15 lines, 0 issues]", content)
         self.assertIn('print("Important part at the end")', content)
 
         # Ensure no artifacts like triple backticks are present
         self.assertNotIn("```", content)
-        
+
     def test_multiple_formats(self):
         """Test the ability to auto-detect formats."""
         # Create files in different formats
         markdown_file = self.output_dir / "test.md"
-        json_file = self.output_dir / "test.json" 
+        json_file = self.output_dir / "test.json"
         xml_file = self.output_dir / "test.xml"
-        
+
         # Create minimal content in each format
         with open(markdown_file, "w") as f:
             f.write("## `test.txt`\n\n```\nTest content\n```\n")
-            
+
         with open(json_file, "w") as f:
             f.write('{"files":[{"path":"test.txt","content":"Test content"}]}')
-            
+
         with open(xml_file, "w") as f:
-            f.write('<codeconcat><file path="test.txt"><content>Test content</content></file></codeconcat>')
-        
+            f.write(
+                '<codeconcat><file path="test.txt"><content>Test content</content></file></codeconcat>'
+            )
+
         # Test auto-detection for each format
         for i, file_path in enumerate([markdown_file, json_file, xml_file]):
             output_dir = self.output_dir / f"reconstructed_{i}"
             reconstruct_from_file(str(file_path), str(output_dir))
-            
+
             # Check result
             result_file = output_dir / "test.txt"
             self.assertTrue(result_file.exists(), f"File should exist for {file_path}")
-            
+
             with open(result_file, "r") as f:
                 content = f.read()
                 self.assertEqual(content, "Test content")

@@ -22,49 +22,9 @@ from pydantic import ValidationError
 from codeconcat.base_types import CodeConCatConfig
 from codeconcat.errors import ConfigurationError
 
-logger = logging.getLogger(__name__)
+from ..constants import DEFAULT_EXCLUDE_PATTERNS
 
-# Common directories and files to exclude by default
-DEFAULT_EXCLUDE_PATTERNS = [
-    # Version Control
-    "**/.git/**",
-    "**/.svn/**",
-    "**/.hg/**",
-    ".gitignore",
-    ".gitmodules",
-    # Python Virtual Environments
-    "**/venv/**",
-    "**/.venv/**",
-    "**/env/**",
-    "**/.env",
-    "**/*env/**",  # General pattern for envs
-    # Python Cache/Build
-    "**/__pycache__/**",
-    "**/.pytest_cache/**",
-    "**/build/**",
-    "**/dist/**",
-    "**/*.egg-info/**",
-    # Node.js
-    "**/node_modules/**",
-    # IDE/Editor specific
-    "**/.vscode/**",
-    "**/.idea/**",
-    # OS specific
-    "**/.DS_Store",
-    "**/Thumbs.db",
-    # Misc binary and large files
-    "**/*.pyc",
-    "**/*.pyo",
-    "**/*.so",
-    "**/*.o",
-    "**/*.a",
-    "**/*.lib",
-    "**/*.dylib",
-    "**/*.ncb",
-    "**/*.sdf",
-    "**/*.suo",
-    "**/*.db",
-]
+logger = logging.getLogger(__name__)
 
 # Define settings for each output preset
 PRESET_CONFIGS = {

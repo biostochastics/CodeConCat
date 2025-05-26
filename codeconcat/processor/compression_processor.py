@@ -18,6 +18,7 @@ from codeconcat.base_types import (
     ParsedFileData,
     SecuritySeverity,
 )
+from codeconcat.constants import COMPRESSION_SETTINGS
 
 logger = logging.getLogger(__name__)
 
@@ -45,23 +46,18 @@ class CompressionProcessor:
 
         # Set thresholds based on compression level
         level = self.config.compression_level.lower()
-        if level == "low":
-            self.importance_threshold = 0.25  # Higher threshold = keep more
-            self.context_lines = 2  # Lines to keep around important features
-        elif level == "medium":
-            self.importance_threshold = 0.5
-            self.context_lines = 1
-        elif level == "high":
-            self.importance_threshold = 0.75
-            self.context_lines = 0
-        elif level == "aggressive":
-            self.importance_threshold = 0.9
-            self.context_lines = 0
-            self.min_lines_to_compress = 1  # Even compress small segments
-        else:
+
+        if level not in COMPRESSION_SETTINGS:
             logger.warning(f"Unknown compression level: {level}, using 'medium'")
-            self.importance_threshold = 0.5
-            self.context_lines = 1
+            level = "medium"
+
+        settings = COMPRESSION_SETTINGS[level]
+        self.importance_threshold = settings["importance_threshold"]
+        self.context_lines = settings["context_lines"]
+
+        # Override min_lines for aggressive compression
+        if level == "aggressive":
+            self.min_lines_to_compress = 1
 
     def process_file(self, file_data: ParsedFileData) -> List[ContentSegment]:
         """

@@ -1,5 +1,34 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
+## [0.7.3] - 2025-05-25
+
+### Added
+- **Common Utilities Module**: Created `parser_utils.py` with reusable parser utilities:
+  - `safe_parser_method` decorator for consistent error handling across parsers
+  - `extract_safe_substring` for bounds-checked string extraction
+  - `get_node_text_safe` for safe tree-sitter node text extraction
+
+- **Centralized Constants Module**: Added `constants.py` to consolidate shared configuration:
+  - `DEFAULT_EXCLUDE_PATTERNS`: Unified file exclusion patterns used across collectors and config modules
+  - `COMPRESSION_SETTINGS`: Centralized compression level configurations
+  - `TOKEN_LIMITS`: Model-specific token limits
+  - `SOURCE_CODE_EXTENSIONS`: Recognized source code file extensions
+  - `SECURITY_PATTERNS`: Common security scanning patterns
+
+### Changed
+- **Thread Safety Improvements**: 
+  - Added thread locks to global caches in `token_counter.py` and `security.py`
+  - Prevents race conditions in multi-threaded environments
+  - Thread-safe access to `_ENCODER_CACHE` and `FILE_HASH_CACHE`
+
+- **Code Organization**:
+  - Removed duplicate `DEFAULT_EXCLUDE_PATTERNS` definitions from multiple modules
+  - All modules now import from centralized `constants.py`
+  - Simplified compression processor to use constants dictionary
+
+### Fixed
+- **Import Organization**: Fixed leftover code fragments in `config_builder.py` from refactoring
+
 ## [0.7.2] - 2025-05-25
 
 ### Fixed

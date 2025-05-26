@@ -69,7 +69,7 @@ def cli_entry_point() -> int:
         try:
             version_str = version.__version__
         except AttributeError:
-            version_str = 'unknown'
+            version_str = "unknown"
         print(f"CodeConCat API v{version_str}")
         return 0
 
@@ -84,7 +84,7 @@ def cli_entry_point() -> int:
         try:
             version_str = version.__version__
         except AttributeError:
-            version_str = 'unknown'
+            version_str = "unknown"
         logger.info(f"Starting CodeConCat API server v{version_str}")
         logger.info(f"Binding to {args.host}:{args.port}")
 

@@ -5,39 +5,7 @@ import yaml
 from pydantic import ValidationError
 
 from codeconcat.base_types import CodeConCatConfig
-
-# Common directories and files to exclude by default
-DEFAULT_EXCLUDE_PATTERNS = [
-    # Version Control
-    ".git",
-    ".svn",
-    ".hg",
-    # Python Virtual Environments
-    "venv",
-    ".venv",
-    "env",
-    ".env",
-    "*env",  # General pattern for envs
-    # Python Cache/Build
-    "__pycache__",
-    ".pytest_cache",
-    "build",
-    "dist",
-    "*.egg-info",
-    # Node.js
-    "node_modules",
-    # IDE/Editor specific
-    ".vscode",
-    ".idea",
-    # OS specific
-    ".DS_Store",
-    "Thumbs.db",
-    # Test directories
-    "tests",
-    "test",
-    "**/tests",
-    "**/test",
-]
+from codeconcat.constants import DEFAULT_EXCLUDE_PATTERNS
 
 # Define settings for each output preset
 PRESET_CONFIGS = {
