@@ -295,7 +295,12 @@ class TreeSitterRParser(BaseTreeSitterParser):
                 logger.debug(f"Running R query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         if capture_name == "library_name":
                             library_name = (
                                 byte_content[node.start_byte : node.end_byte]
@@ -307,7 +312,12 @@ class TreeSitterRParser(BaseTreeSitterParser):
                 elif query_name == "declarations":
                     # Group captures by declaration node ID (typically the assignment or call node)
                     node_capture_map = {}
-                    for node, capture_name in captures:
+                    for capture in captures:
+                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                        if len(capture) == 2:
+                            node, capture_name = capture
+                        else:
+                            node, capture_name, _ = capture
                         decl_node = node
                         # Find the top-level expression node (assignment, call)
                         while decl_node.parent and decl_node.type not in [

@@ -86,7 +86,7 @@ class TestWriterCompression(unittest.TestCase):
         self.file_data.annotated_content = compressed_content
 
         # Set compressed segments on config (as CompressionProcessor would do)
-        self.config._compressed_segments = self.segments
+        self.config._compressed_segments = {self.file_data.file_path: self.segments}
 
         # Create list of writable items
         self.items: List[WritableItem] = [self.file_data]

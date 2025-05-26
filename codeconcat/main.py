@@ -1281,7 +1281,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                             ratio_indicator = (
                                 "🟢"
                                 if compression_percent > 70
-                                else "🟡" if compression_percent > 40 else "🔴"
+                                else "🟡"
+                                if compression_percent > 40
+                                else "🔴"
                             )
 
                             print(
@@ -1393,17 +1395,15 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             from codeconcat.processor.token_counter import get_token_stats
 
             # Calculate tokens for uncompressed content
-            total_gpt4_uncompressed = total_davinci_uncompressed = total_claude_uncompressed = 0
+            total_gpt4_uncompressed = total_claude_uncompressed = 0
             for pf in parsed_files:
                 stats = get_token_stats(pf.content)
                 total_gpt4_uncompressed += stats.gpt4_tokens
-                total_davinci_uncompressed += stats.davinci_tokens
                 total_claude_uncompressed += stats.claude_tokens
 
             print("\n[Token Summary] Total tokens for all parsed files (UNCOMPRESSED):")
             print(f"  Claude:   {total_claude_uncompressed}")
             print(f"  GPT-4:    {total_gpt4_uncompressed}")
-            print(f"  Davinci:  {total_davinci_uncompressed}")
 
             # If compression was enabled, also show compressed tokens for comparison
             if (
@@ -1411,7 +1411,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 and hasattr(config, "_compressed_segments")
                 and config._compressed_segments
             ):
-                total_gpt4_compressed = total_davinci_compressed = total_claude_compressed = 0
+                total_gpt4_compressed = total_claude_compressed = 0
 
                 # Calculate compressed tokens by using the compressed segments
                 for file_path, file_segments in config._compressed_segments.items():
@@ -1419,7 +1419,6 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                     compressed_content = "\n".join(segment.content for segment in file_segments)
                     stats = get_token_stats(compressed_content)
                     total_gpt4_compressed += stats.gpt4_tokens
-                    total_davinci_compressed += stats.davinci_tokens
                     total_claude_compressed += stats.claude_tokens
 
                 print("\n[Token Summary] Total tokens for all parsed files (COMPRESSED):")
@@ -1429,9 +1428,6 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 print(
                     f"  GPT-4:    {total_gpt4_compressed} ({(total_gpt4_compressed/total_gpt4_uncompressed*100):.1f}%)"
                 )
-                print(
-                    f"  Davinci:  {total_davinci_compressed} ({(total_davinci_compressed/total_davinci_uncompressed*100):.1f}%)"
-                )
 
                 # Show token reduction from compression
                 print("\n[Compression Effectiveness]")
@@ -1440,9 +1436,6 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 )
                 print(
                     f"  GPT-4:    {total_gpt4_uncompressed - total_gpt4_compressed} tokens saved ({(1-total_gpt4_compressed/total_gpt4_uncompressed)*100:.1f}% reduction)"
-                )
-                print(
-                    f"  Davinci:  {total_davinci_uncompressed - total_davinci_compressed} tokens saved ({(1-total_davinci_compressed/total_davinci_uncompressed)*100:.1f}% reduction)"
                 )
         except Exception as e:
             logger.warning(f"[Tokens] Failed to calculate token stats: {e}")

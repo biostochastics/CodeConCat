@@ -271,16 +271,12 @@ class TestTokenStats:
         """Test TokenStats initialization."""
         # Create token stats
         stats = TokenStats(
-            gpt3_tokens=1000,
             gpt4_tokens=1200,
-            davinci_tokens=900,
             claude_tokens=1100,
         )
 
         # Check properties
-        assert stats.gpt3_tokens == 1000
         assert stats.gpt4_tokens == 1200
-        assert stats.davinci_tokens == 900
         assert stats.claude_tokens == 1100
 
 
@@ -303,9 +299,7 @@ class TestAnnotatedFileData:
             summary="Test file",
             declarations=[Declaration(kind="function", name="test", start_line=1, end_line=1)],
             imports=["os"],
-            token_stats=TokenStats(
-                gpt3_tokens=10, gpt4_tokens=12, davinci_tokens=9, claude_tokens=11
-            ),
+            token_stats=TokenStats(gpt4_tokens=12, claude_tokens=11),
             security_issues=[
                 SecurityIssue(
                     rule_id="SEC001",

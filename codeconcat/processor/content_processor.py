@@ -166,20 +166,10 @@ def generate_file_summary(file_data: ParsedFileData, config: CodeConCatConfig) -
         summary.append("- **Token Counts:**")
         # Check for each token type individually
         if (
-            hasattr(file_data.token_stats, "gpt3_tokens")
-            and file_data.token_stats.gpt3_tokens is not None
-        ):
-            summary.append(f"  - GPT-3: `{file_data.token_stats.gpt3_tokens:,}`")
-        if (
             hasattr(file_data.token_stats, "gpt4_tokens")
             and file_data.token_stats.gpt4_tokens is not None
         ):
             summary.append(f"  - GPT-4: `{file_data.token_stats.gpt4_tokens:,}`")
-        if (
-            hasattr(file_data.token_stats, "davinci_tokens")
-            and file_data.token_stats.davinci_tokens is not None
-        ):
-            summary.append(f"  - DaVinci: `{file_data.token_stats.davinci_tokens:,}`")
         if (
             hasattr(file_data.token_stats, "claude_tokens")
             and file_data.token_stats.claude_tokens is not None

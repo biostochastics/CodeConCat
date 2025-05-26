@@ -120,7 +120,6 @@ class MarkdownRenderAdapter:
         result = ["### Token Statistics\n"]
         result.append("| Model | Token Count |")
         result.append("|-------|-------------|")
-        result.append(f"| GPT-3 | {token_stats.gpt3_tokens:,} |")
         result.append(f"| GPT-4 | {token_stats.gpt4_tokens:,} |")
         result.append(f"| Claude | {token_stats.claude_tokens:,} |")
 
@@ -312,9 +311,7 @@ class JsonRenderAdapter:
 
         # Convert TokenStats to a dict, handling all token models
         return {
-            "gpt3_tokens": token_stats.gpt3_tokens,
             "gpt4_tokens": token_stats.gpt4_tokens,
-            "davinci_tokens": token_stats.davinci_tokens,
             "claude_tokens": token_stats.claude_tokens,
         }
 
@@ -460,17 +457,9 @@ class XmlRenderAdapter:
         """Add a TokenStats object as an XML element to a parent element."""
         stats_elem = ET.SubElement(parent, "token_stats")
 
-        gpt3_elem = ET.SubElement(stats_elem, "model")
-        gpt3_elem.set("name", "gpt3")
-        gpt3_elem.set("tokens", str(token_stats.gpt3_tokens))
-
         gpt4_elem = ET.SubElement(stats_elem, "model")
         gpt4_elem.set("name", "gpt4")
         gpt4_elem.set("tokens", str(token_stats.gpt4_tokens))
-
-        davinci_elem = ET.SubElement(stats_elem, "model")
-        davinci_elem.set("name", "davinci")
-        davinci_elem.set("tokens", str(token_stats.davinci_tokens))
 
         claude_elem = ET.SubElement(stats_elem, "model")
         claude_elem.set("name", "claude")
@@ -547,8 +536,8 @@ class XmlRenderAdapter:
                 if segment.metadata:
                     metadata_elem = ET.SubElement(segment_elem, "metadata")
                     for key, value in segment.metadata.items():
-                        if key != "original_content":  # Skip original content for brevity
-                            meta_item = ET.SubElement(metadata_elem, key)
+                        if key != "original_content" and isinstance(value, (str, int, float, bool)):
+                            meta_item = ET.SubElement(metadata_elem, "item", {"key": key})
                             meta_item.text = str(value)
 
             # Also include the combined content
@@ -665,7 +654,6 @@ class TextRenderAdapter:
             return []
 
         result = ["=== TOKEN STATISTICS ==="]
-        result.append(f"GPT-3: {token_stats.gpt3_tokens:,}")
         result.append(f"GPT-4: {token_stats.gpt4_tokens:,}")
         result.append(f"Claude: {token_stats.claude_tokens:,}")
 

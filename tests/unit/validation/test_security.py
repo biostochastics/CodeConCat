@@ -62,14 +62,13 @@ class TestSecurityValidator:
 
     def test_sanitize_content_comprehensive(self):
         """Test sanitizing content with dangerous patterns."""
-        # Define user_input for the SQL injection string construction
-        user_input = "' OR '1'='1"
         content = """
         def malicious_function():
             # This is potentially dangerous
             eval("__import__('os').system('rm -rf /')")
             
             # SQL injection
+            user_input = "' OR '1'='1"
             query = "SELECT * FROM users WHERE username = '" + user_input + "'"
             
             # Path traversal

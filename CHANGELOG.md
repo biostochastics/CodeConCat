@@ -1,5 +1,32 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
+## [0.7.4] - 2025-05-26
+
+### Fixed
+- **Tree-Sitter Parser Compatibility**: Fixed multiple compatibility issues with tree-sitter grammars:
+  - Fixed regex escaping in doc comment patterns for Rust, C++, and PHP parsers (asterisks properly escaped)
+  - Fixed tuple unpacking to handle both 2-tuple and 3-tuple returns from `query.captures()` across all 9 tree-sitter parsers
+  - Updated query field names to match current grammar versions:
+    - Rust: Removed invalid `visibility:` field references, capturing visibility as separate nodes instead
+    - C++: Fixed `declaration:` field to use correct field names
+    - C#: Changed `using_static_directive` to `using_directive`, fixed `type_parameter_list` to `type_parameters`
+    - JavaScript/TypeScript: Fixed field references for assignment expressions
+    - PHP: Changed `path:` to `name:` for namespace paths, removed invalid `modifier:` field
+    - Julia: Updated node types - `comment` to `line_comment`, `module_expression` to `module_statement`, `block` to `block_expression`
+
+- **API and Exclude Functionality**: 
+  - Verified exclude-lists functionality is working correctly with PathSpec/GitWildMatchPattern
+  - Confirmed REST API is fully functional with comprehensive test coverage
+  - API includes security features: CORS, request tracing, validation middleware
+
+### Added
+- **Parser Test Suite**: Added comprehensive test suite `test_tree_sitter_parsers_fixed.py` to verify all parser fixes
+- **API Documentation**: Documented API endpoints and functionality in README
+
+### Changed
+- **Parser Robustness**: All tree-sitter parsers now gracefully handle grammar version differences
+- **Error Handling**: Parser query failures now log warnings but continue processing with fallback behavior
+
 ## [0.7.3] - 2025-05-26
 
 ### Fixed

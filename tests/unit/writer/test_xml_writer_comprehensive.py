@@ -170,7 +170,7 @@ class TestXMLWriter:
             end_line=2,
             metadata={"name": "hello"},
         )
-        config._compressed_segments = [segment]
+        config._compressed_segments = {sample_file.file_path: [segment]}
 
         items = [sample_file]
         result = write_xml(items, config)
@@ -278,7 +278,7 @@ class TestXMLWriter:
                 "complex": {"nested": "object"},  # Should be skipped
             },
         )
-        config._compressed_segments = [segment]
+        config._compressed_segments = {sample_file.file_path: [segment]}
 
         items = [sample_file]
         result = write_xml(items, config)
