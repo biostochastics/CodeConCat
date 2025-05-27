@@ -57,6 +57,7 @@ PRESET_CONFIGS = {
 def load_config(
     cli_args: Dict[str, Any], config_path_override: Optional[str] = None
 ) -> CodeConCatConfig:
+    logging.debug(f"load_config called with cli_args: {cli_args}")
     """
     Loads, merges, and validates the CodeConCat configuration.
 
@@ -231,11 +232,18 @@ def load_config(
     # Handle default excludes
     # Combine default and user excludes carefully
     user_excludes = final_config_dict.get("exclude_paths") or []
+    logging.debug(f"Initial user_excludes from final_config_dict: {user_excludes}")
     default_excludes = []
     # Check the boolean flag which should now be correctly set (True/False)
     if final_config_dict.get("use_default_excludes", True):
         default_excludes = DEFAULT_EXCLUDE_PATTERNS
+    logging.debug(
+        f"Before merge - default_excludes: {default_excludes}, user_excludes: {user_excludes}"
+    )
     final_config_dict["exclude_paths"] = list(set(default_excludes + user_excludes))
+    logging.debug(
+        f"After merge - final_config_dict['exclude_paths']: {final_config_dict['exclude_paths']}"
+    )
 
     # Handle GitHub default includes (only if source_url is present and include_paths not explicitly set)
     if final_config_dict.get("source_url") and not cli_args.get("include_paths"):

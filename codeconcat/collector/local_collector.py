@@ -576,7 +576,7 @@ def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept c
     """Check if a directory should be skipped based on exclude patterns.
 
     Compares the directory path against the combined list of default excludes
-    and user-configured excludes. Uses `matches_pattern` for matching.
+    and user-configured excludes. Uses `PathSpec` for matching, similar to .gitignore.
 
     Args:
         dirpath: The absolute path to the directory being considered.
@@ -585,26 +585,76 @@ def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept c
     Returns:
         True if the directory matches any exclude pattern, False otherwise.
     """
-    all_excludes = DEFAULT_EXCLUDE_PATTERNS + (
-        config.exclude_paths or []
-    )  # Access excludes from config
-    logger.debug(f"Checking directory: {dirpath} against patterns: {all_excludes}")
+    all_excludes = DEFAULT_EXCLUDE_PATTERNS + (config.exclude_paths or [])
+    # PathSpec is generally used for file paths, but can match directories if paths end with '/'
+    # and patterns are defined appropriately (e.g., 'dir/', '**/dir/').
+    spec = PathSpec.from_lines(GitWildMatchPattern, all_excludes)
+
+    logger.debug(f"Checking directory: {dirpath} against PathSpec from patterns: {all_excludes}")
 
     # Convert to relative path for matching
+    # PathSpec expects paths relative to the root where .gitignore would be (config.target_path)
     if os.path.isabs(dirpath):
         try:
-            rel_path = os.path.relpath(dirpath, config.target_path)  # Use config.target_path
+            # Ensure rel_path is correctly formed for PathSpec (no leading './')
+            rel_path = os.path.relpath(dirpath, config.target_path)
+            if rel_path == ".":  # relpath returns "." if dirpath is same as target_path
+                rel_path = ""  # Pathspec expects empty string for root itself
         except ValueError:
-            # Handle cases where dirpath is not under target_path (e.g., different drive on Windows)
-            rel_path = dirpath
+            # If dirpath is not under target_path, it cannot be excluded by patterns relative to target_path
+            # However, absolute path patterns or patterns not starting with '/' could still match.
+            # For simplicity and consistency with .gitignore behavior, we primarily consider paths relative to target_path.
+            # If it's not relative, PathSpec might not match it as expected unless patterns are absolute.
+            # For now, if it's not relative, we won't try to match it with PathSpec based on relative patterns.
+            # A more sophisticated approach might be needed for complex non-relative scenarios.
+            logger.debug(
+                f"Directory {dirpath} is not relative to target_path {config.target_path}, not checking with PathSpec."
+            )
+            return False  # Or pass the absolute path to PathSpec if patterns can be absolute.
     else:
         rel_path = dirpath
-    rel_path = rel_path.replace(os.sep, "/").strip("/")
+        # Remove leading ./ if present for consistent matching
+        if rel_path.startswith("./"):
+            rel_path = rel_path[2:]
+        elif rel_path.startswith(".\\"):
+            rel_path = rel_path[2:]
 
-    for pattern in all_excludes:
-        if matches_pattern(rel_path, pattern):
-            logger.debug(f"Excluding directory {rel_path} due to pattern {pattern}")
-            return True
+    # Normalize path separators for PathSpec and ensure it's treated as a directory
+    # by appending a slash if it doesn't have one. PathSpec matches 'dir/' against 'dir/' pattern.
+    normalized_rel_path_for_dir_check = rel_path.replace(os.sep, "/")
+    if (
+        not normalized_rel_path_for_dir_check.endswith("/")
+        and normalized_rel_path_for_dir_check != ""
+    ):
+        normalized_rel_path_for_dir_check += "/"
+
+    # For root itself (empty string), don't add trailing slash, PathSpec handles it.
+    if rel_path == "":  # Special case for the root directory itself
+        # It's unusual to exclude the root itself, but PathSpec could match patterns like '/*' or '/' depending on interpretation.
+        # We are checking if the directory *itself* should be skipped from traversal.
+        # If rel_path is empty, it means dirpath is config.target_path.
+        # We won't skip the root target directory itself based on typical exclude patterns.
+        pass  # Continue to check, though it's unlikely to match typical dir excludes like 'tests/'
+
+    if spec.match_file(normalized_rel_path_for_dir_check):
+        logger.debug(
+            f"Excluding directory {rel_path} (checked as {normalized_rel_path_for_dir_check}) due to PathSpec match."
+        )
+        return True
+
+    # As a fallback or for patterns not ending with '/', also check the path without a trailing slash.
+    # This handles patterns like 'specific_dir_name' (without a slash) if it's meant to exclude a directory.
+    # However, .gitignore convention is that 'specific_dir_name' matches both file and dir.
+    # 'specific_dir_name/' matches only directory. PathSpec adheres to this.
+    # The check above with trailing slash is the primary method for directory exclusion.
+    if rel_path != "" and spec.match_file(rel_path.replace(os.sep, "/")):
+        # This case might be true if a pattern like 'tests' (no slash) is used and 'tests' is a directory.
+        # PathSpec treats 'tests' as matching both a file and a directory named 'tests'.
+        logger.debug(
+            f"Excluding directory {rel_path} (checked as itself) due to PathSpec match (pattern might not have trailing slash)."
+        )
+        return True
+
     return False
 
 

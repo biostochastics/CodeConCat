@@ -1,5 +1,24 @@
 # Changelog NEW ENTRIES APPEAR ON TOP
 
+## [Unreleased]
+
+### Fixed
+- **Output Path Configuration**: Fixed issue where the `--output` CLI flag was being ignored and output was always written to `codeconcat_ccc.markdown`
+  - Modified `main.py` to respect user-specified output paths from CLI
+  - Updated `config_builder.py` to only set default output paths when no explicit path is provided
+  - Changed output path override logic to preserve CLI and YAML specified paths
+
+### Added
+- **Comprehensive Test Coverage**: Improved test coverage from 51% to higher levels by adding comprehensive test suites:
+  - Created extensive tests for `python_parser.py` covering all Python language features
+  - Added comprehensive tests for `php_parser.py` covering PHP 5-8+ features
+  - Created tests for `tree_sitter_php_parser.py` with mock support for tree-sitter availability
+  - Added tests for `interactive_config.py` covering all user interaction flows
+  - Created tests for `enhanced_pipeline.py` covering parser selection and caching
+
+### Changed
+- **Test Organization**: Organized new test files following existing conventions with descriptive test names and comprehensive coverage
+
 ## [0.7.4] - 2025-05-26
 
 ### Fixed

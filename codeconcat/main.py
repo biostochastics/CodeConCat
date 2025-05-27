@@ -160,34 +160,14 @@ def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
     # Debug print to check what output path is set in config
     # print(f"[DEBUG OUTPUT] Config output path: '{config.output}'")
 
-    # Determine the output path from config
-    # If output is None or empty string, use the folder name-based default
-    if config.output is None or config.output == "":
-        # Get the directory name from target_path
-        if config.target_path:
-            # Normalize path and get base folder name
-            folder_name = local_os.path.basename(local_os.path.normpath(config.target_path))
+    # Use the output path from config directly
+    output_path = config.output
 
-            # Special case - if target_path is a single file, use its containing folder
-            if local_os.path.isfile(config.target_path):
-                parent_dir = local_os.path.dirname(config.target_path)
-                if parent_dir:
-                    folder_name = local_os.path.basename(local_os.path.normpath(parent_dir))
-
-            # Remove any unsafe characters
-            folder_name = "".join(c for c in folder_name if c.isalnum() or c in "._- ")
-
-            # If folder_name is empty after cleaning, use a fallback
-            if not folder_name.strip():
-                folder_name = "codeconcat"
-
-            output_path = f"{folder_name}_ccc.{config.format}"
-            print(f"[Info] Using folder-based output name: {output_path}")
-        else:
-            # Fallback if no target_path is available
-            output_path = f"codeconcat_output.{config.format}"
-    else:
-        output_path = config.output
+    # This should not happen anymore since we set defaults in cli_entry_point,
+    # but just in case...
+    if not output_path:
+        output_path = f"codeconcat_output.{config.format}"
+        logger.warning(f"Output path was not set, using default: {output_path}")
 
     # Debug print the final output path
     # print(f"[DEBUG OUTPUT] Final output path: '{output_path}'")
@@ -805,8 +785,8 @@ def cli_entry_point():
         if config.format:
             config.format = config.format.lower()
 
-        # Ensure default output filename uses correct format extension when format is specified via CLI
-        if config.output is None or config.output == "code_concat_output.md":
+        # Only set default output filename if no output was specified
+        if config.output is None or config.output == "":
             # Target_path could be a directory or file
             if hasattr(config, "target_path") and config.target_path:
                 # Normalize path and get base folder name
