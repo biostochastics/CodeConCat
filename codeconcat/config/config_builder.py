@@ -147,6 +147,9 @@ class ConfigBuilder:
         # Record the source for each setting
         self._sources = {name: ConfigSource.DEFAULT for name in config_dict.keys()}
 
+        # Mark as initialized
+        self._initialized = True
+
         logger.debug("Initialized configuration with defaults")
         return self
 
@@ -355,14 +358,16 @@ class ConfigBuilder:
                 self._config_dict["target_path"] = absolute_path
                 self._sources["target_path"] = ConfigSource.COMPUTED
 
-        # Set default output path based on format if not set
-        if (
-            "output" not in self._config_dict or not self._config_dict["output"]
-        ) and "format" in self._config_dict:
-            format_value = self._config_dict["format"]
-            output_path = f"code_concat_output.{format_value}"
-            self._config_dict["output"] = output_path
-            self._sources["output"] = ConfigSource.COMPUTED
+        # Only set default output path if it wasn't provided by any source
+        # Don't override CLI or YAML specified output paths
+        if self._sources.get("output") == ConfigSource.DEFAULT:
+            # Check if we're still using the default value
+            if self._config_dict.get("output") == "code_concat_output.md":
+                # Update to use correct format extension
+                format_value = self._config_dict.get("format", "markdown")
+                output_path = f"code_concat_output.{format_value}"
+                self._config_dict["output"] = output_path
+                self._sources["output"] = ConfigSource.COMPUTED
 
         # Apply default exclude patterns if not overridden
         if (
