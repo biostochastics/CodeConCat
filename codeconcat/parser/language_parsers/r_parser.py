@@ -139,14 +139,9 @@ class RParser(ParserInterface):
             )
 
             return ParseResult(
-                file_path=file_path,
-                language="r",
-                content=content,
                 declarations=declarations,
                 imports=sorted(list(imports)),
-                engine_used="regex",
-                token_stats=None,
-                security_issues=[],
+                engine_used="regex"
             )
 
         except Exception as e:

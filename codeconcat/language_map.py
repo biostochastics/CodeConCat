@@ -77,7 +77,7 @@ ext_map = {
     ".sass": "sass",
     ".less": "less",
     ".xml": "xml",
-    ".json": "json",
+    ".json": "config",
     ".yaml": "yaml",
     ".yml": "yaml",
     ".toml": "toml",

@@ -263,7 +263,16 @@ class TreeSitterRParser(BaseTreeSitterParser):
             last_comment_line = -2
             current_doc_block: List[str] = []
 
-            for node, _ in doc_captures:
+            for capture_item in doc_captures:
+                if len(capture_item) == 2:
+                    node, _ = capture_item
+                elif len(capture_item) >= 3:  # Handle 3 or more, taking first as node
+                    node = capture_item[0]
+                else:
+                    logger.warning(f"Unexpected capture item format in R doc_comments: {capture_item}")
+                    continue  # Skip to the next capture_item
+
+                # This block is now correctly placed after node assignment and not under the else/continue
                 comment_text = byte_content[node.start_byte : node.end_byte].decode(
                     "utf8", errors="ignore"
                 )

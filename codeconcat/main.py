@@ -128,7 +128,18 @@ def configure_logging(
         logging.getLogger("charset_normalizer").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("filelock").setLevel(logging.WARNING)
-        # Add other noisy libraries here if needed
+        logging.getLogger("tree_sitter").setLevel(logging.WARNING)
+        logging.getLogger("tree_sitter_languages").setLevel(logging.WARNING)
+        # Suppress INFO level messages from codeconcat modules by default
+        # to reduce verbosity unless explicitly requested
+        if actual_level == logging.WARNING:
+            for logger_name in [
+                "codeconcat.collector",
+                "codeconcat.parser", 
+                "codeconcat.transformer",
+                "codeconcat.writer"
+            ]:
+                logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -931,7 +942,13 @@ def cli_entry_point():
     try:
         # Quote only shown if not verbose
         if not config.verbose:
-            print(get_random_quote())
+            quote = get_random_quote()
+            # Colorize cat quotes for better visual appeal
+            if "cat" in quote.lower() or "meow" in quote.lower() or "purr" in quote.lower():
+                # Use cyan color for cat-themed quotes
+                print(f"\033[96m{quote}\033[0m")
+            else:
+                print(quote)
 
         # Pass the loaded and updated config
         output_content = run_codeconcat(config)
