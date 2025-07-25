@@ -199,7 +199,6 @@ def enhanced_parse_pipeline(
                         LanguageParserError(
                             f"Parser encountered an error: {parse_result.error}",
                             file_path=file_path,
-                            language=language,
                         )
                     )
                     logger.warning(f"Partial parsing results for {file_path}: {parse_result.error}")

@@ -173,7 +173,9 @@ JS_TS_QUERIES = {
         ) @method
         
         ; Class fields and properties (with initializers)
-        (public_field_definition
+        ; Note: public_field_definition may not be available in all tree-sitter grammar versions
+        ; Using field_definition as a more compatible alternative
+        (field_definition
             decorator: (decorator)* @field_decorator
             "static"? @static_field
             "readonly"? @readonly_field
