@@ -74,136 +74,134 @@ def collect_git_repo(
     logger.info(f"Targeting ref: '{target_ref}' for repo: '{owner}/{repo_name}'")
 
     # Create a temporary directory for cloning
-    with tempfile.TemporaryDirectory() as temp_dir:
-        try:
-            # Build clone URL with token if available
-            clone_url = build_git_clone_url(source_url_in, owner, repo_name, config.github_token)
-            logger.info(f"Attempting to clone from URL: {clone_url}")
+    # Don't use context manager so directory persists until caller cleans it up
+    temp_dir = tempfile.mkdtemp(prefix="codeconcat_")
+    try:
+        # Build clone URL with token if available
+        clone_url = build_git_clone_url(source_url_in, owner, repo_name, config.github_token)
+        logger.info(f"Attempting to clone from URL: {clone_url}")
 
-            # Clone the repository
-            # Use --no-tags to avoid fetching all tags, fetch only the target branch/ref
-            clone_command = [
+        # Clone the repository
+        # Use --no-tags to avoid fetching all tags, fetch only the target branch/ref
+        clone_command = [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "--branch",
+            target_ref,
+            "--no-tags",  # Avoid fetching all tags
+            clone_url,
+            temp_dir,
+        ]
+        logger.info(f"Running git clone command: {' '.join(clone_command)}")
+        # Use stderr=subprocess.PIPE to capture errors better
+        result = subprocess.run(
+            clone_command,
+            check=False,  # Check manually below
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            # Specific ref clone failed, try cloning the default branch first
+            logger.warning(
+                f"Failed to clone specific ref '{target_ref}' directly (code: {result.returncode})."
+            )
+            logger.warning(f"Clone stderr: {result.stderr.strip()}")
+            # Clone default branch first, then fetch the specific ref
+            clone_command_default = [
                 "git",
                 "clone",
                 "--depth",
                 "1",
-                "--branch",
-                target_ref,
-                "--no-tags",  # Avoid fetching all tags
-                clone_url,
+                "--no-tags",
+                build_git_clone_url(
+                    source_url_in, owner, repo_name, config.github_token
+                ),  # Use default branch implicitly
                 temp_dir,
             ]
-            logger.info(f"Running git clone command: {' '.join(clone_command)}")
-            # Use stderr=subprocess.PIPE to capture errors better
-            result = subprocess.run(
-                clone_command,
-                check=False,  # Check manually below
+            result_default = subprocess.run(
+                clone_command_default,
+                check=False,
                 capture_output=True,
                 text=True,
-                stderr=subprocess.PIPE,
             )
 
-            if result.returncode != 0:
-                # Specific ref clone failed, try cloning the default branch first
-                logger.warning(
-                    f"Failed to clone specific ref '{target_ref}' directly (code: {result.returncode})."
+            if result_default.returncode != 0:
+                logger.error(
+                    f"Failed to clone default branch (code: {result_default.returncode})."
                 )
-                logger.warning(f"Clone stderr: {result.stderr.strip()}")
-                # Clone default branch first, then fetch the specific ref
-                clone_command_default = [
-                    "git",
-                    "clone",
-                    "--depth",
-                    "1",
-                    "--no-tags",
-                    build_git_clone_url(
-                        source_url_in, owner, repo_name, config.github_token
-                    ),  # Use default branch implicitly
-                    temp_dir,
-                ]
-                result_default = subprocess.run(
-                    clone_command_default,
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                    stderr=subprocess.PIPE,
+                logger.error(f"Clone stderr: {result_default.stderr.strip()}")
+                return [], ""
+
+            fetch_command = [
+                "git",
+                "-C",
+                temp_dir,
+                "fetch",
+                "origin",
+                target_ref,
+                "--depth",
+                "1",
+            ]
+            logger.info(f"Running fetch command: {' '.join(fetch_command)}")
+            result_fetch = subprocess.run(
+                fetch_command,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            if result_fetch.returncode != 0:
+                logger.error(
+                    f"Failed to fetch target ref '{target_ref}' (code: {result_fetch.returncode})."
                 )
-
-                if result_default.returncode != 0:
-                    logger.error(
-                        f"Failed to clone default branch (code: {result_default.returncode})."
-                    )
-                    logger.error(f"Clone stderr: {result_default.stderr.strip()}")
-                    return [], ""
-
-                fetch_command = [
-                    "git",
-                    "-C",
-                    temp_dir,
-                    "fetch",
-                    "origin",
-                    target_ref,
-                    "--depth",
-                    "1",
-                ]
-                logger.info(f"Running fetch command: {' '.join(fetch_command)}")
-                result_fetch = subprocess.run(
-                    fetch_command,
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                    stderr=subprocess.PIPE,
-                )
-
-                if result_fetch.returncode != 0:
-                    logger.error(
-                        f"Failed to fetch target ref '{target_ref}' (code: {result_fetch.returncode})."
-                    )
-                    logger.error(f"Fetch stderr: {result_fetch.stderr.strip()}")
-                    # Proceed with default branch content if fetch fails?
-                    logger.warning("Proceeding with content from default branch clone.")
-                    # No need to checkout here, already have the default branch
-                else:
-                    # Checkout the fetched ref
-                    checkout_command = ["git", "-C", temp_dir, "checkout", "FETCH_HEAD"]
-                    logger.info(f"Running checkout command: {' '.join(checkout_command)}")
-                    result_checkout = subprocess.run(
-                        checkout_command,
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                        stderr=subprocess.PIPE,
-                    )
-                    if result_checkout.returncode != 0:
-                        logger.error(
-                            f"Failed to checkout fetched ref '{target_ref}' (code: {result_checkout.returncode})."
-                        )
-                        logger.error(f"Checkout stderr: {result_checkout.stderr.strip()}")
-                        return [], ""
+                logger.error(f"Fetch stderr: {result_fetch.stderr.strip()}")
+                # Proceed with default branch content if fetch fails?
+                logger.warning("Proceeding with content from default branch clone.")
+                # No need to checkout here, already have the default branch
             else:
-                logger.info(f"Successfully cloned ref '{target_ref}' directly.")
+                # Checkout the fetched ref
+                checkout_command = ["git", "-C", temp_dir, "checkout", "FETCH_HEAD"]
+                logger.info(f"Running checkout command: {' '.join(checkout_command)}")
+                result_checkout = subprocess.run(
+                    checkout_command,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                if result_checkout.returncode != 0:
+                    logger.error(
+                        f"Failed to checkout fetched ref '{target_ref}' (code: {result_checkout.returncode})."
+                    )
+                    logger.error(f"Checkout stderr: {result_checkout.stderr.strip()}")
+                    return [], ""
+        else:
+            logger.info(f"Successfully cloned ref '{target_ref}' directly.")
 
-            # Collect files using the local collector on the temporary directory
-            logger.info(f"Collecting files from temporary directory: {temp_dir}")
-            # Pass temp_dir and original config directly
-            files = collect_local_files(temp_dir, config)
-            logger.info(f"Found {len(files)} files in cloned repository.")
-            return files, temp_dir  # Return files and temp_dir path
+        # Collect files using the local collector on the temporary directory
+        logger.info(f"Collecting files from temporary directory: {temp_dir}")
+        # Pass temp_dir and original config directly
+        config.target_path = temp_dir # Update config.target_path
+        files = collect_local_files(temp_dir, config)
+        logger.info(f"Found {len(files)} files in cloned repository.")
+        return files, temp_dir  # Return files and temp_dir path
 
-        except subprocess.CalledProcessError as e:
-            # This might not be reached if check=False, handled by returncode check
-            logger.error(
-                f"Error during git operation for '{repo_name}' (Return code: {e.returncode})."
-            )
-            logger.error(f"Command run: {' '.join(e.cmd)}")
-            logger.error(f"Stderr: {e.stderr.strip() if e.stderr else 'N/A'}")
-            logger.error(f"Stdout: {e.stdout.strip() if e.stdout else 'N/A'}")
-            return [], ""
-        except Exception as e:
-            logger.error(
-                f"Error processing Git repository: {e}\nConfig: {config}\nTraceback: {traceback.format_exc()}"
-            )
-            return [], ""
+    except subprocess.CalledProcessError as e:
+        # This might not be reached if check=False, handled by returncode check
+        logger.error(
+            f"Error during git operation for '{repo_name}' (Return code: {e.returncode})."
+        )
+        logger.error(f"Command run: {' '.join(e.cmd)}")
+        logger.error(f"Stderr: {e.stderr.strip() if e.stderr else 'N/A'}")
+        logger.error(f"Stdout: {e.stdout.strip() if e.stdout else 'N/A'}")
+        return [], ""
+    except Exception as e:
+        logger.error(
+            f"Error processing Git repository: {e}\nConfig: {config}\nTraceback: {traceback.format_exc()}"
+        )
+        return [], ""
 
 
 def build_git_clone_url(

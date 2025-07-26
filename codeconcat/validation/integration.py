@@ -12,7 +12,7 @@ from ..base_types import CodeConCatConfig, ParsedFileData
 from ..errors import ValidationError, ConfigurationError
 from . import (
     InputValidator as IV,
-)  # Alias to avoid potential naming conflicts locally, though 'InputValidator' should be fine
+)
 from .schema_validation import validate_against_schema
 from .security import security_validator
 from .semgrep_validator import semgrep_validator
@@ -57,13 +57,24 @@ def validate_input_files(
 
             # 1. Basic path validation
             logger_int.debug(f"[validate_input_files] Processing file: {Path(file_path).name}")
+            logger_int.debug(f"[validate_input_files] Original file_path: {file_path}")
             validation_base_dir = Path(config.target_path).resolve() if config.target_path else None
-            logger_int.debug("[validate_input_files] Using validation base directory")
-            IV.validate_file_path(file_path, base_dir=validation_base_dir)
+            logger_int.debug(f"[validate_input_files] validation_base_dir: {validation_base_dir}")
+            # Resolve path to handle symlinks
+            resolved_path = Path(file_path).resolve()
+            logger_int.debug(f"[validate_input_files] Resolved path: {resolved_path}")
+            logger_int.debug(f"[validate_input_files] Path exists: {resolved_path.exists()}")
+            if not resolved_path.exists():
+                # Try checking the original path too
+                original_exists = Path(file_path).exists()
+                logger_int.debug(f"[validate_input_files] Original path exists: {original_exists}")
+                raise ValidationError(f"File does not exist: {file_path} (resolved: {resolved_path})", field="file_path")
 
             # 2. File size validation
             max_size = getattr(config, "max_file_size", 10 * 1024 * 1024)  # Default 10MB
-            IV.validate_file_size(file_path, max_size, base_dir=validation_base_dir)
+            file_size = Path(file_path).stat().st_size
+            if file_size > max_size:
+                raise ValidationError(f"File size exceeds limit: {file_size} bytes (max {max_size} bytes)", field="file_size")
 
             # 3. If strict validation is enabled, perform more checks
             if getattr(config, "strict_validation", False) or config.enable_security_scanning:

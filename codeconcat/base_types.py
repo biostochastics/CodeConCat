@@ -490,7 +490,7 @@ class CodeConCatConfig(BaseModel):
     # Advanced options
     max_workers: int = 4
     split_output: int = 1  # Number of files to split output into
-    verbose: bool = False  # Added for verbose logging control
+    verbose: int = 0  # Added for verbose logging control
 
     # Markdown cross-linking
     cross_link_symbols: bool = False  # Option to cross-link symbol summaries and definitions
