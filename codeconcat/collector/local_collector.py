@@ -127,8 +127,6 @@ def should_include_file(
             if config.verbose:
                 logger.debug(f"Included by config include_paths: {rel_path}")
             # Pass: Continue to language checks
-    # else: # No include_paths means include all by default (subject to excludes)
-    #     if config.verbose: logger.debug(f"Included by default (no include_paths specified): {rel_path}")
 
     # --- Check if file is a documentation file and should be excluded from code parsing --- #
     # Documentation files should be handled separately by doc_extractor, not code parsers
@@ -558,8 +556,13 @@ def process_file(
         # language = ext_map.get(filename.lower(), ext_map.get(ext.lower()))
 
         logger.debug(f"[CodeConCat] Processed file: {file_path} ({language})")
+        # Resolve the file path to handle symlinks and ensure consistency
+        original_path = file_path
+        resolved_path = str(Path(file_path).resolve())
+        logger.debug(f"[process_file] Path resolution: original={original_path}, resolved={resolved_path}")
+        
         return ParsedFileData(
-            file_path=file_path,
+            file_path=resolved_path,
             language=language,  # Use the passed language
             content=content,
             declarations=[],  # We'll fill this in during parsing phase
@@ -916,29 +919,52 @@ def _log_exclusion_reason(
         config_exclude_spec (Optional[PathSpec]): The compiled config exclude patterns.
         config_include_spec (Optional[PathSpec]): The compiled config include patterns.
     """
+    # Ensure target_path exists for relative path calculation
+    base_path = (
+        config.target_path if config.target_path and os.path.isdir(config.target_path) else "."
+    )
+    try:
+        rel_path = os.path.relpath(file_path, base_path)
+    except ValueError:
+        rel_path = file_path
+    norm_path = Path(rel_path).as_posix()
+
+    if config.verbose:
+        logger.debug(f"Attempting to log exclusion reason for: {rel_path} (Normalized: {norm_path}, Full: {file_path})")
+
     # Check .gitignore (if spec exists and enabled)
-    if config.use_gitignore and gitignore_spec and gitignore_spec.match_file(file_path):
-        logger.debug(f"Excluded by .gitignore: {file_path}")
+    if config.use_gitignore and gitignore_spec and gitignore_spec.match_file(norm_path):
+        logger.debug(f"Excluded by .gitignore: {rel_path}")
         return
 
     # Check default excludes (if spec exists and enabled)
     if (
         config.use_default_excludes
         and default_exclude_spec
-        and default_exclude_spec.match_file(file_path)
+        and default_exclude_spec.match_file(norm_path)
     ):
-        logger.debug(f"Excluded by default excludes: {file_path}")
+        logger.debug(f"Excluded by default excludes: {rel_path}")
         return
 
     # Check explicit excludes from config (if spec exists)
-    if config_exclude_spec and config_exclude_spec.match_file(file_path):
-        logger.debug(f"Excluded by config exclude_paths: {file_path}")
+    if config_exclude_spec and config_exclude_spec.match_file(norm_path):
+        logger.debug(f"Excluded by config exclude_paths: {rel_path}")
         return
 
     # If include paths are defined, the file MUST match one of them.
-    if config_include_spec and not config_include_spec.match_file(file_path):
-        logger.debug(f"Skipped: '{file_path}' does not match any include_paths pattern.")
+    if config_include_spec and not config_include_spec.match_file(norm_path):
+        logger.debug(f"Skipped: '{rel_path}' does not match any include_paths pattern.")
         return
 
-    # If we got here, it's likely due to language filtering
-    logger.debug(f"Excluded by language filtering: {file_path}")
+    # If we got here, it's likely due to language filtering or is_binary_file
+    # Re-run language determination to get the specific reason
+    language = determine_language(file_path, config)
+    if not language:
+        logger.debug(f"Excluded by language filtering: {rel_path} (Language not determined or unknown)")
+        return
+
+    if is_binary_file(file_path):
+        logger.debug(f"Excluded binary file: {rel_path}")
+        return
+
+    logger.debug(f"File {rel_path} was not excluded by any known rule, but was not included. This should not happen.")

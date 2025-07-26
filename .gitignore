@@ -59,3 +59,34 @@ code_concat_output.md
 
 # End of .gitignore
 code_concat_output.md
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+node_modules/
+# Environment variables
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.cursor/
+.claude/
+.gemini/
+.windsurf/
+# OS specific
+
+# Task files
+# tasks.json
+# tasks/ 
+
+# Task Master
+.taskmaster/

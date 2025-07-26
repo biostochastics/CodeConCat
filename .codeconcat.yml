@@ -108,3 +108,25 @@ compression_keep_tags: ["important", "keep", "security"]
 # Control filtering behavior (defaults are true)
 use_gitignore: true
 use_default_excludes: true
+
+# --------------------------
+# Security Validation
+# --------------------------
+
+# Enable security scanning to detect potentially malicious content
+enable_security_scanning: true
+
+# Security severity threshold (LOW, MEDIUM, HIGH, CRITICAL)
+security_scan_severity_threshold: MEDIUM
+
+# Semgrep security scanning integration
+enable_semgrep: false  # Set to true to enable Semgrep scanning
+install_semgrep: false  # Set to true to auto-install Semgrep if not present
+# semgrep_ruleset: "path/to/custom/ruleset"  # Uncomment to use a custom ruleset
+# semgrep_languages:  # Uncomment to specify languages to scan
+#   - python
+#   - javascript
+#   - java
+
+# Fail validation when suspicious content is detected
+strict_security: false

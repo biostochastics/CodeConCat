@@ -681,9 +681,11 @@ def cli_entry_point():
         args = parser.parse_args()
 
         # Configure logging based on args
-        log_level = getattr(args, "log_level", "WARNING")
-        debug_mode = getattr(args, "debug", False)
+        debug_mode = getattr(args, "debug", False) or args.verbose > 1
         quiet_mode = getattr(args, "quiet", False)
+        log_level = getattr(args, "log_level", "WARNING")
+        if debug_mode or args.verbose > 1:
+            log_level = "DEBUG"
         configure_logging(log_level, debug_mode, quiet_mode)
 
         # Handle reconstruction command if specified
@@ -842,7 +844,7 @@ def cli_entry_point():
         sys.exit(1)
 
     # Propagate verbosity to config for other modules
-    config.verbose = args.verbose > 0
+    config.verbose = args.verbose > 0 if isinstance(args.verbose, int) else bool(args.verbose)
 
     if args.show_config:
         print("Current Configuration:")
@@ -1060,7 +1062,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         if config.source_url:
             logger.info(f"Collecting files from source URL: {config.source_url}")
             # Assuming collect_git_repo can handle generic URLs or is specialized for Git
-            files_to_process = collect_git_repo(config)
+            files_to_process, temp_dir = collect_git_repo(config.source_url, config)
         elif config.target_path:
             logger.info(f"Collecting files from local path: {config.target_path}")
             files_to_process = collect_local_files(config.target_path, config)
