@@ -8,9 +8,9 @@
 
 ## Overview
 
-CodeConCat is your semi-intelligent companion for preparing codebases. It automatically ingests, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows. The tool provides structured output with smart context generation, making it ideal for sharing code with AI assistants and collaborators.
+CodeConCat is a semi-intelligent companion for preparing codebases. It automatically ingests, processes, and formats your code in a way that's optimized for AI comprehension and collaborative/iterative workflows. The tool provides structured output with smart context generation, making it ideal for sharing code with AI assistants and collaborators.
 
-With enhanced language parsers for 10 major programming languages, CodeConCat extracts rich semantic information from your codebase, including functions, classes, imports, and documentation.
+With  parsers for 10 major programming languages, CodeConCat extracts rich semantic information from your codebase, including functions, classes, imports, and documentation.
 
 ```python
 from codeconcat import run_codeconcat_in_memory, CodeConCatConfig
@@ -58,7 +58,7 @@ pip install -e ".[all]"
 
 ## Features
 
-- **AI-Optimized Output**: Structured content with smart context generation
+- **Smart Context**: With structured content 
 - **Smart File Collection**: Intelligent filtering and organization of your codebase, including support for `.gitignore` rules and consistent glob pattern matching via the `pathspec` library.
 - **Documentation Extraction**: Automatically extract and process documentation
 - **Directory Tree**: Visual representation of your project structure
@@ -69,7 +69,7 @@ pip install -e ".[all]"
 - **Markdown Cross-Linking**: When using `--format markdown` and the `--cross-link-symbols` flag, symbol summaries in the Markdown output will link to their corresponding definitions via HTML anchors for easier navigation.
 - **Token Counting**: Accurate GPT-4 token counting for all processed content
 - **Progress Tracking**: Real-time progress indication during processing (multi-stage progress bars for file collection, parsing, annotation, doc extraction, output writing; toggle with `--no-progress-bar`)
-- **Comprehensive Code Analysis**: Functions, classes, structs, and symbols are listed in the Markdown output under each file's analysis section for full visibility.
+- **Brief Code Analysis**: Functions, classes, structs, and symbols are listed in the Markdown output under each file's analysis section for full visibility.
 - **File Reconstruction**: Reconstruct original source files from any CodeConCat output format (markdown, XML, JSON) using the `--reconstruct` command.
 - **Advanced Language Support**: Dual-parser system with both regex-based and Tree-sitter parsers (select with `--parser-engine={tree_sitter,regex}`):
   - **Tree-sitter Parsers**: High-accuracy parsing for 10 major languages with modern language feature support:
