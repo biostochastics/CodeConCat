@@ -12,6 +12,19 @@ __all__ = ["BaseParser", "CodeSymbol", "ParserInterface"]
 
 @dataclass
 class CodeSymbol:
+    """A class to represent a symbol in a codebase, such as a variable, function, or class.
+    Parameters:
+        - name (str): The name of the code symbol.
+        - kind (str): The kind of the symbol (e.g., variable, function, class).
+        - start_line (int): The line number where the symbol starts in the code.
+        - end_line (int): The line number where the symbol ends in the code.
+        - modifiers (Set[str]): A set of modifiers associated with the symbol (e.g., public, private).
+        - parent (Optional[CodeSymbol]): The parent symbol, if this symbol is nested within another.
+        - children (List[CodeSymbol]): A list of child symbols nested within this symbol.
+        - docstring (Optional[str]): The associated docstring of the code symbol, if present.
+    Processing Logic:
+        - Represents hierarchical code structures where symbols can be nested within each other.
+        - Captures the location of the symbols in the code for reference or analysis."""
     name: str
     kind: str
     start_line: int

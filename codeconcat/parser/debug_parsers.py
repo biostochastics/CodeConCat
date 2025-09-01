@@ -93,6 +93,11 @@ def compute_declaration_metrics(declarations: List[Declaration]) -> Dict[str, An
 
     # Count declarations by type
     def count_by_type(decl_list):
+        """Count the number of declarations by type, including nested children.
+        Parameters:
+            - decl_list (List[Declaration]): A list of declaration objects to count types from.
+        Returns:
+            - Dict[str, int]: A dictionary where keys are declaration types and values are the counts of those types."""
         counts: Dict[str, int] = {}
         for decl in decl_list:
             kind = decl.kind
@@ -107,6 +112,12 @@ def compute_declaration_metrics(declarations: List[Declaration]) -> Dict[str, An
 
     # Measure nesting depth
     def max_nesting_depth(decl_list, current_depth=0):
+        """Calculate the maximum nesting depth of a list of declarations.
+        Parameters:
+            - decl_list (list): A list of declaration elements, each potentially containing nested children.
+            - current_depth (int, optional): The current depth of nesting, default is 0.
+        Returns:
+            - int: The maximum depth of nested declarations in the list."""
         if not decl_list:
             return current_depth
 

@@ -15,6 +15,16 @@ class ParserInterface(ABC):
 
 
 class JuliaParser(ParserInterface):
+    """
+    JuliaParser class is responsible for parsing Julia source code to extract module, struct, function, and macro declarations using regex patterns.
+    Parameters:
+        - None: The class does not take any parameters upon instantiation.
+    Processing Logic:
+        - Uses regex patterns to identify and extract different code declarations.
+        - Handles simple block detection for modules, structs, functions, and macros.
+        - Assumes top-level module declarations, with no support for nested modules.
+        - Returns a ParseResult containing declarations and import statements.
+    """
     def __init__(self):
         """Initialize Julia parser with regex patterns."""
         self.patterns = {

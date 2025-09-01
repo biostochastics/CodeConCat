@@ -612,6 +612,13 @@ def generate_directory_structure(file_paths: List[str]) -> str:
         current[parts[-1]] = None
 
     def print_tree(node: dict, prefix: str = "", is_last: bool = True) -> List[str]:  # noqa: ARG001
+        """Prints a tree-like structure of a nested dictionary.
+        Parameters:
+            - node (dict): The input dictionary representing the tree structure.
+            - prefix (str): A string prefix for formatting the tree display, default is an empty string.
+            - is_last (bool): Indicates if the current node is the last sibling, default is True.
+        Returns:
+            - List[str]: A list of strings representing the visual structure of the tree."""
         lines = []
         if node is None:
             return lines

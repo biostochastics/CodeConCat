@@ -42,6 +42,12 @@ class MarkdownRenderAdapter:
 
         # Create a function to recursively add declarations with proper indentation
         def add_declaration_with_children(decl: Declaration, indent: int = 0):
+            """Add a formatted declaration string with children to a result list.
+            Parameters:
+                - decl (Declaration): The declaration object to be formatted and added, which includes attributes like kind, name, start_line, end_line, modifiers, and children.
+                - indent (int, optional): The indentation level for formatting the output, default is 0.
+            Returns:
+                - None: The function modifies a global result list by appending a formatted string representation of the declaration and its children."""
             indent_str = "  " * indent
             kind_display = f"{decl.kind.capitalize()}"
 
@@ -592,6 +598,12 @@ class TextRenderAdapter:
         result = ["=== DECLARATIONS ==="]
 
         def add_declaration_with_children(decl: Declaration, indent: int = 0):
+            """Add a declaration and its children to a result list with indentation and formatting.
+            Parameters:
+                - decl (Declaration): The declaration object to add, containing information such as kind, name, line range, and modifiers.
+                - indent (int): The indentation level for formatting the declaration and its children.
+            Returns:
+                - None: This function appends formatted declaration lines to a global result list and does not return a value."""
             indent_str = "  " * indent
             kind_display = f"{decl.kind.capitalize()}"
 

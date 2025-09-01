@@ -13,6 +13,13 @@ original_get_language_parser = None
 # Patched parser function implementation
 def patched_get_language_parser(language, config, parser_type=None):
     # Special handling for R language
+    """Select and initialize a parser for a given programming language with a special handling for the R language.
+    Parameters:
+        - language (str): The programming language for which to get a parser.
+        - config (dict): A configuration dictionary for parser settings.
+        - parser_type (str, optional): Specifies the type of parser to use; options might include 'tree_sitter', 'enhanced', or 'regex'.
+    Returns:
+        - A parser object for the specified language or None if no parser could be initialized. For R language, it tries to initialize the Tree-sitter R parser, Enhanced R parser, or Standard R parser in that order, falling back to the original function for other languages."""
     if language == "r":
         logger.info("Using patched R parser selection logic")
         from codeconcat.parser.language_parsers.enhanced_r_parser import EnhancedRParser

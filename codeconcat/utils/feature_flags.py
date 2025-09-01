@@ -302,6 +302,11 @@ class FeatureFlags:
         """
 
         def decorator(func: Callable) -> Callable:
+            """Enhances a function with conditional execution based on a feature flag.
+            Parameters:
+                - func (Callable): The function to be wrapped by the decorator.
+            Returns:
+                - Callable: A new function that executes conditionally based on a feature flag."""
             def wrapper(*args, **kwargs):
                 if self.is_enabled(flag_name) == enabled:
                     return func(*args, **kwargs)

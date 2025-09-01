@@ -14,6 +14,28 @@ app = FastAPI(
 
 
 class CodeConcatRequest(BaseModel):
+    """
+    Represents a request to concatenate code from various sources with specific formatting and filtering options.
+    Parameters:
+        - target_path (str): The target path where the output should be saved.
+        - format (str): The format for the output; defaults to "markdown".
+        - github_url (Optional[str]): URL of the GitHub repository to pull code from, if necessary.
+        - github_token (Optional[str]): Token for authenticating with GitHub, if required.
+        - github_ref (Optional[str]): Specific reference for checking out a GitHub branch or tag.
+        - extract_docs (bool): Flag to determine if documentation should be extracted from source files.
+        - merge_docs (bool): Flag for determining if extracted documentation should be merged.
+        - include_paths (List[str]): List of paths to include in the code concatenation.
+        - exclude_paths (List[str]): List of paths to exclude from the code concatenation.
+        - include_languages (List[str]): Languages to include in the code concatenation.
+        - exclude_languages (List[str]): Languages to exclude from the code concatenation.
+        - disable_tree (bool): Flag to prevent tree representation in the output.
+        - disable_annotations (bool): Flag to disable annotations in the output.
+        - disable_copy (bool): Flag to disable copy functionality; default is True for API usage.
+        - disable_symbols (bool): Flag to disable symbols in the output.
+        - disable_ai_context (bool): Flag to disable AI context in processing.
+        - max_workers (int): Maximum number of workers for processing; defaults to 4.
+        - output_preset (str): Preset for the output format; defaults to "medium".
+    """
     target_path: str
     format: str = "markdown"
     github_url: Optional[str] = None
