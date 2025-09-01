@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Enhanced parsing pipeline for CodeConcat.
@@ -11,21 +10,12 @@ It supports progressive enhancement and proper error handling.
 
 import logging
 import traceback
-from typing import List, Tuple, Any
+from typing import Any, List, Tuple
 
 from tqdm import tqdm
 
-from ..base_types import (
-    CodeConCatConfig,
-    EnhancedParserInterface,
-    ParsedFileData,
-)
-from ..errors import (
-    FileProcessingError,
-    LanguageParserError,
-    ParserError,
-    UnsupportedLanguageError,
-)
+from ..base_types import CodeConCatConfig, EnhancedParserInterface, ParsedFileData
+from ..errors import FileProcessingError, LanguageParserError, ParserError, UnsupportedLanguageError
 from .file_parser import get_language_parser
 
 logger = logging.getLogger(__name__)
@@ -220,7 +210,7 @@ def enhanced_parse_pipeline(
             # Catch-all for any unexpected errors
             logger.error(f"Unexpected error processing {file_path}: {str(e)}", exc_info=True)
             errors.append(
-                FileProcessingError(
+                FileProcessingError(  # type: ignore[arg-type]
                     f"Unexpected error: {str(e)}\n{traceback.format_exc()}", file_path=file_path
                 )
             )

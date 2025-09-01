@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the enhanced Julia parser in CodeConCat.
@@ -9,16 +8,14 @@ Julia-specific syntax, functions, macros, modules, nested functions, and docstri
 """
 
 import logging
-import pytest
 from pathlib import Path
 
-from codeconcat.base_types import (
-    ParseResult,
-    ParserInterface,
-)
+import pytest
+
+from codeconcat.base_types import ParseResult, ParserInterface
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.enhanced_julia_parser import EnhancedJuliaParser
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -41,7 +38,7 @@ class TestEnhancedJuliaParser:
         file_path = (
             Path(__file__).parent.parent.parent / "parser_test_corpus" / "julia" / "basic.jl"
         )
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             return f.read()
 
     def test_julia_parser_initialization(self):

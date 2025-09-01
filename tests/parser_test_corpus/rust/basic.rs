@@ -142,7 +142,7 @@ impl Error for AppError {
 pub trait Processor {
     /// Processes the given data.
     fn process(&mut self, data: &[u8]) -> Result<Vec<u8>, AppError>;
-    
+
     /// Returns processing statistics.
     fn get_stats(&self) -> HashMap<String, u32>;
 }
@@ -166,14 +166,14 @@ impl Processor for SimpleProcessor {
         if data.is_empty() {
             return Err(AppError::InvalidInput("Empty data".to_string()));
         }
-        
+
         self.count += 1;
         let mut result = "Processed: ".as_bytes().to_vec();
         result.extend_from_slice(data);
-        
+
         Ok(result)
     }
-    
+
     /// Returns the count of successful processing operations.
     fn get_stats(&self) -> HashMap<String, u32> {
         let mut stats = HashMap::new();
@@ -195,11 +195,11 @@ pub fn calculate_stats(numbers: &[i32]) -> Option<(i32, i32, f64)> {
     if numbers.is_empty() {
         return None;
     }
-    
+
     let mut min = numbers[0];
     let mut max = numbers[0];
     let mut sum = 0;
-    
+
     for &n in numbers {
         if n < min {
             min = n;
@@ -209,7 +209,7 @@ pub fn calculate_stats(numbers: &[i32]) -> Option<(i32, i32, f64)> {
         }
         sum += n;
     }
-    
+
     let avg = sum as f64 / numbers.len() as f64;
     Some((min, max, avg))
 }
@@ -243,33 +243,33 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut person = Person::new("John".to_string(), 30);
     person.set_address("123 Main St".to_string());
     println!("{}", person.greet());
-    
+
     // Create an employee
     let mut employee = Employee::new("Jane".to_string(), 28, "Software Engineer".to_string(), 100000.0);
     employee.give_raise(10.0);
     println!("{}", employee.work_info());
-    
+
     // Use the processor
     let mut processor = SimpleProcessor::new();
     match processor.process(b"test data") {
         Ok(data) => println!("{}", String::from_utf8_lossy(&data)),
         Err(e) => println!("Error: {}", e),
     }
-    
+
     // Use standalone functions
     let numbers = vec![3, 7, 2, 9, 5];
     if let Some((min, max, avg)) = calculate_stats(&numbers) {
         println!("Min: {}, Max: {}, Avg: {:.2}", min, max, avg);
     }
-    
+
     match divide(10, 2) {
         Ok(result) => println!("10 / 2 = {}", result),
         Err(e) => println!("Error: {}", e),
     }
-    
+
     // Use constants
     println!("PI: {}", PI);
     println!("MAX_RETRIES: {}", MAX_RETRIES);
-    
+
     Ok(())
 }

@@ -1,6 +1,6 @@
 /**
  * Basic TypeScript test file for parser validation.
- * 
+ *
  * This file contains common TypeScript constructs that should be properly parsed.
  */
 
@@ -40,8 +40,8 @@ type Point = {
 };
 
 /** Union type example */
-type Result<T> = 
-  | { success: true; value: T } 
+type Result<T> =
+  | { success: true; value: T }
   | { success: false; error: Error };
 
 /**
@@ -139,7 +139,7 @@ class Employee implements Person {
   name: string;
   age: number;
   title: string;
-  
+
   /**
    * Initialize an employee
    * @param name - Employee name
@@ -151,7 +151,7 @@ class Employee implements Person {
     this.age = age;
     this.title = title;
   }
-  
+
   /**
    * Implement the greet method from Person interface
    * @returns Greeting including job title
@@ -185,7 +185,7 @@ namespace Utils {
   export function formatDate(date: Date): string {
     return date.toISOString().split('T')[0];
   }
-  
+
   /**
    * Format a currency amount
    * @param amount - Amount to format
@@ -204,9 +204,9 @@ if (typeof window !== 'undefined') {
     age: 30,
     greet: function() { return `Hello, I'm ${this.name}!`; }
   };
-  
+
   const employee = new Employee('Jane', 28, 'Developer');
-  
+
   console.log(person.greet());
   console.log(employee.greet());
   console.log(Utils.formatDate(new Date()));

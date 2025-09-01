@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Edge case tests for CodeConCat parsers.
@@ -10,15 +9,14 @@ non-standard comment placement, and other edge cases.
 """
 
 import logging
+
 import pytest
 
-from codeconcat.base_types import (
-    ParseResult,
-)
+from codeconcat.base_types import ParseResult
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
+from codeconcat.parser.language_parsers.enhanced_js_ts_parser import EnhancedJSTypeScriptParser
 from codeconcat.parser.language_parsers.enhanced_python_parser import EnhancedPythonParser
 from codeconcat.parser.language_parsers.enhanced_rust_parser import EnhancedRustParser
-from codeconcat.parser.language_parsers.enhanced_js_ts_parser import EnhancedJSTypeScriptParser
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -45,58 +43,58 @@ This file tests parsing of deeply nested Python code structures.
 def level1():
     """Level 1 function."""
     x = 1
-    
+
     def level2():
         """Level 2 function."""
         y = 2
-        
+
         def level3():
             """Level 3 function."""
             z = 3
-            
+
             def level4():
                 """Level 4 function."""
                 a = 4
-                
+
                 def level5():
                     """Level 5 function."""
                     b = 5
-                    
+
                     # Even more nesting
                     def level6():
                         """Level 6 function."""
                         c = 6
                         return c
-                    
+
                     return level6() + b
-                
+
                 return level5() + a
-            
+
             return level4() + z
-        
+
         return level3() + y
-    
+
     return level2() + x
 
 class OuterClass:
     """Outer class with nested classes."""
-    
+
     class MiddleClass:
         """Middle nested class."""
-        
+
         class InnerClass:
             """Inner nested class."""
-            
+
             def inner_method(self):
                 """Method in innermost class."""
-                
+
                 class LocalClass:
                     """Local class inside a method."""
-                    
+
                     def local_method(self):
                         """Method in local class."""
                         pass
-                
+
                 return LocalClass()
 
 # Complex decorator pattern
@@ -137,13 +135,13 @@ macro_rules! nested_macro {
                 struct InnerStruct {
                     field: u32
                 }
-                
+
                 impl InnerStruct {
                     fn method(&self) -> u32 {
                         self.field
                     }
                 }
-                
+
                 InnerStruct { field: $e }
             };
             inner().method()
@@ -158,22 +156,22 @@ fn oddly_formatted_function
         a: i32,
         // line comment in parameters
         b: i32,
-    ) 
-    -> i32 
+    )
+    -> i32
     /* comment before block */
     {
     /* Block comment at the start of function body */
     let x = a + b;
-    
+
     // One-liner struct and impl
     struct Tiny { v: i32 } impl Tiny { fn get(&self) -> i32 { self.v } }
-    
+
     x * Tiny { v: 2 }.get()
 }
 
 // Trait with associated types and where clause
 trait ComplexTrait<T>
-where 
+where
     T: Clone + 'static,
 {
     type Output;
@@ -181,13 +179,13 @@ where
 }
 
 // Impl with complex generic signatures
-impl<'a, T, U> ComplexTrait<T> for &'a U 
-where 
+impl<'a, T, U> ComplexTrait<T> for &'a U
+where
     T: Clone + 'static,
     U: AsRef<str> + 'a,
 {
     type Output = String;
-    
+
     fn complex_method<'b>(&'b self, input: T) -> Self::Output {
         String::from(self.as_ref())
     }
@@ -196,7 +194,7 @@ where
 // Nested modules
 mod outer {
     //! Inner module doc
-    
+
     pub mod middle {
         pub mod inner {
             /// Function in deeply nested module
@@ -205,7 +203,7 @@ mod outer {
             }
         }
     }
-    
+
     // Re-export
     pub use self::middle::inner::nested_fn;
 }
@@ -227,7 +225,7 @@ fn main() {
 import React, { FC, useState, useEffect } from 'react';
 
 // Type definitions with unusual formatting
-type ComplexType<T extends object = {}, 
+type ComplexType<T extends object = {},
     K = keyof T> = {
   [P in K]: T extends { [Q in P]: infer R } ? R : never;
 } & {
@@ -259,7 +257,7 @@ interface NestedInterface {
 /**
  * React component with JSX
  */
-const ComplexComponent: FC<{ prop1: string; prop2?: number }> = ({ 
+const ComplexComponent: FC<{ prop1: string; prop2?: number }> = ({
   prop1,
   prop2 = 0,
 }) => {
@@ -282,18 +280,18 @@ const ComplexComponent: FC<{ prop1: string; prop2?: number }> = ({
           processed: true
         }));
       };
-      
+
       // More nesting
       const render = () => {
         return <div>{state.value}</div>;
       };
-      
+
       setState({
         value: 'loaded',
         items: process([{ id: 1, name: 'item' }])
       });
     };
-    
+
     loadData();
   }, []);
 
@@ -337,7 +335,7 @@ export default (() => {
       <Component {...props} context="added" />
     );
   };
-  
+
   return withContext(ComplexComponent);
 })();
 """

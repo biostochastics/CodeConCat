@@ -308,34 +308,32 @@ class CppParser(ParserInterface):
                 # Variable (simplistic)
                 # Place after function/class checks to avoid misinterpreting definitions
                 var_match = VARIABLE_PATTERN.match(stripped_line)
-                if var_match:
-                    # Avoid capturing function parameters or parts of definitions again
-                    if not (stripped_line.endswith("{") or "(" in name):  # Basic checks
-                        name = var_match.group("name")
-                        scope = current_namespace_stack + current_class_stack
-                        full_name = "::".join(scope + [name])
-                        kind = "variable"
-                        # Determine if global or member based on scope stack
-                        if current_class_stack:
-                            kind = "member_variable"
-                        elif not current_namespace_stack and not current_class_stack:
-                            kind = "global_variable"
-                        else:
-                            kind = "namespace_variable"
+                if var_match and not (stripped_line.endswith("{") or "(" in name):  # Basic checks
+                    name = var_match.group("name")
+                    scope = current_namespace_stack + current_class_stack
+                    full_name = "::".join(scope + [name])
+                    kind = "variable"
+                    # Determine if global or member based on scope stack
+                    if current_class_stack:
+                        kind = "member_variable"
+                    elif not current_namespace_stack and not current_class_stack:
+                        kind = "global_variable"
+                    else:
+                        kind = "namespace_variable"
 
-                        docstring = "\n".join(filter(None, doc_buffer))
-                        declarations.append(
-                            Declaration(
-                                kind=kind,
-                                name=full_name,
-                                start_line=i,
-                                end_line=i,
-                                docstring=docstring,
-                                modifiers=set(),
-                            )
+                    docstring = "\n".join(filter(None, doc_buffer))
+                    declarations.append(
+                        Declaration(
+                            kind=kind,
+                            name=full_name,
+                            start_line=i,
+                            end_line=i,
+                            docstring=docstring,
+                            modifiers=set(),
                         )
-                        doc_buffer = []
-                        continue
+                    )
+                    doc_buffer = []
+                    continue
 
                 # If the line contains code but wasn't a comment or known declaration, clear the doc buffer.
                 if stripped_line:
@@ -363,7 +361,7 @@ class CppParser(ParserInterface):
                 language="cpp",  # Or detect C vs C++ based on file_path?
                 content=content,
                 declarations=declarations,
-                imports=sorted(list(imports)),
+                imports=sorted(imports),
                 engine_used="regex",  # Set engine_used
                 token_stats=None,
                 security_issues=[],
@@ -375,4 +373,4 @@ class CppParser(ParserInterface):
                 message=f"Failed to parse C/C++ file ({type(e).__name__}) using Regex: {e}",
                 file_path=file_path,
                 original_exception=e,
-            )
+            ) from e

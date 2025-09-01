@@ -7,139 +7,117 @@ from typing import Dict, List, Set
 from tree_sitter import Node
 
 from ...base_types import Declaration
+from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
 
-# Define Tree-sitter queries for Rust
-# Ref: https://github.com/tree-sitter/tree-sitter-rust/blob/master/queries/tags.scm
+# Enhanced Tree-sitter queries for Rust with comprehensive coverage
 RUST_QUERIES = {
     "imports": """
+        ; Use declarations
         (use_declaration
             argument: (_) @import_path
         ) @use_statement
 
+        ; External crate declarations
         (extern_crate_declaration
-            name: (identifier) @import_path
+            name: (identifier) @crate_name
         ) @extern_crate
+
+        ; Mod declarations (module imports)
+        (mod_item
+            name: (identifier) @mod_name
+        ) @mod_declaration
     """,
     "declarations": """
-        (visibility_modifier)? @visibility
-
+        ; Function items with full signature capture
         (function_item
+            (visibility_modifier)? @visibility
+            (function_modifiers
+                "async"? @async_modifier
+                "unsafe"? @unsafe_modifier
+                "const"? @const_modifier
+                "extern"? @extern_modifier
+            )? @modifiers
             name: (identifier) @name
-            parameters: (parameters)? @params
+            parameters: (parameters) @params
             return_type: (_)? @return_type
             body: (block)? @body
         ) @function
 
-        (visibility_modifier)? @visibility
+        ; Method definitions within impl blocks
+        (impl_item
+            type: (_) @impl_type
+            body: (declaration_list)
+        ) @impl_block
 
-
+        ; Struct definitions
         (struct_item
             name: (type_identifier) @name
-            type_parameters: (type_parameters)? @type_params
-            fields: (_)? @fields
+            body: [
+                (field_declaration_list) @struct_fields
+                (ordered_field_declaration_list) @tuple_fields
+            ]?
         ) @struct
 
+        ; Enum definitions
         (enum_item
             name: (type_identifier) @name
-            type_parameters: (type_parameters)? @type_params
-            variants: (_)? @variants
+            body: (enum_variant_list) @enum_variants
         ) @enum
 
+        ; Trait definitions
         (trait_item
+            "unsafe"? @unsafe_trait
             name: (type_identifier) @name
-            type_parameters: (type_parameters)? @type_params
-            supertraits: (_)? @supertraits
-            body: (_)? @body
+            body: (declaration_list) @trait_body
         ) @trait
-        
-        ; Enhanced impl item query to better capture trait implementations
-        (impl_item
-            type_parameters: (type_parameters)? @type_params
-            trait: [
-                (type_identifier) @trait_name
-                (scoped_identifier 
-                    path: (_) @trait_path 
-                    name: (type_identifier) @trait_name)
-            ]?
-            type: [
-                (type_identifier) @impl_type
-                (scoped_type_identifier
-                    path: (_) @type_path
-                    name: (type_identifier) @impl_type)
-            ]
-            body: (declaration_list)? @body
-        ) @impl
 
-        (mod_item
-            name: (identifier) @name
-            body: (_)? @body
-        ) @module
-
-        (const_item
-            name: (identifier) @name
-            type: (_)? @type
-            value: (_)? @value
-        ) @constant
-
-        (static_item
-            name: (identifier) @name
-            type: (_)? @type
-            value: (_)? @value
-        ) @static
-
+        ; Type alias definitions
         (type_item
             name: (type_identifier) @name
-            type_parameters: (type_parameters)? @type_params
-            type: (_)? @type
+            type: (_) @type_definition
         ) @type_alias
 
+        ; Constant definitions
+        (const_item
+            name: (identifier) @name
+            type: (_) @const_type
+            value: (_) @const_value
+        ) @constant
+
+        ; Static definitions
+        (static_item
+            name: (identifier) @name
+            type: (_) @static_type
+            value: (_) @static_value
+        ) @static
+
+        ; Macro definitions
         (macro_definition
             name: (identifier) @name
-        ) @macro_definition
+            parameters: (macro_rule)* @macro_rules
+        ) @macro
 
-        ; Better detection of methods within impl blocks
-        (impl_item
-            body: (declaration_list
-                  (visibility_modifier)? @visibility
-
-                  (function_item
-                    name: (identifier) @method_name
-                    parameters: (parameters)? @method_params
-                    return_type: (_)? @method_return_type
-                    body: (block)? @method_body
-                  ) @method
-                 )
-        )
-
-        ; Better detection of associated types
-        (impl_item
-            body: (declaration_list
-                  (type_item
-                    name: (type_identifier) @assoc_type_name
-                    type_parameters: (type_parameters)? @assoc_type_params
-                    type: (_)? @assoc_type_value
-                  ) @assoc_type
-                 )
-        )
-
-        ; Better detection of associated constants
-        (impl_item
-            body: (declaration_list
-                  (const_item
-                    name: (identifier) @assoc_const_name
-                    type: (_)? @assoc_const_type
-                    value: (_)? @assoc_const_value
-                  ) @assoc_const
-                 )
-        )
+        ; Module definitions
+        (mod_item
+            name: (identifier) @name
+            body: (declaration_list)? @mod_body
+        ) @module
     """,
-    # Enhance doc comment detection - capture both line and block doc comments
     "doc_comments": """
-        (line_comment) @doc_comment (#match? @doc_comment "^///|^//!")
-        (block_comment) @doc_comment (#match? @doc_comment "^/\\\\*\\\\*|^/\\\\*!")
+        ; Outer doc comments (///)
+        (line_comment) @outer_doc_comment (#match? @outer_doc_comment "^///")
+
+        ; Inner doc comments (//!)
+        (line_comment) @inner_doc_comment (#match? @inner_doc_comment "^//!")
+
+        ; Outer block doc comments (/** */)
+        (block_comment) @outer_block_doc (#match? @outer_block_doc "^/\\\\*\\\\*")
+
+        ; Inner block doc comments (/*! */)
+        (block_comment) @inner_block_doc (#match? @inner_block_doc "^/\\*!")
     """,
 }
 
@@ -152,7 +130,7 @@ RUST_DOC_COMMENT_BLOCK_END_PATTERN = re.compile(r"\s*\*/$")
 
 def _clean_rust_doc_comment(comment_block: List[str]) -> str:
     """Cleans a block of Rust doc comment lines."""
-    cleaned_lines = []
+    cleaned_lines: list[str] = []
     is_block = comment_block[0].startswith("/**") if comment_block else False
     (
         comment_block[0].startswith(("//!", "/*!")) if comment_block else False
@@ -192,7 +170,6 @@ class TreeSitterRustParser(BaseTreeSitterParser):
         queries = self.get_queries()
         declarations = []
         imports: Set[str] = set()
-        declaration_map = {}  # node_id -> declaration info
         doc_comment_map = {}  # end_line -> {'text': List[str], 'inner': bool}
 
         # --- Pass 1: Extract Doc Comments --- #
@@ -203,39 +180,41 @@ class TreeSitterRustParser(BaseTreeSitterParser):
             current_doc_block: List[str] = []
             current_block_inner = False
 
-            for node, _ in doc_captures:
-                comment_text = byte_content[node.start_byte : node.end_byte].decode(
-                    "utf8", errors="ignore"
-                )
-                current_start_line = node.start_point[0]
-                current_end_line = node.end_point[0]
-                is_block = comment_text.startswith("/**")
-                is_inner = comment_text.startswith(("//!", "/*!"))  # Treat /*! same as //!
+            # doc_captures is a dict: {capture_name: [list of nodes]}
+            for _capture_name, nodes in doc_captures.items():
+                for node in nodes:
+                    comment_text = byte_content[node.start_byte : node.end_byte].decode(
+                        "utf8", errors="replace"
+                    )
+                    current_start_line = node.start_point[0]
+                    current_end_line = node.end_point[0]
+                    is_block = comment_text.startswith("/**")
+                    is_inner = comment_text.startswith(("//!", "/*!"))  # Treat /*! same as //!
 
-                if is_block:
-                    if current_doc_block:
-                        doc_comment_map[last_comment_line] = {
-                            "text": current_doc_block,
-                            "inner": current_block_inner,
-                        }
-                    doc_comment_map[current_end_line] = {
-                        "text": comment_text.splitlines(),
-                        "inner": is_inner,
-                    }
-                    current_doc_block = []
-                    last_comment_line = current_end_line
-                else:  # Line comment
-                    if (
-                        current_start_line == last_comment_line + 1
-                        and is_inner == current_block_inner
-                    ):
-                        current_doc_block.append(comment_text)
-                    else:
+                    if is_block:
                         if current_doc_block:
                             doc_comment_map[last_comment_line] = {
                                 "text": current_doc_block,
                                 "inner": current_block_inner,
                             }
+                        doc_comment_map[current_end_line] = {
+                            "text": comment_text.splitlines(),
+                            "inner": is_inner,
+                        }
+                        current_doc_block = []
+                        last_comment_line = current_end_line
+                    else:  # Line comment
+                        if (
+                            current_start_line == last_comment_line + 1
+                            and is_inner == current_block_inner
+                        ):
+                            current_doc_block.append(comment_text)
+                        else:
+                            if current_doc_block:
+                                doc_comment_map[last_comment_line] = {
+                                    "text": current_doc_block,
+                                    "inner": current_block_inner,
+                                }
                         current_doc_block = [comment_text]
                         current_block_inner = is_inner
                     last_comment_line = current_start_line
@@ -261,57 +240,32 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                 logger.debug(f"Running Rust query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for capture in captures:
-                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                    # captures is a dict of {capture_name: [list of nodes]}
+                    # Fixed capture unpacking pattern
+                    for capture in captures.items():
                         if len(capture) == 2:
-                            node, capture_name = capture
+                            capture_name, nodes = capture
                         else:
-                            node, capture_name, _ = capture
+                            continue
                         if capture_name == "import_path":
-                            import_path = byte_content[node.start_byte : node.end_byte].decode(
-                                "utf8", errors="ignore"
-                            )
-                            # Clean up paths like 'crate::foo' or 'super::bar'
-                            imports.add(import_path)
+                            for node in nodes:
+                                import_path = byte_content[node.start_byte : node.end_byte].decode(
+                                    "utf8", errors="replace"
+                                )
+                                # Clean up paths like 'crate::foo' or 'super::bar'
+                                imports.add(import_path)
 
                 elif query_name == "declarations":
-                    # Group captures by the main declaration node ID
-                    node_capture_map = {}
-                    for capture in captures:
-                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
-                        if len(capture) == 2:
-                            node, capture_name = capture
-                        else:
-                            node, capture_name, _ = capture
-                        # Find the ancestor that is the actual declaration item
-                        decl_node = node
-                        while decl_node.parent and decl_node.type not in [
-                            "function_item",
-                            "struct_item",
-                            "enum_item",
-                            "trait_item",
-                            "impl_item",
-                            "mod_item",
-                            "const_item",
-                            "static_item",
-                            "type_item",
-                            "macro_definition",
-                            "source_file",
-                        ]:
-                            decl_node = decl_node.parent
-                        if not decl_node:
-                            decl_node = node  # Fallback
+                    # Use matches for better structure
+                    matches = query.matches(root_node)
+                    for _match_id, captures_dict in matches:
+                        declaration_node = None
+                        name_node = None
+                        kind = None
+                        modifiers = set()
 
-                        decl_id = decl_node.id
-                        if decl_id not in node_capture_map:
-                            node_capture_map[decl_id] = {
-                                "node": decl_node,
-                                "captures": [],
-                                "kind": None,
-                            }
-                        node_capture_map[decl_id]["captures"].append((node, capture_name))
-                        # Capture primary kind if available
-                        if capture_name in [
+                        # Check for various declaration types
+                        decl_types = [
                             "function",
                             "struct",
                             "enum",
@@ -325,167 +279,96 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                             "method",
                             "assoc_type",
                             "assoc_const",
-                        ]:
-                            node_capture_map[decl_id]["kind"] = capture_name
+                        ]
 
-                    # Process grouped captures
-                    for decl_id, data in node_capture_map.items():
-                        decl_node = data["node"]
-                        node_captures = data["captures"]
-                        kind = data["kind"] or decl_node.type  # Fallback to node type
+                        for decl_type in decl_types:
+                            if decl_type in captures_dict:
+                                nodes = captures_dict[decl_type]
+                                if nodes and len(nodes) > 0:
+                                    declaration_node = nodes[0]
+                                    kind = decl_type
+                                    break
 
-                        # Map TS types / capture names to our kinds
+                        # Get the name node
+                        if "name" in captures_dict:
+                            name_nodes = captures_dict["name"]
+                            if name_nodes and len(name_nodes) > 0:
+                                name_node = name_nodes[0]
+
+                        # Check for modifiers
+                        if "pub_modifier" in captures_dict or "visibility" in captures_dict:
+                            modifiers.add("pub")
+                        if "async_modifier" in captures_dict or "method_async" in captures_dict:
+                            modifiers.add("async")
+                        if "unsafe_modifier" in captures_dict:
+                            modifiers.add("unsafe")
+
+                        # Map capture names to standard kinds
                         kind_map = {
-                            "function_item": "function",
-                            "struct_item": "struct",
-                            "enum_item": "enum",
-                            "trait_item": "trait",
-                            "impl_item": "impl",
-                            "mod_item": "module",
-                            "const_item": "constant",
-                            "static_item": "static",
-                            "type_item": "type_alias",
-                            "macro_definition": "macro",
-                            "method": "method",  # Use specific capture name
                             "assoc_type": "associated_type",
                             "assoc_const": "associated_constant",
                         }
-                        kind = kind_map.get(kind, kind)  # Use mapped kind or original capture name
+                        if kind:
+                            kind = kind_map.get(kind, kind)
 
-                        if kind not in [
-                            "function",
-                            "struct",
-                            "enum",
-                            "trait",
-                            "impl",
-                            "module",
-                            "constant",
-                            "static",
-                            "type_alias",
-                            "macro",
-                            "method",
-                            "associated_type",
-                            "associated_constant",
-                        ]:
-                            continue  # Skip nodes we don't classify
+                        # Add declaration if we have both node and name
+                        if declaration_node and name_node and kind:
+                            name_text = byte_content[
+                                name_node.start_byte : name_node.end_byte
+                            ].decode("utf8", errors="replace")
 
-                        # --- Extract Name --- #
-                        name = "<unknown>"
-                        if kind == "impl":
-                            # Name for impl block is complex: trait for type
-                            trait_node = next(
-                                (n for n, cname in node_captures if cname == "trait_name"), None
-                            )
-                            type_node = next(
-                                (n for n, cname in node_captures if cname == "impl_type"), None
-                            )
-                            trait_name = (
-                                byte_content[trait_node.start_byte : trait_node.end_byte].decode(
-                                    "utf8", errors="ignore"
+                            # Check for docstring
+                            doc_data = doc_comment_map.get(declaration_node.start_point[0] - 1, "")
+                            # Convert docstring to string format
+                            if isinstance(doc_data, dict) and "text" in doc_data:
+                                text_data = doc_data["text"]
+                                if isinstance(text_data, (list, tuple)):
+                                    docstring = "\n".join(str(line) for line in text_data).strip()
+                                    # Clean up Rust doc comment markers
+                                    docstring = self._clean_rust_docstring(docstring)
+                                else:
+                                    docstring = str(text_data).strip()
+                            else:
+                                docstring = str(doc_data) if doc_data else ""
+
+                            # Use utility function for accurate line numbers
+                            start_line, end_line = get_node_location(declaration_node)
+
+                            declarations.append(
+                                Declaration(
+                                    kind=kind or "unknown",
+                                    name=name_text,
+                                    start_line=start_line,
+                                    end_line=end_line,
+                                    docstring=docstring,
+                                    modifiers=modifiers,
                                 )
-                                if trait_node
-                                else None
                             )
-                            type_name = (
-                                byte_content[type_node.start_byte : type_node.end_byte].decode(
-                                    "utf8", errors="ignore"
-                                )
-                                if type_node
-                                else "<unknown>"
-                            )
-                            name = f"{trait_name} for {type_name}" if trait_name else type_name
-                        elif kind == "method":
-                            name_node = next(
-                                (n for n, cname in node_captures if cname == "method_name"), None
-                            )
-                            if name_node:
-                                name = byte_content[
-                                    name_node.start_byte : name_node.end_byte
-                                ].decode("utf8", errors="ignore")
-                        elif kind == "associated_type":
-                            name_node = next(
-                                (n for n, cname in node_captures if cname == "assoc_type_name"),
-                                None,
-                            )
-                            if name_node:
-                                name = byte_content[
-                                    name_node.start_byte : name_node.end_byte
-                                ].decode("utf8", errors="ignore")
-                        elif kind == "associated_constant":
-                            name_node = next(
-                                (n for n, cname in node_captures if cname == "assoc_const_name"),
-                                None,
-                            )
-                            if name_node:
-                                name = byte_content[
-                                    name_node.start_byte : name_node.end_byte
-                                ].decode("utf8", errors="ignore")
-                        else:
-                            # General case: capture named 'name'
-                            name_node = next(
-                                (n for n, cname in node_captures if cname == "name"), None
-                            )
-                            if name_node:
-                                name = byte_content[
-                                    name_node.start_byte : name_node.end_byte
-                                ].decode("utf8", errors="ignore")
-
-                        if name == "<unknown>":
-                            continue  # Skip if name extraction failed
-
-                        start_line = decl_node.start_point[0]
-                        end_line = decl_node.end_point[0]
-
-                        # Basic module path tracking (doesn't handle complex nesting well)
-                        # if kind == 'module': current_mod_path.append(name)
-                        # full_name = "::".join(current_mod_path + [name]) if current_mod_path else name
-                        # This needs a proper stack based on node depth
-                        full_name = name  # Keep it simple for now
-
-                        if decl_id not in declaration_map:
-                            declaration_map[decl_id] = {
-                                "kind": kind,
-                                "name": full_name,
-                                "start_line": start_line,
-                                "end_line": end_line,
-                                "modifiers": set(),  # TODO: Extract pub, async, unsafe, etc.
-                                "docstring": "",
-                            }
-                        else:
-                            declaration_map[decl_id]["end_line"] = max(
-                                declaration_map[decl_id]["end_line"], end_line
-                            )
-                            if declaration_map[decl_id]["name"] == "<unknown>":
-                                declaration_map[decl_id]["name"] = full_name
-
             except Exception as e:
                 logger.warning(f"Failed to execute Rust query '{query_name}': {e}", exc_info=True)
 
-        # --- Pass 3: Process declarations and associate docstrings --- #
-        for decl_id, decl_info in declaration_map.items():
-            if decl_info.get("name") and decl_info["name"] != "<unknown>":
-                # Find associated doc comment
-                doc_info = doc_comment_map.get(decl_info["start_line"] - 1)
-                cleaned_docstring = ""
-                if doc_info and not doc_info["inner"]:  # Outer doc comment before decl
-                    cleaned_docstring = _clean_rust_doc_comment(doc_info["text"])
-                # TODO: Handle inner doc comments (associated with parent, e.g., module)
-
-                declarations.append(
-                    Declaration(
-                        kind=decl_info["kind"],
-                        name=decl_info["name"],
-                        start_line=decl_info["start_line"],
-                        end_line=decl_info["end_line"],
-                        docstring=cleaned_docstring,
-                        modifiers=decl_info["modifiers"],
-                    )
-                )
+        # Declaration processing now happens inline
 
         declarations.sort(key=lambda d: d.start_line)
-        sorted_imports = sorted(list(imports))
+        sorted_imports = sorted(imports)
 
         logger.debug(
             f"Tree-sitter Rust extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
         )
         return declarations, sorted_imports
+
+    def _clean_rust_docstring(self, docstring_text: str) -> str:
+        """Clean Rust docstring by removing comment markers and normalizing."""
+        if not docstring_text:
+            return ""
+
+        lines = docstring_text.split("\n")
+        cleaned_lines: list[str] = []
+
+        for line in lines:
+            # Remove Rust doc comment markers
+            cleaned_line = RUST_DOC_COMMENT_LINE_PATTERN.sub("", line).strip()
+            if cleaned_line or cleaned_lines:  # Keep non-empty lines and preserve structure
+                cleaned_lines.append(cleaned_line)
+
+        return "\n".join(cleaned_lines).strip()

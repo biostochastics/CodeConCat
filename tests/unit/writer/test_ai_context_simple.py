@@ -1,12 +1,7 @@
 """Simple tests for AI context generation."""
 
-
+from codeconcat.base_types import AnnotatedFileData, Declaration, ParsedDocData
 from codeconcat.writer.ai_context import generate_ai_preamble
-from codeconcat.base_types import (
-    AnnotatedFileData,
-    ParsedDocData,
-    Declaration,
-)
 
 
 class TestAIContextSimple:

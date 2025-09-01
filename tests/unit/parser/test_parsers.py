@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Test suite for language parsers in CodeConcat.
@@ -9,14 +8,14 @@ the test corpus, ensuring that they correctly identify declarations,
 imports, docstrings, etc.
 """
 
-import os
-import json
-import pytest
 import importlib
-from typing import List, Dict, Any
+import json
+import os
+from typing import Any, Dict, List
 
-from codeconcat.base_types import ParseResult
-from codeconcat.base_types import CodeConCatConfig
+import pytest
+
+from codeconcat.base_types import CodeConCatConfig, ParseResult
 
 
 class TestParsers:
@@ -30,7 +29,7 @@ class TestParsers:
             disable_tree=True,  # Disable tree-sitter for consistent testing
         )
 
-    def get_language_parser(self, language: str, config: CodeConCatConfig):
+    def get_language_parser(self, language: str, _config: CodeConCatConfig):
         """Wrapper for get_language_parser to properly handle imports in test environment."""
         # Import here to avoid circular imports
         from codeconcat.parser.language_parsers import REGEX_PARSER_MAP
@@ -126,7 +125,7 @@ class TestParsers:
         """Load expected parsing output for validation."""
         expected_output_path = os.path.join(corpus_dir, language, "expected_output.json")
         if os.path.exists(expected_output_path):
-            with open(expected_output_path, "r") as f:
+            with open(expected_output_path) as f:
                 return json.load(f)
         return {}
 
@@ -155,7 +154,7 @@ class TestParsers:
         # Check specific declarations
         if "declarations" in file_expected:
             expected_declarations = set(file_expected["declarations"])
-            actual_declarations = set(d.name for d in parse_result.declarations)
+            actual_declarations = {d.name for d in parse_result.declarations}
 
             missing = expected_declarations - actual_declarations
             extra = actual_declarations - expected_declarations
@@ -249,7 +248,7 @@ class TestParsers:
             print(f"Parser class: {parser.__class__.__name__}")
 
             # Read file content
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
             print(f"File content loaded: {len(content)} bytes")
 

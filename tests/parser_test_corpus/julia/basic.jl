@@ -42,10 +42,10 @@ mutable struct Person
     name::String
     age::Int
     address::Union{String, Nothing}
-    
+
     """
         Person(name::String, age::Int)
-    
+
     Create a new Person with the given name and age.
     """
     function Person(name::String, age::Int)
@@ -94,10 +94,10 @@ mutable struct Employee <: Person
     address::Union{String, Nothing}
     title::String
     salary::Float64
-    
+
     """
         Employee(name::String, age::Int, title::String, salary::Float64)
-    
+
     Create a new Employee with the given attributes.
     """
     function Employee(name::String, age::Int, title::String, salary::Float64)
@@ -166,7 +166,7 @@ Simple implementation of the Processor abstract type.
 """
 mutable struct SimpleProcessor <: Processor
     count::Int
-    
+
     SimpleProcessor() = new(0)
 end
 
@@ -179,7 +179,7 @@ function process(p::SimpleProcessor, data::Vector{UInt8})
     if isempty(data)
         throw(ArgumentError("Empty data"))
     end
-    
+
     p.count += 1
     result = Vector{UInt8}("Processed: ")
     return vcat(result, data)
@@ -210,11 +210,11 @@ function calculateStats(numbers::Vector{Int})
     if isempty(numbers)
         return nothing
     end
-    
+
     min_val = minimum(numbers)
     max_val = maximum(numbers)
     avg_val = mean(numbers)
-    
+
     return (min=min_val, max=max_val, avg=avg_val)
 end
 
@@ -235,7 +235,7 @@ function divide(a::Int, b::Int)
     if b == 0
         throw(DivideError())
     end
-    
+
     return div(a, b)
 end
 
@@ -257,13 +257,13 @@ if abspath(PROGRAM_FILE) == @__FILE__
     person = Person("John", 30)
     setAddress!(person, "123 Main St")
     println(greet(person))
-    
+
     # Create an employee
     employee = Employee("Jane", 28, "Software Engineer", 100000.0)
     giveRaise!(employee, 10.0)
     println(workInfo(employee))
     println(greet(employee))
-    
+
     # Use the processor
     processor = SimpleProcessor()
     try
@@ -272,25 +272,25 @@ if abspath(PROGRAM_FILE) == @__FILE__
     catch e
         println("Error: $(e)")
     end
-    
+
     # Use standalone functions
     numbers = [3, 7, 2, 9, 5]
     stats = calculateStats(numbers)
     if stats !== nothing
         println("Min: $(stats.min), Max: $(stats.max), Avg: $(stats.avg)")
     end
-    
+
     try
         result = divide(10, 2)
         println("10 / 2 = $(result)")
     catch e
         println("Error: $(e)")
     end
-    
+
     # Use constants
     println("PI: $(PI)")
     println("MAX_RETRIES: $(MAX_RETRIES)")
-    
+
     # Use the macro
     @twice println("This prints twice")
 end

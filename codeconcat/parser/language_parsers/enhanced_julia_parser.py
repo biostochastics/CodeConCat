@@ -122,9 +122,9 @@ class EnhancedJuliaParser(EnhancedBaseParser):
             logger.debug(f"Starting EnhancedJuliaParser.parse for file: {file_path}")
 
             lines = content.split("\n")
-            declarations = []
-            imports = []
-            errors = []
+            declarations: list[Declaration] = []
+            imports: list[str] = []
+            errors: list[str] = []
 
             # Process the entire file content
             self._process_block(lines, 0, len(lines) - 1, declarations, imports, errors, None)
@@ -185,7 +185,7 @@ class EnhancedJuliaParser(EnhancedBaseParser):
         """
         i = start
 
-        logger.debug(f"Processing Julia block from lines {start+1}-{end+1}")
+        logger.debug(f"Processing Julia block from lines {start + 1}-{end + 1}")
 
         try:
             while i <= end:
@@ -195,13 +195,17 @@ class EnhancedJuliaParser(EnhancedBaseParser):
                 line = lines[i].strip()
 
                 # Skip empty lines and comments
-                if not line or line.startswith(self.line_comment):
+                if not line or (self.line_comment and line.startswith(self.line_comment)):
                     i += 1
                     continue
 
                 # Skip block comments
-                if line.startswith(self.block_comment_start):
-                    while i <= end and self.block_comment_end not in lines[i]:
+                if self.block_comment_start and line.startswith(self.block_comment_start):
+                    while (
+                        i <= end
+                        and self.block_comment_end
+                        and self.block_comment_end not in lines[i]
+                    ):
                         i += 1
                     i += 1
                     continue
@@ -232,7 +236,7 @@ class EnhancedJuliaParser(EnhancedBaseParser):
 
                         start_line = i + 1  # 1-indexed
                         block_end = i
-                        docstring_text = ""
+                        docstring_text: str | None = ""
 
                         # Extract modifiers
                         modifiers = self._extract_modifiers(line)
@@ -243,18 +247,15 @@ class EnhancedJuliaParser(EnhancedBaseParser):
                                 f"Found {kind} '{name}' at line {start_line}, finding block end..."
                             )
                             block_end = self._find_julia_block_end(lines, i)
-                            logger.debug(f"Found end of {kind} '{name}' at line {block_end+1}")
+                            logger.debug(f"Found end of {kind} '{name}' at line {block_end + 1}")
 
                             # Extract docstring
-                            docstring_text = self.extract_docstring(lines, i, block_end)
+                            docstring_text = self.extract_docstring(lines, i, block_end) or ""
 
                         end_line = block_end + 1  # 1-indexed
 
                         # Normalize kind
-                        if kind == "inline_function":
-                            normalized_kind = "function"
-                        else:
-                            normalized_kind = kind
+                        normalized_kind = "function" if kind == "inline_function" else kind
 
                         # Create declaration
                         declaration = Declaration(
@@ -262,8 +263,8 @@ class EnhancedJuliaParser(EnhancedBaseParser):
                             name=name,
                             start_line=start_line,
                             end_line=end_line,
-                            docstring=docstring_text,
-                            modifiers=list(modifiers),
+                            docstring=docstring_text or "",
+                            modifiers=modifiers,
                             children=[],  # Will add children for nested declarations
                         )
 
@@ -286,7 +287,7 @@ class EnhancedJuliaParser(EnhancedBaseParser):
                             # Only process if there's content to process
                             if inner_end >= inner_start:
                                 logger.debug(
-                                    f"Processing nested declarations within {normalized_kind} {name} (lines {inner_start+1}-{inner_end+1})"
+                                    f"Processing nested declarations within {normalized_kind} {name} (lines {inner_start + 1}-{inner_end + 1})"
                                 )
                                 # Recursively process the block for nested declarations
                                 self._process_block(
@@ -359,13 +360,19 @@ class EnhancedJuliaParser(EnhancedBaseParser):
             processed_line = curr_line
 
             # Skip comments
-            if processed_line.strip().startswith(self.line_comment):
+            if self.line_comment and processed_line.strip().startswith(self.line_comment):
                 j += 1
                 continue
 
             # Handle block comments
-            if processed_line.strip().startswith(self.block_comment_start):
-                while j < len(lines) and self.block_comment_end not in lines[j]:
+            if self.block_comment_start and processed_line.strip().startswith(
+                self.block_comment_start
+            ):
+                while (
+                    j < len(lines)
+                    and self.block_comment_end
+                    and self.block_comment_end not in lines[j]
+                ):
                     j += 1
                 j += 1
                 continue
@@ -410,20 +417,20 @@ class EnhancedJuliaParser(EnhancedBaseParser):
                 if re.search(rf"\b{word}\b", processed_line):
                     nesting_level += 1
                     logger.debug(
-                        f"Found nested block start at line {j+1}, nesting level: {nesting_level}"
+                        f"Found nested block start at line {j + 1}, nesting level: {nesting_level}"
                     )
 
             # Check for 'end' keyword
             if re.search(r"\bend\b", processed_line):
                 nesting_level -= 1
-                logger.debug(f"Found 'end' at line {j+1}, nesting level: {nesting_level}")
+                logger.debug(f"Found 'end' at line {j + 1}, nesting level: {nesting_level}")
                 if nesting_level == 0:
                     return j
 
             j += 1
 
         # Default to the end of the file if no matching 'end' is found
-        logger.warning(f"No matching 'end' found for block starting at line {start+1}")
+        logger.warning(f"No matching 'end' found for block starting at line {start + 1}")
         return len(lines) - 1
 
     def _process_imports(self, line: str, imports: List[str]) -> bool:
@@ -478,7 +485,7 @@ class EnhancedJuliaParser(EnhancedBaseParser):
                 found_modifiers.add(mod)
         return found_modifiers
 
-    def extract_docstring(self, lines: List[str], start: int, end: int) -> str:
+    def extract_docstring(self, lines: List[str], start: int, end: int) -> str | None:
         """
         Extract Julia docstring from a block.
 

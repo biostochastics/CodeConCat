@@ -16,93 +16,30 @@ logger = logging.getLogger(__name__)
 # Combining common constructs. More specific TS types could be added if needed.
 JS_TS_QUERIES = {
     "imports": """
-        ; Standard ESM imports
+        ; Standard ESM imports - simplified to capture source
         (import_statement
             source: (string) @import_source
         ) @import_stmt
-        
-        ; TypeScript type-only imports
-        ; (import_statement
-        ;     "type" @type_keyword 
-        ;     source: (string) @import_source
-        ; ) @import_stmt
-        
-        ; Default imports (import Name from 'module')
-        (import_statement
-            (import_clause
-                (identifier) @default_import
-            )
-            source: (string) @import_source_default
-        ) @default_import_stmt
-        
-        ; Named imports (import { name } from 'module')
-        (import_statement
-             (import_clause 
-                (named_imports 
-                    (import_specifier 
-                        name: (identifier) @named_import
-                        alias: (identifier)? @import_alias
-                    )+
-                )
-             )
-             source: (string) @import_source_named
-        ) @named_import_stmt
-        
-        ; Namespace imports (import * as name from 'module')
-        (import_statement
-            (import_clause
-                (namespace_import 
-                    (identifier) @namespace_name
-                )
-            )
-            source: (string) @import_source_namespace
-        ) @namespace_import_stmt
 
-        ; Dynamic import expressions (import('module'))
+        ; CommonJS require statements
+        (call_expression
+            function: (identifier) @require_func (#eq? @require_func "require")
+            arguments: (arguments (string) @require_source)
+        ) @require_stmt
+
+        ; Dynamic imports
         (call_expression
             function: (import)
-            arguments: (arguments (_) @import_source_dynamic_node) ; Generalized capture
+            arguments: (arguments (string) @dynamic_import_source)
         ) @dynamic_import
-        
-        ; Type-only imports (import type { Type } from 'module')
-        ; (import_statement
-        ;     import_kind: "type"
-        ;     (import_clause
-        ;         (named_imports
-        ;             (import_specifier
-        ;                 name: (identifier) @type_import
-        ;             )+
-        ;         )
-        ;     )
-        ;     source: (string) @type_import_source
-        ; ) @type_import_stmt
-
-        ; ES Module exports
-        (export_statement
-            source: (string)? @re_export_source
-        ) @export_stmt
-        
-        ; Named exports (export { name })
-        (export_statement
-            (export_clause
-                (export_specifier
-                    name: (identifier) @export_name
-                )+
-            )
-        ) @named_export_stmt
-        
-        ; Default exports (export default value)
-        (export_statement
-            "default"
-            value: (_) @default_export_value
-        ) @default_export_stmt
     """,
     "declarations": """
-        ; Standard function declarations (possibly with async)
+        ; Function declarations
         (function_declaration
-            "async"? @async
+            "async"? @async_modifier
             name: (identifier) @name
             parameters: (formal_parameters) @params
+            return_type: (type_annotation)? @return_type
             body: (statement_block) @body
         ) @function
 
@@ -112,7 +49,7 @@ JS_TS_QUERIES = {
             parameters: (formal_parameters) @params
             body: (statement_block) @body
         ) @generator_function
-        
+
         ; Arrow functions assigned to variables
         (lexical_declaration
             (variable_declarator
@@ -123,151 +60,54 @@ JS_TS_QUERIES = {
                     body: [(statement_block) (expression)] @arrow_body
                 )
             )
-        ) @arrow_function_const
-        
-        ; Arrow functions assigned to var variables
-        (variable_declaration
-            (variable_declarator
-                name: (identifier) @name
-                value: (arrow_function
-                    "async"? @arrow_async
-                    parameters: [(formal_parameters) (identifier)] @arrow_params
-                    body: [(statement_block) (expression)] @arrow_body
-                )
-            )
-        ) @arrow_function_var
-
-        ; Class declarations with extends, implements and decorators
-        (class_declaration
-            decorator: (decorator
-                (_) @decorator_expr_child
-            )* @class_decorator
-            name: (identifier) @name
-            (class_heritage
-                value: [
-                    (identifier)
-                    (member_expression)
-                    (call_expression)
-                ] @extends_name
-            )?
-            (class_heritage
-                [
-                    (identifier)
-                    (member_expression)
-                ] @implements_type
-            )* 
-            body: (class_body) @body
-        ) @class
-
-        ; Class methods (instance methods, static methods, constructors)
-        (method_definition
-            decorator: (decorator
-                left: [(identifier) (call_expression)] @method_decorator_expr
-            )* @method_decorator
-            "static"? @static
-            "async"? @async_method
-            "*"? @generator_method
-            name: [(property_identifier) (computed_property_name) (private_property_identifier)] @name
-            parameters: (formal_parameters) @method_params
-            body: (statement_block) @body
-        ) @method
-        
-        ; Class fields and properties (with initializers)
-        ; Note: public_field_definition may not be available in all tree-sitter grammar versions
-        ; Using field_definition as a more compatible alternative
-        (field_definition
-            decorator: (decorator)* @field_decorator
-            "static"? @static_field
-            "readonly"? @readonly_field
-            name: [(property_identifier) (computed_property_name) (private_property_identifier)] @field_name
-            type: (type_annotation)? @field_type
-            value: (_)? @field_value
-        ) @class_field
+        ) @arrow_function
 
         ; Function expressions assigned to variables
         (lexical_declaration
             (variable_declarator
                 name: (identifier) @name
-                value: [(function) (generator_function)]
-            )
-        ) @function_expression_const
-
-        ; Function expressions assigned to var variables
-        (variable_declaration
-            (variable_declarator
-                name: (identifier) @name
-                value: [(function) (generator_function)]
-            )
-        ) @function_expression_var
-        
-        ; Class expressions assigned to variables
-        (lexical_declaration
-            (variable_declarator
-                name: (identifier) @name
-                value: (class) @class_expr
-            )
-        ) @class_expression_const
-        
-        ; Class expressions assigned to var variables
-        (variable_declaration
-            (variable_declarator
-                name: (identifier) @name
-                value: (class) @class_expr
-            )
-        ) @class_expression_var
-        
-        ; Object methods and shorthand methods
-        (object
-            (method_definition
-                "async"? @async_obj_method
-                "*"? @generator_obj_method
-                name: (property_identifier) @obj_method_name
-                parameters: (formal_parameters) @obj_method_params
-                body: (statement_block) @obj_method_body
-            )
-        ) @object_with_methods
-        
-        ; React functional components (indicated by common patterns)
-        (lexical_declaration
-            (variable_declarator
-                name: (identifier) @component_name (#match? @component_name "^[A-Z]")
-                value: [(arrow_function) (function)]
-            )
-        ) @react_component_const
-        
-        ; React functional components as variables
-        (variable_declaration
-            (variable_declarator
-                name: (identifier) @component_name (#match? @component_name "^[A-Z]")
-                value: [(arrow_function) (function)]
-            )
-        ) @react_component_var
-        
-        ; React class components
-        (class_declaration
-            name: (identifier) @component_class_name (#match? @component_class_name "^[A-Z]")
-            extends: (class_heritage
-                (extends_clause
-                    value: [(member_expression) (identifier)] @component_extends
-                    (#match? @component_extends "(Component|React\\.Component|PureComponent|React\\.PureComponent)$")
+                value: (function_expression
+                    parameters: (formal_parameters) @func_params
+                    body: (statement_block) @func_body
                 )
             )
-        ) @react_class_component
+        ) @function_expression
+
+        ; Class declarations
+        (class_declaration
+            name: (identifier) @name
+            superclass: (class_heritage)? @extends
+            body: (class_body) @body
+        ) @class
+
+        ; Class methods
+        (method_definition
+            "static"? @static_modifier
+            "async"? @async_modifier
+            "*"? @generator_modifier
+            name: [(property_identifier) (computed_property_name) (private_property_identifier)] @name
+            parameters: (formal_parameters) @params
+            body: (statement_block) @body
+        ) @method
+
+        ; Class fields
+        (field_definition
+            "static"? @static_field
+            name: [(property_identifier) (private_property_identifier)] @field_name
+            type: (type_annotation)? @field_type
+            value: (_)? @field_value
+        ) @class_field
 
         ; TypeScript interface declarations
         (interface_declaration
-            decorator: (decorator)* @interface_decorator
             name: (type_identifier) @name
-            type_parameters: (type_parameters)? @interface_type_params
-            extends: (extends_type_clause
-                (type_list) @interface_extends
-            )?
+            type_parameters: (type_parameters)? @type_params
+            extends: (extends_type_clause)? @extends
             body: (object_type) @body
         ) @interface
 
         ; TypeScript type alias declarations
         (type_alias_declaration
-            decorator: (decorator)* @type_decorator
             name: (type_identifier) @name
             type_parameters: (type_parameters)? @type_params
             value: (_) @type_value
@@ -275,80 +115,26 @@ JS_TS_QUERIES = {
 
         ; TypeScript enum declarations
         (enum_declaration
-            decorator: (decorator)* @enum_decorator
-            "const"? @const_enum
+            "const"? @const_modifier
             name: (identifier) @name
-            body: (enum_body
-                (enum_assignment
-                    name: (property_identifier) @enum_key
-                    value: (_)? @enum_value
-                )*
-            ) @body
+            body: (enum_body) @body
         ) @enum
-        
+
         ; TypeScript namespace declarations
         (namespace_declaration
-            name: [(identifier) (nested_identifier)] @namespace_name
-            body: (statement_block) @namespace_body
+            name: [(identifier) (nested_identifier)] @name
+            body: (statement_block) @body
         ) @namespace
-        
-        ; TypeScript module declarations
-        (module_declaration
-            name: [(string) (identifier)] @module_name
-            body: (statement_block) @module_body
-        ) @module
 
-        ; TypeScript declare function
-        (ambient_declaration
-            (function_declaration
+        ; Variable declarations (const, let, var)
+        (lexical_declaration
+            (variable_declarator
                 name: (identifier) @name
-                parameters: (formal_parameters) @ambient_func_params
-                return_type: (type_annotation)? @ambient_func_return
+                type: (type_annotation)? @var_type
+                value: (_)? @var_value
             )
-        ) @ambient_function
-
-        ; TypeScript declare class
-        (ambient_declaration
-            (class_declaration
-                name: (identifier) @name
-                type_parameters: (type_parameters)? @ambient_class_type_params
-                extends: (class_heritage)? @ambient_class_extends
-                implements: (class_heritage)? @ambient_class_implements
-                body: (class_body)? @ambient_class_body
-            )
-        ) @ambient_class
-        
-        ; TypeScript declare variable
-        (ambient_declaration
-            (variable_declaration
-                (variable_declarator
-                    name: (identifier) @ambient_var_name
-                    type: (type_annotation) @ambient_var_type
-                )
-            )
-        ) @ambient_variable
-        
-        ; TypeScript declare namespace
-        (ambient_declaration
-            (namespace_declaration
-                name: [(identifier) (nested_identifier)] @ambient_namespace_name
-                body: (statement_block) @ambient_namespace_body
-            )
-        
-; TypeScript declare module
-(ambient_declaration
-    (module_declaration
-        name: [(string) (identifier)] @ambient_module_name
-        body: (statement_block) @ambient_module_body
-    )
-) @ambient_module
-
-; Exported declarations (e.g. export function foo() {}, export const bar = ...)
-(export_statement
-    declaration: (_) @exported_declaration
-) @export_declaration
-
-""",
+        ) @variable
+    """,
     "doc_comments": """
     ; Capturing all comments for diagnostic purposes
     (comment) @doc_comment
@@ -368,6 +154,71 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
 
     def get_queries(self) -> Dict[str, str]:
         """Returns the predefined Tree-sitter queries for JS/TS."""
+        # For JavaScript, we need to filter out TypeScript-specific syntax
+        if self.language == "javascript":
+            # Create a copy and modify declarations to remove TypeScript-specific items
+            js_queries = {
+                "imports": JS_TS_QUERIES["imports"],
+                "doc_comments": JS_TS_QUERIES["doc_comments"],
+            }
+            # Simplified JavaScript declarations without TypeScript features
+            js_queries["declarations"] = """
+        ; Standard function declarations
+        (function_declaration
+            "async"? @async_modifier
+            name: (identifier) @name
+        ) @function
+
+        ; Generator function declarations
+        (generator_function_declaration
+            name: (identifier) @name
+        ) @generator_function
+
+        ; Arrow functions assigned to variables
+        (lexical_declaration
+            (variable_declarator
+                name: (identifier) @name
+                value: (arrow_function)
+            )
+        ) @arrow_function_const
+
+        ; Arrow functions assigned to var variables
+        (variable_declaration
+            (variable_declarator
+                name: (identifier) @name
+                value: (arrow_function)
+            )
+        ) @arrow_function_var
+
+        ; Class declarations
+        (class_declaration
+            name: (identifier) @name
+        ) @class
+
+        ; Class methods
+        (method_definition
+            "static"? @static_modifier
+            "async"? @async_modifier
+            name: (property_identifier) @name
+        ) @method
+
+        ; Function expressions assigned to variables
+        (lexical_declaration
+            (variable_declarator
+                name: (identifier) @name
+                value: (function_expression)
+            )
+        ) @function_expression_const
+
+        ; Function expressions assigned to var variables
+        (variable_declaration
+            (variable_declarator
+                name: (identifier) @name
+                value: (function_expression)
+            )
+        ) @function_expression_var
+            """
+            return js_queries
         return JS_TS_QUERIES
 
     def _run_queries(
@@ -377,19 +228,20 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
         queries = self.get_queries()
         declarations = []
         imports: Set[str] = set()
-        declaration_map = {}  # node_id -> declaration info
         doc_comment_map = {}  # end_line -> comment_text
 
         # --- Pass 1: Extract Doc Comments --- #
         try:
             doc_query = self.ts_language.query(queries.get("doc_comments", ""))
             doc_captures = doc_query.captures(root_node)
-            for node, _ in doc_captures:
-                comment_text = byte_content[node.start_byte : node.end_byte].decode(
-                    "utf8", errors="ignore"
-                )
-                # Store comment keyed by its end line
-                doc_comment_map[node.end_point[0]] = self._clean_jsdoc(comment_text)
+            # doc_captures is a dict: {capture_name: [list of nodes]}
+            for _capture_name, nodes in doc_captures.items():
+                for node in nodes:
+                    comment_text = byte_content[node.start_byte : node.end_byte].decode(
+                        "utf8", errors="replace"
+                    )
+                    # Store comment keyed by its end line
+                    doc_comment_map[node.end_point[0]] = self._clean_jsdoc(comment_text)
         except Exception as e:
             logger.warning(f"Failed to execute JS/TS doc_comments query: {e}", exc_info=True)
 
@@ -404,110 +256,116 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 logger.debug(f"Running JS/TS query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for capture in captures:
-                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                    # captures is a dict of {capture_name: [list of nodes]}
+                    # Fixed capture unpacking pattern
+                    for capture in captures.items():
                         if len(capture) == 2:
-                            node, capture_name = capture
+                            capture_name, nodes = capture
                         else:
-                            node, capture_name, _ = capture
+                            continue
                         if (
                             capture_name.startswith("import_source")
                             or capture_name == "require_source"
+                            or capture_name == "dynamic_import_source"
                         ):
-                            # String nodes include quotes, remove them
-                            import_path = (
-                                byte_content[node.start_byte : node.end_byte]
-                                .decode("utf8", errors="ignore")
-                                .strip("\"'")
-                            )
-                            imports.add(import_path)
+                            for node in nodes:
+                                # String nodes include quotes, remove them
+                                import_path = (
+                                    byte_content[node.start_byte : node.end_byte]
+                                    .decode("utf8", errors="replace")
+                                    .strip("\"'")
+                                )
+                                imports.add(import_path)
 
                 elif query_name == "declarations":
-                    current_decl_node_id = None
-                    for capture in captures:
-                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
-                        if len(capture) == 2:
-                            node, capture_name = capture
-                        else:
-                            node, capture_name, _ = capture
-                        node_id = node.id
+                    logger.debug("Processing declarations query...")
+                    # Use matches for better structure with declarations
+                    matches = query.matches(root_node)
+                    logger.debug(f"Got {len(matches)} matches")
+                    for match_id, captures_dict in matches:
+                        logger.debug(
+                            f"Match {match_id}, captures_dict keys: {captures_dict.keys()}"
+                        )
+                        declaration_node = None
+                        name_node = None
+                        kind = None
+                        modifiers = set()
 
-                        # Identify the main declaration node
-                        if capture_name in [
+                        # Check for various declaration types in the captures
+                        declaration_types = [
                             "function",
                             "generator_function",
                             "class",
                             "method",
-                            "variable_function_class",
-                            "variable_function_class_var",
+                            "arrow_function",
+                            "function_expression",
+                            "class_expression",
                             "interface",
                             "type_alias",
                             "enum",
                             "ambient_function",
                             "ambient_class",
-                        ]:
-                            current_decl_node_id = node_id
-                            if node_id not in declaration_map:
-                                # Determine kind based on capture or parent
-                                kind = capture_name
-                                if capture_name.startswith("variable"):
-                                    value_node = next(
-                                        (
-                                            n
-                                            for n, name in captures
-                                            if n.id == node_id and name == "value"
-                                        ),
-                                        None,
-                                    )
-                                    kind = value_node.type if value_node else "variable"
-                                elif capture_name.startswith("ambient"):
-                                    kind = f"declare_{capture_name.split('_')[1]}"
+                        ]
 
-                                declaration_map[node_id] = {
-                                    "kind": kind,
-                                    "node": node,
-                                    "name": None,
-                                    "start_line": node.start_point[0],
-                                    "end_line": node.end_point[0],
-                                    "modifiers": set(),  # Modifiers like 'export', 'async', 'static' can be captured if needed
-                                    "docstring": "",
-                                }
-                            # Update end line potentially
-                            declaration_map[node_id]["end_line"] = max(
-                                declaration_map[node_id]["end_line"], node.end_point[0]
+                        for decl_type in declaration_types:
+                            if decl_type in captures_dict:
+                                nodes = captures_dict[decl_type]
+                                if nodes and len(nodes) > 0:
+                                    declaration_node = nodes[0]
+                                    kind = decl_type
+                                    break
+
+                        # Get the name node if present
+                        if "name" in captures_dict:
+                            name_nodes = captures_dict["name"]
+                            if name_nodes and len(name_nodes) > 0:
+                                name_node = name_nodes[0]
+
+                        # Check for modifiers
+                        if "async_modifier" in captures_dict:
+                            nodes = captures_dict["async_modifier"]
+                            logger.debug(
+                                f"async_modifier found: {nodes}, len={len(nodes) if nodes else 0}"
                             )
+                            if nodes and len(nodes) > 0:
+                                modifiers.add("async")
+                                logger.debug("Added async to modifiers")
+                        if "static_modifier" in captures_dict:
+                            nodes = captures_dict["static_modifier"]
+                            if nodes and len(nodes) > 0:
+                                modifiers.add("static")
+                        if "generator_modifier" in captures_dict:
+                            nodes = captures_dict["generator_modifier"]
+                            if nodes and len(nodes) > 0:
+                                modifiers.add("generator")
 
-                        # Capture name
-                        elif capture_name == "name" and current_decl_node_id in declaration_map:
-                            # Check if name is already set (e.g. function assigned to var)
-                            if declaration_map[current_decl_node_id]["name"] is None:
-                                name_text = byte_content[node.start_byte : node.end_byte].decode(
-                                    "utf8", errors="ignore"
+                        # Add declaration if we have both node and name
+                        if declaration_node and name_node:
+                            name_text = byte_content[
+                                name_node.start_byte : name_node.end_byte
+                            ].decode("utf8", errors="replace")
+
+                            # Check for docstring
+                            docstring = doc_comment_map.get(declaration_node.start_point[0] - 1, "")
+
+                            declarations.append(
+                                Declaration(
+                                    kind=kind or "unknown",
+                                    name=name_text,
+                                    start_line=declaration_node.start_point[0] + 1,
+                                    end_line=declaration_node.end_point[0] + 1,
+                                    docstring=docstring,
+                                    modifiers=modifiers,
                                 )
-                                declaration_map[current_decl_node_id]["name"] = name_text
+                            )
 
             except Exception as e:
                 logger.warning(f"Failed to execute JS/TS query '{query_name}': {e}", exc_info=True)
 
-        # --- Pass 3: Process declarations and associate docstrings --- #
-        for decl_info in declaration_map.values():
-            if decl_info.get("name"):  # Only add declarations with names
-                # Check if a doc comment ended on the line before this declaration started
-                docstring = doc_comment_map.get(decl_info["start_line"] - 1, "")
-
-                declarations.append(
-                    Declaration(
-                        kind=decl_info["kind"],
-                        name=decl_info["name"],
-                        start_line=decl_info["start_line"],
-                        end_line=decl_info["end_line"],
-                        docstring=docstring,
-                        modifiers=decl_info["modifiers"],
-                    )
-                )
+        # Declaration map no longer needed - processing happens inline
 
         declarations.sort(key=lambda d: d.start_line)
-        sorted_imports = sorted(list(imports))
+        sorted_imports = sorted(imports)
 
         logger.debug(
             f"Tree-sitter {self.language} extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
@@ -517,10 +375,10 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
     def _clean_jsdoc(self, comment_text: str) -> str:
         """Cleans a JSDoc block comment, removing delimiters and leading asterisks."""
         lines = comment_text.split("\n")
-        cleaned_lines = []
+        cleaned_lines: list[str] = []
         in_tag = False
         current_tag = ""
-        current_tag_content = []
+        current_tag_content: list[str] = []
 
         for i, line in enumerate(lines):
             stripped = line.strip()

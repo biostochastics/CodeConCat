@@ -139,9 +139,7 @@ class RParser(ParserInterface):
             )
 
             return ParseResult(
-                declarations=declarations,
-                imports=sorted(list(imports)),
-                engine_used="regex"
+                declarations=declarations, imports=sorted(imports), engine_used="regex"
             )
 
         except Exception as e:
@@ -150,7 +148,7 @@ class RParser(ParserInterface):
                 message=f"Failed to parse R file ({type(e).__name__}) using Regex: {e}",
                 file_path=file_path,
                 original_exception=e,
-            )
+            ) from e
 
     class TempCodeSymbol:
         def __init__(self, type, name, start_idx, end_idx, docstring, modifiers):
@@ -317,19 +315,20 @@ class RParser(ParserInterface):
                         merged.append(new_line)
                         i = j + 1
                         continue
-                    if also_for_classes:
-                        if any(x in next_strip for x in ["R6Class(", "setRefClass(", "setClass("]):
-                            base_line = re.sub(r"#.*$", "", line).rstrip()
-                            new_line = (
-                                base_line
-                                + " "
-                                + " ".join(line.strip() for line in comment_lines)
-                                + " "
-                                + raw_lines[j].lstrip()
-                            )
-                            merged.append(new_line)
-                            i = j + 1
-                            continue
+                    if also_for_classes and any(
+                        x in next_strip for x in ["R6Class(", "setRefClass(", "setClass("]
+                    ):
+                        base_line = re.sub(r"#.*$", "", line).rstrip()
+                        new_line = (
+                            base_line
+                            + " "
+                            + " ".join(line.strip() for line in comment_lines)
+                            + " "
+                            + raw_lines[j].lstrip()
+                        )
+                        merged.append(new_line)
+                        i = j + 1
+                        continue
             merged.append(line)
             i += 1
         return merged

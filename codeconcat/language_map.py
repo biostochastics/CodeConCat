@@ -1,6 +1,6 @@
 # codeconcat/language_map.py
 import logging
-from typing import Optional
+from typing import Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def get_language_guesslang(content: str) -> Optional[str]:
         # guesslang might return 'Unknown' or similar for unrecognizable content
         if language and language.lower() != "unknown":
             # Normalize to lowercase as our ext_map keys are lowercase
-            return language.lower()
+            return cast(str, language.lower())
     except Exception as e:
         logger.debug(f"guesslang failed to detect language: {e}")
     return None

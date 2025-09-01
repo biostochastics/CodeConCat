@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Parser Performance and Enhancement Testing Script
@@ -9,20 +8,25 @@ to validate enhancements in nested declaration handling, parent-child relationsh
 and overall parsing quality.
 """
 
+import logging
 import sys
 import time
-import logging
 from pathlib import Path
 from typing import List
 
 # Add the project root to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Now import from codeconcat
-from codeconcat.base_types import Declaration
-from codeconcat.parser.language_parsers.enhanced_python_parser import EnhancedPythonParser
-from codeconcat.parser.language_parsers.enhanced_julia_parser import EnhancedJuliaParser
-from codeconcat.parser.language_parsers.enhanced_js_ts_parser import EnhancedJSTypeScriptParser
+from codeconcat.base_types import Declaration  # noqa: E402
+from codeconcat.parser.language_parsers.enhanced_js_ts_parser import (  # noqa: E402
+    EnhancedJSTypeScriptParser,
+)
+from codeconcat.parser.language_parsers.enhanced_julia_parser import (  # noqa: E402
+    EnhancedJuliaParser,
+)
+from codeconcat.parser.language_parsers.enhanced_python_parser import (  # noqa: E402
+    EnhancedPythonParser,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -42,28 +46,28 @@ from typing import List, Dict
 
 class TestClass:
     """Test class docstring."""
-    
+
     def __init__(self, value):
         """Constructor."""
         self.value = value
-    
+
     def method_with_nested(self):
         """Method with nested function."""
         def nested_function():
             """Nested function docstring."""
             return self.value * 2
-        
+
         return nested_function()
 
 def top_level_function():
     """Top-level function docstring."""
-    
+
     class NestedClass:
         """Nested class docstring."""
         def nested_method(self):
             """Nested method docstring."""
             return "nested result"
-    
+
     return NestedClass().nested_method()
 '''
 
@@ -79,7 +83,7 @@ class TestClass {
     constructor(value) {
         this.value = value;
     }
-    
+
     /**
      * Method with nested function
      */
@@ -90,7 +94,7 @@ class TestClass {
         function nestedFunction() {
             return this.value * 2;
         }
-        
+
         return nestedFunction.call(this);
     }
 }
@@ -107,7 +111,7 @@ function topLevelFunction() {
             return "nested result";
         }
     }
-    
+
     return new NestedClass().nestedMethod();
 }
 """
@@ -134,7 +138,7 @@ function outer_function(param)
     function inner_function(x)
         return x * 2
     end
-    
+
     return inner_function(param)
 end
 
@@ -207,10 +211,13 @@ def test_python_parser():
     for decl in result.declarations:
         if decl.kind == "class" and decl.name == "TestClass":
             for method in decl.children:
-                if method.name == "method_with_nested":
-                    if method.children and method.children[0].name == "nested_function":
-                        nested_found = True
-                        break
+                if (
+                    method.name == "method_with_nested"
+                    and method.children
+                    and method.children[0].name == "nested_function"
+                ):
+                    nested_found = True
+                    break
 
     if nested_found:
         print("\n✅ Enhanced parser correctly found nested function!")
@@ -220,10 +227,14 @@ def test_python_parser():
     # 2. Check for nested class detection
     nested_class_found = False
     for decl in result.declarations:
-        if decl.kind == "function" and decl.name == "top_level_function":
-            if decl.children and decl.children[0].name == "NestedClass":
-                nested_class_found = True
-                break
+        if (
+            decl.kind == "function"
+            and decl.name == "top_level_function"
+            and decl.children
+            and decl.children[0].name == "NestedClass"
+        ):
+            nested_class_found = True
+            break
 
     if nested_class_found:
         print("✅ Enhanced parser correctly found nested class!")
@@ -254,10 +265,13 @@ def test_javascript_parser():
     for decl in result.declarations:
         if decl.kind == "class" and decl.name == "TestClass":
             for method in decl.children:
-                if method.name == "methodWithNested":
-                    if method.children and method.children[0].name == "nestedFunction":
-                        nested_found = True
-                        break
+                if (
+                    method.name == "methodWithNested"
+                    and method.children
+                    and method.children[0].name == "nestedFunction"
+                ):
+                    nested_found = True
+                    break
 
     if nested_found:
         print("\n✅ Enhanced parser correctly found nested function!")
@@ -267,10 +281,14 @@ def test_javascript_parser():
     # 2. Check for nested class detection
     nested_class_found = False
     for decl in result.declarations:
-        if decl.kind == "function" and decl.name == "topLevelFunction":
-            if decl.children and decl.children[0].name == "NestedClass":
-                nested_class_found = True
-                break
+        if (
+            decl.kind == "function"
+            and decl.name == "topLevelFunction"
+            and decl.children
+            and decl.children[0].name == "NestedClass"
+        ):
+            nested_class_found = True
+            break
 
     if nested_class_found:
         print("✅ Enhanced parser correctly found nested class!")
@@ -301,10 +319,14 @@ def test_julia_parser():
     for decl in result.declarations:
         if decl.kind == "module" and decl.name == "TestModule":
             for func in decl.children:
-                if func.kind == "function" and func.name == "outer_function":
-                    if func.children and func.children[0].name == "inner_function":
-                        nested_found = True
-                        break
+                if (
+                    func.kind == "function"
+                    and func.name == "outer_function"
+                    and func.children
+                    and func.children[0].name == "inner_function"
+                ):
+                    nested_found = True
+                    break
 
     if nested_found:
         print("\n✅ Enhanced parser correctly found nested function!")

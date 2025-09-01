@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Integration tests for compression and token counting.
@@ -10,11 +9,7 @@ for both compressed and uncompressed versions.
 
 import pytest
 
-from codeconcat.base_types import (
-    CodeConCatConfig,
-    ParsedFileData,
-    ContentSegmentType,
-)
+from codeconcat.base_types import CodeConCatConfig, ContentSegmentType, ParsedFileData
 from codeconcat.processor.compression_processor import CompressionProcessor
 from codeconcat.processor.token_counter import get_token_stats
 

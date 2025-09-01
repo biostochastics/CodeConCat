@@ -2,17 +2,18 @@
 
 import json
 import os
-import pytest
 import tempfile
 
+import pytest
+
+from codeconcat.errors import ValidationError
 from codeconcat.validation.schema_validation import (
-    validate_against_schema,
+    SCHEMAS,
+    generate_schema_from_example,
     load_schema_from_file,
     register_schema,
-    generate_schema_from_example,
-    SCHEMAS,
+    validate_against_schema,
 )
-from codeconcat.errors import ValidationError
 
 
 class TestSchemaValidation:

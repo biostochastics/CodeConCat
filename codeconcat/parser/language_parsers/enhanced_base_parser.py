@@ -9,14 +9,11 @@ consistency in parsing across different languages.
 """
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Pattern, Tuple
 
-from codeconcat.parser.language_parsers.base_parser import BaseParser
 from codeconcat.base_types import ParseResult
-from codeconcat.parser.language_parsers.pattern_library import (
-    CommentPatterns,
-    DocstringPatterns,
-)
+from codeconcat.parser.language_parsers.base_parser import BaseParser
+from codeconcat.parser.language_parsers.pattern_library import CommentPatterns, DocstringPatterns
 
 
 class EnhancedBaseParser(BaseParser):
@@ -47,17 +44,13 @@ class EnhancedBaseParser(BaseParser):
             ]
 
         # Common patterns (override in subclasses as needed)
-        self.patterns = {
-            "function": None,  # Set in subclasses
-            "class": None,  # Set in subclasses
-            "import": None,  # Set in subclasses
-            "method": None,  # Set in subclasses
-        }
+        # Initialize with empty dict, subclasses will populate
+        self.patterns: Dict[str, Pattern[str]] = {}
 
         # Common modifiers recognized by this parser
         self.modifiers = set()  # Set in subclasses
 
-    def parse(self, content: str, file_path: str) -> ParseResult:
+    def parse(self, _content: str, file_path: str) -> ParseResult:
         """
         Parse code content and return a ParseResult object.
 
@@ -74,11 +67,7 @@ class EnhancedBaseParser(BaseParser):
             file_path=file_path,
             declarations=[],
             imports=[],
-            classes=[],
-            functions=[],
-            docstrings={},
-            symbols=[],
-            errors=[],
+            error=None,
         )
 
     def extract_docstring(self, lines: List[str], start: int, end: int) -> Optional[str]:

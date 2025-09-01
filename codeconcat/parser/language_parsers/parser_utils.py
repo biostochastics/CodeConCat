@@ -48,7 +48,7 @@ def safe_parser_method(default_return: Any = None) -> Callable[[F], F]:
                 )
                 raise
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 

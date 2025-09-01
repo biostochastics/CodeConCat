@@ -27,7 +27,7 @@ def parse_doc_file(file_path: str) -> ParsedDocData:
 
 def read_doc_content(file_path: str) -> str:
     try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
             return f.read()
     except Exception:
         return ""

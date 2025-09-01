@@ -32,7 +32,7 @@ class TestReconstruction(unittest.TestCase):
 ```python
 def hello():
     print("Hello World!")
-    
+
 # This is a comment
 ```
 
@@ -62,13 +62,13 @@ function greet() {
         self.assertTrue(file2_path.exists(), "file2.js should exist")
 
         # Verify content is correct (no markdown artifacts)
-        with open(file1_path, "r") as f:
+        with open(file1_path) as f:
             file1_content = f.read()
-        with open(file2_path, "r") as f:
+        with open(file2_path) as f:
             file2_content = f.read()
 
         self.assertEqual(
-            file1_content, 'def hello():\n    print("Hello World!")\n    \n# This is a comment'
+            file1_content, 'def hello():\n    print("Hello World!")\n\n# This is a comment'
         )
         self.assertEqual(
             file2_content,
@@ -107,9 +107,9 @@ function greet() {
         self.assertTrue(file2_path.exists(), "file2.js should exist")
 
         # Verify content is correct
-        with open(file1_path, "r") as f:
+        with open(file1_path) as f:
             file1_content = f.read()
-        with open(file2_path, "r") as f:
+        with open(file2_path) as f:
             file2_content = f.read()
 
         self.assertEqual(
@@ -129,7 +129,7 @@ function greet() {
     <file path="file1.py">
       <content>def hello():
     print("Hello World!")
-    
+
 # This is a comment</content>
     </file>
     <file path="path/to/file2.js">
@@ -158,13 +158,13 @@ function greet() {
         self.assertTrue(file2_path.exists(), "file2.js should exist")
 
         # Verify content is correct
-        with open(file1_path, "r") as f:
+        with open(file1_path) as f:
             file1_content = f.read()
-        with open(file2_path, "r") as f:
+        with open(file2_path) as f:
             file2_content = f.read()
 
         self.assertEqual(
-            file1_content, 'def hello():\n    print("Hello World!")\n    \n# This is a comment'
+            file1_content, 'def hello():\n    print("Hello World!")\n\n# This is a comment'
         )
         self.assertEqual(
             file2_content,
@@ -181,9 +181,9 @@ function greet() {
 ```python
 def start_function():
     print("Important part at the beginning")
-    
+
     [...code omitted: 15 lines, 0 issues]
-    
+
     print("Important part at the end")
 ```
 """
@@ -201,7 +201,7 @@ def start_function():
         self.assertTrue(file_path.exists(), "compressed_file.py should exist")
 
         # Verify compressed content is preserved
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
 
         self.assertIn("def start_function():", content)
@@ -239,6 +239,6 @@ def start_function():
             result_file = output_dir / "test.txt"
             self.assertTrue(result_file.exists(), f"File should exist for {file_path}")
 
-            with open(result_file, "r") as f:
+            with open(result_file) as f:
                 content = f.read()
                 self.assertEqual(content, "Test content")

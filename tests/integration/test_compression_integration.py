@@ -5,16 +5,16 @@ import tempfile
 import unittest
 
 from codeconcat.base_types import (
-    CodeConCatConfig,
     AnnotatedFileData,
+    CodeConCatConfig,
     SecurityIssue,
     SecuritySeverity,
 )
 from codeconcat.processor.compression_processor import CompressionProcessor
-from codeconcat.writer.markdown_writer import write_markdown
 from codeconcat.writer.json_writer import write_json
-from codeconcat.writer.xml_writer import write_xml
+from codeconcat.writer.markdown_writer import write_markdown
 from codeconcat.writer.text_writer import write_text
+from codeconcat.writer.xml_writer import write_xml
 
 
 class TestCompressionIntegration(unittest.TestCase):
@@ -114,7 +114,7 @@ class TestCompressionIntegration(unittest.TestCase):
         self.assertTrue(os.path.exists(output_file))
 
         # Check content
-        with open(output_file, "r") as f:
+        with open(output_file) as f:
             content = f.read()
 
         # Ensure critical parts are included
@@ -152,7 +152,7 @@ class TestCompressionIntegration(unittest.TestCase):
         # Check content
         import json
 
-        with open(output_file, "r") as f:
+        with open(output_file) as f:
             data = json.load(f)
 
         # Verify structure and content
@@ -206,17 +206,17 @@ class TestCompressionIntegration(unittest.TestCase):
         self.assertTrue(os.path.exists(output_file))
 
         # Check content
-        with open(output_file, "r") as f:
+        with open(output_file) as f:
             content = f.read()
 
         # Verify the XML has compression-related elements
         # Check for core attributes that must exist
-        self.assertIn("compression_applied", content)
-        self.assertIn("<content_segments>", content)
+        self.assertIn('has_compression="true"', content)
+        self.assertIn("<compression_segments>", content)
 
         # Less strict checks for elements that might have different formatting in the XML renderer
         self.assertIn("<segment", content)
-        self.assertIn("<content>", content)  # Each segment should have content
+        self.assertIn("segment type=", content)  # Each segment should have content
 
         # Check for presence of key file content that should be in the XML
         self.assertIn("critical_function", content)
@@ -244,7 +244,7 @@ class TestCompressionIntegration(unittest.TestCase):
         self.assertTrue(os.path.exists(output_file))
 
         # Check content
-        with open(output_file, "r") as f:
+        with open(output_file) as f:
             content = f.read()
 
         # Ensure critical parts are included
@@ -273,7 +273,7 @@ class TestCompressionIntegration(unittest.TestCase):
         self.assertTrue(os.path.exists(output_file))
 
         # Check content
-        with open(output_file, "r") as f:
+        with open(output_file) as f:
             content = f.read()
 
         # Ensure all content is included (no compression)

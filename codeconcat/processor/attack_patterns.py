@@ -7,9 +7,9 @@ and JavaScript/TypeScript.
 """
 
 import re
-from typing import Dict, List, Pattern, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional, Pattern
 
 
 class Severity(Enum):
@@ -497,7 +497,7 @@ def get_patterns_for_language(language: str) -> List[SecurityPattern]:
     return LANGUAGE_PATTERN_MAP.get(language_lower, CROSS_LANGUAGE_PATTERNS)
 
 
-def scan_content(content: str, language: str) -> List[Dict[str, any]]:
+def scan_content(content: str, language: str) -> List[Dict[str, Any]]:
     """
     Scan content for security patterns based on language.
 

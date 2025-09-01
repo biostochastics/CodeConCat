@@ -20,35 +20,35 @@ class PythonParser(BaseParser):
         super().__init__()
         self.patterns = {
             "class": re.compile(
-                r"^(?:@[\w\u0080-\uffff.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
-                r"class\s+(?P<n>[^\W\d][\w\u0080-\uffff_]*)"  # Class name
+                r"^(?:@[-￿.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
+                r"class\s+(?P<n>[^\W\d][\w-￿_]*)"  # Class name
                 r"(?:\s*\([^)]*\))?"  # Optional parent class
                 r"\s*:",  # Class definition end
                 re.UNICODE | re.MULTILINE,
             ),
             "function": re.compile(
-                r"^(?:@[\w\u0080-\uffff.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
-                r"(?:async\s+)?def\s+(?P<n>[^\W\d][\w\u0080-\uffff_]*)"  # Function name
+                r"^(?:@[-￿.]+(?:\([^)]*\))?\s+)*"  # Optional decorators
+                r"(?:async\s+)?def\s+(?P<n>[^\W\d][\w-￿_]*)"  # Function name
                 r"(?:\s*\([^)]*?\))?"  # Function parameters (non-greedy)
                 r"\s*(?:->[^:]+)?"  # Optional return type
                 r"\s*:",  # Function end
                 re.MULTILINE | re.DOTALL | re.VERBOSE | re.UNICODE,
             ),
             "constant": re.compile(
-                r"^(?P<n>[A-Z][A-Z0-9_\u0080-\uffff]*)\s*"  # Constant name
+                r"^(?P<n>[A-Z][A-Z0-9_\u0080-￿]*)\s*"  # Constant name
                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
                 r"\s*=\s*[^=]",  # Assignment but not comparison
                 re.UNICODE | re.MULTILINE,
             ),
             "variable": re.compile(
-                r"^(?P<n>[a-z_\u0080-\uffff][\w\u0080-\uffff_]*)\s*"  # Variable name
+                r"^(?P<n>[a-z_\u0080-\uFFFF][\w\u0080-\uFFFF_]*)\s*"  # Variable name
                 r"(?::\s*[^=\s]+)?"  # Optional type annotation
                 r"\s*=\s*[^=]",  # Assignment but not comparison
                 re.UNICODE | re.MULTILINE,
             ),
         }
         self.block_start = ":"
-        self.block_end = None
+        self.block_end = ""
         self.line_comment = "#"
         self.block_comment_start = '"""'
         self.block_comment_end = '"""'
@@ -147,9 +147,7 @@ class PythonParser(BaseParser):
                                 if next_line and not next_line.startswith("#"):
                                     curr_indent = len(lines[j]) - len(lines[j].lstrip())
                                     if curr_indent > base_indent:
-                                        if next_line.startswith('"""') or next_line.startswith(
-                                            "'''"
-                                        ):
+                                        if next_line.startswith('"""') or next_line.startswith("'"):
                                             logger.debug(
                                                 f"[PyParse Loop 1] Found potential docstring start at line {j + 1}"
                                             )
@@ -252,10 +250,10 @@ class PythonParser(BaseParser):
                         declaration = Declaration(
                             kind=kind,
                             name=name,
-                            start_line=i,
-                            end_line=end_line,
+                            start_line=i + 1,  # Convert to 1-based line numbering
+                            end_line=end_line + 1,  # Convert to 1-based line numbering
                             docstring=docstring,
-                            modifiers=set(d for d in decorators if d in self.modifiers),
+                            modifiers={d for d in decorators if d in self.modifiers},
                         )
                         declarations.append(declaration)
                         logger.debug(f"Found declaration: {kind} {name}")
@@ -268,14 +266,12 @@ class PythonParser(BaseParser):
             logger.debug(
                 f"Finished PythonParser.parse for file: {file_path}. Found {len(declarations)} declarations, {len(imports)} unique imports."
             )
-            # Correctly initialize ParseResult with all fields
+            # Correctly initialize ParseResult with valid fields
             return ParseResult(
-                file_path=file_path,
-                language="python",
-                content=content,
                 declarations=declarations,
                 imports=imports,
                 engine_used="regex",  # Specify engine used
+                parser_quality="full",
                 # ast_root, error are None by default
             )
         except Exception as e:
@@ -286,7 +282,8 @@ class PythonParser(BaseParser):
                 message=f"Failed to parse Python file ({type(e).__name__}): {e}",
                 file_path=file_path,
                 original_exception=e,
-            )
+            ) from e
 
     def _find_end_of_block(self, lines: List[str], start_line: int) -> int:
         """Helper to find the end line of a Python code block based on indentation."""
+        raise NotImplementedError("This method is not implemented in base parser")

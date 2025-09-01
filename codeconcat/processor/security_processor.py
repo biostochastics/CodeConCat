@@ -18,14 +18,18 @@ from __future__ import annotations
 
 import fnmatch
 import logging
+import os
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Any
 
 from ..base_types import CodeConCatConfig, CustomSecurityPattern, SecuritySeverity
-from .security_types import SecurityIssue
+from ..utils.feature_flags import is_enabled
+from ..utils.security import InputSanitizer, PathValidator, RateLimiter, SecureHash
+from .attack_patterns import Severity as AttackSeverity
+from .attack_patterns import scan_content as scan_attack_patterns
 from .external_scanners import run_semgrep_scan
-from .attack_patterns import scan_content as scan_attack_patterns, Severity as AttackSeverity
+from .security_types import SecurityIssue
 
 __all__ = ["SecurityProcessor"]
 
@@ -33,7 +37,17 @@ logger = logging.getLogger(__name__)
 
 
 class SecurityProcessor:  # pylint: disable=too-many-public-methods
-    """Static helpers for security scanning."""
+    """Static helpers for comprehensive security scanning and validation.
+
+    This class integrates multiple security features:
+    - Pattern-based scanning for credentials and vulnerabilities
+    - Path traversal protection and validation
+    - Input sanitization for command arguments and URLs
+    - Rate limiting for API operations
+    - Secure hashing utilities
+    - Attack pattern detection across multiple languages
+    - File integrity verification
+    """
 
     # Define severity order for reliable comparison
     SEVERITY_ORDER = [
@@ -47,12 +61,10 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     # ----------------------------------------------------------------------------------
     # Define complex regex patterns as constants first using standard strings
     # ----------------------------------------------------------------------------------
-    _AWS_SECRET_KEY_REGEX = '(?i)\\baws[_\\-\\s]+secret[_\\-\\s]+(?:access[_\\-\\s]+)?key["\\s:=]+["]?([A-Za-z0-9/+=]{40})["\\s]?'
-    _GENERIC_API_KEY_REGEX = "(?i)\\b(?:api[_\\-\\s]*key|key[_\\-\\s]*id|secret[_\\-\\s]*key)[\"'\\s:=]+[\"']?([a-zA-Z0-9\\-._/+=]{8,})[\"']?"
-    _GENERIC_PASSWORD_REGEX = (
-        "(?i)\\b(?:password|pwd|pass)['\"\\s:=]+['\"]?([a-zA-Z0-9!@#$%^&*()_\\+-]{8,})['\"]?"
-    )
-    _AWS_SESSION_TOKEN_REGEX = '(?i)aws_session_token["\\s:=]+["]?([A-Za-z0-9/+=]{16,})["\\s]?'
+    _AWS_SECRET_KEY_REGEX = '(?i)\baws[_\\-\\s]+secret[_\\-\\s]+(?:access[_\\-\\s]+)?key["\\s:=]+["]?([A-Za-z0-9/+=]{40})["\\s]?'
+    _GENERIC_API_KEY_REGEX = r"(?i)\b(?:api_key|apikey|api-key|key-id|key_id|secret_key|secret-key)[\"'\s:=]+[\"']?([a-zA-Z0-9\-._/+=]{16,})[\"']?"
+    _GENERIC_PASSWORD_REGEX = "(?i)\b(?:password|pwd|pass|passphrase|secret)[\"'\\s:=]+[\"']?([a-zA-Z0-9!@#$%^&*()_\\+-]{12,})[\"']?"
+    _AWS_SESSION_TOKEN_REGEX = r'(?i)aws_session_token["\s:=]+["]?([A-Za-z0-9/+=]{16,})["\s]?'
 
     # ----------------------------------------------------------------------------------
     # Pattern definitions ----------------------------------------------------------------
@@ -61,7 +73,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     # can still expose them (e.g. in docs/tests) while ensuring the runtime path only
     # ever deals with compiled :class:`re.Pattern` objects.
 
-    _RAW_BUILT_IN_PATTERNS: Dict[str, Tuple[str, str, SecuritySeverity]] = {
+    _RAW_BUILT_IN_PATTERNS: dict[str, tuple[str, str, SecuritySeverity]] = {
         # fmt: off  # <‑‑ keep long patterns readable
         "aws_access_key_id": (
             "(?<![A-Z0-9])AKIA[0-9A-Z]{16}(?![A-Z0-9])",
@@ -153,7 +165,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     }
 
     # Compiled at import‑time; safe for concurrent use.
-    _BUILT_IN_PATTERNS: Dict[str, Tuple[re.Pattern[str], str, SecuritySeverity]] = {}
+    _BUILT_IN_PATTERNS: dict[str, tuple[re.Pattern[str], str, SecuritySeverity]] = {}
     for _name, (_regex, _issue_type, _severity) in _RAW_BUILT_IN_PATTERNS.items():
         try:
             _BUILT_IN_PATTERNS[_name] = (re.compile(_regex), _issue_type, _severity)
@@ -184,7 +196,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
         file_path: str | Path,
         config: CodeConCatConfig,
         mask_output_content: bool = False,
-    ) -> Tuple[List[SecurityIssue], Optional[str]]:
+    ) -> tuple[list[SecurityIssue], str | None]:
         """Scan *content* and return a list of :class:`SecurityIssue` objects.
 
         If *mask_output_content* is True, the second element of the returned tuple
@@ -212,12 +224,12 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
 
         if cls._should_ignore_path(abs_path, config):
             logger.debug("Skipping security scan for ignored path: %s", abs_path)
-            return []
+            return [], None
 
         # Merge built‑in with (optionally validated) custom patterns.
         compiled_patterns = cls._compile_patterns(config)
         logger.debug(f"Compiled patterns available for scan: {list(compiled_patterns.keys())}")
-        issues: List[SecurityIssue] = []
+        issues: list[SecurityIssue] = []
         # Use a list for mutable lines if masking
         lines = content.splitlines()
         output_lines = lines[:] if mask_output_content else None
@@ -231,7 +243,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             # Keep track if line was modified by masking
             original_line_for_masking = line  # Store original line segment for sequential masking
 
-            for rule_name, (
+            for _rule_name, (
                 pattern,
                 issue_type,
                 default_sev,
@@ -301,7 +313,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                         line_number=lineno,
                         line_content=masked_line_for_issue,  # Use specifically masked line for issue
                         issue_type=issue_type,
-                        severity=current_severity,
+                        severity=current_severity.value,
                         description=f"Potential {issue_type} detected.",
                         raw_finding=raw_finding,
                         file_path=str(abs_path),
@@ -346,7 +358,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                         line_number=finding["line"],
                         line_content=line_content,
                         issue_type=finding["name"],
-                        severity=severity,
+                        severity=severity.value,
                         description=finding["message"],
                         raw_finding=finding.get("snippet", ""),
                         file_path=str(abs_path),
@@ -382,7 +394,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     # Internal helpers -------------------------------------------------------------------
     # ----------------------------------------------------------------------------------
     @classmethod
-    def _detect_language(cls, file_path: Path) -> Optional[str]:
+    def _detect_language(cls, file_path: Path) -> str | None:
         """Detect programming language from file extension."""
         extension_map = {
             ".py": "python",
@@ -412,9 +424,9 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     @classmethod
     def _compile_patterns(
         cls, config: CodeConCatConfig
-    ) -> Dict[str, Tuple[re.Pattern[str], str, SecuritySeverity]]:
+    ) -> dict[str, tuple[re.Pattern[str], str, SecuritySeverity]]:
         """Return merged dict of compiled built‑in and custom patterns."""
-        compiled: Dict[str, Tuple[re.Pattern[str], str, SecuritySeverity]] = {}
+        compiled: dict[str, tuple[re.Pattern[str], str, SecuritySeverity]] = {}
 
         # --- Compile Built-in Patterns ---
         for name, (
@@ -482,7 +494,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
 
     # --------------------------------------------------------------------- inline ignores
     @classmethod
-    def _should_skip_line(cls, line_idx: int, lines: List[str]) -> bool:
+    def _should_skip_line(cls, line_idx: int, lines: list[str]) -> bool:
         """Handle inline and block ignore comments for security scanning.
 
         Supports:
@@ -502,9 +514,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
         # Single-line ignore
         if cls._has_inline_ignore_line(lines[line_idx]):
             return True
-        if line_idx > 0 and cls._has_inline_ignore_line(lines[line_idx - 1]):
-            return True
-        return False
+        return line_idx > 0 and cls._has_inline_ignore_line(lines[line_idx - 1])
 
     @classmethod
     def _has_inline_ignore_line(cls, line: str) -> bool:
@@ -513,7 +523,10 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     # --------------------------------------------------------------------- severity logic
     @classmethod
     def _determine_severity(
-        cls, default: SecuritySeverity, abs_path: Path, config: CodeConCatConfig
+        cls,
+        default: SecuritySeverity,
+        abs_path: Path,
+        config: CodeConCatConfig,  # noqa: ARG003
     ) -> SecuritySeverity:
         """Return severity, optionally downgrading for test/example files."""
         path_lc = abs_path.as_posix().lower()
@@ -589,7 +602,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
 
     @staticmethod
     def _is_duplicate(
-        issues: List[SecurityIssue],
+        issues: list[SecurityIssue],
         line_no: int,
         issue_type: str,
         raw_finding: str,
@@ -606,7 +619,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
 
     # ------------------------------------------------------------------------- formatting
     @classmethod
-    def format_issues(cls, issues: List[SecurityIssue], config: CodeConCatConfig) -> str:
+    def format_issues(cls, issues: list[SecurityIssue], config: CodeConCatConfig) -> str:
         """Pretty‑print *issues* with respect to *config* threshold.
 
         Includes the specific finding and context lines for each issue.
@@ -615,7 +628,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             return "Security Scan Results: No issues found."
 
         threshold = cls._resolve_threshold(config)
-        filtered: List[SecurityIssue] = [issue for issue in issues if issue.severity >= threshold]
+        filtered: list[SecurityIssue] = [issue for issue in issues if issue.severity >= threshold]
         if not filtered:
             return (
                 "Security Scan Results: No issues found at or above the "
@@ -631,7 +644,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
         for issue in filtered:
             file_to_issues[issue.file_path].append(issue)
 
-        lines: List[str] = [
+        lines: list[str] = [
             "Security Scan Results:",
             "=" * 20,
             f"Found {len(filtered)} issue(s) at or above the '{threshold.name}' threshold:",
@@ -639,13 +652,13 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
         for file_path, file_issues in file_to_issues.items():
             # Try to read file for context
             try:
-                with open(file_path, "r") as f:
+                with open(file_path) as f:
                     file_lines = f.readlines()
             except Exception:
                 file_lines = None
             for issue in file_issues:
                 lines.append("")
-                lines.append(f"Severity : {issue.severity.name}")
+                lines.append(f"Severity : {issue.severity}")
                 lines.append(f"Type     : {issue.issue_type}")
                 lines.append(f"File     : {issue.file_path}")
                 lines.append(f"Line {issue.line_number}: {issue.line_content.strip()}")
@@ -677,3 +690,288 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                 config.security_scan_severity_threshold,
             )
             return SecuritySeverity.MEDIUM
+
+    # -------------------------------------------------------------------------- Path Validation
+    @classmethod
+    def validate_path(
+        cls,
+        base_path: str | Path,
+        requested_path: str | Path,
+        allow_symlinks: bool = False,
+    ) -> Path:
+        """Validate that a path is within the allowed directory.
+
+        Args:
+            base_path: The base directory that paths must be within
+            requested_path: The path to validate
+            allow_symlinks: Whether to allow symbolic links
+
+        Returns:
+            The validated absolute path
+
+        Raises:
+            SecurityValidationError: If path traversal is detected
+        """
+        if is_enabled("enable_path_validation"):
+            try:
+                return PathValidator.validate_path(base_path, requested_path, allow_symlinks)
+            except Exception as e:
+                from ..errors import SecurityValidationError
+
+                raise SecurityValidationError(f"Path validation failed: {e}") from e
+        else:
+            # Legacy behavior - just resolve path
+            base = Path(base_path).resolve()
+            if os.path.isabs(requested_path):
+                return Path(requested_path).resolve()
+            else:
+                return (base / requested_path).resolve()
+
+    @classmethod
+    def sanitize_filename(cls, filename: str, max_length: int = 255) -> str:
+        """Sanitize a filename to remove dangerous characters.
+
+        Args:
+            filename: The filename to sanitize
+            max_length: Maximum allowed length
+
+        Returns:
+            Sanitized filename
+        """
+        return PathValidator.sanitize_filename(filename, max_length)
+
+    # -------------------------------------------------------------------------- Input Sanitization
+    @classmethod
+    def sanitize_command_arg(cls, arg: str) -> str:
+        """Sanitize a command line argument.
+
+        Args:
+            arg: The argument to sanitize
+
+        Returns:
+            Sanitized argument
+        """
+        return InputSanitizer.sanitize_command_arg(arg)
+
+    @classmethod
+    def sanitize_url(cls, url: str) -> str | None:
+        """Sanitize and validate a URL.
+
+        Args:
+            url: The URL to sanitize
+
+        Returns:
+            Sanitized URL or None if invalid
+        """
+        return InputSanitizer.sanitize_url(url)
+
+    @classmethod
+    def sanitize_regex(cls, pattern: str, max_length: int = 1000) -> str:
+        """Sanitize a regex pattern to prevent ReDoS attacks.
+
+        Args:
+            pattern: The regex pattern to sanitize
+            max_length: Maximum allowed pattern length
+
+        Returns:
+            Sanitized pattern
+        """
+        return InputSanitizer.sanitize_regex(pattern, max_length)
+
+    # -------------------------------------------------------------------------- Rate Limiting
+    _rate_limiter: RateLimiter | None = None
+
+    @classmethod
+    def get_rate_limiter(cls) -> RateLimiter:
+        """Get or create the rate limiter instance.
+
+        Returns:
+            RateLimiter instance
+        """
+        if cls._rate_limiter is None:
+            cls._rate_limiter = RateLimiter()
+        return cls._rate_limiter
+
+    @classmethod
+    def check_rate_limit(cls, identifier: str, cost: int = 1) -> tuple[bool, float | None]:
+        """Check if request is within rate limit.
+
+        Args:
+            identifier: Unique identifier (e.g., IP, user ID)
+            cost: Cost of this request (default 1)
+
+        Returns:
+            Tuple of (allowed, retry_after_seconds)
+        """
+        if is_enabled("enable_rate_limiting"):
+            return cls.get_rate_limiter().check_rate_limit(identifier, cost)
+        else:
+            # Rate limiting disabled - always allow
+            return True, None
+
+    # -------------------------------------------------------------------------- Secure Hashing
+    @classmethod
+    def hash_password(cls, password: str, salt: bytes | None = None) -> tuple[str, str]:
+        """Hash a password using PBKDF2.
+
+        Args:
+            password: Password to hash
+            salt: Optional salt (generated if not provided)
+
+        Returns:
+            Tuple of (hash, salt) as hex strings
+        """
+        return SecureHash.hash_password(password, salt)
+
+    @classmethod
+    def verify_password(cls, password: str, hash_hex: str, salt_hex: str) -> bool:
+        """Verify a password against a hash.
+
+        Args:
+            password: Password to verify
+            hash_hex: Hash as hex string
+            salt_hex: Salt as hex string
+
+        Returns:
+            True if password matches
+        """
+        return SecureHash.verify_password(password, hash_hex, salt_hex)
+
+    @classmethod
+    def generate_token(cls, length: int = 32) -> str:
+        """Generate a secure random token.
+
+        Args:
+            length: Token length in bytes
+
+        Returns:
+            Token as hex string
+        """
+        return SecureHash.generate_token(length)
+
+    # -------------------------------------------------------------------------- File Integrity
+    @classmethod
+    def compute_file_hash(
+        cls, file_path: str | Path, algorithm: str = "sha256", use_cache: bool = True
+    ) -> str:
+        """Compute the hash of a file using the specified algorithm.
+
+        Args:
+            file_path: Path to the file
+            algorithm: Hash algorithm to use (default: sha256)
+            use_cache: Whether to use cached hash if available
+
+        Returns:
+            The file hash as a hexadecimal string
+
+        Raises:
+            ValidationError: If the file cannot be read or algorithm is invalid
+        """
+        # Import from validation.security to reuse existing implementation
+        from ..validation.security import SecurityValidator
+
+        return SecurityValidator.compute_file_hash(file_path, algorithm, use_cache)
+
+    @classmethod
+    def verify_file_integrity(
+        cls, file_path: str | Path, expected_hash: str, algorithm: str = "sha256"
+    ) -> bool:
+        """Verify the integrity of a file by comparing its hash.
+
+        Args:
+            file_path: Path to the file
+            expected_hash: Expected hash value
+            algorithm: Hash algorithm to use
+
+        Returns:
+            True if the file hash matches
+
+        Raises:
+            FileIntegrityError: If the hash doesn't match
+        """
+        from ..validation.security import SecurityValidator
+
+        return SecurityValidator.verify_file_integrity(file_path, expected_hash, algorithm)
+
+    @classmethod
+    def detect_tampering(
+        cls, file_path: str | Path, original_hash: str, algorithm: str = "sha256"
+    ) -> bool:
+        """Detect if a file has been tampered with.
+
+        Args:
+            file_path: Path to the file
+            original_hash: Original hash value to compare against
+            algorithm: Hash algorithm to use
+
+        Returns:
+            True if tampering is detected (hashes don't match)
+        """
+        from ..validation.security import SecurityValidator
+
+        return SecurityValidator.detect_tampering(file_path, original_hash, algorithm)
+
+    @classmethod
+    def is_binary_file(cls, file_path: str | Path) -> bool:
+        """Check if a file is binary.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            True if the file appears to be binary
+        """
+        from ..validation.security import SecurityValidator
+
+        return SecurityValidator.is_binary_file(file_path)
+
+    @classmethod
+    def check_for_suspicious_content(
+        cls, file_path: str | Path, use_semgrep: bool = False
+    ) -> list[dict[str, Any]]:
+        """Check a file for suspicious content patterns.
+
+        Args:
+            file_path: Path to the file
+            use_semgrep: Whether to use Semgrep for additional scanning
+
+        Returns:
+            List of detected suspicious patterns
+        """
+        from ..validation.security import SecurityValidator
+
+        return SecurityValidator.check_for_suspicious_content(file_path, use_semgrep)
+
+    @classmethod
+    def generate_integrity_manifest(
+        cls, directory: str | Path, recursive: bool = True
+    ) -> dict[str, str]:
+        """Generate an integrity manifest for all files in a directory.
+
+        Args:
+            directory: Path to the directory
+            recursive: If True, include files in subdirectories
+
+        Returns:
+            Dictionary mapping relative file paths to their SHA-256 hashes
+        """
+        from ..validation.security import SecurityValidator
+
+        return SecurityValidator.generate_integrity_manifest(directory, recursive)
+
+    @classmethod
+    def verify_integrity_manifest(
+        cls, directory: str | Path, manifest: dict[str, str]
+    ) -> dict[str, dict[str, bool | str]]:
+        """Verify file integrity using a previously generated manifest.
+
+        Args:
+            directory: Base directory containing the files
+            manifest: Dictionary mapping relative file paths to expected hashes
+
+        Returns:
+            Dictionary mapping file paths to verification results
+        """
+        from ..validation.security import SecurityValidator
+
+        return SecurityValidator.verify_integrity_manifest(directory, manifest)

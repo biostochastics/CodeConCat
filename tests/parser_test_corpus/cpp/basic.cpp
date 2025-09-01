@@ -11,20 +11,20 @@
 class TestClass {
 private:
     int value;
-    
+
 public:
     /**
      * Constructor
      */
     TestClass(int value = 0) : value(value) {}
-    
+
     /**
      * Get the value
      */
     int getValue() const {
         return value;
     }
-    
+
     /**
      * Set the value
      */
@@ -49,8 +49,8 @@ int main() {
     std::cout << "Value: " << tc.getValue() << std::endl;
     tc.setValue(100);
     std::cout << "New value: " << tc.getValue() << std::endl;
-    
+
     testFunction(tc.getValue(), "Test");
-    
+
     return 0;
 }

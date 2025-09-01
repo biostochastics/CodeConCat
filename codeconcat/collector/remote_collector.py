@@ -129,9 +129,7 @@ def collect_git_repo(
             )
 
             if result_default.returncode != 0:
-                logger.error(
-                    f"Failed to clone default branch (code: {result_default.returncode})."
-                )
+                logger.error(f"Failed to clone default branch (code: {result_default.returncode}).")
                 logger.error(f"Clone stderr: {result_default.stderr.strip()}")
                 return [], ""
 
@@ -183,16 +181,14 @@ def collect_git_repo(
         # Collect files using the local collector on the temporary directory
         logger.info(f"Collecting files from temporary directory: {temp_dir}")
         # Pass temp_dir and original config directly
-        config.target_path = temp_dir # Update config.target_path
+        config.target_path = temp_dir  # Update config.target_path
         files = collect_local_files(temp_dir, config)
         logger.info(f"Found {len(files)} files in cloned repository.")
         return files, temp_dir  # Return files and temp_dir path
 
     except subprocess.CalledProcessError as e:
         # This might not be reached if check=False, handled by returncode check
-        logger.error(
-            f"Error during git operation for '{repo_name}' (Return code: {e.returncode})."
-        )
+        logger.error(f"Error during git operation for '{repo_name}' (Return code: {e.returncode}).")
         logger.error(f"Command run: {' '.join(e.cmd)}")
         logger.error(f"Stderr: {e.stderr.strip() if e.stderr else 'N/A'}")
         logger.error(f"Stdout: {e.stdout.strip() if e.stdout else 'N/A'}")
@@ -205,7 +201,7 @@ def collect_git_repo(
 
 
 def build_git_clone_url(
-    source_url_in: str, owner: str, repo: str, token: Optional[str] = None
+    _source_url_in: str, owner: str, repo: str, token: Optional[str] = None
 ) -> str:
     """Build GitHub clone URL with optional token. Ensures HTTPS format."""
     # Always construct a standard HTTPS URL for cloning

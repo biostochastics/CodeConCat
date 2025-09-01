@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from codeconcat.base_types import (
     AnnotatedFileData,
@@ -32,7 +32,7 @@ class MarkdownRenderAdapter:
 
     @staticmethod
     def render_declarations(
-        declarations: List[Declaration], file_path: str, config: CodeConCatConfig
+        declarations: list[Declaration], _file_path: str, _config: CodeConCatConfig
     ) -> str:
         """Render a list of declarations as a markdown list."""
         if not declarations:
@@ -69,7 +69,7 @@ class MarkdownRenderAdapter:
         return "\n".join(result)
 
     @staticmethod
-    def render_imports(imports: List[str]) -> str:
+    def render_imports(imports: list[str]) -> str:
         """Render a list of imports as a markdown list."""
         if not imports:
             return ""
@@ -80,7 +80,7 @@ class MarkdownRenderAdapter:
         return "\n".join(result)
 
     @staticmethod
-    def render_security_issues(issues: List[SecurityIssue]) -> str:
+    def render_security_issues(issues: list[SecurityIssue]) -> str:
         """Render security issues as a markdown section with severity-based formatting."""
         if not issues:
             return ""
@@ -112,7 +112,7 @@ class MarkdownRenderAdapter:
         return "\n".join(result)
 
     @staticmethod
-    def render_token_stats(token_stats: Optional[TokenStats]) -> str:
+    def render_token_stats(token_stats: TokenStats | None) -> str:
         """Render token statistics as a markdown section."""
         if not token_stats:
             return ""
@@ -127,7 +127,7 @@ class MarkdownRenderAdapter:
 
     @staticmethod
     def render_file_content(
-        content: str, language: str, config: CodeConCatConfig, file_path: str = None
+        content: str, language: str, config: CodeConCatConfig, file_path: str | None = None
     ) -> str:
         """Render file content as a markdown code block with appropriate language tag."""
         # Special case for empty content
@@ -176,7 +176,7 @@ class MarkdownRenderAdapter:
         return f"```{lang_tag}\n{content}\n```"
 
     @staticmethod
-    def _render_compressed_content(segments: List[ContentSegment], language: str) -> str:
+    def _render_compressed_content(segments: list[ContentSegment], language: str) -> str:
         """Render compressed content with special formatting for placeholders."""
         # Use language tag if available
         lang_tag = language if language and language != "unknown" else ""
@@ -195,7 +195,7 @@ class MarkdownRenderAdapter:
         return "\n".join(result)
 
     @staticmethod
-    def render_annotated_file(file_data: AnnotatedFileData, config: CodeConCatConfig) -> List[str]:
+    def render_annotated_file(file_data: AnnotatedFileData, config: CodeConCatConfig) -> list[str]:
         """Render a full annotated file as a list of markdown chunks."""
         result = []
 
@@ -254,7 +254,7 @@ class MarkdownRenderAdapter:
         return result
 
     @staticmethod
-    def render_doc_file(doc_data: ParsedDocData, config: CodeConCatConfig) -> List[str]:
+    def render_doc_file(doc_data: ParsedDocData, _config: CodeConCatConfig) -> list[str]:
         """Render a documentation file as a list of markdown chunks."""
         result = []
 
@@ -280,7 +280,7 @@ class JsonRenderAdapter:
     """Adapter for rendering structured data to JSON format."""
 
     @staticmethod
-    def declaration_to_dict(decl: Declaration) -> Dict[str, Any]:
+    def declaration_to_dict(decl: Declaration) -> dict[str, Any]:
         """Convert a Declaration object to a dictionary for JSON serialization."""
         return {
             "kind": decl.kind,
@@ -293,7 +293,7 @@ class JsonRenderAdapter:
         }
 
     @staticmethod
-    def security_issue_to_dict(issue: SecurityIssue) -> Dict[str, Any]:
+    def security_issue_to_dict(issue: SecurityIssue) -> dict[str, Any]:
         """Convert a SecurityIssue object to a dictionary for JSON serialization."""
         return {
             "rule_id": issue.rule_id,
@@ -304,7 +304,7 @@ class JsonRenderAdapter:
         }
 
     @staticmethod
-    def token_stats_to_dict(token_stats: Optional[TokenStats]) -> Optional[Dict[str, Any]]:
+    def token_stats_to_dict(token_stats: TokenStats | None) -> dict[str, Any] | None:
         """Convert a TokenStats object to a dictionary for JSON serialization."""
         if not token_stats:
             return None
@@ -316,9 +316,9 @@ class JsonRenderAdapter:
         }
 
     @staticmethod
-    def segment_to_dict(segment: ContentSegment) -> Dict[str, Any]:
+    def segment_to_dict(segment: ContentSegment) -> dict[str, Any]:
         """Convert a ContentSegment to a dictionary for JSON serialization."""
-        result = {
+        result: dict[str, Any] = {
             "type": segment.segment_type.value,
             "content": segment.content,
             "start_line": segment.start_line,
@@ -336,9 +336,9 @@ class JsonRenderAdapter:
     @staticmethod
     def annotated_file_to_dict(
         file_data: AnnotatedFileData, config: CodeConCatConfig
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Convert an AnnotatedFileData object to a dictionary for JSON serialization."""
-        result = {
+        result: dict[str, Any] = {
             "file_path": file_data.file_path,
             "language": file_data.language or "unknown",
         }
@@ -394,7 +394,7 @@ class JsonRenderAdapter:
         return result
 
     @staticmethod
-    def doc_file_to_dict(doc_data: ParsedDocData, config: CodeConCatConfig) -> Dict[str, Any]:
+    def doc_file_to_dict(doc_data: ParsedDocData, _config: CodeConCatConfig) -> dict[str, Any]:
         """Convert a ParsedDocData object to a dictionary for JSON serialization."""
         return {
             "file_path": doc_data.file_path,
@@ -555,7 +555,7 @@ class XmlRenderAdapter:
         return file_element
 
     @staticmethod
-    def create_doc_file_element(doc_data: ParsedDocData, config: CodeConCatConfig) -> ET.Element:
+    def create_doc_file_element(doc_data: ParsedDocData, _config: CodeConCatConfig) -> ET.Element:
         """Create an XML element representing a ParsedDocData object."""
         doc_elem = ET.Element("doc")
         doc_elem.set("path", doc_data.file_path)
@@ -584,7 +584,7 @@ class TextRenderAdapter:
     """Adapter for rendering structured data to plain text format."""
 
     @staticmethod
-    def render_declarations(declarations: List[Declaration]) -> List[str]:
+    def render_declarations(declarations: list[Declaration]) -> list[str]:
         """Render a list of declarations as plain text lines."""
         if not declarations:
             return []
@@ -619,7 +619,7 @@ class TextRenderAdapter:
         return result
 
     @staticmethod
-    def render_imports(imports: List[str]) -> List[str]:
+    def render_imports(imports: list[str]) -> list[str]:
         """Render a list of imports as plain text lines."""
         if not imports:
             return []
@@ -630,7 +630,7 @@ class TextRenderAdapter:
         return result
 
     @staticmethod
-    def render_security_issues(issues: List[SecurityIssue]) -> List[str]:
+    def render_security_issues(issues: list[SecurityIssue]) -> list[str]:
         """Render security issues as plain text lines."""
         if not issues:
             return []
@@ -648,7 +648,7 @@ class TextRenderAdapter:
         return result
 
     @staticmethod
-    def render_token_stats(token_stats: Optional[TokenStats]) -> List[str]:
+    def render_token_stats(token_stats: TokenStats | None) -> list[str]:
         """Render token statistics as plain text lines."""
         if not token_stats:
             return []
@@ -660,7 +660,7 @@ class TextRenderAdapter:
         return result
 
     @staticmethod
-    def render_file_content(content: str, config: CodeConCatConfig) -> List[str]:
+    def render_file_content(content: str, config: CodeConCatConfig) -> list[str]:
         """Render file content as plain text lines."""
         # Add line numbers if configured
         if config.show_line_numbers:
@@ -676,7 +676,7 @@ class TextRenderAdapter:
             return content.split("\n")
 
     @staticmethod
-    def render_annotated_file(file_data: AnnotatedFileData, config: CodeConCatConfig) -> List[str]:
+    def render_annotated_file(file_data: AnnotatedFileData, config: CodeConCatConfig) -> list[str]:
         """Render a full annotated file as a list of plain text lines."""
         result = []
 
@@ -734,7 +734,7 @@ class TextRenderAdapter:
         return result
 
     @staticmethod
-    def render_doc_file(doc_data: ParsedDocData, config: CodeConCatConfig) -> List[str]:
+    def render_doc_file(doc_data: ParsedDocData, _config: CodeConCatConfig) -> list[str]:
         """Render a documentation file as a list of plain text lines."""
         result = []
 

@@ -1,9 +1,9 @@
 """Simple tests for token counting functionality."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from codeconcat.processor.token_counter import get_token_stats
 from codeconcat.base_types import TokenStats
+from codeconcat.processor.token_counter import get_token_stats
 
 
 class TestTokenCounter:

@@ -102,12 +102,12 @@ class EnhancedGoParser(EnhancedBaseParser):
         try:
             logger.debug(f"Starting EnhancedGoParser.parse for file: {file_path}")
 
-            declarations = []
-            imports = []
-            classes = []  # Go struct types
-            functions = []
-            docstrings = {}
-            errors = []
+            declarations: list[Declaration] = []
+            imports: list[str] = []
+            classes: list[str] = []  # Go struct types
+            functions: list[str] = []
+            docstrings: dict[str, str] = {}
+            errors: list[str] = []
 
             lines = content.split("\n")
             i = 0
@@ -172,7 +172,7 @@ class EnhancedGoParser(EnhancedBaseParser):
 
                         # Look for a doc comment before this declaration
                         j = start_line - 1
-                        doc_lines = []
+                        doc_lines: list[str] = []
                         while j >= 0 and j >= start_line - 5:  # Look at most 5 lines back
                             prev_line = lines[j].strip()
                             if not prev_line or prev_line.isspace():
@@ -273,10 +273,7 @@ class EnhancedGoParser(EnhancedBaseParser):
             if start_idx != -1 and end_idx != -1:
                 import_path = line[start_idx + 1 : end_idx]
                 # Extract the last component as the module name
-                if "/" in import_path:
-                    module_name = import_path.split("/")[-1]
-                else:
-                    module_name = import_path
+                module_name = import_path.split("/")[-1] if "/" in import_path else import_path
                 imports.append(module_name)
                 return True, i
 
@@ -289,23 +286,21 @@ class EnhancedGoParser(EnhancedBaseParser):
                     # Return the updated index position - after the closing parenthesis
                     return True, j + 1
 
-                if import_line and not import_line.startswith("//"):
-                    # Parse each import inside the block
-                    if '"' in import_line:
-                        start_idx = import_line.find('"')
-                        end_idx = import_line.find('"', start_idx + 1)
-                        if start_idx != -1 and end_idx != -1:
-                            import_path = import_line[start_idx + 1 : end_idx]
-                            # Extract the last component or check for alias
-                            parts = import_line.split()
-                            if len(parts) > 1 and parts[0] not in ["_", "."]:
-                                # Has alias like: alias "path/to/package"
-                                module_name = parts[0]
-                            elif "/" in import_path:
-                                module_name = import_path.split("/")[-1]
-                            else:
-                                module_name = import_path
-                            imports.append(module_name)
+                if import_line and not import_line.startswith("//") and '"' in import_line:
+                    start_idx = import_line.find('"')
+                    end_idx = import_line.find('"', start_idx + 1)
+                    if start_idx != -1 and end_idx != -1:
+                        import_path = import_line[start_idx + 1 : end_idx]
+                        # Extract the last component or check for alias
+                        parts = import_line.split()
+                        if len(parts) > 1 and parts[0] not in ["_", "."]:
+                            # Has alias like: alias "path/to/package"
+                            module_name = parts[0]
+                        elif "/" in import_path:
+                            module_name = import_path.split("/")[-1]
+                        else:
+                            module_name = import_path
+                        imports.append(module_name)
                 j += 1
 
         return False, i

@@ -10,9 +10,9 @@ Usage:
     # After this import, all parsers will output debug logs
 """
 
-import logging
-import inspect
 import importlib
+import inspect
+import logging
 import pkgutil
 from pathlib import Path
 
@@ -49,19 +49,15 @@ def enable_debug_for_parsers():
 
                     # Find all classes that might be parsers
                     for class_name, cls in inspect.getmembers(module, inspect.isclass):
-                        if "parser" in class_name.lower():
-                            # Set logger for the class if it has one
-                            if hasattr(cls, "logger"):
-                                try:
-                                    # Check if it's actually a logger object (not a property)
-                                    if hasattr(cls.logger, "setLevel"):
-                                        cls.logger.setLevel(logging.DEBUG)
-                                        PARSER_DEBUG.debug(
-                                            f"Enabled debug logging for {class_name}"
-                                        )
-                                except Exception:
-                                    # Skip if logger is a property or other non-logger object
-                                    pass
+                        if "parser" in class_name.lower() and hasattr(cls, "logger"):
+                            try:
+                                # Check if it's actually a logger object (not a property)
+                                if hasattr(cls.logger, "setLevel"):
+                                    cls.logger.setLevel(logging.DEBUG)
+                                    PARSER_DEBUG.debug(f"Enabled debug logging for {class_name}")
+                            except Exception:
+                                # Skip if logger is a property or other non-logger object
+                                pass
                 except Exception as e:
                     PARSER_DEBUG.error(f"Error enabling debug for {name}: {e}")
     except ImportError:

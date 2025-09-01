@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the enhanced JavaScript/TypeScript parser in CodeConCat.
@@ -9,15 +8,13 @@ declarations, classes, functions, ES6 modules, and other JS/TS-specific features
 """
 
 import logging
+
 import pytest
 
-from codeconcat.base_types import (
-    ParseResult,
-    ParserInterface,
-)
+from codeconcat.base_types import ParseResult, ParserInterface
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.enhanced_js_ts_parser import EnhancedJSTypeScriptParser
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -74,7 +71,7 @@ class Utility {
         function nestedFunction() {
             return "nested result";
         }
-        
+
         return nestedFunction();
     }
 }
@@ -89,7 +86,7 @@ function outerFunction(param) {
     function innerFunction() {
         return "inner result";
     }
-    
+
     return innerFunction();
 }
 
@@ -107,7 +104,7 @@ const obj = {
     method: function() {
         return this.name;
     },
-    
+
     // Shorthand method
     shortMethod() {
         return "short";
@@ -143,18 +140,18 @@ type StringOrNumber = string | number;
  */
 class GenericContainer<T> {
     private items: T[];
-    
+
     constructor(initialItems: T[] = []) {
         this.items = initialItems;
     }
-    
+
     /**
      * Add an item to the container
      */
     public add(item: T): void {
         this.items.push(item);
     }
-    
+
     /**
      * Get all items
      */
@@ -180,12 +177,12 @@ const filterNumbers = (nums: number[]): number[] => {
 class ConfigImpl implements ConfigInterface {
     name: string;
     value: number;
-    
+
     constructor(name: string, value: number) {
         this.name = name;
         this.value = value;
     }
-    
+
     toString(): string {
         return `${this.name}: ${this.value}`;
     }
@@ -201,13 +198,13 @@ enum Status {
 // Abstract class
 abstract class BaseService {
     protected config: ConfigInterface;
-    
+
     constructor(config: ConfigInterface) {
         this.config = config;
     }
-    
+
     abstract process(): void;
-    
+
     getConfig(): ConfigInterface {
         return this.config;
     }
@@ -328,18 +325,18 @@ type StringOrNumber = string | number;
  */
 class GenericContainer<T> {
     private items: T[];
-    
+
     constructor(initialItems: T[] = []) {
         this.items = initialItems;
     }
-    
+
     /**
      * Add an item to the container
      */
     public add(item: T): void {
         this.items.push(item);
     }
-    
+
     /**
      * Get all items
      */
@@ -401,9 +398,12 @@ enum Status {
         generic_class = None
 
         for decl in result.declarations:
-            if decl.kind == "interface" and decl.name == "ConfigInterface":
-                pass
-            elif decl.kind == "type" and decl.name == "StringOrNumber":
+            if (
+                decl.kind == "interface"
+                and decl.name == "ConfigInterface"
+                or decl.kind == "type"
+                and decl.name == "StringOrNumber"
+            ):
                 pass
             elif decl.kind == "class" and decl.name == "GenericContainer":
                 generic_class = decl

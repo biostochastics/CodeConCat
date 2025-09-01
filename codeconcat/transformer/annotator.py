@@ -64,12 +64,17 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
         tags.append("has_structs")
     if symbols:
         tags.append("has_symbols")
-    tags.append(parsed_data.language)
+
+    # Handle potential None values
+    language = parsed_data.language or "unknown"
+    content = parsed_data.content or ""
+
+    tags.append(language)
 
     return AnnotatedFileData(
         file_path=parsed_data.file_path,
-        language=parsed_data.language,
-        content=parsed_data.content,
+        language=language,
+        content=content,
         annotated_content="".join(pieces),
         declarations=parsed_data.declarations,
         imports=parsed_data.imports,

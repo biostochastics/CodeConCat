@@ -2,12 +2,13 @@
 
 import json
 import os
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import MagicMock, mock_open, patch
 
-from codeconcat.validation.semgrep_validator import SemgrepValidator
+import pytest
+
 from codeconcat.errors import ValidationError
+from codeconcat.validation.semgrep_validator import SemgrepValidator
 
 
 class TestSemgrepValidator:
@@ -71,18 +72,17 @@ class TestSemgrepValidator:
         }
 
         # Use patch to mock open for specific file
-        with patch("builtins.open", mock_open(read_data=json.dumps(mock_results))):
-            with patch("pathlib.Path.exists", return_value=True):
-                with patch("pathlib.Path.open"):
-                    with patch("shutil.which", return_value="/usr/bin/semgrep"):
-                        validator = SemgrepValidator()
-                        findings = validator.scan_file(test_file)
+        with patch("builtins.open", mock_open(read_data=json.dumps(mock_results))), patch(
+            "pathlib.Path.exists", return_value=True
+        ), patch("pathlib.Path.open"), patch("shutil.which", return_value="/usr/bin/semgrep"):
+            validator = SemgrepValidator()
+            findings = validator.scan_file(test_file)
 
-                        assert len(findings) == 1
-                        assert findings[0]["type"] == "semgrep"
-                        assert findings[0]["rule_id"] == "test-rule"
-                        assert findings[0]["message"] == "Test finding"
-                        assert findings[0]["severity"] == "WARNING"
+            assert len(findings) == 1
+            assert findings[0]["type"] == "semgrep"
+            assert findings[0]["rule_id"] == "test-rule"
+            assert findings[0]["message"] == "Test finding"
+            assert findings[0]["severity"] == "WARNING"
 
     def test_scan_file_semgrep_not_available(self, tmp_path):
         """Test scanning when semgrep isn't available."""
@@ -141,20 +141,19 @@ class TestSemgrepValidator:
         }
 
         # Use patch to mock open for specific file
-        with patch("builtins.open", mock_open(read_data=json.dumps(mock_results))):
-            with patch("pathlib.Path.exists", return_value=True):
-                with patch("pathlib.Path.open"):
-                    with patch("shutil.which", return_value="/usr/bin/semgrep"):
-                        validator = SemgrepValidator()
-                        findings = validator.scan_directory(test_dir)
+        with patch("builtins.open", mock_open(read_data=json.dumps(mock_results))), patch(
+            "pathlib.Path.exists", return_value=True
+        ), patch("pathlib.Path.open"), patch("shutil.which", return_value="/usr/bin/semgrep"):
+            validator = SemgrepValidator()
+            findings = validator.scan_directory(test_dir)
 
-                        assert str(test_file) in findings
-                        assert len(findings[str(test_file)]) == 1
-                        assert findings[str(test_file)][0]["type"] == "semgrep"
-                        assert findings[str(test_file)][0]["rule_id"] == "test-rule"
-                        assert findings[str(test_file)][0]["severity"] == "WARNING"
+            assert str(test_file) in findings
+            assert len(findings[str(test_file)]) == 1
+            assert findings[str(test_file)][0]["type"] == "semgrep"
+            assert findings[str(test_file)][0]["rule_id"] == "test-rule"
+            assert findings[str(test_file)][0]["severity"] == "WARNING"
 
-    def test_detect_language(self, tmp_path):
+    def test_detect_language(self, _tmp_path):
         """Test language detection for semgrep."""
         with patch(
             "codeconcat.parser.file_parser.determine_language",
@@ -164,18 +163,17 @@ class TestSemgrepValidator:
                 "test.java": "java",
                 "test.unknown": "unknown",
             }.get(os.path.basename(x), None),
-        ):
-            with patch("shutil.which", return_value="/usr/bin/semgrep"):
-                validator = SemgrepValidator()
+        ), patch("shutil.which", return_value="/usr/bin/semgrep"):
+            validator = SemgrepValidator()
 
-                # Python file
-                assert validator._detect_language(Path("test.py")) == "python"
+            # Python file
+            assert validator._detect_language(Path("test.py")) == "python"
 
-                # JavaScript file
-                assert validator._detect_language(Path("test.js")) == "js"
+            # JavaScript file
+            assert validator._detect_language(Path("test.js")) == "js"
 
-                # Java file
-                assert validator._detect_language(Path("test.java")) == "java"
+            # Java file
+            assert validator._detect_language(Path("test.java")) == "java"
 
-                # Unknown file type
-                assert validator._detect_language(Path("test.unknown")) is None
+            # Unknown file type
+            assert validator._detect_language(Path("test.unknown")) is None

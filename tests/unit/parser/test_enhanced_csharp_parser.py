@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the enhanced C# parser in CodeConCat.
@@ -9,16 +8,14 @@ C#-specific syntax, classes, interfaces, properties, and using statements.
 """
 
 import logging
+
 import pytest
 
-from codeconcat.base_types import (
-    ParseResult,
-    ParserInterface,
-)
+from codeconcat.base_types import ParseResult, ParserInterface
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.enhanced_c_family_parser import EnhancedCFamilyParser
 from codeconcat.parser.language_parsers.enhanced_csharp_parser import EnhancedCSharpParser
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -48,10 +45,10 @@ namespace TestNamespace
 {
     /// <summary>
     /// Basic C# test file for parser validation.
-    /// 
+    ///
     /// This file contains common C# constructs that should be properly parsed.
     /// </summary>
-    
+
     /// <summary>
     /// Constants class with documentation.
     /// </summary>
@@ -61,13 +58,13 @@ namespace TestNamespace
         /// The mathematical constant pi, approximately.
         /// </summary>
         public const double PI = 3.14159;
-        
+
         /// <summary>
         /// Maximum number of retry attempts.
         /// </summary>
         public const int MAX_RETRIES = 3;
     }
-    
+
     /// <summary>
     /// Represents a person with name, age, and optional address.
     /// </summary>
@@ -77,17 +74,17 @@ namespace TestNamespace
         /// The person's name
         /// </summary>
         protected string Name { get; set; }
-        
+
         /// <summary>
         /// The person's age
         /// </summary>
         protected int Age { get; set; }
-        
+
         /// <summary>
         /// The person's address (optional)
         /// </summary>
         protected string Address { get; set; }
-        
+
         /// <summary>
         /// Create a new person instance.
         /// </summary>
@@ -99,7 +96,7 @@ namespace TestNamespace
             Age = age;
             Address = null;
         }
-        
+
         /// <summary>
         /// Get a greeting from the person.
         /// </summary>
@@ -108,7 +105,7 @@ namespace TestNamespace
         {
             return $"Hello, my name is {Name} and I am {Age} years old.";
         }
-        
+
         /// <summary>
         /// Set the person's address.
         /// </summary>
@@ -117,7 +114,7 @@ namespace TestNamespace
         {
             Address = address;
         }
-        
+
         /// <summary>
         /// Get the person's address or a default message.
         /// </summary>
@@ -127,7 +124,7 @@ namespace TestNamespace
             return Address ?? "Address not set";
         }
     }
-    
+
     /// <summary>
     /// Employee class extending Person with job information.
     /// </summary>
@@ -137,12 +134,12 @@ namespace TestNamespace
         /// The employee's job title
         /// </summary>
         private string Title { get; set; }
-        
+
         /// <summary>
         /// The employee's annual salary
         /// </summary>
         private decimal Salary { get; set; }
-        
+
         /// <summary>
         /// Create a new employee instance.
         /// </summary>
@@ -156,7 +153,7 @@ namespace TestNamespace
             Title = title;
             Salary = salary;
         }
-        
+
         /// <summary>
         /// Override the parent's greet method.
         /// </summary>
@@ -167,7 +164,7 @@ namespace TestNamespace
             return $"{baseGreeting} I work as a {Title}.";
         }
     }
-    
+
     /// <summary>
     /// Interface for data processors
     /// </summary>
@@ -179,7 +176,7 @@ namespace TestNamespace
         /// <param name="data">The data to process</param>
         /// <returns>Processed data</returns>
         string Process(string data);
-        
+
         /// <summary>
         /// Get processing statistics
         /// </summary>

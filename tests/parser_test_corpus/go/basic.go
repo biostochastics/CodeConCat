@@ -92,7 +92,7 @@ func (e Employee) String() string {
 type Processor interface {
 	// Process performs data processing.
 	Process(data []byte) ([]byte, error)
-	
+
 	// GetStats returns processing statistics.
 	GetStats() map[string]int
 }
@@ -124,9 +124,9 @@ func calculateStats(numbers []int) (int, int, float64) {
 	if len(numbers) == 0 {
 		return 0, 0, 0
 	}
-	
+
 	min, max, sum := numbers[0], numbers[0], 0
-	
+
 	for _, n := range numbers {
 		if n < min {
 			min = n
@@ -136,7 +136,7 @@ func calculateStats(numbers []int) (int, int, float64) {
 		}
 		sum += n
 	}
-	
+
 	avg := float64(sum) / float64(len(numbers))
 	return min, max, avg
 }
@@ -160,13 +160,13 @@ func main() {
 	p := NewPerson("John", 30)
 	p.SetAddress("123 Main St")
 	fmt.Println(p.Greet())
-	
+
 	// Create an employee
 	e := NewEmployee("Jane", 28, "Software Engineer", 100000)
 	e.GiveRaise(10)
 	fmt.Println(e.WorkInfo())
 	fmt.Println(e.Greet())
-	
+
 	// Use the processor
 	proc := &SimpleProcessor{}
 	data, err := proc.Process([]byte("test data"))
@@ -175,19 +175,19 @@ func main() {
 	} else {
 		fmt.Println(string(data))
 	}
-	
+
 	// Use standalone functions
 	numbers := []int{3, 7, 2, 9, 5}
 	min, max, avg := calculateStats(numbers)
 	fmt.Printf("Min: %d, Max: %d, Avg: %.2f\n", min, max, avg)
-	
+
 	result, err := divide(10, 2)
 	if err != nil {
 		fmt.Println("Error:", err)
 	} else {
 		fmt.Println("10 / 2 =", result)
 	}
-	
+
 	// Use constants and variables
 	fmt.Println("PI:", PI)
 	fmt.Println("MaxRetries:", MaxRetries)

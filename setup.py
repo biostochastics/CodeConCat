@@ -9,7 +9,7 @@ def get_version():
     Extracts the CodeConCat version from codeconcat/version.py
     """
     version_file = os.path.join(os.path.dirname(__file__), "codeconcat", "version.py")
-    with open(version_file, "r", encoding="utf-8") as f:
+    with open(version_file, encoding="utf-8") as f:
         content = f.read()
         match = re.search(r'__version__\s*=\s*"([^"]+)"', content)
         if match:
@@ -19,7 +19,7 @@ def get_version():
 
 def get_long_description():
     try:
-        with open("README.md", "r", encoding="utf-8") as f:
+        with open("README.md", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
         return ""
@@ -71,7 +71,7 @@ setup(
     ],
     extras_require=extras_require,
     python_requires=">=3.8",
-    entry_points={"console_scripts": ["codeconcat=codeconcat.main:cli_entry_point"]},
+    entry_points={"console_scripts": ["codeconcat=codeconcat.cli:app"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",

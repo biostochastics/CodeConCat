@@ -1,18 +1,18 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]
 name = "codeconcat"
-dynamic = ["version"]
-description = "An LLM-friendly code aggregator and documentation extractor"
-readme = "README.md"
-requires-python = ">=3.8"
+version = "0.8.0"
+description = "An LLM-friendly code aggregator and documentation extractor with advanced CLI"
+authors = ["Sergey Kornilov <sergey.kornilov@biostochastics.com>"]
 license = "MIT"
-keywords = ["llm", "code", "documentation", "aggregator"]
-authors = [
-    { name = "Sergey Kornilov", email = "sergey.kornilov@biostochastics.com" },
-]
+readme = "README.md"
+homepage = "https://github.com/biostochastics/codeconcat"
+repository = "https://github.com/biostochastics/codeconcat"
+documentation = "https://github.com/biostochastics/codeconcat#readme"
+keywords = ["llm", "code", "documentation", "aggregator", "cli", "typer"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -22,65 +22,222 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Text Processing :: Linguistic",
+    "Environment :: Console",
+    "Operating System :: OS Independent",
 ]
-dependencies = [
-    
-    "pyperclip>=1.8.2",
-    "tiktoken>=0.5.1",
-    "fastapi>=0.104.0",
-    "uvicorn>=0.24.0",
-    "tqdm>=4.62.0", # Added for progress bars
-    "pathspec>=0.11.0", # Added for gitignore pattern matching
-    "halo>=0.0.31", # Added for spinners
-    "transformers>=4.20.0", # Added for token counting
-    "semgrep>=1.0.0", # Added for external security scanning
-    "pydantic>=2.0.0,<3.0.0",
-    "httpx",
-    "gitpython>=3.1.30",
-    "python-multipart",
-    "tree-sitter>=0.20.7,<0.25.0",
-    "tree-sitter-language-pack>=0.7.2",
-    "requests>=2.20.0,<3.0.0",
-    "tomli",
-    "jsonschema",
-]
+packages = [{include = "codeconcat"}]
 
-[project.optional-dependencies]
-dev = [
-    "ruff>=0.1.0", # Added linter/formatter
-]
-test = [
-    "pytest>=7.0",
-    "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.21.1",
-    "pytest-mock>=3.11.1",
-]
-guesslang = [
-    "guesslang>=2.2.0",
-]
+[tool.poetry.dependencies]
+python = "^3.10"
+typer = {extras = ["all"], version = "^0.16.1"}  # Includes Rich for better terminal output
+rich = "^13.7.0"  # Explicit Rich for advanced features
+pydantic = "^2.0.0"
+pydantic-settings = "^2.0.0"  # For configuration management
+pyperclip = "^1.8.2"
+tiktoken = "^0.5.1"
+fastapi = "^0.103.0"
+uvicorn = "^0.24.0"
+pathspec = "^0.11.0"
+transformers = "^4.20.0"
+semgrep = "^1.0.0"
+httpx = "^0.25.0"
+gitpython = "^3.1.30"
+python-multipart = "^0.0.6"
+tree-sitter = ">=0.20.7,<0.25.0"
+tree-sitter-language-pack = "^0.7.2"
+# tomli is built-in for Python >= 3.11
+jsonschema = "^4.20.0"
+cachetools = "^5.3.0"
+click-completion = "^0.5.2"  # For shell completion
+python-dotenv = "^1.0.0"  # For .env file support
+defusedxml = "^0.7.1"  # For safe XML parsing (XXE prevention)
 
-[project.urls]
-Homepage = "https://github.com/biostochastics/codeconcat"
-Documentation = "https://github.com/biostochastics/codeconcat#readme"
-Issues = "https://github.com/biostochastics/codeconcat/issues"
-Changelog = "https://github.com/biostochastics/codeconcat/blob/main/CHANGELOG.md"
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.1.0"
+black = "^23.0.0"
+isort = "^5.13.0"
+mypy = "^1.7.0"
+pre-commit = "^3.5.0"
+ipython = "^8.18.0"
+ipdb = "^0.13.13"
+types-pyyaml = "^6.0.12.20250822"
 
-[project.scripts]
-codeconcat = "codeconcat.main:cli_entry_point"
-codeconcat-api = "codeconcat.api.cli:cli_entry_point"
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+pytest-asyncio = "^0.21.1"
+pytest-mock = "^3.11.1"
+pytest-timeout = "^2.2.0"
+pytest-xdist = "^3.5.0"  # For parallel test execution
+hypothesis = "^6.92.0"  # Property-based testing
 
-[tool.hatch.version]
-path = "codeconcat/version.py"
+[tool.poetry.group.docs.dependencies]
+mkdocs = "^1.5.3"
+mkdocs-material = "^9.5.0"
+mkdocstrings = {extras = ["python"], version = "^0.24.0"}
+mkdocs-typer = "^0.0.3"  # Auto-generate CLI docs from typer
 
+# [tool.poetry.group.guesslang]
+# optional = true
+
+# [tool.poetry.group.guesslang.dependencies]
+# guesslang = "^2.2.0"
+
+[tool.poetry.scripts]
+codeconcat = "codeconcat.cli:app"
+ccc = "codeconcat.cli:app"  # Short alias
+codeconcat-api = "codeconcat.cli.api:start_server"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/biostochastics/codeconcat/issues"
+"Changelog" = "https://github.com/biostochastics/codeconcat/blob/main/CHANGELOG.md"
+
+# Tool configurations
 [tool.black]
 line-length = 100
-target-version = ["py38"]
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # Directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
 
 [tool.isort]
 profile = "black"
 line_length = 100
 multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_gitignore = true
+skip = [".venv", "venv", "build", "dist"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "W191",  # indentation contains tabs
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_any_generics = false
+ignore_missing_imports = true
+follow_imports = "silent"
+no_implicit_reexport = true
+strict_optional = true
+strict_equality = true
+check_untyped_defs = true
+namespace_packages = true
+exclude = [
+    "tests/",
+    "build/",
+    "dist/",
+]
 
 [tool.pytest.ini_options]
-addopts = "-ra -q --cov=codeconcat --cov-report=term-missing"
+minversion = "7.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--cov=codeconcat",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-branch",
+    "--cov-fail-under=80",
+]
 testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["codeconcat"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__main__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"

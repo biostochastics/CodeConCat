@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Integration tests for multiple language parsers using test corpus files.
@@ -7,14 +6,15 @@ This patched version has more robust test handling to prevent failures when
 the parsers encounter issues with the test corpus.
 """
 
-import os
-import time
 import logging
-import pytest
-from typing import Dict, List, Optional
-from functools import wraps
+import os
 import signal
+import time
 import traceback
+from functools import wraps
+from typing import Dict, List, Optional
+
+import pytest
 
 from codeconcat.base_types import CodeConCatConfig, Declaration, ParseResult
 from codeconcat.parser.file_parser import get_language_parser
@@ -36,7 +36,7 @@ def timeout(seconds):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            def handle_timeout(signum, frame):
+            def handle_timeout(_signum, _frame):
                 raise TimeoutError(f"Function {func.__name__} timed out after {seconds} seconds")
 
             # Set the timeout handler
@@ -59,7 +59,7 @@ def timeout(seconds):
 def read_file_content(file_path: str) -> Optional[str]:
     """Read content from a file, handling errors gracefully."""
     try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
             return f.read()
     except Exception as e:
         logger.error(f"Error reading file {file_path}: {e}")

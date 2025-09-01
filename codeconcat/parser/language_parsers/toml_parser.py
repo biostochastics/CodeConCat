@@ -1,9 +1,11 @@
 """Parser for TOML configuration files."""
 
-import tomli
 from typing import List
 
+import tomli
+
 from codeconcat.base_types import Declaration, ParseResult
+
 from .base_parser import BaseParser
 
 
@@ -15,7 +17,7 @@ class TomlParser(BaseParser):
         """Return the list of languages this parser supports."""
         return ["config", "toml"]
 
-    def parse(self, file_path: str, content: str) -> ParseResult:
+    def parse(self, content: str, file_path: str) -> ParseResult:  # noqa: ARG002
         """Parse a TOML file and extract structure."""
         try:
             # Parse the TOML content

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the annotator module.
@@ -9,8 +8,8 @@ Tests the functionality of the annotator to transform parsed data into annotated
 
 import pytest
 
+from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, Declaration, ParsedFileData
 from codeconcat.transformer.annotator import annotate
-from codeconcat.base_types import ParsedFileData, CodeConCatConfig, AnnotatedFileData, Declaration
 
 
 class TestAnnotator:

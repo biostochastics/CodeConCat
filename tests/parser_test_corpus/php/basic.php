@@ -1,7 +1,7 @@
 <?php
 /**
  * Basic PHP test file for parser validation.
- * 
+ *
  * This file contains common PHP constructs that should be properly parsed.
  */
 
@@ -17,14 +17,14 @@ use App\Services\{
 
 /**
  * A constant with documentation.
- * 
+ *
  * @var float
  */
 const PI = 3.14159;
 
 /**
  * Maximum number of retry attempts.
- * 
+ *
  * @var int
  */
 define('MAX_RETRIES', 3);
@@ -39,21 +39,21 @@ class Person {
      * @var string
      */
     protected $name;
-    
+
     /**
      * The person's age
      *
      * @var int
      */
     protected $age;
-    
+
     /**
      * The person's address (optional)
      *
      * @var string|null
      */
     protected $address = null;
-    
+
     /**
      * Create a new person instance.
      *
@@ -64,7 +64,7 @@ class Person {
         $this->name = $name;
         $this->age = $age;
     }
-    
+
     /**
      * Get a greeting from the person.
      *
@@ -73,7 +73,7 @@ class Person {
     public function greet(): string {
         return "Hello, my name is {$this->name} and I am {$this->age} years old.";
     }
-    
+
     /**
      * Set the person's address.
      *
@@ -83,7 +83,7 @@ class Person {
     public function setAddress(string $address): void {
         $this->address = $address;
     }
-    
+
     /**
      * Get the person's address or a default message.
      *
@@ -104,14 +104,14 @@ class Employee extends Person {
      * @var string
      */
     private $title;
-    
+
     /**
      * The employee's annual salary
      *
      * @var float
      */
     private $salary;
-    
+
     /**
      * Create a new employee instance.
      *
@@ -125,7 +125,7 @@ class Employee extends Person {
         $this->title = $title;
         $this->salary = $salary;
     }
-    
+
     /**
      * Give the employee a raise.
      *
@@ -135,7 +135,7 @@ class Employee extends Person {
     public function giveRaise(float $percentage): void {
         $this->salary *= (1 + $percentage / 100);
     }
-    
+
     /**
      * Get information about the employee's job.
      *
@@ -144,7 +144,7 @@ class Employee extends Person {
     public function getWorkInfo(): string {
         return "I work as a {$this->title} and earn \${$this->salary} per year.";
     }
-    
+
     /**
      * Override the parent's greet method.
      *
@@ -167,7 +167,7 @@ interface Processor {
      * @return string
      */
     public function process(string $data): string;
-    
+
     /**
      * Get processing statistics.
      *
@@ -196,14 +196,14 @@ trait Logger {
  */
 class SimpleProcessor implements Processor {
     use Logger;
-    
+
     /**
      * Number of successful processing operations
      *
      * @var int
      */
     private $count = 0;
-    
+
     /**
      * Process the data by adding a prefix.
      *
@@ -215,13 +215,13 @@ class SimpleProcessor implements Processor {
         if (empty($data)) {
             throw new \InvalidArgumentException("Empty data");
         }
-        
+
         $this->count++;
         $this->log("Processing data: " . substr($data, 0, 20) . "...");
-        
+
         return "Processed: {$data}";
     }
-    
+
     /**
      * Get the count of successful processing operations.
      *
@@ -244,11 +244,11 @@ function calculateStats(array $numbers): ?array {
     if (empty($numbers)) {
         return null;
     }
-    
+
     $min = min($numbers);
     $max = max($numbers);
     $avg = array_sum($numbers) / count($numbers);
-    
+
     return [
         'min' => $min,
         'max' => $max,
@@ -268,7 +268,7 @@ function divide(int $a, int $b): int {
     if ($b === 0) {
         throw new \DivisionByZeroError("Division by zero");
     }
-    
+
     return intdiv($a, $b);
 }
 
@@ -278,13 +278,13 @@ if (PHP_SAPI === 'cli') {
     $person = new Person("John", 30);
     $person->setAddress("123 Main St");
     echo $person->greet() . "\n";
-    
+
     // Create an employee
     $employee = new Employee("Jane", 28, "Software Engineer", 100000);
     $employee->giveRaise(10);
     echo $employee->getWorkInfo() . "\n";
     echo $employee->greet() . "\n";
-    
+
     // Use the processor
     $processor = new SimpleProcessor();
     try {
@@ -293,21 +293,21 @@ if (PHP_SAPI === 'cli') {
     } catch (\Exception $e) {
         echo "Error: " . $e->getMessage() . "\n";
     }
-    
+
     // Use standalone functions
     $numbers = [3, 7, 2, 9, 5];
     $stats = calculateStats($numbers);
     if ($stats) {
         echo "Min: {$stats['min']}, Max: {$stats['max']}, Avg: {$stats['avg']}\n";
     }
-    
+
     try {
         $result = divide(10, 2);
         echo "10 / 2 = {$result}\n";
     } catch (\Exception $e) {
         echo "Error: " . $e->getMessage() . "\n";
     }
-    
+
     // Use constants
     echo "PI: " . PI . "\n";
     echo "MAX_RETRIES: " . MAX_RETRIES . "\n";

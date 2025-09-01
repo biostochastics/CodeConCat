@@ -1,15 +1,28 @@
-"""Security-focused validation functions."""
+"""Security-focused validation functions.
+
+This module provides comprehensive security validation capabilities including:
+- File integrity verification using cryptographic hashes
+- Detection of suspicious content patterns and potential vulnerabilities
+- Binary file detection and analysis
+- Integrity manifest generation and verification for directory trees
+- Integration with Semgrep for advanced security scanning
+
+The module uses TTL caching for performance optimization and provides
+protection against common security threats like SQL injection, path traversal,
+and code injection attacks.
+"""
 
 import hashlib
 import logging
 import re
-import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from ..errors import ValidationError
-from .semgrep_validator import semgrep_validator
+from cachetools import TTLCache  # type: ignore[import-untyped]
+
+from ..errors import FileIntegrityError, ValidationError
 from ..processor.attack_patterns import scan_content as scan_attack_patterns
+from .semgrep_validator import semgrep_validator
 
 logger = logging.getLogger(__name__)
 
@@ -65,17 +78,37 @@ FILE_SIGNATURES = {
     b"\x47\x49\x46\x38": {"type": "image", "description": "GIF image"},
 }
 
-# File hash cache to avoid recomputing hashes
-FILE_HASH_CACHE: Dict[str, str] = {}
-FILE_HASH_CACHE_LOCK = threading.Lock()
+# File hash cache with TTL to avoid recomputing hashes and prevent memory overflow
+# Max 10,000 entries with 1-hour TTL
+FILE_HASH_CACHE: TTLCache = TTLCache(maxsize=10000, ttl=3600)
 
 
 class SecurityValidator:
-    """Security validator for code content and files."""
+    """Security validator for code content and files.
+
+    This class provides methods for validating file security, detecting suspicious
+    patterns, computing and verifying file hashes, and managing integrity manifests.
+    It includes integration with external security scanners like Semgrep and uses
+    pattern matching to detect common security threats.
+
+    Attributes:
+        DANGEROUS_PATTERNS: Dictionary of regex patterns for detecting security threats
+        FILE_SIGNATURES: Dictionary of binary file signatures (magic numbers)
+        FILE_HASH_CACHE: TTL cache for storing computed file hashes (10k entries, 1hr TTL)
+
+    Example:
+        >>> validator = SecurityValidator()
+        >>> hash_value = validator.compute_file_hash("/path/to/file.py")
+        >>> validator.verify_file_integrity("/path/to/file.py", hash_value)
+        >>> findings = validator.check_for_suspicious_content("/path/to/file.py")
+    """
 
     @staticmethod
     def compute_file_hash(
-        file_path: Union[str, Path], algorithm: str = "sha256", use_cache: bool = True
+        file_path: Union[str, Path],
+        algorithm: str = "sha256",
+        use_cache: bool = True,
+        max_file_size: int = 100 * 1024 * 1024,  # 100MB default limit
     ) -> str:
         """
         Compute the hash of a file using the specified algorithm.
@@ -83,42 +116,65 @@ class SecurityValidator:
         Args:
             file_path: Path to the file
             algorithm: Hash algorithm to use (default: sha256)
+                Supported: md5, sha1, sha224, sha256, sha384, sha512
             use_cache: Whether to use cached hash if available (default: True)
+            max_file_size: Maximum file size to hash in bytes (default: 100MB)
 
         Returns:
             The file hash as a hexadecimal string
 
         Raises:
-            ValidationError: If the file cannot be read or the algorithm is invalid
+            ValidationError: If the file cannot be read, too large, or algorithm invalid
+
+        Complexity:
+            O(n) where n is the file size, with O(1) cache lookup when cached
+
+        Note:
+            Uses chunked reading (64KB chunks) to handle large files efficiently
+            Enforces file size limit to prevent memory exhaustion
         """
         path = Path(file_path)
-        cache_key = f"{path.resolve()}:{algorithm}"
+
+        # Check file size before processing to prevent memory exhaustion
+        try:
+            file_size = path.stat().st_size
+            if file_size > max_file_size:
+                raise ValidationError(
+                    f"File {path} too large ({file_size} bytes > {max_file_size} bytes limit)"
+                )
+        except OSError as e:
+            raise ValidationError(f"Cannot access file {path}", original_exception=e) from e
+
+        cache_key = f"{path.resolve()}:{algorithm}:{file_size}"
 
         # Return cached hash if available and cache is enabled
-        if use_cache:
-            with FILE_HASH_CACHE_LOCK:
-                if cache_key in FILE_HASH_CACHE:
-                    return FILE_HASH_CACHE[cache_key]
+        if use_cache and cache_key in FILE_HASH_CACHE:
+            return FILE_HASH_CACHE[cache_key]  # type: ignore[no-any-return]
 
         try:
             hash_func = getattr(hashlib, algorithm)
-        except AttributeError:
-            raise ValidationError(f"Invalid hash algorithm: {algorithm}")
+        except AttributeError as e:
+            raise ValidationError(f"Invalid hash algorithm: {algorithm}") from e
 
         try:
             hasher = hash_func()
+            bytes_read = 0
             with open(path, "rb") as f:
-                # Read and update hash in chunks to avoid loading large files into memory
-                for chunk in iter(lambda: f.read(4096), b""):
+                # Read and update hash in larger chunks for better performance
+                # but limit total bytes read as a safety measure
+                while bytes_read < max_file_size:
+                    chunk = f.read(65536)  # 64KB chunks for better I/O performance
+                    if not chunk:
+                        break
                     hasher.update(chunk)
+                    bytes_read += len(chunk)
 
             file_hash = hasher.hexdigest()
             if use_cache:
-                with FILE_HASH_CACHE_LOCK:
-                    FILE_HASH_CACHE[cache_key] = file_hash
-            return file_hash
+                FILE_HASH_CACHE[cache_key] = file_hash
+            return file_hash  # type: ignore[no-any-return]
         except Exception as e:
-            raise ValidationError(f"Failed to compute hash for {path}", original_exception=e)
+            raise ValidationError(f"Failed to compute hash for {path}", original_exception=e) from e
 
     @staticmethod
     def verify_file_integrity(
@@ -129,21 +185,27 @@ class SecurityValidator:
 
         Args:
             file_path: Path to the file
-            expected_hash: Expected hash value
+            expected_hash: Expected hash value (case-insensitive)
             algorithm: Hash algorithm to use (default: sha256)
 
         Returns:
             True if the file hash matches the expected value
 
         Raises:
-            ValidationError: If the hash doesn't match or computation fails
+            FileIntegrityError: If the hash doesn't match (includes both hashes)
+            ValidationError: If hash computation fails
+
+        See Also:
+            compute_file_hash: For computing file hashes
+            detect_tampering: For checking if a file has been modified
         """
         actual_hash = SecurityValidator.compute_file_hash(file_path, algorithm)
 
         if actual_hash.lower() != expected_hash.lower():
-            raise ValidationError(
-                f"File integrity check failed for {file_path}. "
-                f"Expected hash: {expected_hash}, actual hash: {actual_hash}"
+            raise FileIntegrityError(
+                f"File integrity check failed for {file_path}",
+                expected_hash=expected_hash,
+                actual_hash=actual_hash,
             )
 
         logger.debug(f"File integrity verified for {file_path}")
@@ -156,10 +218,18 @@ class SecurityValidator:
 
         Args:
             content: The content to sanitize
-            patterns: Optional dictionary of patterns to sanitize
+            patterns: Optional dictionary of patterns to sanitize (defaults to DANGEROUS_PATTERNS)
 
         Returns:
-            The sanitized content
+            The sanitized content with dangerous patterns replaced or redacted
+
+        Complexity:
+            O(n*p) where n is content length and p is number of patterns
+
+        Note:
+            - Secrets are redacted with "[REDACTED]" placeholder
+            - Other dangerous patterns are replaced with warning comments
+            - Original structure is preserved where possible
         """
         if patterns is None:
             patterns = DANGEROUS_PATTERNS
@@ -188,25 +258,42 @@ class SecurityValidator:
         """
         Check a file for suspicious content patterns.
 
+        Performs multi-layered security analysis:
+        1. Binary file detection and signature analysis
+        2. Pattern matching for dangerous code patterns
+        3. Semgrep scanning (if enabled)
+        4. Language-specific attack pattern detection
+
         Args:
             file_path: Path to the file
+            use_semgrep: Whether to use Semgrep for additional scanning
 
         Returns:
-            List of detected suspicious patterns
+            List of detected suspicious patterns, each containing:
+                - type: "pattern" or "semgrep"
+                - name: Pattern or rule name
+                - severity: "LOW", "MEDIUM", or "HIGH"
+                - message: Description of the finding
+                - path: File path
+                - line: Line number (if applicable)
 
         Raises:
             ValidationError: If the file cannot be read
+
+        Complexity:
+            O(n) for file reading, O(n*p) for pattern matching where p is pattern count
         """
         try:
             path = Path(file_path)
             findings = []
 
-            # First check if it's a binary file
+            # First check if it's a binary file to avoid text processing on binary data
             if SecurityValidator.is_binary_file(path):
                 with open(path, "rb") as f:
-                    # Check the file signature
-                    header = f.read(16)  # Read first 16 bytes
+                    # Check the file signature (magic number)
+                    header = f.read(16)  # Most signatures are within first 16 bytes
 
+                    # Check against known executable signatures
                     for signature, info in FILE_SIGNATURES.items():
                         if header.startswith(signature) and info["type"] == "executable":
                             findings.append(
@@ -218,6 +305,7 @@ class SecurityValidator:
                                     "path": str(path),
                                 }
                             )
+                            # Executables are high risk, no need for further checks
                             return findings
 
                 findings.append(
@@ -232,7 +320,7 @@ class SecurityValidator:
                 return findings
 
             # For text files, read and scan for patterns
-            with open(path, "r", errors="replace") as f:
+            with open(path, errors="replace") as f:
                 content = f.read()
 
             pattern_findings = []
@@ -265,8 +353,8 @@ class SecurityValidator:
                 except Exception as e:
                     logger.warning(f"Semgrep scan failed for {path}: {e}")
 
-            # Use comprehensive attack patterns
-            # Detect language from file extension
+            # Use comprehensive attack patterns for language-specific vulnerabilities
+            # Map file extensions to programming languages
             extension_map = {
                 ".py": "python",
                 ".js": "javascript",
@@ -315,7 +403,7 @@ class SecurityValidator:
         except Exception as e:
             raise ValidationError(
                 f"Failed to check file for suspicious content: {path}", original_exception=e
-            )
+            ) from e
 
     @staticmethod
     def detect_tampering(
@@ -326,14 +414,20 @@ class SecurityValidator:
 
         Args:
             file_path: Path to the file
-            original_hash: Original hash value
+            original_hash: Original hash value to compare against
             algorithm: Hash algorithm to use (default: sha256)
 
         Returns:
-            True if tampering is detected, False otherwise
+            True if tampering is detected (hashes don't match), False otherwise
 
         Raises:
             ValidationError: If hash computation fails
+
+        Note:
+            Always computes fresh hash (use_cache=False) to ensure current state
+
+        See Also:
+            verify_file_integrity: For strict integrity checking that raises on mismatch
         """
         current_hash = SecurityValidator.compute_file_hash(file_path, algorithm, use_cache=False)
         is_tampered = current_hash.lower() != original_hash.lower()
@@ -348,11 +442,22 @@ class SecurityValidator:
         """
         Check if a file is binary.
 
+        Uses multiple heuristics:
+        1. File extension check against known text formats
+        2. Null byte detection
+        3. UTF-8 decoding test
+
         Args:
             file_path: Path to the file
 
         Returns:
             True if the file appears to be binary, False otherwise
+
+        Complexity:
+            O(1) for extension check, O(n) for content check where n = min(file_size, 8192)
+
+        Note:
+            Returns True on any file access error (fail-safe approach)
         """
         try:
             path = Path(file_path)
@@ -424,13 +529,25 @@ class SecurityValidator:
 
         Args:
             directory: Path to the directory
-            recursive: If True, include files in subdirectories
+            recursive: If True, include files in subdirectories (default: True)
 
         Returns:
-            Dictionary mapping relative file paths to their hashes
+            Dictionary mapping relative file paths (POSIX format) to their SHA-256 hashes
 
         Raises:
-            ValidationError: If the directory cannot be read
+            ValidationError: If the directory cannot be read or is not a directory
+
+        Complexity:
+            O(n*m) where n is number of files and m is average file size
+
+        Example:
+            >>> manifest = SecurityValidator.generate_integrity_manifest("/project")
+            >>> # Save manifest for later verification
+            >>> with open("manifest.json", "w") as f:
+            ...     json.dump(manifest, f)
+
+        See Also:
+            verify_integrity_manifest: For verifying files against a manifest
         """
         try:
             base_path = Path(directory).resolve()
@@ -456,7 +573,7 @@ class SecurityValidator:
                 raise
             raise ValidationError(
                 f"Failed to generate integrity manifest for {directory}", original_exception=e
-            )
+            ) from e
 
     @staticmethod
     def verify_integrity_manifest(
@@ -467,7 +584,7 @@ class SecurityValidator:
 
         Args:
             directory: Base directory containing the files
-            manifest: Dictionary mapping relative file paths to their hashes
+            manifest: Dictionary mapping relative file paths to their expected hashes
 
         Returns:
             Dictionary mapping file paths to verification results:
@@ -479,6 +596,20 @@ class SecurityValidator:
                     "reason": "..." (if verification failed)
                 }
             }
+
+        Complexity:
+            O(n*m) where n is number of files and m is average file size
+
+        Note:
+            - Always computes fresh hashes (use_cache=False)
+            - Hash comparison is case-insensitive
+            - Includes detailed failure reasons (file not found, hash mismatch, errors)
+
+        Example:
+            >>> results = SecurityValidator.verify_integrity_manifest("/project", manifest)
+            >>> for path, result in results.items():
+            ...     if not result["verified"]:
+            ...         print(f"Failed: {path} - {result['reason']}")
         """
         base_path = Path(directory).resolve()
         results = {}
@@ -509,7 +640,7 @@ class SecurityValidator:
 
             results[rel_path] = result
 
-        return results
+        return results  # type: ignore[return-value]
 
 
 # Create a singleton instance

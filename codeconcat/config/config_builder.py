@@ -16,7 +16,8 @@ import logging
 import os
 from enum import Enum
 from typing import Any, Dict, List, Optional
-import yaml
+
+import yaml  # type: ignore[import-untyped]
 from pydantic import ValidationError
 
 from codeconcat.base_types import CodeConCatConfig
@@ -132,10 +133,10 @@ class ConfigBuilder:
             Self, to enable method chaining.
         """
         # Create a default instance of the config model to extract default values
-        default_config = CodeConCatConfig()
+        default_config = CodeConCatConfig.model_validate({})
 
         # Extract default values as a dictionary
-        config_dict = default_config.dict()
+        config_dict = default_config.model_dump()
 
         # Set use_default_excludes to True by default if not explicitly set
         if "use_default_excludes" not in config_dict or config_dict["use_default_excludes"] is None:
@@ -145,7 +146,7 @@ class ConfigBuilder:
         self._config_dict = config_dict
 
         # Record the source for each setting
-        self._sources = {name: ConfigSource.DEFAULT for name in config_dict.keys()}
+        self._sources = dict.fromkeys(config_dict.keys(), ConfigSource.DEFAULT)
 
         # Mark as initialized
         self._initialized = True
@@ -228,7 +229,7 @@ class ConfigBuilder:
 
         # Load YAML configuration
         try:
-            with open(config_path, "r", encoding="utf-8") as file:
+            with open(config_path, encoding="utf-8") as file:
                 yaml_config = yaml.safe_load(file) or {}
 
             # Handle compatibility with old flag names
@@ -360,14 +361,15 @@ class ConfigBuilder:
 
         # Only set default output path if it wasn't provided by any source
         # Don't override CLI or YAML specified output paths
-        if self._sources.get("output") == ConfigSource.DEFAULT:
-            # Check if we're still using the default value
-            if self._config_dict.get("output") == "code_concat_output.md":
-                # Update to use correct format extension
-                format_value = self._config_dict.get("format", "markdown")
-                output_path = f"code_concat_output.{format_value}"
-                self._config_dict["output"] = output_path
-                self._sources["output"] = ConfigSource.COMPUTED
+        if (
+            self._sources.get("output") == ConfigSource.DEFAULT
+            and self._config_dict.get("output") == "code_concat_output.md"
+        ):
+            # Update to use correct format extension
+            format_value = self._config_dict.get("format", "markdown")
+            output_path = f"code_concat_output.{format_value}"
+            self._config_dict["output"] = output_path
+            self._sources["output"] = ConfigSource.COMPUTED
 
         # Apply default exclude patterns if not overridden
         if (
@@ -526,7 +528,9 @@ class ConfigBuilder:
                 value = self._config_dict[name]
                 # Format output for readability
                 if isinstance(value, (list, tuple)) and len(value) > 3:
-                    value_str = f"[{', '.join(str(v) for v in value[:3])}... +{len(value)-3} more]"
+                    value_str = (
+                        f"[{', '.join(str(v) for v in value[:3])}... +{len(value) - 3} more]"
+                    )
                 else:
                     value_str = str(value)
 

@@ -6,6 +6,7 @@ from typing import Dict, List, Set
 from tree_sitter import Node
 
 from ...base_types import Declaration
+from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
@@ -18,9 +19,8 @@ JAVA_QUERIES = {
         ; Standard imports
         (import_declaration
             name: (_) @import
-            static: "static"? @static_import
         )
-        
+
         ; Wildcard imports (import x.y.*)
         (import_declaration
             name: (scoped_identifier
@@ -28,16 +28,13 @@ JAVA_QUERIES = {
                 name: (asterisk) @wildcard
             )
         ) @wildcard_import
-        
-        ; Static wildcard imports (import static x.y.*)
+
+        ; Static imports
         (import_declaration
-            static: "static" @static
-            name: (scoped_identifier
-                scope: (_) @static_wildcard_scope
-                name: (asterisk) @static_wildcard
-            )
-        ) @static_wildcard_import
-        
+            "static"
+            name: (_) @static_import
+        ) @static_import_stmt
+
         ; Package declaration (track base package)
         (package_declaration
             name: (_) @package
@@ -65,7 +62,7 @@ JAVA_QUERIES = {
             )?
             body: (class_body) @body
         ) @class
-        
+
         ; Record declarations (Java 14+)
         (record_declaration
             (modifiers
@@ -114,13 +111,11 @@ JAVA_QUERIES = {
                 )
             )?
             body: (enum_body
-                (enum_constant_list
-                    (enum_constant
-                        name: (identifier) @enum_value
-                        arguments: (argument_list)? @enum_value_args
-                        body: (class_body)? @enum_value_body
-                    )*
-                )?
+                (enum_constant
+                    name: (identifier) @enum_value
+                    arguments: (argument_list)? @enum_value_args
+                    body: (class_body)? @enum_value_body
+                )*
             ) @body
         ) @enum
 
@@ -139,9 +134,6 @@ JAVA_QUERIES = {
                     name: (identifier) @param_name
                     type: (_) @param_type
                     (dimensions)? @param_array_dims
-                    (variable_declarator_id
-                        dimensions: (dimensions)? @var_dims
-                    )?
                 )*
                 (spread_parameter
                     name: (identifier) @vararg_name
@@ -175,7 +167,7 @@ JAVA_QUERIES = {
                 (block) @body_block
             ) @body
         ) @constructor
-        
+
         ; Field declarations with multiple variables
         (field_declaration
             (modifiers
@@ -208,13 +200,13 @@ JAVA_QUERIES = {
                 )*
             ) @body
         ) @annotation_type
-        
+
         ; Lambda expressions (method and class levels)
         (lambda_expression
             parameters: [(formal_parameters) (identifier)] @lambda_params
             body: [(block) (expression)] @lambda_body
         ) @lambda
-        
+
         ; Method reference expressions (Class::method)
         (method_reference
             object: (_) @method_ref_object
@@ -224,11 +216,11 @@ JAVA_QUERIES = {
     # Query for extracting doc comments
     "doc_comments": """
         ; Javadoc block comments (/**...*/)
-        (block_comment) @javadoc_comment (#match? @javadoc_comment "^/\\*\\*")
-        
+        (block_comment) @javadoc_comment
+
         ; Regular block comments (/*...*/)
         (block_comment) @block_comment
-        
+
         ; Line comments (//...)
         (line_comment) @line_comment
     """,
@@ -253,7 +245,6 @@ class TreeSitterJavaParser(BaseTreeSitterParser):
         queries = self.get_queries()
         declarations = []
         imports: Set[str] = set()
-        declaration_map = {}  # node_id -> declaration info
         doc_comment_map = {}  # end_line -> comment_text
 
         # --- Pass 1: Extract Doc Comments and map by end line --- #
@@ -261,13 +252,15 @@ class TreeSitterJavaParser(BaseTreeSitterParser):
         try:
             doc_query = self.ts_language.query(queries.get("doc_comments", ""))
             doc_captures = doc_query.captures(root_node)
-            for node, _ in doc_captures:
-                comment_text = byte_content[node.start_byte : node.end_byte].decode(
-                    "utf8", errors="ignore"
-                )
-                if comment_text.startswith("/**") and comment_text.endswith("*/"):
-                    # Store Javadoc comments keyed by their end line
-                    doc_comment_map[node.end_point[0]] = self._clean_javadoc(comment_text)
+            # doc_captures is a dict: {capture_name: [list of nodes]}
+            for _capture_name, nodes in doc_captures.items():
+                for node in nodes:
+                    comment_text = byte_content[node.start_byte : node.end_byte].decode(
+                        "utf8", errors="replace"
+                    )
+                    if comment_text.startswith("/**") and comment_text.endswith("*/"):
+                        # Store Javadoc comments keyed by their end line
+                        doc_comment_map[node.end_point[0]] = self._clean_javadoc(comment_text)
         except Exception as e:
             logger.warning(f"Failed to execute Java doc_comments query: {e}", exc_info=True)
 
@@ -282,99 +275,107 @@ class TreeSitterJavaParser(BaseTreeSitterParser):
                 logger.debug(f"Running Java query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for node, _ in captures:
-                        import_text = byte_content[node.start_byte : node.end_byte].decode(
-                            "utf8", errors="ignore"
-                        )
-                        imports.add(import_text)
+                    # captures is a dict of {capture_name: [list of nodes]}
+                    # Fixed capture unpacking pattern
+                    for capture in captures.items():
+                        if len(capture) == 2:
+                            capture_name, nodes = capture
+                        else:
+                            continue
+                        if capture_name in ["import_statement", "import_path", "import"]:
+                            for node in nodes:
+                                import_text = byte_content[node.start_byte : node.end_byte].decode(
+                                    "utf8", errors="replace"
+                                )
+                                imports.add(import_text)
 
                 elif query_name == "declarations":
-                    current_decl_node_id = None
-                    for capture in captures:
-                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
-                        if len(capture) == 2:
-                            node, capture_name = capture
-                        else:
-                            node, capture_name, _ = capture
-                        node_id = node.id
+                    # Use matches for better structure
+                    matches = query.matches(root_node)
+                    for _match_id, captures_dict in matches:
+                        declaration_node = None
+                        name_node = None
+                        kind = None
+                        modifiers = set()
 
-                        # Identify the main declaration node
-                        if capture_name in [
+                        # Check for various declaration types
+                        decl_types = [
                             "class",
                             "interface",
                             "enum",
                             "method",
                             "constructor",
-                            "annotation",
-                        ]:
-                            current_decl_node_id = node_id
-                            if node_id not in declaration_map:
-                                declaration_map[node_id] = {
-                                    "kind": capture_name,
-                                    "node": node,
-                                    "name": None,
-                                    "start_line": node.start_point[0],
-                                    "end_line": node.end_point[0],
-                                    "modifiers": set(),
-                                    "docstring": "",  # Initialize docstring
-                                }
-                            # Update end line potentially
-                            declaration_map[node_id]["end_line"] = max(
-                                declaration_map[node_id]["end_line"], node.end_point[0]
-                            )
+                            "annotation_type",
+                            "record",
+                            "field",
+                        ]
 
-                        # Capture name
-                        elif capture_name == "name" and current_decl_node_id in declaration_map:
-                            name_text = byte_content[node.start_byte : node.end_byte].decode(
-                                "utf8", errors="ignore"
-                            )
-                            declaration_map[current_decl_node_id]["name"] = name_text
+                        for decl_type in decl_types:
+                            if decl_type in captures_dict:
+                                nodes = captures_dict[decl_type]
+                                if nodes and len(nodes) > 0:
+                                    declaration_node = nodes[0]
+                                    kind = decl_type
+                                    break
 
-                        # Capture modifiers
-                        elif capture_name == "modifier" and current_decl_node_id in declaration_map:
-                            modifier_text = byte_content[node.start_byte : node.end_byte].decode(
-                                "utf8", errors="ignore"
-                            )
-                            # Filter common modifiers (can be expanded)
-                            if modifier_text in [
-                                "public",
-                                "private",
-                                "protected",
-                                "static",
-                                "final",
-                                "abstract",
-                                "synchronized",
-                                "native",
-                                "strictfp",
-                            ]:
-                                declaration_map[current_decl_node_id]["modifiers"].add(
-                                    modifier_text
+                        # Get the name node
+                        if "name" in captures_dict:
+                            name_nodes = captures_dict["name"]
+                            if name_nodes and len(name_nodes) > 0:
+                                name_node = name_nodes[0]
+
+                        # Get modifiers
+                        if "modifier" in captures_dict:
+                            modifier_nodes = captures_dict["modifier"]
+                            for mod_node in modifier_nodes:
+                                modifier_text = byte_content[
+                                    mod_node.start_byte : mod_node.end_byte
+                                ].decode("utf8", errors="replace")
+                                if modifier_text in [
+                                    "public",
+                                    "private",
+                                    "protected",
+                                    "static",
+                                    "final",
+                                    "abstract",
+                                    "synchronized",
+                                    "native",
+                                    "strictfp",
+                                ]:
+                                    modifiers.add(modifier_text)
+
+                        # Add declaration if we have both node and name
+                        if declaration_node and name_node:
+                            name_text = byte_content[
+                                name_node.start_byte : name_node.end_byte
+                            ].decode("utf8", errors="replace")
+
+                            # Check for docstring
+                            docstring = doc_comment_map.get(declaration_node.start_point[0] - 1, "")
+
+                            # Use utility function for accurate line numbers
+                            start_line, end_line = get_node_location(declaration_node)
+
+                            declarations.append(
+                                Declaration(
+                                    kind=kind or "unknown",
+                                    name=name_text,
+                                    start_line=start_line,
+                                    end_line=end_line,
+                                    docstring=docstring,
+                                    modifiers=modifiers,
                                 )
+                            )
 
             except Exception as e:
                 logger.warning(f"Failed to execute Java query '{query_name}': {e}", exc_info=True)
 
-        # --- Pass 3: Process captured declarations and associate docstrings --- #
-        for decl_info in declaration_map.values():
-            if decl_info.get("name"):  # Ensure name was captured
-                # Check if a doc comment ended on the line before this declaration started
-                docstring = doc_comment_map.get(decl_info["start_line"] - 1, "")
-
-                declarations.append(
-                    Declaration(
-                        kind=decl_info["kind"],
-                        name=decl_info["name"],
-                        start_line=decl_info["start_line"],
-                        end_line=decl_info["end_line"],
-                        docstring=docstring,
-                        modifiers=decl_info["modifiers"],
-                    )
-                )
+        # Declaration processing now happens inline
 
         # Sort declarations by start line
         declarations.sort(key=lambda d: d.start_line)
         # Sort imports alphabetically
-        sorted_imports = sorted(list(imports))
+        sorted_imports = sorted(imports)
 
         logger.debug(
             f"Tree-sitter Java extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
@@ -384,10 +385,10 @@ class TreeSitterJavaParser(BaseTreeSitterParser):
     def _clean_javadoc(self, comment_text: str) -> str:
         """Cleans a Javadoc block comment, removing delimiters and leading asterisks."""
         lines = comment_text.split("\n")
-        cleaned_lines = []
+        cleaned_lines: list[str] = []
         in_tag = False
         current_tag = ""
-        current_tag_content = []
+        current_tag_content: list[str] = []
 
         for i, line in enumerate(lines):
             stripped = line.strip()

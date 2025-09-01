@@ -1,9 +1,25 @@
-"""Schema validation for configuration and data files."""
+"""Schema validation for configuration and data files.
+
+This module provides JSON schema validation capabilities for CodeConCat configurations,
+API requests/responses, and arbitrary data structures. It includes predefined schemas
+for common use cases and utilities for schema management and generation.
+
+Features:
+- Predefined schemas for configurations, API requests, and API responses
+- Schema loading from files
+- Dynamic schema generation from examples
+- Schema registration for custom validation needs
+- Graceful fallback when jsonschema is not installed (CLI mode only)
+
+Note:
+    The jsonschema library is required for API mode (security critical) but optional
+    for CLI mode (backward compatibility).
+"""
 
 import json
 import logging
-from typing import Any, Dict, Optional, Union
 from pathlib import Path
+from typing import Any, Dict, Optional, Union
 
 try:
     import jsonschema
@@ -12,6 +28,17 @@ try:
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
+    # Log critical error for production environments
+    import sys
+
+    if "codeconcat.api" in sys.modules:
+        # We're in API mode, this is critical
+        import logging
+
+        logging.getLogger(__name__).critical(
+            "jsonschema is not installed but is required for API security. "
+            "Install with: pip install jsonschema"
+        )
 
 from ..errors import ValidationError
 
@@ -87,18 +114,41 @@ def validate_against_schema(
     Args:
         data: The data to validate
         schema: Either a schema dictionary or a key in the SCHEMAS dictionary
-        context: Optional context information for error messages
+            Supported keys: "config", "api_request", "api_response"
+        context: Optional context information for error messages (e.g., "API request")
 
     Returns:
         True if validation passes
 
     Raises:
-        ValidationError: If validation fails or jsonschema is not installed
+        ValidationError: If validation fails or jsonschema is not installed in API mode
+
+    Complexity:
+        O(n) where n is the size of the data structure being validated
+
+    Note:
+        In API mode, jsonschema is required for security. In CLI mode, validation
+        is skipped if jsonschema is not installed (backward compatibility).
+
+    Example:
+        >>> validate_against_schema({"format": "json", "output": "out.json"}, "config")
+        True
     """
     if not HAS_JSONSCHEMA:
-        logger.warning("jsonschema package not installed. Schema validation is disabled.")
-        logger.info("Install with: pip install jsonschema")
-        return True
+        # Check if we're in API mode - if so, this is a critical security issue
+        import sys
+
+        if "codeconcat.api" in sys.modules or "fastapi" in sys.modules:
+            # In API mode, fail closed for security - we cannot proceed without validation
+            raise ValidationError(
+                "Schema validation is required for API security but jsonschema is not installed. "
+                "Install with: pip install jsonschema"
+            )
+        else:
+            # In CLI mode, warn but continue (backward compatibility for existing users)
+            logger.warning("jsonschema package not installed. Schema validation is disabled.")
+            logger.info("Install with: pip install jsonschema")
+            return True
 
     # If schema is a string, look it up in the predefined schemas
     if isinstance(schema, str):
@@ -122,7 +172,7 @@ def validate_against_schema(
         logger.error(message)
         raise ValidationError(
             message, field=error_path or None, value=e.instance, original_exception=e
-        )
+        ) from e
 
 
 def load_schema_from_file(schema_path: Union[str, Path]) -> Dict[str, Any]:
@@ -130,16 +180,24 @@ def load_schema_from_file(schema_path: Union[str, Path]) -> Dict[str, Any]:
     Load a JSON schema from a file.
 
     Args:
-        schema_path: Path to the schema file
+        schema_path: Path to the schema file (must be valid JSON)
 
     Returns:
         The loaded schema as a dictionary
 
     Raises:
-        ValidationError: If the schema file cannot be loaded or is invalid
+        ValidationError: If the schema file cannot be loaded, is invalid JSON,
+            or is not a JSON object
+
+    Complexity:
+        O(n) where n is the size of the schema file
+
+    Example:
+        >>> schema = load_schema_from_file("path/to/schema.json")
+        >>> validate_against_schema(data, schema)
     """
     try:
-        with open(schema_path, "r") as f:
+        with open(schema_path) as f:
             schema = json.load(f)
 
         # Basic validation that it's actually a schema
@@ -147,17 +205,30 @@ def load_schema_from_file(schema_path: Union[str, Path]) -> Dict[str, Any]:
             raise ValidationError(f"Schema must be a JSON object: {schema_path}")
 
         return schema
-    except (IOError, json.JSONDecodeError) as e:
-        raise ValidationError(f"Failed to load schema from {schema_path}", original_exception=e)
+    except (OSError, json.JSONDecodeError) as e:
+        raise ValidationError(
+            f"Failed to load schema from {schema_path}", original_exception=e
+        ) from e
 
 
 def register_schema(name: str, schema: Dict[str, Any]) -> None:
     """
     Register a new schema or update an existing one.
 
+    This allows dynamic extension of the validation system with custom schemas
+    that can be referenced by name in validate_against_schema().
+
     Args:
-        name: The name to register the schema under
-        schema: The schema dictionary
+        name: The name to register the schema under (will overwrite if exists)
+        schema: The schema dictionary conforming to JSON Schema specification
+
+    Note:
+        Registered schemas persist for the lifetime of the process
+
+    Example:
+        >>> custom_schema = {"type": "object", "required": ["id"]}
+        >>> register_schema("my_schema", custom_schema)
+        >>> validate_against_schema({"id": 123}, "my_schema")
     """
     SCHEMAS[name] = schema
     logger.debug(f"Registered schema: {name}")
@@ -174,53 +245,81 @@ def generate_schema_from_example(
 
     Args:
         example: An example object to generate a schema from
-        required_fields: List of field names that should be required
+        required_fields: List of field names that should be marked as required
 
     Returns:
-        A JSON schema that would validate the example
+        A JSON schema that would validate the example and similar objects
+
+    Raises:
+        ValidationError: If example is not a dictionary
+
+    Complexity:
+        O(n) where n is the total number of fields in the nested structure
+
+    Note:
+        - Recursively handles nested dictionaries and lists
+        - Infers types from Python types (str->string, int->integer, etc.)
+        - Empty lists result in untyped array schemas
+        - None values result in "null" type
+
+    Example:
+        >>> example = {"name": "John", "age": 30, "active": True}
+        >>> schema = generate_schema_from_example(example, required_fields=["name"])
+        >>> # Results in schema requiring "name" field with appropriate types
     """
     if not isinstance(example, dict):
         raise ValidationError("Example must be a dictionary")
 
-    schema = {"type": "object", "properties": {}}
+    schema: Dict[str, Any] = {"type": "object", "properties": {}}
 
     if required_fields:
         schema["required"] = required_fields
 
     for key, value in example.items():
         if isinstance(value, dict):
-            schema["properties"][key] = generate_schema_from_example(value)
+            # Recursively generate schema for nested objects
+            properties = schema.setdefault("properties", {})
+            properties[key] = generate_schema_from_example(value)
         elif isinstance(value, list):
             if value and all(isinstance(item, dict) for item in value):
-                # List of objects
+                # List of objects - use first item as template for all items
                 item_schema = generate_schema_from_example(value[0])
-                schema["properties"][key] = {"type": "array", "items": item_schema}
+                properties = schema.setdefault("properties", {})
+                properties[key] = {"type": "array", "items": item_schema}
             elif value:
-                # List of primitives
+                # List of primitives - infer type from first element
                 item_type = type(value[0]).__name__
+                # Map Python type names to JSON Schema types
                 type_mapping = {
                     "str": "string",
                     "int": "integer",
                     "float": "number",
                     "bool": "boolean",
                 }
-                schema["properties"][key] = {
+                properties = schema.setdefault("properties", {})
+                properties[key] = {
                     "type": "array",
                     "items": {"type": type_mapping.get(item_type, item_type)},
                 }
             else:
-                # Empty list
-                schema["properties"][key] = {"type": "array"}
+                # Empty list - can't infer item type
+                properties = schema.setdefault("properties", {})
+                properties[key] = {"type": "array"}
         elif isinstance(value, str):
-            schema["properties"][key] = {"type": "string"}
+            properties = schema.setdefault("properties", {})
+            properties[key] = {"type": "string"}
         elif isinstance(value, bool):
-            # Check bool before int since bool is a subclass of int
-            schema["properties"][key] = {"type": "boolean"}
+            # Check bool before int since bool is a subclass of int in Python
+            properties = schema.setdefault("properties", {})
+            properties[key] = {"type": "boolean"}
         elif isinstance(value, int):
-            schema["properties"][key] = {"type": "integer"}
+            properties = schema.setdefault("properties", {})
+            properties[key] = {"type": "integer"}
         elif isinstance(value, float):
-            schema["properties"][key] = {"type": "number"}
+            properties = schema.setdefault("properties", {})
+            properties[key] = {"type": "number"}
         elif value is None:
-            schema["properties"][key] = {"type": "null"}
+            properties = schema.setdefault("properties", {})
+            properties[key] = {"type": "null"}
 
     return schema

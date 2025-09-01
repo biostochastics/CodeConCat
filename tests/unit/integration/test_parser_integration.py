@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Integration tests for CodeConCat parsers with other components.
@@ -10,13 +9,13 @@ and output generation.
 """
 
 import logging
-import pytest
 from pathlib import Path
 
-from codeconcat.base_types import ParseResult, ParserInterface
-from codeconcat.parser.file_parser import get_language_parser
+import pytest
+
+from codeconcat.base_types import CodeConCatConfig, ParseResult, ParserInterface
 from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
-from codeconcat.base_types import CodeConCatConfig
+from codeconcat.parser.file_parser import get_language_parser
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -47,11 +46,11 @@ from typing import List, Dict, Optional
 
 class TestClass:
     """A test class for demonstration."""
-    
+
     def __init__(self, name: str):
         """Initialize with a name."""
         self.name = name
-    
+
     def greet(self) -> str:
         """Return a greeting."""
         return f"Hello, {self.name}!"
@@ -89,7 +88,7 @@ class TestClass {
   constructor(name) {
     this.name = name;
   }
-  
+
   /**
    * Return a greeting.
    */
@@ -157,7 +156,7 @@ main();
         assert parser is not None, "Failed to get Python parser"
 
         # Parse the sample file
-        with open(sample_python_file, "r") as f:
+        with open(sample_python_file) as f:
             content = f.read()
 
         parse_result = parser.parse(content, str(sample_python_file))
@@ -199,7 +198,7 @@ main();
         assert js_parser is not None, "Failed to get JavaScript parser"
 
         # Parse the Python file
-        with open(sample_python_file, "r") as f:
+        with open(sample_python_file) as f:
             python_content = f.read()
 
         python_result = python_parser.parse(python_content, str(sample_python_file))
@@ -207,7 +206,7 @@ main();
         assert len(python_result.declarations) > 0
 
         # Parse the JavaScript file
-        with open(sample_js_file, "r") as f:
+        with open(sample_js_file) as f:
             js_content = f.read()
 
         js_result = js_parser.parse(js_content, str(sample_js_file))

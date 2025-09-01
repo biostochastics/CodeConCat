@@ -105,9 +105,9 @@ class EnhancedRParser(EnhancedBaseParser):
         try:
             logger.debug(f"Starting EnhancedRParser.parse for file: {file_path}")
 
-            declarations = []
-            imports = []
-            errors = []
+            declarations: list[Declaration] = []
+            imports: list[str] = []
+            errors: list[str] = []
 
             lines = content.split("\n")
 
@@ -180,11 +180,9 @@ class EnhancedRParser(EnhancedBaseParser):
                 continue
 
             # Skip commented lines
-            if line.startswith("#"):
-                # Skip non-roxygen comments
-                if not line.startswith("#'"):
-                    i += 1
-                    continue
+            if line.startswith("#") and not line.startswith("#'"):
+                i += 1
+                continue
 
             # Check for imports
             if self._process_imports(line, imports):
@@ -208,15 +206,17 @@ class EnhancedRParser(EnhancedBaseParser):
                         except (IndexError, KeyError):
                             continue
 
-                    if not name:
-                        # For S3/S4 methods, construct name from method + class
-                        if kind in ["s3_method", "s4_method"] and "class" in match.groupdict():
-                            method = match.group("method") if "method" in match.groupdict() else ""
-                            class_name = match.group("class")
-                            if method and class_name:
-                                name = f"{method}.{class_name}"
-                            elif class_name:
-                                name = class_name
+                    if (
+                        not name
+                        and kind in ["s3_method", "s4_method"]
+                        and "class" in match.groupdict()
+                    ):
+                        method = match.group("method") if "method" in match.groupdict() else ""
+                        class_name = match.group("class")
+                        if method and class_name:
+                            name = f"{method}.{class_name}"
+                        elif class_name:
+                            name = class_name
 
                     if not name:
                         i += 1
@@ -237,7 +237,7 @@ class EnhancedRParser(EnhancedBaseParser):
                     docstring_text = ""
 
                     # Get docstring if available (roxygen2 comments)
-                    docstring_text = self._extract_roxygen_docstring(lines, i)
+                    docstring_text = self._extract_roxygen_docstring(lines, i) or ""
 
                     # Check for block definition with braces
                     if "{" in line:
@@ -281,7 +281,7 @@ class EnhancedRParser(EnhancedBaseParser):
 
                     # Process nested blocks (only for functions and blocks with braces)
                     if end_line > start_line:
-                        nested_declarations = []  # Create new list for children
+                        nested_declarations: list[Declaration] = []  # Create new list for children
                         # Recursively process the block for nested declarations
                         self._process_block(
                             lines,
@@ -331,10 +331,7 @@ class EnhancedRParser(EnhancedBaseParser):
             if match:
                 path = match.group("path")
                 # Extract filename from path as "imported" content
-                if "/" in path:
-                    filename = path.split("/")[-1]
-                else:
-                    filename = path
+                filename = path.split("/")[-1] if "/" in path else path
                 if filename.endswith(".R") or filename.endswith(".r"):
                     filename = filename[:-2]
                 imports.append(f"source:{filename}")
@@ -357,7 +354,7 @@ class EnhancedRParser(EnhancedBaseParser):
             return ""
 
         # Look for roxygen comments before the current line
-        doc_lines = []
+        doc_lines: list[str] = []
         i = current_line - 1
 
         while i >= 0 and i >= current_line - 30:  # Look up to 30 lines back
@@ -412,11 +409,7 @@ class EnhancedRParser(EnhancedBaseParser):
             return False
 
         # Check for patterns that indicate a new declaration
-        for kind, pattern in self.patterns.items():
-            if pattern.match(line):
-                return True
-
-        return False
+        return any(pattern.match(line) for _kind, pattern in self.patterns.items())
 
     def get_capabilities(self) -> Dict[str, bool]:
         """Return the capabilities of this parser."""

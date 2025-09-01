@@ -1,15 +1,15 @@
 """Integration tests for CodeConCat using real repositories."""
 
-import pytest
-import subprocess
 import logging
+import subprocess
+import traceback
 from unittest.mock import patch
 
-import traceback
-from codeconcat.base_types import CodeConCatConfig
-from codeconcat.main import run_codeconcat
-from codeconcat.errors import ValidationError, ConfigurationError
+import pytest
 
+from codeconcat.base_types import CodeConCatConfig
+from codeconcat.errors import ConfigurationError, ValidationError
+from codeconcat.main import run_codeconcat
 
 # Configure logging for tests
 logging.basicConfig(
@@ -129,7 +129,7 @@ class TestRepositoryValidation:
                         f"Detailed traceback for flask-microblog written to {debug_log_path}"
                     )
                     print(f"--- START content of {debug_log_path} ---")
-                    with open(debug_log_path, "r") as f_read:
+                    with open(debug_log_path) as f_read:
                         print(f_read.read())
                     print(f"--- END content of {debug_log_path} ---")
                 logger.error(
@@ -147,12 +147,12 @@ class TestRepositoryValidation:
         with patch(
             "codeconcat.validation.semgrep_validator.semgrep_validator.is_available",
             return_value=False,
-        ):
-            with patch("codeconcat.validation.setup_semgrep.install_semgrep", return_value=False):
-                try:
-                    import semgrep  # noqa: F401
-                except ImportError:
-                    pytest.skip("Semgrep is not available and cannot be installed")
+        ), patch("codeconcat.validation.setup_semgrep.install_semgrep", return_value=False):
+            # Check if semgrep module is available
+            import importlib.util
+
+            if importlib.util.find_spec("semgrep") is None:
+                pytest.skip("Semgrep is not available and cannot be installed")
 
         # Clone repo to temporary directory
         repo_dir = tmp_path / f"{repo['name']}_semgrep"
@@ -193,41 +193,38 @@ class TestRepositoryValidation:
             with patch(
                 "codeconcat.validation.semgrep_validator.SemgrepValidator.scan_file",
                 return_value=mock_findings,
+            ), patch(
+                "codeconcat.validation.semgrep_validator.semgrep_validator.is_available",
+                return_value=True,
             ):
-                with patch(
-                    "codeconcat.validation.semgrep_validator.semgrep_validator.is_available",
-                    return_value=True,
-                ):
-                    config = CodeConCatConfig(
-                        target_path=str(repo_dir),
-                        format="json",  # Use JSON to easily parse the output for findings
-                        output=str(tmp_path / f"{repo['name']}_semgrep_output.json"),
-                        enable_security_scanning=True,
-                        enable_semgrep=True,
-                        strict_security=False,
-                        verbose=True,
-                    )
+                config = CodeConCatConfig(
+                    target_path=str(repo_dir),
+                    format="json",  # Use JSON to easily parse the output for findings
+                    output=str(tmp_path / f"{repo['name']}_semgrep_output.json"),
+                    enable_security_scanning=True,
+                    enable_semgrep=True,
+                    strict_security=False,
+                    verbose=True,
+                )
 
-                    try:
-                        logger.info(f"Running CodeConCat with Semgrep on {repo['name']}")
-                        output = run_codeconcat(config)
-                        logger.info(f"CodeConCat with Semgrep completed for {repo['name']}")
+                try:
+                    logger.info(f"Running CodeConCat with Semgrep on {repo['name']}")
+                    output = run_codeconcat(config)
+                    logger.info(f"CodeConCat with Semgrep completed for {repo['name']}")
 
-                        # Check output
-                        assert output, "No output was generated"
-                        # No need to check file existence since run_codeconcat returns string
+                    # Check output
+                    assert output, "No output was generated"
+                    # No need to check file existence since run_codeconcat returns string
 
-                        # In a real test, we would check for actual findings in the output
-                        if repo["expected_findings"] > 0:
-                            assert (
-                                "WARNING" in output or "security" in output.lower()
-                            ), f"Expected security findings in {repo['name']} output"
+                    # In a real test, we would check for actual findings in the output
+                    if repo["expected_findings"] > 0:
+                        assert (
+                            "WARNING" in output or "security" in output.lower()
+                        ), f"Expected security findings in {repo['name']} output"
 
-                    except Exception as e:
-                        logger.error(
-                            f"Error running CodeConCat with Semgrep on {repo['name']}: {e}"
-                        )
-                        raise
+                except Exception as e:
+                    logger.error(f"Error running CodeConCat with Semgrep on {repo['name']}: {e}")
+                    raise
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Error cloning repository {repo['name']}: {e.stderr}")

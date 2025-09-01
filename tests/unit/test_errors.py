@@ -1,11 +1,11 @@
 """Tests for custom error classes."""
 
 from codeconcat.errors import (
-    ValidationError,
-    FileProcessingError,
-    ConfigurationError,
-    ParserError,
     CodeConcatError,
+    ConfigurationError,
+    FileProcessingError,
+    ParserError,
+    ValidationError,
 )
 
 

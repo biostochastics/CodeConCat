@@ -1,6 +1,6 @@
 """Tests for comprehensive attack pattern detection."""
 
-from codeconcat.processor.attack_patterns import scan_content, get_patterns_for_language, Severity
+from codeconcat.processor.attack_patterns import Severity, get_patterns_for_language, scan_content
 
 
 class TestAttackPatterns:
@@ -35,14 +35,14 @@ class TestAttackPatterns:
             eval(user_input)
             exec(user_input)
             result = eval(f"2 + {user_input}")
-            
+
             # Command injection
             os.system("echo " + user_input)
             subprocess.Popen(f"ls {user_input}", shell=True)
-            
+
             # SQL injection
             cursor.execute("SELECT * FROM users WHERE id = " + user_input)
-            
+
             # Safe alternatives (should not trigger)
             eval("2 + 2")
             os.system("echo hello")
@@ -70,18 +70,18 @@ class TestAttackPatterns:
         # Dangerous eval/parse pattern
         user_expr <- readline()
         result <- eval(parse(text = user_expr))
-        
+
         # Command injection
         filename <- input$file
         system(paste("cat", filename))
-        
+
         # SQL injection
         query <- paste("SELECT * FROM data WHERE id =", user_id)
         dbGetQuery(conn, query)
-        
+
         # More direct SQL injection
         dbGetQuery(conn, paste("SELECT * FROM data WHERE id =", user_id))
-        
+
         # Unsafe RDS loading
         data <- readRDS(input_file)
         """
@@ -100,13 +100,13 @@ class TestAttackPatterns:
             // DOM XSS vulnerabilities
             document.getElementById('content').innerHTML = userInput;
             element.outerHTML = userInput;
-            
+
             // React dangerouslySetInnerHTML
             return <div dangerouslySetInnerHTML={{__html: userInput}} />;
-            
+
             // Eval injection
             eval(userInput);
-            
+
             // Prototype pollution
             obj[userInput] = value;
             obj['__proto__'] = malicious;
@@ -131,15 +131,15 @@ class TestAttackPatterns:
             // SQL injection
             userId := r.URL.Query().Get("id")
             db.Query("SELECT * FROM users WHERE id = " + userId)
-            
+
             // Command injection
             filename := r.FormValue("file")
             exec.Command("cat", filename).Run()
-            
+
             // Path traversal
             file := r.URL.Query().Get("file")
             data, _ := ioutil.ReadFile(file)
-            
+
             // Weak random
             token := math/rand.Intn(1000000)
         }
@@ -159,17 +159,17 @@ class TestAttackPatterns:
         // SQL injection
         $id = $_GET['id'];
         mysql_query("SELECT * FROM users WHERE id = " . $id);
-        
+
         // Command injection
         system($_POST['cmd']);
         exec("ls " . $_REQUEST['dir']);
-        
+
         // File inclusion
         include($_GET['page'] . '.php');
-        
+
         // Unserialize vulnerability
         $data = unserialize($_COOKIE['data']);
-        
+
         // XSS
         echo "Welcome " . $_GET['name'];
         ?>
@@ -190,13 +190,13 @@ class TestAttackPatterns:
             // Unwrap without error handling
             let value = some_result.unwrap();
             let data = file.read().expect("Failed to read");
-            
+
             // Unsafe transmute
             let bytes: [u8; 4] = unsafe { mem::transmute(42u32) };
-            
+
             // Raw pointers
             let ptr: *mut i32 = &mut value as *mut i32;
-            
+
             // Mutable static
             static mut COUNTER: i32 = 0;
         }
@@ -215,15 +215,15 @@ class TestAttackPatterns:
         # Eval injection
         user_code = readline()
         result = eval(Meta.parse(user_code))
-        
+
         # Command injection
         filename = get_user_input()
         run(`cat $filename`)
-        
+
         # Unsafe ccall
         lib_name = user_input
         ccall((func_name, lib_name), Cvoid, ())
-        
+
         # Including untrusted code
         include(user_file)
         """
@@ -242,10 +242,10 @@ class TestAttackPatterns:
         api_key = "sk_test_abcdef123456789"
         secret_key = "supersecretpassword123"
         private_key = "-----BEGIN RSA PRIVATE KEY-----"
-        
+
         # Base64 obfuscation
         encoded = "SGVsbG8gV29ybGQhIFRoaXMgaXMgYSBsb25nIGJhc2U2NCBlbmNvZGVkIHN0cmluZyB0aGF0IG1pZ2h0IGJlIHN1c3BpY2lvdXM="
-        
+
         # Cryptocurrency wallets
         btc_wallet = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
         eth_wallet = "0x742d35Cc6634C0532925a3b844Bc9e7595f7e8E7"

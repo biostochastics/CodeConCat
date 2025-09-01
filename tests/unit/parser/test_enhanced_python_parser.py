@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the enhanced Python parser in CodeConCat.
@@ -9,15 +8,13 @@ Python-specific syntax, classes, functions, nested declarations, imports, and do
 """
 
 import logging
+
 import pytest
 
-from codeconcat.base_types import (
-    ParseResult,
-    ParserInterface,
-)
+from codeconcat.base_types import ParseResult, ParserInterface
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.enhanced_python_parser import EnhancedPythonParser
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -57,10 +54,10 @@ app_name = "TestApp"
 
 class Person:
     """Represents a human with name and age."""
-    
+
     def __init__(self, name: str, age: int):
         """Initialize a new Person instance.
-        
+
         Args:
             name: The person's name
             age: The person's age
@@ -68,34 +65,34 @@ class Person:
         self.name = name
         self.age = age
         self.address = None
-    
+
     def greet(self) -> str:
         """Return a greeting message from the person.
-        
+
         Returns:
             A greeting string including the person's name
         """
         return f"Hello, my name is {self.name} and I am {self.age} years old."
-    
+
     def set_address(self, address: str) -> None:
         """Set the person's address.
-        
+
         Args:
             address: The address to set
         """
         self.address = address
-        
+
         # Example of a nested function
         def log_change():
             """Log that an address change occurred."""
             print(f"Address changed to {address}")
-        
+
         log_change()
-    
+
     @property
     def info(self) -> Dict[str, Any]:
         """Get basic info about the person.
-        
+
         Returns:
             Dictionary of basic person info
         """
@@ -108,10 +105,10 @@ class Person:
 
 class Employee(Person):
     """Employee extends Person with job-related fields."""
-    
+
     def __init__(self, name: str, age: int, title: str, salary: float):
         """Initialize a new Employee instance.
-        
+
         Args:
             name: The person's name
             age: The person's age
@@ -121,18 +118,18 @@ class Employee(Person):
         super().__init__(name, age)
         self.title = title
         self.salary = salary
-    
+
     def work_info(self) -> str:
         """Return information about the employee's job.
-        
+
         Returns:
             A string with job details
         """
         return f"I work as a {self.title} and earn {self.salary} per year."
-    
+
     def greet(self) -> str:
         """Override the parent's greet method.
-        
+
         Returns:
             An extended greeting including job info
         """
@@ -142,16 +139,16 @@ class Employee(Person):
 
 def calculate_stats(numbers: List[int]) -> Dict[str, float]:
     """Calculate statistics for a list of numbers.
-    
+
     Args:
         numbers: List of integers to analyze
-        
+
     Returns:
         Dictionary with min, max, and average values
     """
     if not numbers:
         return {"min": 0, "max": 0, "avg": 0}
-    
+
     return {
         "min": min(numbers),
         "max": max(numbers),
@@ -161,11 +158,11 @@ def calculate_stats(numbers: List[int]) -> Dict[str, float]:
 
 def divide(a: int, b: int) -> Optional[int]:
     """Divide two numbers, handling the case of division by zero.
-    
+
     Args:
         a: The dividend
         b: The divisor
-        
+
     Returns:
         The result of a/b or None if b is zero
     """
@@ -181,17 +178,17 @@ if __name__ == "__main__":
     p = Person("John", 30)
     p.set_address("123 Main St")
     print(p.greet())
-    
+
     # Create an employee
     e = Employee("Jane", 28, "Software Engineer", 100000)
     print(e.work_info())
     print(e.greet())
-    
+
     # Use standalone functions
     numbers = [3, 7, 2, 9, 5]
     stats = calculate_stats(numbers)
     print(f"Stats: {stats}")
-    
+
     result = divide(10, 2)
     print(f"10 / 2 = {result}")
 '''
@@ -211,7 +208,7 @@ if __name__ == "__main__":
         assert parser.block_comment_start == '"""'
         assert parser.block_comment_end == '"""'
         assert parser.block_start == ":"
-        assert parser.block_end is None  # Python uses indentation
+        assert parser.block_end == ""  # Python uses indentation
 
         # Check capabilities
         capabilities = parser.get_capabilities()

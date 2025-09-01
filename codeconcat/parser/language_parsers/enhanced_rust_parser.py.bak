@@ -31,30 +31,30 @@ class EnhancedRustParser(EnhancedBaseParser):
         super().__init__()
         self.language = "rust"
         self._setup_rust_patterns()
-    
+
     def _setup_standard_patterns(self):
         """Setup standard patterns for Rust."""
         super()._setup_standard_patterns()
-        
+
         # Rust specific comment patterns
         self.line_comment = "//"
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
-        
+
         # Rust uses braces for blocks
         self.block_start = "{"
         self.block_end = "}"
-        
+
         # Initialize patterns dict (will be populated in _setup_rust_patterns)
         self.patterns = {}
-        
+
         # Initialize recognized Rust modifiers (converted to a frozenset for faster lookups)
         self.modifiers = frozenset({
             "pub", "fn", "struct", "enum", "trait", "impl", "const", "static",
             "unsafe", "extern", "async", "move", "mut", "ref", "crate",
             "self", "super", "dyn", "abstract", "final", "override", "macro_rules"
         })
-    
+
     def _setup_rust_patterns(self):
         """Setup Rust-specific patterns with improved recognition of nested declarations."""
         # Function declarations (improved to match nested functions and closures)
@@ -62,67 +62,67 @@ class EnhancedRustParser(EnhancedBaseParser):
             r"^\s*(?:pub\s+)?(?:async\s+)?fn\s+(?P<n>\w+)\s*(?:<[^>]*>)?\s*\(",
             re.MULTILINE
         )
-        
+
         # Nested function declarations (for fn inside other blocks)
         self.patterns["nested_function"] = re.compile(
             r"^\s*fn\s+(?P<n>\w+)\s*(?:<[^>]*>)?\s*\(",
             re.MULTILINE
         )
-        
+
         # Method declarations (in impl blocks)
         self.patterns["method"] = re.compile(
             r"^\s*(?:pub\s+)?(?:async\s+)?fn\s+(?P<n>\w+)\s*(?:<[^>]*>)?\s*\(&(?:mut\s+)?self",
             re.MULTILINE
         )
-        
+
         # Closure patterns (handle |args| {body} style closures)
         self.patterns["closure"] = re.compile(
             r"^\s*(?:let\s+)?(?P<n>\w+)\s*=\s*(?:move\s+)?\|[^\|]*\|\s*[{]?",
             re.MULTILINE
         )
-        
+
         # Struct declarations
         self.patterns["struct"] = re.compile(
             r"^\s*(?:pub\s+)?struct\s+(?P<n>\w+)(?:<[^>]*>)?(?:\s*\{|\s*\([^)]*\);|\s*;)",
             re.MULTILINE
         )
-        
+
         # Enum declarations
         self.patterns["enum"] = re.compile(
             r"^\s*(?:pub\s+)?enum\s+(?P<n>\w+)(?:<[^>]*>)?\s*\{",
             re.MULTILINE
         )
-        
+
         # Trait declarations
         self.patterns["trait"] = re.compile(
             r"^\s*(?:pub\s+)?trait\s+(?P<n>\w+)(?:<[^>]*>)?(?:\s*:\s*[^{]+)?\s*\{",
             re.MULTILINE
         )
-        
+
         # Implementation blocks
         self.patterns["impl"] = re.compile(
             r"^\s*impl(?:<[^>]*>)?\s+(?!<)(?P<n>[^{<]+)(?:<[^>]*>)?\s*(?:for\s+[^{]+)?\s*\{",
             re.MULTILINE
         )
-        
+
         # Constant declarations
         self.patterns["const"] = re.compile(
             r"^\s*(?:pub\s+)?(?:const|static)\s+(?P<n>\w+)\s*:",
             re.MULTILINE
         )
-        
+
         # Import declarations (use statements)
         self.patterns["use"] = re.compile(
             r"^\s*use\s+(?P<path>[^;]+);",
             re.MULTILINE
         )
-        
+
         # Macro declarations
         self.patterns["macro"] = re.compile(
             r"^\s*macro_rules!\s+(?P<n>\w+)",
             re.MULTILINE
         )
-    
+
     def _count_nested_declarations(self, declarations):
         """Count the total number of declarations including all nested ones."""
         total = len(declarations)
@@ -130,58 +130,58 @@ class EnhancedRustParser(EnhancedBaseParser):
             if decl.children:
                 total += self._count_nested_declarations(decl.children)
         return total
-        
+
     def _calculate_max_nesting_depth(self, declarations, current_depth=1):
         """Calculate the maximum nesting depth in the declaration tree."""
         if not declarations:
             return current_depth - 1
-        
+
         max_depth = current_depth
         for decl in declarations:
             if decl.children:
                 child_depth = self._calculate_max_nesting_depth(decl.children, current_depth + 1)
                 max_depth = max(max_depth, child_depth)
-        
+
         return max_depth
-    
+
     def parse(self, content: str, file_path: str) -> ParseResult:
         """Parse Rust code and return a ParseResult object."""
         try:
             logger.debug(f"Starting EnhancedRustParser.parse for file: {file_path}")
-            
+
             declarations = []
             imports = []
             errors = []
-            
+
             lines = content.split("\n")
-            
+
             # Process the entire file content recursively
             self._process_block(lines, 0, len(lines) - 1, declarations, imports, errors)
-            
+
             # Remove duplicates from imports
             imports = list(set(imports))
-            
+
             # Count nested declarations and calculate max depth
             total_declarations = self._count_nested_declarations(declarations)
             max_depth = self._calculate_max_nesting_depth(declarations)
-            
+
             logger.debug(
                 f"Finished parsing {file_path}: found {len(declarations)} top-level declarations, "
                 f"{total_declarations} total declarations (max depth: {max_depth}), "
                 f"{len(imports)} unique imports."
             )
-            
+
             return ParseResult(
                 declarations=declarations,
                 imports=imports,
                 engine_used="regex",
             )
-            
+
         except Exception as e:
             logger.error(f"Error parsing Rust file {file_path}: {e}", exc_info=True)
             error_msg = f"Failed to parse Rust file ({type(e).__name__}): {e}"
             errors.append(error_msg)
-            
+
             # Return partially parsed content with error
             return ParseResult(
                 declarations=[],
@@ -189,13 +189,13 @@ class EnhancedRustParser(EnhancedBaseParser):
                 error=error_msg,
                 engine_used="regex",
             )
-    
+
     def _process_block(
-        self, 
-        lines: List[str], 
-        start: int, 
-        end: int, 
-        declarations: List[Declaration], 
+        self,
+        lines: List[str],
+        start: int,
+        end: int,
+        declarations: List[Declaration],
         imports: List[str],
         errors: List[str],
         parent_declaration: Optional[Declaration] = None,
@@ -204,7 +204,7 @@ class EnhancedRustParser(EnhancedBaseParser):
     ) -> int:
         """
         Process a Rust code block and extract declarations and imports.
-        
+
         Args:
             lines: List of code lines.
             start: Start line index.
@@ -215,40 +215,40 @@ class EnhancedRustParser(EnhancedBaseParser):
             parent_declaration: Parent declaration if processing a nested block.
             max_nesting_depth: Maximum allowed nesting depth to prevent infinite recursion.
             current_depth: Current nesting depth being processed.
-            
+
         Returns:
             Next line index to process.
         """
         i = start
-        
+
         # Safety check to prevent stack overflow from infinite recursion
         if current_depth > max_nesting_depth:
             logger.warning(f"Maximum nesting depth ({max_nesting_depth}) reached. Stopping further nested parsing.")
             return end
-        
+
         logger.debug(f"Processing Rust block from lines {start+1}-{end+1} at depth {current_depth}")
-        
+
         # Initialize line counter for safety
         line_counter = 0
         max_line_iterations = 10000  # Prevent infinite loops
-        
+
         while i <= end and line_counter < max_line_iterations:
             line_counter += 1
             if i >= len(lines):  # Safety check
                 break
-                
+
             line = lines[i].strip()
-            
+
             # Skip empty lines
             if not line:
                 i += 1
                 continue
-            
+
             # Skip commented lines (but not docstring comments)
             if line.startswith("//") and not (line.startswith("///") or line.startswith("//!")):
                 i += 1
                 continue
-            
+
             # Skip block comments
             if line.startswith("/*"):
                 comment_counter = 0
@@ -258,24 +258,24 @@ class EnhancedRustParser(EnhancedBaseParser):
                     i += 1
                 i += 1  # Skip the closing comment line
                 continue
-            
+
             # Process imports
             if self._process_imports(line, imports):
                 i += 1
                 continue
-            
+
             # Try each pattern for declarations
             found_match = False
-            
+
             for kind, pattern in self.patterns.items():
                 # Skip import patterns here (handled separately)
                 if kind == "use":
                     continue
-                    
+
                 match = pattern.match(line)
                 if match:
                     found_match = True
-                    
+
                     # Extract name
                     name = None
                     try:
@@ -301,15 +301,15 @@ class EnhancedRustParser(EnhancedBaseParser):
                                     name = name_part.strip()
                             except Exception as e:
                                 logger.debug(f"Error extracting impl name: {e}")
-                    
+
                     if not name:
                         i += 1
                         continue
-                        
+
                     start_line = i + 1  # 1-indexed
                     end_line = i + 1
                     docstring_text = ""
-                    
+
                     # For some types of declarations, find the end of the block
                     if kind in ["function", "nested_function", "method", "struct", "enum", "trait", "impl", "macro", "closure"]:
                         # Check if the declaration has a block (with braces)
@@ -345,23 +345,23 @@ class EnhancedRustParser(EnhancedBaseParser):
                             semicolon_search_count += 1
                             j += 1
                         end_line = j + 1  # 1-indexed
-                    
+
                     # Sanity check for end_line
                     if end_line <= start_line or end_line > len(lines) + 1:
                         logger.warning(f"Invalid end_line {end_line} for {kind} {name}, resetting to safe value")
                         end_line = min(start_line + 10, len(lines))  # Use a reasonable default
-                    
+
                     # Extract docstring (Rust-style docstring comments)
                     docstring_text = self._extract_rust_docstring(lines, i)
-                    
+
                     # Extract modifiers
                     modifiers = self._extract_modifiers(line)
-                    
+
                     # Normalize kinds
                     normalized_kind = kind
                     if kind == "nested_function":
                         normalized_kind = "function"
-                    
+
                     # Create declaration
                     declaration = Declaration(
                         kind=normalized_kind,
@@ -372,7 +372,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                         modifiers=modifiers,
                         children=[],  # Initialize with empty list
                     )
-                    
+
                     # Add declaration to parent or top-level list
                     if parent_declaration:
                         parent_declaration.children.append(declaration)
@@ -380,7 +380,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                     else:
                         declarations.append(declaration)
                         logger.debug(f"Added top-level declaration: {normalized_kind} {name}")
-                    
+
                     # Process nested blocks (only for container types)
                     if end_line > start_line and kind in ["function", "nested_function", "method", "struct", "enum", "trait", "impl", "macro", "closure"]:
                         # Find the content within the block (skip the current line with declaration)
@@ -391,13 +391,13 @@ class EnhancedRustParser(EnhancedBaseParser):
                                 inner_start = j + 1  # Start after the opening brace
                                 opening_brace_found = True
                                 break
-                        
+
                         # Safety check: If we didn't find an opening brace, don't attempt to parse nested content
                         if not opening_brace_found:
                             logger.warning(f"No opening brace found for {normalized_kind} {name}")
                         else:
                             inner_end = end_line - 2  # End before the closing brace (0-indexed)
-                            
+
                             # Only process if there's content to process
                             if inner_end >= inner_start:
                                 # Safety check: ensure the recursive block is smaller than the parent block
@@ -405,9 +405,9 @@ class EnhancedRustParser(EnhancedBaseParser):
                                     logger.debug(f"Processing nested declarations within {normalized_kind} {name} (lines {inner_start+1}-{inner_end+1})")
                                     # Recursively process the block for nested declarations with increased depth
                                     processed_line = self._process_block(
-                                        lines, 
+                                        lines,
                                         inner_start,
-                                        inner_end, 
+                                        inner_end,
                                         declaration.children,  # Pass the parent's children list directly
                                         imports,
                                         errors,
@@ -423,22 +423,22 @@ class EnhancedRustParser(EnhancedBaseParser):
                                         i = processed_line
                                 else:
                                     logger.warning(f"Skipping recursive processing of {normalized_kind} {name} to prevent infinite loop")
-                    
+
                     # Move past the block
                     i = end_line - 1  # Convert back to 0-indexed
                     break
-            
+
             if not found_match:
                 # No pattern matched
                 i += 1
-        
+
         # Safety check for infinite loop
         if line_counter >= max_line_iterations:
             logger.warning(f"Possible infinite loop detected in _process_block at lines {start+1}-{end+1}")
             return end
-            
+
         return i
-    
+
     def _find_block_end_improved(self, lines: List[str], start: int, open_char: str = "{", close_char: str = "}", max_lines: int = 1000) -> int:
         """
         Find the matching closing character for a block.
@@ -535,7 +535,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                     elif char == '/' and col + 1 < len(line) and line[col+1] == '/' and not in_string and not in_char and not in_raw_string:
                         # Found a line comment, skip to the end of this line
                 normalized_kind = "function"
-            
+
             # Create declaration
             declaration = Declaration(
                 kind=normalized_kind,
@@ -546,7 +546,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                 modifiers=modifiers,
                 children=[],  # Initialize with empty list
             )
-            
+
             # Add declaration to parent or top-level list
             if parent_declaration:
                 parent_declaration.children.append(declaration)
@@ -554,7 +554,7 @@ class EnhancedRustParser(EnhancedBaseParser):
             else:
                 declarations.append(declaration)
                 logger.debug(f"Added top-level declaration: {normalized_kind} {name}")
-            
+
             # Process nested blocks (only for container types)
             if end_line > start_line and kind in ["function", "nested_function", "method", "struct", "enum", "trait", "impl", "macro", "closure"]:
                 # Find the content within the block (skip the current line with declaration)
@@ -565,13 +565,13 @@ class EnhancedRustParser(EnhancedBaseParser):
                         inner_start = j + 1  # Start after the opening brace
                         opening_brace_found = True
                         break
-                
+
                 # Safety check: If we didn't find an opening brace, don't attempt to parse nested content
                 if not opening_brace_found:
                     logger.warning(f"No opening brace found for {normalized_kind} {name}")
                 else:
                     inner_end = end_line - 2  # End before the closing brace (0-indexed)
-                    
+
                     # Only process if there's content to process
                     if inner_end >= inner_start:
                         # Safety check: ensure the recursive block is smaller than the parent block
@@ -579,9 +579,9 @@ class EnhancedRustParser(EnhancedBaseParser):
                             logger.debug(f"Processing nested declarations within {normalized_kind} {name} (lines {inner_start+1}-{inner_end+1})")
                             # Recursively process the block for nested declarations
                             processed_line = self._process_block(
-                                lines, 
+                                lines,
                                 inner_start,
-                                inner_end, 
+                                inner_end,
                                 declaration.children,  # Pass the parent's children list directly
                                 imports,
                                 errors,
@@ -595,11 +595,11 @@ class EnhancedRustParser(EnhancedBaseParser):
                                 i = processed_line
                         else:
                             logger.warning(f"Skipping recursive processing of {normalized_kind} {name} to prevent infinite loop")
-            
+
             # Move past the block
             i = end_line - 1  # Convert back to 0-indexed
             break
-    
+
     if not found_match:
         # No pattern matched
         i += 1
@@ -752,28 +752,28 @@ def _find_block_end_improved(self, lines: List[str], start: int, open_char: str 
             i += 1
             col = 0
 
-        
+
         # Check if we hit the max iterations - possible infinite loop
         if iterations >= max_iterations:
             logger.warning(f"Maximum iterations ({max_iterations}) reached in _find_block_end_improved")
             return min(start + 30, len(lines) - 1)  # Return a safe value
-                
+
     except Exception as e:
         logger.error(f"Error in _find_block_end_improved: {e}")
         return min(start + 10, len(lines) - 1)  # Return a safe value
-    
+
     # If no matching closing character found, log a warning and return a reasonable end line
     logger.warning(f"Could not find matching {close_char} for {open_char} at line {start+1}. Returning a reasonable estimate.")
     return min(start + 50, len(lines) - 1)  # Return at most 50 lines after start
-    
+
     def _process_imports(self, line: str, imports: List[str]) -> bool:
         """
         Process Rust use statements and add them to the imports list.
-        
+
         Args:
             line: Line of code to process.
             imports: List to add imports to.
-            
+
         Returns:
             True if line was a use statement, False otherwise.
         """
@@ -782,7 +782,7 @@ def _find_block_end_improved(self, lines: List[str], start: int, open_char: str 
             if match:
                 # Extract the imported path
                 path = match.group("path").strip()
-                
+
                 # Handle nested paths like 'use std::{fs, io, path};'
                 if "{" in path and "}" in path:
                     base_path = path.split("{")[0].strip()
@@ -803,36 +803,36 @@ def _find_block_end_improved(self, lines: List[str], start: int, open_char: str 
                     else:
                         module_name = path
                     imports.append(module_name)
-                    
+
                 return True
         return False
-    
+
     def _extract_rust_docstring(self, lines: List[str], current_line: int) -> str:
         """
         Extract Rust docstring comments (///, //!) before a declaration.
-        
+
         Args:
             lines: List of code lines.
             current_line: Line number of the declaration.
-            
+
         Returns:
             Extracted docstring as a string.
         """
         if current_line <= 0:
             return ""
-            
+
         # Look for docstring comments before the current line
         doc_lines = []
         i = current_line - 1
-        
+
         while i >= 0 and i >= current_line - 20:  # Look up to 20 lines back
             line = lines[i].strip()
-            
+
             # Skip blank lines between doc comments and declaration
             if not line:
                 i -= 1
                 continue
-                
+
             # Check for doc comments (/// or //!)
             if line.startswith("///") or line.startswith("//!"):
                 prefix_len = 3
@@ -841,16 +841,16 @@ def _find_block_end_improved(self, lines: List[str], start: int, open_char: str 
             else:
                 # Non-doc-comment line found, stop looking
                 break
-                
+
         return "\n".join(doc_lines)
-    
+
     def _extract_modifiers(self, line: str) -> List[str]:
         """
         Extract modifiers from a declaration line.
-        
+
         Args:
             line: Line containing a declaration.
-            
+
         Returns:
             List of modifiers found in the line.
         """
@@ -858,10 +858,10 @@ def _find_block_end_improved(self, lines: List[str], start: int, open_char: str 
         # Split line into words and check each word directly instead of using regex
         # This is more efficient for large input
         words = set(re.findall(r'\b\w+\b', line))
-        
+
         # Direct set intersection is much faster than individual regex searches
         return list(words.intersection(self.modifiers))
-    
+
     def get_capabilities(self) -> Dict[str, bool]:
         """Return the capabilities of this parser."""
         return {

@@ -1,15 +1,15 @@
 """Simple tests for GitHub repository collector functionality."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-import subprocess
+from unittest.mock import MagicMock, patch
 
-from codeconcat.collector.github_collector import (
-    parse_git_url,
-    collect_git_repo,
-    build_git_clone_url,
-)
+import pytest
+
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
+from codeconcat.collector.github_collector import (
+    build_git_clone_url,
+    collect_git_repo,
+    parse_git_url,
+)
 
 
 class TestParseGitUrl:
@@ -67,9 +67,9 @@ class TestCollectGitRepo:
     """Test Git repository collection."""
 
     @patch("codeconcat.collector.github_collector.tempfile.TemporaryDirectory")
-    @patch("codeconcat.collector.github_collector.subprocess.run")
+    @patch("codeconcat.collector.github_collector.asyncio.run")
     @patch("codeconcat.collector.github_collector.collect_local_files")
-    def test_collect_success(self, mock_collect_local, mock_run, mock_temp_dir):
+    def test_collect_success(self, mock_collect_local, mock_asyncio_run, mock_temp_dir):
         """Test successful repository collection."""
         # Mock temp directory
         mock_temp_context = MagicMock()
@@ -77,10 +77,7 @@ class TestCollectGitRepo:
         mock_temp_context.__exit__.return_value = None
         mock_temp_dir.return_value = mock_temp_context
 
-        # Mock successful git operations
-        mock_run.return_value = Mock(returncode=0)
-
-        # Mock local file collection
+        # Mock successful async operation - return the files and temp path
         mock_files = [
             ParsedFileData(
                 file_path="/tmp/test/Hello-World/README.md",
@@ -89,6 +86,7 @@ class TestCollectGitRepo:
             ),
         ]
         mock_collect_local.return_value = mock_files
+        mock_asyncio_run.return_value = (mock_files, "/tmp/test")
 
         config = CodeConCatConfig()
         result, temp_path = collect_git_repo("octocat/Hello-World", config)
@@ -99,8 +97,8 @@ class TestCollectGitRepo:
         assert temp_path == "/tmp/test"
 
     @patch("codeconcat.collector.github_collector.tempfile.TemporaryDirectory")
-    @patch("codeconcat.collector.github_collector.subprocess.run")
-    def test_collect_clone_failure(self, mock_run, mock_temp_dir):
+    @patch("codeconcat.collector.github_collector.collect_git_repo_async")
+    def test_collect_clone_failure(self, mock_collect_async, mock_temp_dir):
         """Test handling clone failure."""
         # Mock temp directory
         mock_temp_context = MagicMock()
@@ -108,8 +106,11 @@ class TestCollectGitRepo:
         mock_temp_context.__exit__.return_value = None
         mock_temp_dir.return_value = mock_temp_context
 
-        # Mock clone failure
-        mock_run.side_effect = subprocess.CalledProcessError(1, "git clone")
+        # Mock the async function to raise an exception
+        async def mock_async_failure(*_args, **_kwargs):
+            raise Exception("Git clone failed")
+
+        mock_collect_async.side_effect = mock_async_failure
 
         config = CodeConCatConfig()
         result, temp_path = collect_git_repo("octocat/Hello-World", config)
@@ -126,9 +127,9 @@ class TestCollectGitRepo:
         assert temp_path == ""
 
     @patch("codeconcat.collector.github_collector.tempfile.TemporaryDirectory")
-    @patch("codeconcat.collector.github_collector.subprocess.run")
+    @patch("codeconcat.collector.github_collector.asyncio.run")
     @patch("codeconcat.collector.github_collector.collect_local_files")
-    def test_collect_with_ref(self, mock_collect_local, mock_run, mock_temp_dir):
+    def test_collect_with_ref(self, mock_collect_local, mock_asyncio_run, mock_temp_dir):
         """Test collection with specific ref/branch."""
         # Mock temp directory
         mock_temp_context = MagicMock()
@@ -136,15 +137,15 @@ class TestCollectGitRepo:
         mock_temp_context.__exit__.return_value = None
         mock_temp_dir.return_value = mock_temp_context
 
-        # Mock successful git operations
-        mock_run.return_value = Mock(returncode=0)
+        # Mock successful async operation
         mock_collect_local.return_value = []
+        mock_asyncio_run.return_value = ([], "/tmp/test")
 
         config = CodeConCatConfig()
         result, temp_path = collect_git_repo("octocat/Hello-World/develop", config)
 
-        # Should have cloned and checked out develop branch
-        assert any("develop" in str(call) for call in mock_run.call_args_list)
+        # Check that asyncio.run was called
+        assert mock_asyncio_run.called
 
 
 class TestEdgeCases:

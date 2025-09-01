@@ -1,10 +1,10 @@
 # file: codeconcat/parser/language_parsers/julia_parser.py
 
 import re
+from abc import ABC, abstractmethod
 from typing import Set
 
-from codeconcat.base_types import ParseResult, Declaration
-from abc import ABC, abstractmethod
+from codeconcat.base_types import Declaration, ParseResult
 
 
 # Define a basic interface to match what the file_parser expects

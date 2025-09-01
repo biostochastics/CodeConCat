@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the enhanced Go parser in CodeConCat.
@@ -9,15 +8,13 @@ Go-specific syntax, structs, interfaces, functions, and imports.
 """
 
 import logging
+
 import pytest
 
-from codeconcat.base_types import (
-    ParseResult,
-    ParserInterface,
-)
+from codeconcat.base_types import ParseResult, ParserInterface
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.enhanced_go_parser import EnhancedGoParser
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -91,7 +88,7 @@ func (p *Person) Greet() string {
 type Processor interface {
     // Process performs data processing.
     Process(data []byte) ([]byte, error)
-    
+
     // GetStats returns processing statistics.
     GetStats() map[string]int
 }
@@ -114,7 +111,7 @@ func main() {
     // Create a person
     p := NewPerson("John", 30)
     fmt.Println(p.Greet())
-    
+
     // Use constants and variables
     fmt.Println("PI:", PI)
     fmt.Println("MaxRetries:", MaxRetries)

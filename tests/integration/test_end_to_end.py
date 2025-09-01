@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Integration tests for CodeConCat.
@@ -8,19 +7,15 @@ Tests the end-to-end processing flow from parsing code files through
 annotation, rendering, and output creation.
 """
 
-import os
-import pytest
-import unittest
-import logging
-import tempfile
 import json
+import logging
+import os
+import tempfile
+import unittest
 
-from codeconcat.base_types import (
-    CodeConCatConfig,
-    AnnotatedFileData,
-    TokenStats,
-    ParsedFileData,
-)
+import pytest
+
+from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedFileData, TokenStats
 from codeconcat.config.config_builder import ConfigBuilder
 from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 from codeconcat.parser.file_parser import parse_code_files
@@ -58,7 +53,7 @@ class SampleClass:
     \"\"\"A sample class.\"\"\"
     def __init__(self):
         self.value = 42
-        
+
     def get_value(self):
         return self.value
 """
@@ -107,8 +102,10 @@ This is a test project for integration testing.
         py_file_path = os.path.join(test_files_dir, "test_file.py")
 
         # Create a ParsedFileData object for the file
+        with open(py_file_path) as f:
+            content = f.read()
         parsed_file_data = ParsedFileData(
-            file_path=py_file_path, content=open(py_file_path, "r").read(), language="python"
+            file_path=py_file_path, content=content, language="python"
         )
 
         # Parse the file using parse_code_files
@@ -173,7 +170,8 @@ This is a test project for integration testing.
 
         # Prepare file for parsing
         py_file_path = os.path.join(test_files_dir, "test_file.py")
-        file_content = open(py_file_path, "r").read()
+        with open(py_file_path) as f:
+            file_content = f.read()
 
         # Create ParsedFileData object
         parsed_file_data = ParsedFileData(
@@ -207,9 +205,9 @@ This is a test project for integration testing.
 
         # Verify output
         assert isinstance(output, str)
-        assert "# CodeConCat Output" in output
-        assert "## File: " in output
-        assert "Sample Python file for testing" in output
+        assert "# CodeConCat Analysis Report" in output
+        assert "### 1. " in output
+        assert "A simple test file" in output
         assert "```python" in output
         assert "def sample_function()" in output
         assert "class SampleClass" in output
@@ -221,7 +219,8 @@ This is a test project for integration testing.
 
         # Prepare file for parsing
         py_file_path = os.path.join(test_files_dir, "test_file.py")
-        file_content = open(py_file_path, "r").read()
+        with open(py_file_path) as f:
+            file_content = f.read()
 
         # Create ParsedFileData object
         parsed_file_data = ParsedFileData(

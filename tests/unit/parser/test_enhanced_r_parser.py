@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the enhanced R parser in CodeConCat.
@@ -9,15 +8,13 @@ functions, R-specific syntax, and other R language features.
 """
 
 import logging
+
 import pytest
 
-from codeconcat.base_types import (
-    ParseResult,
-    ParserInterface,
-)
+from codeconcat.base_types import ParseResult, ParserInterface
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.enhanced_r_parser import EnhancedRParser
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -45,7 +42,7 @@ require(stats)
 source("helper_functions.R")
 
 #' A utility function with roxygen2 documentation
-#' 
+#'
 #' @param x Input value
 #' @param y Second input value
 #' @return The sum of x and y
@@ -58,7 +55,7 @@ add_values <- function(x, y) {
 }
 
 #' Process data with nested functions
-#' 
+#'
 #' @param data A data frame to process
 #' @return Processed data frame
 process_data <- function(data) {
@@ -66,14 +63,14 @@ process_data <- function(data) {
   filter_data <- function(df, column, value) {
     df[df[[column]] > value, ]
   }
-  
+
   # Nested function to summarize
   summarize_data <- function(df) {
-    df %>% 
+    df %>%
       group_by(category) %>%
       summarize(mean_value = mean(value, na.rm = TRUE))
   }
-  
+
   # Use the nested functions
   filtered <- filter_data(data, "value", 10)
   summarize_data(filtered)
@@ -87,7 +84,7 @@ create_person <- function(name, age) {
 }
 
 #' Print method for person class
-#' 
+#'
 #' @param x A person object
 #' @param ... Additional arguments
 print.person <- function(x, ...) {
@@ -105,9 +102,9 @@ setClass(
 )
 
 #' Calculate average grade
-#' 
+#'
 #' @param student A Student object
-setMethod("calculateAverage", 
+setMethod("calculateAverage",
           signature = "Student",
           function(student) {
             mean(student@grades)

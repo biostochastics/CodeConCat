@@ -1,17 +1,18 @@
 """Integration tests for the validation modules."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
+from codeconcat.errors import ConfigurationError
 from codeconcat.validation.integration import (
-    validate_input_files,
-    validate_config_values,
     sanitize_output,
     setup_semgrep,
+    validate_config_values,
+    validate_input_files,
     verify_file_signatures,
 )
-from codeconcat.errors import ConfigurationError
 
 
 class TestValidationIntegration:

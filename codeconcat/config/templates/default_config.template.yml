@@ -29,13 +29,13 @@ include_paths:
   - "**/*.h"     # C/C++ Headers
   - "**/*.cs"    # C#
   - "**/*.jl"    # Julia
-  
+
   # Documentation files - these are treated as full documentation content
   - "**/*.md"    # Markdown documentation
   - "**/*.rst"   # reStructuredText documentation
   - "README*"    # Always include README files
   - "LICENSE*"   # Always include license files
-  
+
   # Configuration files - these are treated as configuration content
   - "**/*.yml"   # YAML configuration
   - "**/*.yaml"  # YAML configuration
@@ -96,7 +96,10 @@ disable_tree: false
 
 # Advanced Compression (disabled by default)
 enable_compression: false
-compression_level: medium  # Options: low, medium, high, aggressive
+# Compression modes:
+#   - low/medium: Contextual mode (keeps important code with surrounding context)
+#   - high/aggressive: Essential mode (keeps only signatures, security, error handling)
+compression_level: medium
 compression_placeholder: "[...code omitted ({lines} lines, {issues} issues)...]"
 compression_keep_threshold: 3
 compression_keep_tags: ["important", "keep", "security"]

@@ -2,10 +2,12 @@
 
 import re
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Pattern, Set
 
 from codeconcat.base_types import Declaration, ParseResult, ParserInterface
+
+__all__ = ["BaseParser", "CodeSymbol", "ParserInterface"]
 
 
 @dataclass
@@ -16,12 +18,8 @@ class CodeSymbol:
     end_line: int
     modifiers: Set[str]
     parent: Optional["CodeSymbol"] = None
-    children: List["CodeSymbol"] = None
+    children: List["CodeSymbol"] = field(default_factory=list)
     docstring: Optional[str] = None
-
-    def __post_init__(self):
-        if self.children is None:
-            self.children = []
 
 
 class BaseParser(ParserInterface):
@@ -30,17 +28,17 @@ class BaseParser(ParserInterface):
     and comment extraction. Subclasses typically override _setup_patterns() and parse().
     """
 
-    def __init__(self, file_path: str = ""):
+    def __init__(self, _file_path: str = ""):
         """Initialize the parser with default values."""
         self.symbols: List[CodeSymbol] = []
         self.current_symbol: Optional[CodeSymbol] = None
         self.symbol_stack: List[CodeSymbol] = []
         self.block_start = "{"  # Default block start
         self.block_end = "}"  # Default block end
-        self.line_comment = None  # Default line comment
-        self.block_comment_start = None  # Default block comment start
-        self.block_comment_end = None  # Default block comment end
-        self.patterns: Dict[str, Pattern] = {}
+        self.line_comment: str | None = None  # Default line comment
+        self.block_comment_start: str | None = None  # Default block comment start
+        self.block_comment_end: str | None = None  # Default block comment end
+        self.patterns: Dict[str, Pattern[str]] = {}
         self.modifiers: Set[str] = set()
         # Use Unicode word character class \w to match Unicode identifiers
         self.identifier_pattern = re.compile(r"[\w\u0080-\uffff]+")
@@ -61,8 +59,17 @@ class BaseParser(ParserInterface):
         raise NotImplementedError("Subclasses must implement the parse method.")
 
     def _flatten_symbol(self, symbol: CodeSymbol) -> List[Declaration]:
-        """Flatten a symbol and its children into a list of declaration tuples."""
-        declarations = [(symbol.name, symbol.start_line, symbol.end_line)]
+        """Flatten a symbol and its children into a list of declarations."""
+        declarations = [
+            Declaration(
+                kind=symbol.kind,
+                name=symbol.name,
+                start_line=symbol.start_line,
+                end_line=symbol.end_line,
+                docstring=symbol.docstring or "",
+                modifiers=symbol.modifiers,
+            )
+        ]
         for child in symbol.children:
             declarations.extend(self._flatten_symbol(child))
         return declarations
@@ -82,7 +89,7 @@ class BaseParser(ParserInterface):
 
         for i in range(start + 1, len(lines)):
             line = lines[i].strip()
-            if line.startswith(self.line_comment):
+            if self.line_comment and line.startswith(self.line_comment):
                 continue
             brace_count += line.count(self.block_start) - line.count(self.block_end)
             if brace_count <= 0:
@@ -96,8 +103,7 @@ class BaseParser(ParserInterface):
             return re.compile(f"^\\s*(?:{modifier_pattern})?{base_pattern}")
         return re.compile(f"^\\s*{base_pattern}")
 
-    @staticmethod
-    def extract_docstring(lines: List[str], start: int, end: int) -> Optional[str]:
+    def extract_docstring(self, lines: List[str], start: int, end: int) -> Optional[str]:
         """
         Example extraction for docstring-like text between triple quotes or similar.
         Subclasses can override or use as needed.
@@ -105,7 +111,7 @@ class BaseParser(ParserInterface):
         for i in range(start, min(end + 1, len(lines))):
             line = lines[i].strip()
             if line.startswith('"""') or line.startswith("'''"):
-                doc_lines = []
+                doc_lines: list[str] = []
                 quote = line[:3]
                 if line.endswith(quote) and len(line) > 3:
                     return line[3:-3].strip()

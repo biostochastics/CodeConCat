@@ -13,43 +13,43 @@ import java.util.HashMap;
  */
 public class TestClass {
     private int value;
-    
+
     /**
      * Constructor
      */
     public TestClass(int value) {
         this.value = value;
     }
-    
+
     /**
      * Get the value
      */
     public int getValue() {
         return value;
     }
-    
+
     /**
      * Set the value
      */
     public void setValue(int newValue) {
         this.value = newValue;
     }
-    
+
     /**
      * A nested class
      */
     public static class NestedClass {
         private String name;
-        
+
         public NestedClass(String name) {
             this.name = name;
         }
-        
+
         public String getName() {
             return name;
         }
     }
-    
+
     /**
      * Main method
      */

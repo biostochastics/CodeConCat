@@ -6,13 +6,13 @@ repositories across multiple languages, including:
 - TypeScript/JavaScript (using yamadashy/repomix)
 """
 
-import os
-import pytest
-import logging
-import tempfile
-from typing import List, Dict, Tuple
-
 import copy
+import logging
+import os
+import tempfile
+from typing import Dict, List, Tuple
+
+import pytest
 
 from codeconcat.base_types import CodeConCatConfig, Declaration, ParsedFileData
 from codeconcat.collector.github_collector import collect_git_repo
@@ -109,7 +109,7 @@ def fetch_repo_files(repo_name: str, config: CodeConCatConfig) -> Tuple[List[Par
                 # Process TypeScript files
                 for file_path in ts_files[:50]:  # Process up to 50 files per type
                     try:
-                        with open(file_path, "r", encoding="utf-8") as f:
+                        with open(file_path, encoding="utf-8") as f:
                             content = f.read()
                         direct_files.append(
                             ParsedFileData(
@@ -122,7 +122,7 @@ def fetch_repo_files(repo_name: str, config: CodeConCatConfig) -> Tuple[List[Par
                 # Process JavaScript files
                 for file_path in js_files[:20]:  # Process up to 20 JS files
                     try:
-                        with open(file_path, "r", encoding="utf-8") as f:
+                        with open(file_path, encoding="utf-8") as f:
                             content = f.read()
                         direct_files.append(
                             ParsedFileData(
@@ -135,7 +135,7 @@ def fetch_repo_files(repo_name: str, config: CodeConCatConfig) -> Tuple[List[Par
                 # Process TSX files
                 for file_path in tsx_files[:20]:  # Process up to 20 TSX files
                     try:
-                        with open(file_path, "r", encoding="utf-8") as f:
+                        with open(file_path, encoding="utf-8") as f:
                             content = f.read()
                         direct_files.append(
                             ParsedFileData(
@@ -151,7 +151,7 @@ def fetch_repo_files(repo_name: str, config: CodeConCatConfig) -> Tuple[List[Par
                     logger.info(
                         f"Successfully created {len(direct_files)} ParsedFileData objects directly"
                     )
-                    logger.info(f"File types: {set(f.language for f in direct_files)}")
+                    logger.info("File types: {f.language for f in direct_files}")
                     return direct_files, temp_dir
 
             if files:
@@ -394,7 +394,7 @@ def repomix_repo():
                     if filename.endswith(".ts") and not filename.endswith(".d.ts"):
                         file_path = os.path.join(root, filename)
                         try:
-                            with open(file_path, "r", encoding="utf-8") as f:
+                            with open(file_path, encoding="utf-8") as f:
                                 content = f.read()
 
                             # Create a ParsedFileData object for each file
@@ -436,7 +436,7 @@ def repomix_repo():
                 logger.warning("No .ts files found in repository files list")
 
             # Print file languages as reported by the system
-            logger.info(f"File languages: {set(f.language for f in files)}")
+            logger.info("File languages: {f.language for f in files}")
 
             # Print the file paths that end with .ts to see if there's any discrepancy
             ts_paths = [f.file_path for f in files if f.file_path.endswith(".ts")]
@@ -726,7 +726,7 @@ def test_repomix_javascript_parsers(repomix_repo):
                 direct_files = []
                 for file_path in js_files[:5]:  # Process first 5 for test
                     try:
-                        with open(file_path, "r", encoding="utf-8") as f:
+                        with open(file_path, encoding="utf-8") as f:
                             content = f.read()
                         direct_files.append(
                             ParsedFileData(
@@ -828,7 +828,7 @@ def test_tsx_react_component_parsing(repomix_repo):
                 direct_files = []
                 for file_path in tsx_files[:5]:  # Process first 5 for test
                     try:
-                        with open(file_path, "r", encoding="utf-8") as f:
+                        with open(file_path, encoding="utf-8") as f:
                             content = f.read()
                         direct_files.append(
                             ParsedFileData(
@@ -881,8 +881,7 @@ def test_tsx_react_component_parsing(repomix_repo):
             if d.kind in ("function", "class", "arrow_function")
             and (
                 # Components usually return JSX elements
-                "return" in d.full_signature.lower()
-                or "<" in d.full_signature
+                "return" in d.full_signature.lower() or "<" in d.full_signature
             )
         ]
 
