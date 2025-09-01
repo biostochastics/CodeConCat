@@ -12,6 +12,7 @@ import importlib.resources
 import logging
 import os  # Ensure os is imported at the global scope
 import sys
+import warnings
 from pathlib import Path
 from typing import List, Literal, Union
 
@@ -56,8 +57,6 @@ from codeconcat.writer.xml_writer import write_xml
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Suppress TensorFlow warnings
 # Suppress transformers warnings about missing PyTorch/TensorFlow
-import warnings
-
 warnings.filterwarnings("ignore", message="None of PyTorch.*have been found")
 
 # ------------------------------------------------------------------------------
