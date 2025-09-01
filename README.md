@@ -8,17 +8,7 @@
   <strong>Transform codebases into AI-ready formats with parsing, compression, and security analysis</strong>
 </p>
 
-[![CI](https://github.com/biostochastics/codeconcat/actions/workflows/ci.yml/badge.svg)](https://github.com/biostochastics/codeconcat/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.8.0-blue)](https://github.com/biostochastics/codeconcat)
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/)
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
-
-[![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/)
-[![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
+[![Version](https://img.shields.io/badge/version-0.8.0-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
 
 ## Overview
 
@@ -817,25 +807,6 @@ poetry publish --build
 # Run tests in parallel
 poetry run pytest -n auto
 ```
-
-## Documentation
-
-Comprehensive documentation is available:
-
-- [API Documentation](http://localhost:8000/docs) - Interactive API docs (when server is running)
-- [Contributing Guide](CONTRIBUTING.md) - How to contribute
-- [Security Policy](SECURITY.md) - Security guidelines
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-Key areas for contribution:
-- Adding new language parsers
-- Improving existing parsers
-- Enhancing documentation
-- Adding test coverage
-- Performance optimizations
 
 ## License
 
