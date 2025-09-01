@@ -339,7 +339,7 @@ class SecurityValidator:
 
             # Log at debug level instead of warning
             if pattern_findings:
-                logger.debug(f"Suspicious patterns in {path}: {', '.join(pattern_findings)}")
+                logger.debug("Suspicious patterns in %s: %s", path, ', '.join(pattern_findings))
 
             # Use semgrep if available and requested
             if use_semgrep and semgrep_validator.is_available():
