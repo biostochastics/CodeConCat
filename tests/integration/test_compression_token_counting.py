@@ -113,12 +113,12 @@ if __name__ == "__main__":
         compressed_stats = get_token_stats(compressed_content)
 
         # Verify compression reduced the number of tokens
-        assert (
-            compressed_stats.gpt4_tokens < uncompressed_stats.gpt4_tokens
-        ), f"Compression did not reduce GPT-4 tokens: {compressed_stats.gpt4_tokens} >= {uncompressed_stats.gpt4_tokens}"
-        assert (
-            compressed_stats.claude_tokens < uncompressed_stats.claude_tokens
-        ), f"Compression did not reduce Claude tokens: {compressed_stats.claude_tokens} >= {uncompressed_stats.claude_tokens}"
+        assert compressed_stats.gpt4_tokens < uncompressed_stats.gpt4_tokens, (
+            f"Compression did not reduce GPT-4 tokens: {compressed_stats.gpt4_tokens} >= {uncompressed_stats.gpt4_tokens}"
+        )
+        assert compressed_stats.claude_tokens < uncompressed_stats.claude_tokens, (
+            f"Compression did not reduce Claude tokens: {compressed_stats.claude_tokens} >= {uncompressed_stats.claude_tokens}"
+        )
 
         # Check that we have a mix of CODE and OMITTED segments
         code_segments = [
@@ -139,10 +139,10 @@ if __name__ == "__main__":
             f"Compressed tokens: GPT-4: {compressed_stats.gpt4_tokens}, Claude: {compressed_stats.claude_tokens}"
         )
         print(
-            f"Token reduction: GPT-4: {uncompressed_stats.gpt4_tokens - compressed_stats.gpt4_tokens} tokens ({(1-compressed_stats.gpt4_tokens/uncompressed_stats.gpt4_tokens)*100:.1f}%)"
+            f"Token reduction: GPT-4: {uncompressed_stats.gpt4_tokens - compressed_stats.gpt4_tokens} tokens ({(1 - compressed_stats.gpt4_tokens / uncompressed_stats.gpt4_tokens) * 100:.1f}%)"
         )
         print(
-            f"Token reduction: Claude: {uncompressed_stats.claude_tokens - compressed_stats.claude_tokens} tokens ({(1-compressed_stats.claude_tokens/uncompressed_stats.claude_tokens)*100:.1f}%)"
+            f"Token reduction: Claude: {uncompressed_stats.claude_tokens - compressed_stats.claude_tokens} tokens ({(1 - compressed_stats.claude_tokens / uncompressed_stats.claude_tokens) * 100:.1f}%)"
         )
 
     def test_empty_content_compression(self):
@@ -223,12 +223,12 @@ Sample content for section 5.
         compressed_stats = get_token_stats(compressed_content)
 
         # Verify compression had some effect (may not reduce tokens for all docs)
-        assert isinstance(
-            compressed_stats.gpt4_tokens, int
-        ), "Compressed token count should be an integer"
-        assert isinstance(
-            compressed_stats.claude_tokens, int
-        ), "Compressed token count should be an integer"
+        assert isinstance(compressed_stats.gpt4_tokens, int), (
+            "Compressed token count should be an integer"
+        )
+        assert isinstance(compressed_stats.claude_tokens, int), (
+            "Compressed token count should be an integer"
+        )
 
         # Print token statistics for debugging
         print(

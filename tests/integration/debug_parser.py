@@ -80,7 +80,7 @@ def debug_c_parser():
             if result.declarations:
                 print("\nSample declarations:")
                 for i, decl in enumerate(result.declarations[:3]):
-                    print(f"  {i+1}. {decl.name} (kind: {decl.kind})")
+                    print(f"  {i + 1}. {decl.name} (kind: {decl.kind})")
             else:
                 print("\nNo declarations found")
 
@@ -151,7 +151,7 @@ def debug_go_parser():
             if result.declarations:
                 print("\nSample declarations:")
                 for i, decl in enumerate(result.declarations[:3]):
-                    print(f"  {i+1}. {decl.name} (kind: {decl.kind})")
+                    print(f"  {i + 1}. {decl.name} (kind: {decl.kind})")
             else:
                 print("\nNo declarations found")
 
@@ -222,7 +222,7 @@ def debug_rust_parser():
             if result.declarations:
                 print("\nSample declarations:")
                 for i, decl in enumerate(result.declarations[:3]):
-                    print(f"  {i+1}. {decl.name} (kind: {decl.kind})")
+                    print(f"  {i + 1}. {decl.name} (kind: {decl.kind})")
             else:
                 print("\nNo declarations found")
 

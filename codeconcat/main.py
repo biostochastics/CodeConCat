@@ -12,10 +12,11 @@ import importlib.resources
 import logging
 import os  # Ensure os is imported at the global scope
 import sys
+import warnings
 from pathlib import Path
 from typing import List, Literal, Union
 
-from tqdm import tqdm
+from rich.progress import track
 
 from codeconcat.base_types import (
     AnnotatedFileData,
@@ -52,8 +53,11 @@ from codeconcat.writer.markdown_writer import write_markdown
 from codeconcat.writer.text_writer import write_text
 from codeconcat.writer.xml_writer import write_xml
 
-# Suppress HuggingFace tokenizers parallelism warning
+# Suppress HuggingFace warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Suppress TensorFlow warnings
+# Suppress transformers warnings about missing PyTorch/TensorFlow
+warnings.filterwarnings("ignore", message="None of PyTorch.*have been found")
 
 # ------------------------------------------------------------------------------
 # Set up logging for CodeConCat
@@ -243,13 +247,12 @@ def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
         chunk_size = (len(lines) + parts - 1) // parts
         base, ext = local_os.path.splitext(output_path)
 
-        # Wrap loop with tqdm for progress
-        write_iterator = tqdm(
+        # Wrap loop with track for progress
+        write_iterator = track(
             range(parts),
-            desc="Writing output chunks",
-            unit="chunk",
-            total=parts,
+            description="Writing output chunks",
             disable=config.disable_progress_bar,
+            total=parts,
         )
         for idx in write_iterator:
             chunk = "".join(lines[idx * chunk_size : (idx + 1) * chunk_size])
@@ -881,13 +884,12 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         annotated_files = []
         try:
             if not config.disable_annotations:
-                # Wrap annotation loop with tqdm
-                annotation_iterator = tqdm(
+                # Wrap annotation loop with track
+                annotation_iterator = track(
                     parsed_files,
-                    desc="Annotating files",
-                    unit="file",
-                    total=len(parsed_files),
+                    description="Annotating files",
                     disable=config.disable_progress_bar,  # Use config flag
+                    total=len(parsed_files),
                 )
                 for file in annotation_iterator:
                     try:
@@ -924,12 +926,11 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             else:
                 # Create basic annotations without AI analysis
                 # Wrap this loop too, for consistency, although it should be fast
-                basic_annotation_iterator = tqdm(
+                basic_annotation_iterator = track(
                     parsed_files,
-                    desc="Preparing basic annotations",
-                    unit="file",
-                    total=len(parsed_files),
+                    description="Preparing basic annotations",
                     disable=config.disable_progress_bar,
+                    total=len(parsed_files),
                 )
                 for file in basic_annotation_iterator:
                     annotated_files.append(

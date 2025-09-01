@@ -12,8 +12,10 @@ from ..base_types import CodeConCatConfig, ParsedFileData
 from ..errors import ConfigurationError, ValidationError
 from .schema_validation import validate_against_schema
 from .security import security_validator
+from .security_reporter import get_reporter
 from .semgrep_validator import semgrep_validator
 from .setup_semgrep import install_apiiro_ruleset, install_semgrep
+from .unsupported_reporter import get_reporter as get_unsupported_reporter
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,9 @@ def validate_input_files(
     """
     validated_files = []
     validation_errors = []
+
+    # Initialize security reporter
+    reporter = get_reporter()
     logger_int = logging.getLogger(__name__)
 
     for file_data in files_to_process:
@@ -87,6 +92,12 @@ def validate_input_files(
                     file_path, use_semgrep=use_semgrep
                 )
 
+                # Add findings to reporter
+                if suspicious_patterns:
+                    for pattern in suspicious_patterns:
+                        if isinstance(pattern, dict):
+                            reporter.add_finding(Path(file_path), pattern)
+
                 if (
                     suspicious_patterns
                     and hasattr(config, "strict_security")
@@ -102,12 +113,12 @@ def validate_input_files(
                         field="file_content",
                     )
                 elif suspicious_patterns:
-                    # Otherwise, just log a warning
+                    # Log at debug level since we'll show summary later
                     pattern_names = [
                         p.get("name", str(p)) for p in suspicious_patterns if isinstance(p, dict)
                     ]
                     pattern_str = ", ".join(pattern_names)
-                    logger.warning(
+                    logger.debug(
                         f"Suspicious content patterns detected in {file_path}: {pattern_str}"
                     )
 
@@ -140,6 +151,13 @@ def validate_input_files(
                     f"First error: {security_errors[0][1]}",
                     field="file_security",
                 )
+
+    # Display security summary if findings were collected
+    reporter.display_summary(verbose=logger.isEnabledFor(logging.INFO))
+
+    # Display unsupported files summary
+    unsupported_reporter = get_unsupported_reporter()
+    unsupported_reporter.display_summary(verbose=logger.isEnabledFor(logging.INFO))
 
     return validated_files
 

@@ -12,13 +12,14 @@ Thumbs.db
 .vscode/
 
 # ---------------------------
-# Python Bytecode
+# Python Bytecode & Cache
 # ---------------------------
 *.pyc
 __pycache__/
 *.pyo
 *.pyd
 *.pda
+.Python
 
 # ---------------------------
 # Distribution / Build Artifacts
@@ -29,6 +30,17 @@ dist/
 *.egg
 pip-wheel-metadata/
 *.whl
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+.installed.cfg
 
 # ---------------------------
 # Virtual Environments
@@ -39,40 +51,53 @@ ENV/
 env/
 
 # ---------------------------
-# Python Test Caches
+# Python Test Caches & Coverage
 # ---------------------------
 .pytest_cache/
 coverage/
 .coverage
+.coverage*
+htmlcov/
 .cache
+coverage.xml
 
 # ---------------------------
-# CodeConCat Temp
+# Type Checking
+# ---------------------------
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ---------------------------
+# CodeConCat Temp & Output
 # ---------------------------
 codeconcat_github_*
 code_concat_output.md
+code_concat_output.*
 # ---------------------------
 # Local config or secrets (Optional)
 # ---------------------------
 *.env
 .env
 
-# End of .gitignore
-code_concat_output.md
-
+# ---------------------------
 # Logs
-logs
+# ---------------------------
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 dev-debug.log
-# Dependency directories
+
+# ---------------------------
+# Node.js Dependencies
+# ---------------------------
 node_modules/
-# Environment variables
-# Editor directories and files
-.idea
-.vscode
+
+# ---------------------------
+# Editor Specific (Additional)
+# ---------------------------
 *.suo
 *.ntvs*
 *.njsproj
@@ -82,11 +107,12 @@ node_modules/
 .claude/
 .gemini/
 .windsurf/
-# OS specific
 
-# Task files
-# tasks.json
-# tasks/ 
-
+# ---------------------------
 # Task Master
+# ---------------------------
 .taskmaster/
+CLAUDE.md
+GEMINI.md
+
+# End of .gitignore

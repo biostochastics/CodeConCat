@@ -77,22 +77,23 @@ class TestAsyncSemgrepValidator:
     # Initialization Tests
     # ============================================================================
 
-    def test_init_with_semgrep_available(self, _mock_shutil_which_found):
+    def test_init_with_semgrep_available(self, mock_shutil_which_found):
         """Test initialization when semgrep is available."""
+        # The fixture mocks shutil.which to return semgrep path
         validator = AsyncSemgrepValidator()
 
         assert validator.semgrep_path == "/usr/bin/semgrep"
         assert validator.ruleset_path is not None
         assert validator.is_available() is True
 
-    def test_init_with_semgrep_not_available(self, _mock_shutil_which_not_found):
+    def test_init_with_semgrep_not_available(self, mock_shutil_which_not_found):
         """Test initialization when semgrep is not available."""
         validator = AsyncSemgrepValidator()
 
         assert validator.semgrep_path is None
         assert validator.is_available() is False
 
-    def test_init_with_custom_ruleset(self, _mock_shutil_which_found):
+    def test_init_with_custom_ruleset(self, mock_shutil_which_found):
         """Test initialization with custom ruleset path."""
         custom_ruleset = "/custom/rules"
         validator = AsyncSemgrepValidator(ruleset_path=custom_ruleset)
@@ -102,7 +103,7 @@ class TestAsyncSemgrepValidator:
 
     @patch("codeconcat.validation.async_semgrep_validator.Path")
     def test_get_default_ruleset_path_bundled_exists(
-        self, mock_path_class, _mock_shutil_which_found
+        self, mock_path_class, mock_shutil_which_found
     ):
         """Test getting default ruleset when bundled ruleset exists."""
         # Mock the path to the bundled ruleset
@@ -119,7 +120,7 @@ class TestAsyncSemgrepValidator:
 
     @patch("codeconcat.validation.async_semgrep_validator.Path")
     def test_get_default_ruleset_path_bundled_not_exists(
-        self, mock_path_class, _mock_shutil_which_found
+        self, mock_path_class, mock_shutil_which_found
     ):
         """Test getting default ruleset when bundled ruleset doesn't exist."""
         # Mock the path to the bundled ruleset not existing
@@ -140,7 +141,7 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_semgrep_not_available(
-        self, _mock_shutil_which_not_found, _mock_validate_safe_path
+        self, mock_shutil_which_not_found, mock_validate_safe_path
     ):
         """Test scanning file when semgrep is not available."""
         validator = AsyncSemgrepValidator()
@@ -150,10 +151,10 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_nonexistent_file(
-        self, _mock_shutil_which_found, _mock_validate_safe_path
+        self, mock_shutil_which_found, mock_validate_safe_path
     ):
         """Test scanning a file that doesn't exist."""
-        _mock_validate_safe_path.side_effect = lambda path: Path(path)
+        mock_validate_safe_path.side_effect = lambda path: Path(path)
 
         validator = AsyncSemgrepValidator()
 
@@ -164,14 +165,14 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_successful_with_findings(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, sample_semgrep_results, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, sample_semgrep_results, tmp_path
     ):
         """Test successful file scan with findings."""
         # Create test file
         test_file = tmp_path / "test.py"
         test_file.write_text("eval(user_input)")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         # Mock subprocess
         mock_process = AsyncMock()
@@ -210,13 +211,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_no_findings(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, empty_semgrep_results, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, empty_semgrep_results, tmp_path
     ):
         """Test file scan with no findings."""
         test_file = tmp_path / "clean.py"
         test_file.write_text("print('hello world')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -240,13 +241,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_unknown_language_skipped(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test scanning file with unknown language is skipped."""
         test_file = tmp_path / "unknown.xyz"
         test_file.write_text("some unknown content")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         validator = AsyncSemgrepValidator()
 
@@ -261,13 +262,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_timeout(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test scan file timeout handling."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         mock_process = AsyncMock()
         mock_process.kill = AsyncMock()
@@ -288,13 +289,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_semgrep_error(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test semgrep command error handling."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"Error: Invalid configuration")
@@ -311,13 +312,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_generic_exception(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test generic exception handling during scan."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         validator = AsyncSemgrepValidator()
 
@@ -330,13 +331,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_results_file_not_found(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test when semgrep results file is not created."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -365,13 +366,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_with_explicit_language(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, empty_semgrep_results, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, empty_semgrep_results, tmp_path
     ):
         """Test scanning file with explicitly provided language."""
         test_file = tmp_path / "test.xyz"
         test_file.write_text("some content")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -398,13 +399,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_with_custom_rules(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, empty_semgrep_results, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, empty_semgrep_results, tmp_path
     ):
         """Test scanning file when custom rules exist."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -438,7 +439,7 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_directory_semgrep_not_available(
-        self, _mock_shutil_which_not_found, _mock_validate_safe_path
+        self, mock_shutil_which_not_found, mock_validate_safe_path
     ):
         """Test scanning directory when semgrep is not available."""
         validator = AsyncSemgrepValidator()
@@ -448,10 +449,10 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_directory_nonexistent(
-        self, _mock_shutil_which_found, _mock_validate_safe_path
+        self, mock_shutil_which_found, mock_validate_safe_path
     ):
         """Test scanning a directory that doesn't exist."""
-        _mock_validate_safe_path.side_effect = lambda path: Path(path)
+        mock_validate_safe_path.side_effect = lambda path: Path(path)
 
         validator = AsyncSemgrepValidator()
 
@@ -462,14 +463,14 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_directory_not_directory(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test scanning a path that is not a directory."""
         # Create a file instead of directory
         test_file = tmp_path / "notdir.txt"
         test_file.write_text("content")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         validator = AsyncSemgrepValidator()
 
@@ -480,13 +481,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_directory_successful_with_findings(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, sample_semgrep_results, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, sample_semgrep_results, tmp_path
     ):
         """Test successful directory scan with findings."""
         test_dir = tmp_path / "test_dir"
         test_dir.mkdir()
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_dir
+        mock_validate_safe_path.side_effect = lambda _path: test_dir
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -510,13 +511,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_directory_with_languages_filter(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, empty_semgrep_results, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, empty_semgrep_results, tmp_path
     ):
         """Test scanning directory with language filter."""
         test_dir = tmp_path / "test_dir"
         test_dir.mkdir()
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_dir
+        mock_validate_safe_path.side_effect = lambda _path: test_dir
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -550,13 +551,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_directory_timeout(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test directory scan timeout handling."""
         test_dir = tmp_path / "test_dir"
         test_dir.mkdir()
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_dir
+        mock_validate_safe_path.side_effect = lambda _path: test_dir
 
         mock_process = AsyncMock()
         mock_process.kill = AsyncMock()
@@ -573,13 +574,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_directory_semgrep_error(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test directory scan semgrep error handling."""
         test_dir = tmp_path / "test_dir"
         test_dir.mkdir()
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_dir
+        mock_validate_safe_path.side_effect = lambda _path: test_dir
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"Configuration error")
@@ -596,13 +597,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_directory_no_results_file(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test directory scan when results file is not created."""
         test_dir = tmp_path / "test_dir"
         test_dir.mkdir()
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_dir
+        mock_validate_safe_path.side_effect = lambda _path: test_dir
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -627,7 +628,7 @@ class TestAsyncSemgrepValidator:
     # _detect_language Tests
     # ============================================================================
 
-    def test_detect_language_python(self, _mock_shutil_which_found):
+    def test_detect_language_python(self, mock_shutil_which_found):
         """Test language detection for Python files."""
         validator = AsyncSemgrepValidator()
 
@@ -635,7 +636,7 @@ class TestAsyncSemgrepValidator:
             result = validator._detect_language(Path("test.py"))
             assert result == "python"
 
-    def test_detect_language_javascript(self, _mock_shutil_which_found):
+    def test_detect_language_javascript(self, mock_shutil_which_found):
         """Test language detection for JavaScript files."""
         validator = AsyncSemgrepValidator()
 
@@ -643,7 +644,7 @@ class TestAsyncSemgrepValidator:
             result = validator._detect_language(Path("test.js"))
             assert result == "js"
 
-    def test_detect_language_typescript(self, _mock_shutil_which_found):
+    def test_detect_language_typescript(self, mock_shutil_which_found):
         """Test language detection for TypeScript files."""
         validator = AsyncSemgrepValidator()
 
@@ -651,7 +652,7 @@ class TestAsyncSemgrepValidator:
             result = validator._detect_language(Path("test.ts"))
             assert result == "ts"
 
-    def test_detect_language_java(self, _mock_shutil_which_found):
+    def test_detect_language_java(self, mock_shutil_which_found):
         """Test language detection for Java files."""
         validator = AsyncSemgrepValidator()
 
@@ -659,7 +660,7 @@ class TestAsyncSemgrepValidator:
             result = validator._detect_language(Path("Test.java"))
             assert result == "java"
 
-    def test_detect_language_go(self, _mock_shutil_which_found):
+    def test_detect_language_go(self, mock_shutil_which_found):
         """Test language detection for Go files."""
         validator = AsyncSemgrepValidator()
 
@@ -667,7 +668,7 @@ class TestAsyncSemgrepValidator:
             result = validator._detect_language(Path("main.go"))
             assert result == "go"
 
-    def test_detect_language_cpp(self, _mock_shutil_which_found):
+    def test_detect_language_cpp(self, mock_shutil_which_found):
         """Test language detection for C++ files."""
         validator = AsyncSemgrepValidator()
 
@@ -675,7 +676,7 @@ class TestAsyncSemgrepValidator:
             result = validator._detect_language(Path("test.cpp"))
             assert result == "cpp"
 
-    def test_detect_language_csharp(self, _mock_shutil_which_found):
+    def test_detect_language_csharp(self, mock_shutil_which_found):
         """Test language detection for C# files."""
         validator = AsyncSemgrepValidator()
 
@@ -683,7 +684,7 @@ class TestAsyncSemgrepValidator:
             result = validator._detect_language(Path("Test.cs"))
             assert result == "csharp"
 
-    def test_detect_language_unsupported(self, _mock_shutil_which_found):
+    def test_detect_language_unsupported(self, mock_shutil_which_found):
         """Test language detection for unsupported languages."""
         validator = AsyncSemgrepValidator()
 
@@ -691,7 +692,7 @@ class TestAsyncSemgrepValidator:
             result = validator._detect_language(Path("test.f90"))
             assert result is None
 
-    def test_detect_language_unknown(self, _mock_shutil_which_found):
+    def test_detect_language_unknown(self, mock_shutil_which_found):
         """Test language detection for unknown files."""
         validator = AsyncSemgrepValidator()
 
@@ -699,7 +700,7 @@ class TestAsyncSemgrepValidator:
             result = validator._detect_language(Path("test.unknown"))
             assert result is None
 
-    def test_detect_language_all_supported_mappings(self, _mock_shutil_which_found):
+    def test_detect_language_all_supported_mappings(self, mock_shutil_which_found):
         """Test all supported language mappings."""
         validator = AsyncSemgrepValidator()
 
@@ -732,13 +733,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_malformed_json_results(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test handling malformed JSON in results file."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -760,13 +761,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_scan_file_results_missing_fields(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test handling results with missing fields."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -809,7 +810,7 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_concurrent_scans(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, empty_semgrep_results, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, empty_semgrep_results, tmp_path
     ):
         """Test concurrent file scanning."""
         # Create multiple test files
@@ -819,7 +820,7 @@ class TestAsyncSemgrepValidator:
             test_file.write_text(f"print('test {i}')")
             test_files.append(test_file)
 
-        _mock_validate_safe_path.side_effect = lambda path: Path(path)
+        mock_validate_safe_path.side_effect = lambda path: Path(path)
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -848,14 +849,14 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_path_security_validation_called(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test that path security validation is called."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
         # Set up the mock to track calls
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         validator = AsyncSemgrepValidator()
 
@@ -863,7 +864,7 @@ class TestAsyncSemgrepValidator:
             await validator.scan_file(str(test_file))
 
         # Verify path validation was called
-        _mock_validate_safe_path.assert_called_once_with(str(test_file))
+        mock_validate_safe_path.assert_called_once_with(str(test_file))
 
     def test_singleton_instance_created(self):
         """Test that singleton instance is created."""
@@ -874,13 +875,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_memory_cleanup_after_scan(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test that temporary resources are cleaned up after scan."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"")
@@ -910,13 +911,13 @@ class TestAsyncSemgrepValidator:
 
     @pytest.mark.asyncio
     async def test_large_results_handling(
-        self, _mock_shutil_which_found, _mock_validate_safe_path, tmp_path
+        self, mock_shutil_which_found, mock_validate_safe_path, tmp_path
     ):
         """Test handling large number of scan results."""
         test_file = tmp_path / "test.py"
         test_file.write_text("print('test')")
 
-        _mock_validate_safe_path.side_effect = lambda _path: test_file
+        mock_validate_safe_path.side_effect = lambda _path: test_file
 
         # Create large results set
         large_results = {

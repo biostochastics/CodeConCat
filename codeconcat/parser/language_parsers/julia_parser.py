@@ -25,6 +25,7 @@ class JuliaParser(ParserInterface):
         - Assumes top-level module declarations, with no support for nested modules.
         - Returns a ParseResult containing declarations and import statements.
     """
+
     def __init__(self):
         """Initialize Julia parser with regex patterns."""
         self.patterns = {

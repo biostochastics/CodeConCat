@@ -332,9 +332,9 @@ rules:
                     f.write(result)
 
                 # Check if output file was created
-                assert (
-                    output_path.exists()
-                ), f"Output file not created for scenario {scenario['name']}"
+                assert output_path.exists(), (
+                    f"Output file not created for scenario {scenario['name']}"
+                )
 
                 # Check if the output contains expected information
                 with open(output_path) as f:
@@ -353,9 +353,9 @@ rules:
                         for f in output_data["files"]
                         if "suspicious.py" in f["file_path"] or "app.js" in f["file_path"]
                     ]
-                    assert (
-                        len(suspicious_files) > 0
-                    ), "Expected suspicious files not found in output"
+                    assert len(suspicious_files) > 0, (
+                        "Expected suspicious files not found in output"
+                    )
 
                 logger.info(f"Scenario {scenario['name']} passed as expected")
 
@@ -546,9 +546,9 @@ rules:
                     assert result is True, "Semgrep setup failed"
 
                     # Verify ruleset is used
-                    assert semgrep_validator.ruleset_path == str(
-                        ruleset_dir
-                    ), "Ruleset not properly set"
+                    assert semgrep_validator.ruleset_path == str(ruleset_dir), (
+                        "Ruleset not properly set"
+                    )
 
                     # Test scanning a file
                     from codeconcat.validation.security import security_validator

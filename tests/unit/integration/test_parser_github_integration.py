@@ -217,9 +217,9 @@ def fetch_repo_files(repo_name: str, config: CodeConCatConfig) -> Tuple[List[Par
             if files:
                 logger.info("First 5 files found:")
                 for i, f in enumerate(files[:5]):
-                    logger.info(f"  {i+1}. {f.file_path} ({f.language})")
+                    logger.info(f"  {i + 1}. {f.file_path} ({f.language})")
                 if len(files) > 5:
-                    logger.info(f"  ...and {len(files)-5} more files")
+                    logger.info(f"  ...and {len(files) - 5} more files")
 
                 # Create temp dir for consistency with API
                 temp_dir = tempfile.mkdtemp(
@@ -431,7 +431,7 @@ def repomix_repo():
             if ts_files:
                 logger.info(f"First {min(5, len(ts_files))} TypeScript files:")
                 for i, f in enumerate(ts_files[:5]):
-                    logger.info(f"  {i+1}. {f.file_path} (language={f.language})")
+                    logger.info(f"  {i + 1}. {f.file_path} (language={f.language})")
             else:
                 logger.warning("No .ts files found in repository files list")
 
@@ -674,9 +674,9 @@ def test_repomix_typescript_parsers(repomix_repo):
                 logger.info(f"Found {len(result.imports)} imports in example")
 
             # Test passes if we can process the example
-            assert hasattr(result, "declarations") or hasattr(
-                result, "imports"
-            ), "Parser failed to extract from example"
+            assert hasattr(result, "declarations") or hasattr(result, "imports"), (
+                "Parser failed to extract from example"
+            )
         except Exception as e:
             logger.error(f"Error parsing TypeScript example: {e}")
             raise
@@ -716,9 +716,9 @@ def test_repomix_javascript_parsers(repomix_repo):
             if js_files:
                 logger.info(f"Found {len(js_files)} .js files directly in filesystem")
                 for i, f in enumerate(js_files[:5]):
-                    logger.info(f"  {i+1}. {f}")
+                    logger.info(f"  {i + 1}. {f}")
                 if len(js_files) > 5:
-                    logger.info(f"  ...and {len(js_files)-5} more files")
+                    logger.info(f"  ...and {len(js_files) - 5} more files")
 
                 # Try loading directly
                 from codeconcat.base_types import ParsedFileData
@@ -788,9 +788,9 @@ def test_repomix_javascript_parsers(repomix_repo):
     expected_kinds = ["function", "class", "variable", "method"]
     found_kinds = [kind for kind in expected_kinds if kind in declaration_kinds]
 
-    assert (
-        len(found_kinds) > 0
-    ), f"Found no expected declaration kinds, only {declaration_kinds.keys()}"
+    assert len(found_kinds) > 0, (
+        f"Found no expected declaration kinds, only {declaration_kinds.keys()}"
+    )
 
     print(f"Processed {total_files} JavaScript files with {total_declarations} declarations")
     print(f"Declaration types found: {declaration_kinds}")
@@ -818,9 +818,9 @@ def test_tsx_react_component_parsing(repomix_repo):
             if tsx_files:
                 logger.info(f"Found {len(tsx_files)} .tsx files directly in filesystem")
                 for i, f in enumerate(tsx_files[:5]):
-                    logger.info(f"  {i+1}. {f}")
+                    logger.info(f"  {i + 1}. {f}")
                 if len(tsx_files) > 5:
-                    logger.info(f"  ...and {len(tsx_files)-5} more files")
+                    logger.info(f"  ...and {len(tsx_files) - 5} more files")
 
                 # Try loading directly
                 from codeconcat.base_types import ParsedFileData

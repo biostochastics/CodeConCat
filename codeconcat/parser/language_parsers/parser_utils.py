@@ -31,12 +31,13 @@ def safe_parser_method(default_return: Any = None) -> Callable[[F], F]:
     """
 
     def decorator(func: F) -> F:
-        @functools.wraps(func)
         """Decorator that adds error handling and logging functionality to a function.
         Parameters:
             - func (Callable): The function to be decorated.
         Returns:
             - Callable: The wrapped function with added error handling and logging."""
+
+        @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
             """Decorator function that wraps another function to handle specific exceptions and log errors.
             Parameters:

@@ -147,9 +147,9 @@ pub fn process_data(input: &str) -> Result<String, Status> {
 
         # Calculate total declarations including nested ones
         total_declarations = parser._count_nested_declarations(result.declarations)
-        assert (
-            total_declarations >= 5
-        ), f"Expected at least 5 declarations, found {total_declarations}"
+        assert total_declarations >= 5, (
+            f"Expected at least 5 declarations, found {total_declarations}"
+        )
 
         # Make sure one impl block has methods
         config_impl = None

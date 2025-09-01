@@ -36,6 +36,7 @@ class CodeConcatRequest(BaseModel):
         - max_workers (int): Maximum number of workers for processing; defaults to 4.
         - output_preset (str): Preset for the output format; defaults to "medium".
     """
+
     target_path: str
     format: str = "markdown"
     github_url: Optional[str] = None

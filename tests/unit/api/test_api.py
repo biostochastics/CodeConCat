@@ -120,9 +120,9 @@ class TestAPI:
         default_request = CodeConcatRequest(source_url="test/repo")
         assert default_request.format == "json", "Default format should be json"
         assert default_request.output_preset == "medium", "Default preset should be medium"
-        assert (
-            default_request.parser_engine == "tree_sitter"
-        ), "Default parser should be tree_sitter"
+        assert default_request.parser_engine == "tree_sitter", (
+            "Default parser should be tree_sitter"
+        )
 
         # Test with GitHub source
         github_request = CodeConcatRequest(source_url="user/repo", source_ref="main")

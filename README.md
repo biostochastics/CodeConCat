@@ -1,5 +1,7 @@
 # CodeConCat
 
+[![Version](https://img.shields.io/badge/version-0.8.0-blue)](https://github.com/biostochastics/codeconcat)
+
 <p align="center">
   <img src="assets/codeconcat_logo.png" alt="CodeConCat Logo" width="300"/>
 </p>
@@ -257,6 +259,33 @@ codeconcat run --source-url owner/repo --github-token $GITHUB_TOKEN
 
 # Filter by language and paths
 codeconcat run -il python javascript -ep "*/tests/*" "*/node_modules/*"
+
+# Advanced filtering with multiple patterns
+codeconcat run \
+    --include-path "src/**/*.py" "lib/**/*.py" \
+    --exclude-path "**/test_*.py" "**/__pycache__/*" \
+    --include-language python rust
+
+# Production build with security scanning
+codeconcat run \
+    --format json \
+    --compress --compression-level high \
+    --security --security-threshold HIGH \
+    --semgrep \
+    --output production-audit.json
+
+# Quick documentation extraction
+codeconcat run \
+    --docs --merge-docs \
+    --remove-docstrings --remove-comments \
+    --preset lean \
+    --output docs-only.md
+
+# Generate with reporting options
+codeconcat run \
+    --test-security-report \
+    --unsupported-report \
+    --output full-report.json
 ```
 
 ### Initialize Configuration
@@ -380,9 +409,11 @@ Process files and generate AI-optimized output.
 | `--docs/--no-docs` | | Extract standalone documentation files |
 | `--remove-docstrings` | | Strip docstrings from code |
 | `--remove-comments` | | Strip comments from code |
-| `--security/--no-security` | | Enable security scanning |
+| `--security/--no-security` | | Enable security scanning (default: true) |
 | `--semgrep` | | Enable Semgrep security scanning |
 | `--security-threshold` | | Minimum severity: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` |
+| `--test-security-report` | | Write test file security findings to separate JSON file |
+| `--unsupported-report` | | Write unsupported/skipped files report to JSON file |
 
 #### `codeconcat init`
 
@@ -734,8 +765,8 @@ poetry run pytest --cov=codeconcat --cov-report=term-missing
 poetry run pytest tests/unit/test_cli.py -xvs
 
 # Format code (auto-fix)
-poetry run black codeconcat tests
-poetry run isort codeconcat tests
+poetry run ruff format codeconcat tests
+poetry run ruff check codeconcat tests --fix
 poetry run ruff check --fix codeconcat tests
 
 # Lint code (check only)
@@ -761,7 +792,7 @@ The codebase follows these practices:
 The project uses GitHub Actions for continuous integration:
 
 - **Automated Testing**: Tests run on Python 3.10, 3.11, and 3.12
-- **Code Quality**: Linting with ruff, black, isort, and mypy
+- **Code Quality**: Linting and formatting with ruff, type checking with mypy
 - **Coverage Reports**: Automatic coverage reporting
 - **Pre-commit Hooks**: Ensures code quality before commits
 - **Package Publishing**: Automatic PyPI deployment on tagged releases
@@ -789,7 +820,6 @@ poetry run pytest -n auto
 
 Comprehensive documentation is available:
 
-- [CLI Documentation](CLI_DOCUMENTATION.md) - Detailed CLI reference
 - [API Documentation](http://localhost:8000/docs) - Interactive API docs (when server is running)
 - [Contributing Guide](CONTRIBUTING.md) - How to contribute
 - [Security Policy](SECURITY.md) - Security guidelines

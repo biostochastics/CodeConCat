@@ -12,10 +12,11 @@ import logging
 import traceback
 from typing import Any, List, Tuple
 
-from tqdm import tqdm
+from rich.progress import track
 
 from ..base_types import CodeConCatConfig, EnhancedParserInterface, ParsedFileData
 from ..errors import FileProcessingError, LanguageParserError, ParserError, UnsupportedLanguageError
+from ..validation.unsupported_reporter import get_reporter as get_unsupported_reporter
 from .file_parser import get_language_parser
 
 logger = logging.getLogger(__name__)
@@ -74,15 +75,29 @@ def enhanced_parse_pipeline(
             # Skip unsupported languages
             if not language or language == "unknown":
                 logger.debug(f"Skipping file with unknown language: {file_path}")
+                reporter = get_unsupported_reporter()
+                reporter.add_skipped_file(
+                    file_path,
+                    "Unknown or unsupported language",
+                    "unknown_language" if language == "unknown" else "unsupported_language",
+                )
                 continue
 
             # Skip excluded languages
             if config.include_languages and language not in config.include_languages:
                 logger.debug(f"Skipping {file_path} - language '{language}' not in include list")
+                reporter = get_unsupported_reporter()
+                reporter.add_skipped_file(
+                    file_path, f"Language '{language}' not in include list", "excluded_pattern"
+                )
                 continue
 
             if language in config.exclude_languages:
                 logger.debug(f"Skipping {file_path} - language '{language}' in exclude list")
+                reporter = get_unsupported_reporter()
+                reporter.add_skipped_file(
+                    file_path, f"Language '{language}' in exclude list", "excluded_pattern"
+                )
                 continue
 
             # Try parsing with progressive fallbacks
@@ -206,6 +221,15 @@ def enhanced_parse_pipeline(
                 errors.append(UnsupportedLanguageError(error_msg, file_path=file_path))
                 logger.warning(f"All parsers failed for {file_path}")
 
+                # Track as unsupported file
+                reporter = get_unsupported_reporter()
+                reporter.add_skipped_file(
+                    file_path,
+                    f"No parser available for language '{language}'",
+                    "unsupported_language",
+                    details=parse_error,
+                )
+
         except Exception as e:
             # Catch-all for any unexpected errors
             logger.error(f"Unexpected error processing {file_path}: {str(e)}", exc_info=True)
@@ -226,18 +250,16 @@ def process_with_progress(
     items: List[Any],
     description: str = "Processing",
     disable_progress: bool = False,
-    unit: str = "item",
 ) -> Any:
     """
-    Wrap a list with tqdm progress reporting.
+    Wrap a list with Rich progress reporting.
 
     Args:
         items: The list of items to process
         description: Description for the progress bar
         disable_progress: Whether to disable the progress bar
-        unit: The unit name for items being processed
 
     Returns:
-        A tqdm iterator for the input items
+        A Rich track iterator for the input items
     """
-    return tqdm(items, desc=description, unit=unit, total=len(items), disable=disable_progress)
+    return track(items, description=description, disable=disable_progress, total=len(items))

@@ -296,7 +296,7 @@ def function():
         lines = processed.split("\n")
         for i, line in enumerate(lines):
             if line:  # Skip empty lines
-                self.assertTrue(line.startswith(f"{i+1:4d} |"))
+                self.assertTrue(line.startswith(f"{i + 1:4d} |"))
 
     def test_process_file_content_line_numbers_with_processing(self):
         """Test line numbers work correctly with other processing options."""
@@ -334,7 +334,7 @@ def function():
         self.assertNotIn("# This is a comment", processed)  # Comments removed
         self.assertTrue(
             all(
-                line.startswith(f"{i+1:4d} |") or not line.strip()
+                line.startswith(f"{i + 1:4d} |") or not line.strip()
                 for i, line in enumerate(processed.split("\n"))
                 if line.strip()
             )
