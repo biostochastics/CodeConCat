@@ -131,6 +131,11 @@ class PromptManager:
 
         # Perform substitution
         def replace_var(match):
+            """Replace variable placeholders within a matched pattern with their corresponding values.
+            Parameters:
+                - match (re.Match): The match object representing a variable placeholder.
+            Returns:
+                - str: The value associated with the variable if present, or the original match if the variable is neither found in `variables` nor `optional_vars`."""
             var_name = match.group(1)
             if var_name in variables:
                 return str(variables[var_name])

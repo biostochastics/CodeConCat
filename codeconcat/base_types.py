@@ -91,6 +91,13 @@ class ContentSegment:
 
 
 class SecuritySeverity(Enum):
+    """Enumerate and order security severity levels.
+    Parameters:
+        - None
+    Processing Logic:
+        - Provides a standard order for security severity levels: INFO < LOW < MEDIUM < HIGH < CRITICAL.
+        - Implements comparison methods to enable ordering of SecuritySeverity instances.
+        - If comparison is attempted with a non-SecuritySeverity instance, NotImplemented is returned."""
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
@@ -99,6 +106,12 @@ class SecuritySeverity(Enum):
 
     # Optional: For ordering or comparison
     def __lt__(self, other):
+        """Determine if one SecuritySeverity object is less than another based on a predefined order.
+        Parameters:
+            - other (SecuritySeverity): The SecuritySeverity instance to compare against.
+        Returns:
+            - bool: True if the current instance is less than the other instance, False otherwise.
+            - NotImplemented: Returned if the 'other' object is not a SecuritySeverity instance."""
         if self.__class__ is other.__class__:
             # Define the order from lowest to highest
             order = [
@@ -176,6 +189,13 @@ class CustomSecurityPattern(BaseModel):
 
     @field_validator("severity")
     def validate_severity(cls, value):
+        """Validate if the given severity value corresponds to a valid `SecuritySeverity` enum.
+        Parameters:
+            - value (str): The severity level to validate.
+        Returns:
+            - str: The valid severity level from the `SecuritySeverity` enum.
+        Raises:
+            - ValueError: If the given value is not a valid severity level."""
         try:
             # Ensure severity is uppercase and exists in the enum
             return SecuritySeverity[value.upper()].name
@@ -197,6 +217,12 @@ class CustomSecurityPattern(BaseModel):
         result_queue: queue.Queue = queue.Queue()
 
         def compile_regex():
+            """Compile and validate a regex pattern.
+            Parameters:
+                - value (str): Regex pattern to be compiled.
+                - result_queue (queue.Queue): A queue object to store the result of the regex compilation and validation.
+            Returns:
+                - None: Results are communicated via the result_queue, which contains a tuple with a boolean indicating success or failure, and a message or the validated pattern."""
             try:
                 # Limit regex length as additional protection
                 if len(value) > 1000:
@@ -288,6 +314,30 @@ class ParsedFileData:
 @dataclass
 @dataclass
 class ParseResult:
+    """
+    Represents the result of a parsing operation, capturing various outcomes and characteristics of the parse process.
+    Parameters:
+        - declarations (list[Declaration]): A list of parsed declarations from the code.
+        - imports (list[str]): A list of import statements found in the code.
+        - missed_features (list[str]): A list of features not supported by the parser, such as "methods" or "async_functions".
+        - security_issues (list[Any]): A list containing any discovered security issues.
+        - ast_root (Any | None): Optional. Holds a tree_sitter.Node if available.
+        - error (str | None): Optional. Describes any parsing errors encountered.
+        - engine_used (str): The parsing engine used, defaults to "regex".
+        - parser_quality (str): Indicates the quality of the parse as "full", "partial", or "basic".
+        - file_path (str | None): Optional. Path to the file being parsed.
+        - language (str | None): Optional. Language of the file being parsed.
+        - content (str | None): Optional. The content of the file being parsed.
+        - token_stats (Any | None): Optional. Statistics about the tokens processed.
+        - module_docstring (str | None): Optional. The docstring of the module if available.
+        - module_name (str | None): Optional. The name of the module if available.
+        - degraded (bool): Indicates whether the parsing was degraded; defaults to False.
+    Processing Logic:
+        - Utilizes fields to capture detailed information about the parsing process and result.
+        - Extensively accommodates optional fields to enhance flexibility and adaptability.
+        - Caters to both mandatory and discretionary parsing scenarios by providing default values.
+        - Facilitates concise feedback on parsing efficacy and areas requiring attention.
+    """
     # Required fields first (no defaults)
     declarations: list[Declaration] = field(default_factory=list)
     imports: list[str] = field(default_factory=list)

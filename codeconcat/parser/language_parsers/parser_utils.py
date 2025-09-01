@@ -32,7 +32,20 @@ def safe_parser_method(default_return: Any = None) -> Callable[[F], F]:
 
     def decorator(func: F) -> F:
         @functools.wraps(func)
+        """Decorator that adds error handling and logging functionality to a function.
+        Parameters:
+            - func (Callable): The function to be decorated.
+        Returns:
+            - Callable: The wrapped function with added error handling and logging."""
         def wrapper(*args, **kwargs) -> Any:
+            """Decorator function that wraps another function to handle specific exceptions and log errors.
+            Parameters:
+                - func (Callable): The function to be wrapped by the decorator.
+                - default_return (Any): The value to return when specific exceptions are encountered.
+                - logger (Logger): Logger object used for logging error messages.
+                - _get_parser_name (Callable): Function to retrieve parser name from arguments for logging purposes.
+            Returns:
+                - Any: The result of the wrapped function call, or the default return value if exceptions are caught."""
             try:
                 return func(*args, **kwargs)
             except (IndexError, KeyError) as e:
