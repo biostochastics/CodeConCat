@@ -103,7 +103,7 @@ class UnsupportedFilesReporter:
         }
 
         try:
-            with open(self.report_path, "w") as f:
+            with open(self.report_path, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2, default=str)
             logger.debug(f"Unsupported files report written to {self.report_path}")
         except Exception as e:
