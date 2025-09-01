@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the enhanced C-family parser in CodeConCat.
@@ -9,15 +8,13 @@ C and C++ syntax, structs, classes, functions, and includes.
 """
 
 import logging
+
 import pytest
 
-from codeconcat.base_types import (
-    ParseResult,
-    ParserInterface,
-)
+from codeconcat.base_types import ParseResult, ParserInterface
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.enhanced_c_family_parser import EnhancedCFamilyParser
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -96,20 +93,20 @@ int main(int argc, char** argv) {
 class TestClass {
 private:
     int value;
-    
+
 public:
     /**
      * Constructor
      */
     TestClass(int value = 0) : value(value) {}
-    
+
     /**
      * Get the value
      */
     int getValue() const {
         return value;
     }
-    
+
     /**
      * Set the value
      */
@@ -134,9 +131,9 @@ int main() {
     std::cout << "Value: " << tc.getValue() << std::endl;
     tc.setValue(100);
     std::cout << "New value: " << tc.getValue() << std::endl;
-    
+
     testFunction(tc.getValue(), "Test");
-    
+
     return 0;
 }
 """

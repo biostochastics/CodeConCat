@@ -1,8 +1,8 @@
-"""Remote Git repository collector for CodeConcat."""
+"""Remote Git repository collector for CodeConcat - Async version with backward compatibility."""
 
+import asyncio
 import logging
 import re
-import subprocess
 import tempfile
 import traceback
 from typing import List, Optional, Tuple
@@ -50,11 +50,53 @@ def parse_git_url(url: str) -> Tuple[str, str, Optional[str]]:
     )
 
 
-def collect_git_repo(
+async def run_git_command(
+    command: List[str], cwd: Optional[str] = None, timeout: float = 120.0
+) -> Tuple[int, str, str]:
+    """
+    Run a git command asynchronously with proper error handling.
+
+    Args:
+        command: Command and arguments to run
+        cwd: Working directory for the command
+        timeout: Maximum time to wait for command completion
+
+    Returns:
+        Tuple of (return_code, stdout, stderr)
+    """
+    try:
+        logger.debug(f"Running async git command: {' '.join(command)}")
+
+        # Create subprocess
+        process = await asyncio.create_subprocess_exec(
+            *command, cwd=cwd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+
+        # Wait for completion with timeout
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+            return_code = process.returncode
+        except asyncio.TimeoutError:
+            logger.error(f"Git command timed out after {timeout} seconds")
+            process.kill()
+            await process.wait()
+            return -1, "", f"Command timed out after {timeout} seconds"
+
+        stdout_text = stdout.decode("utf-8", errors="replace") if stdout else ""
+        stderr_text = stderr.decode("utf-8", errors="replace") if stderr else ""
+
+        return return_code or 0, stdout_text, stderr_text
+
+    except Exception as e:
+        logger.error(f"Error running git command: {e}")
+        return -1, "", str(e)
+
+
+async def collect_git_repo_async(
     source_url_in: str, config: CodeConCatConfig
 ) -> Tuple[List[ParsedFileData], str]:
     """
-    Collect files from a remote Git repository by cloning it.
+    Async version: Collect files from a remote Git repository by cloning it.
 
     Args:
         source_url_in: Git repository URL or shorthand (e.g., owner/repo).
@@ -81,7 +123,6 @@ def collect_git_repo(
             logger.info(f"Attempting to clone from URL: {clone_url}")
 
             # Clone the repository
-            # Use --no-tags to avoid fetching all tags, fetch only the target branch/ref
             clone_command = [
                 "git",
                 "clone",
@@ -93,18 +134,15 @@ def collect_git_repo(
                 clone_url,
                 temp_dir,
             ]
-            logger.info(f"Running git clone command: {' '.join(clone_command)}")
-            # Capture both stdout and stderr
-            result = subprocess.run(
-                clone_command, check=False, capture_output=True, text=True  # Check manually below
-            )
 
-            if result.returncode != 0:
+            logger.info("Running async git clone command")
+            return_code, stdout, stderr = await run_git_command(clone_command)
+
+            if return_code != 0:
                 # Attempt fetch if clone failed (might be a specific commit SHA not on a branch HEAD)
-                logger.warning(
-                    f"Initial clone failed (code: {result.returncode}), attempting fetch..."
-                )
-                logger.warning(f"Clone stderr: {result.stderr.strip()}")
+                logger.warning(f"Initial clone failed (code: {return_code}), attempting fetch...")
+                logger.warning(f"Clone stderr: {stderr.strip()}")
+
                 # Clone default branch first, then fetch the specific ref
                 clone_command_default = [
                     "git",
@@ -117,17 +155,17 @@ def collect_git_repo(
                     ),  # Use default branch implicitly
                     temp_dir,
                 ]
-                result_default = subprocess.run(
-                    clone_command_default, check=False, capture_output=True, text=True
+
+                return_code_default, stdout_default, stderr_default = await run_git_command(
+                    clone_command_default
                 )
 
-                if result_default.returncode != 0:
-                    logger.error(
-                        f"Failed to clone default branch (code: {result_default.returncode})."
-                    )
-                    logger.error(f"Clone stderr: {result_default.stderr.strip()}")
+                if return_code_default != 0:
+                    logger.error(f"Failed to clone default branch (code: {return_code_default}).")
+                    logger.error(f"Clone stderr: {stderr_default.strip()}")
                     return [], ""
 
+                # Fetch the specific ref
                 fetch_command = [
                     "git",
                     "-C",
@@ -138,31 +176,33 @@ def collect_git_repo(
                     "--depth",
                     "1",
                 ]
-                logger.info(f"Running fetch command: {' '.join(fetch_command)}")
-                result_fetch = subprocess.run(
-                    fetch_command, check=False, capture_output=True, text=True
+
+                logger.info("Running fetch command")
+                return_code_fetch, stdout_fetch, stderr_fetch = await run_git_command(
+                    fetch_command, cwd=temp_dir
                 )
 
-                if result_fetch.returncode != 0:
+                if return_code_fetch != 0:
                     logger.error(
-                        f"Failed to fetch target ref '{target_ref}' (code: {result_fetch.returncode})."
+                        f"Failed to fetch target ref '{target_ref}' (code: {return_code_fetch})."
                     )
-                    logger.error(f"Fetch stderr: {result_fetch.stderr.strip()}")
+                    logger.error(f"Fetch stderr: {stderr_fetch.strip()}")
                     # Proceed with default branch content if fetch fails?
                     logger.warning("Proceeding with content from default branch clone.")
                     # No need to checkout here, already have the default branch
                 else:
                     # Checkout the fetched ref
                     checkout_command = ["git", "-C", temp_dir, "checkout", "FETCH_HEAD"]
-                    logger.info(f"Running checkout command: {' '.join(checkout_command)}")
-                    result_checkout = subprocess.run(
-                        checkout_command, check=False, capture_output=True, text=True
+                    logger.info("Running checkout command")
+                    return_code_checkout, stdout_checkout, stderr_checkout = await run_git_command(
+                        checkout_command, cwd=temp_dir
                     )
-                    if result_checkout.returncode != 0:
+
+                    if return_code_checkout != 0:
                         logger.error(
-                            f"Failed to checkout fetched ref '{target_ref}' (code: {result_checkout.returncode})."
+                            f"Failed to checkout fetched ref '{target_ref}' (code: {return_code_checkout})."
                         )
-                        logger.error(f"Checkout stderr: {result_checkout.stderr.strip()}")
+                        logger.error(f"Checkout stderr: {stderr_checkout.strip()}")
                         return [], ""
             else:
                 logger.info(f"Successfully cloned ref '{target_ref}' directly.")
@@ -170,19 +210,12 @@ def collect_git_repo(
             # Collect files using the local collector on the temporary directory
             logger.info(f"Collecting files from temporary directory: {temp_dir}")
             # Pass temp_dir and original config directly
-            files = collect_local_files(temp_dir, config)
+            # Note: collect_local_files is still synchronous, could be made async in future
+            loop = asyncio.get_event_loop()
+            files = await loop.run_in_executor(None, collect_local_files, temp_dir, config)
             logger.info(f"Found {len(files)} files in cloned repository.")
             return files, temp_dir  # Return files and temp_dir path
 
-        except subprocess.CalledProcessError as e:
-            # This might not be reached if check=False, handled by returncode check
-            logger.error(
-                f"Error during git operation for '{repo_name}' (Return code: {e.returncode})."
-            )
-            logger.error(f"Command run: {' '.join(e.cmd)}")
-            logger.error(f"Stderr: {e.stderr.strip() if e.stderr else 'N/A'}")
-            logger.error(f"Stdout: {e.stdout.strip() if e.stdout else 'N/A'}")
-            return [], ""
         except Exception as e:
             logger.error(
                 f"Error processing Git repository: {e}\nConfig: {config}\nTraceback: {traceback.format_exc()}"
@@ -190,8 +223,42 @@ def collect_git_repo(
             return [], ""
 
 
+def collect_git_repo(
+    source_url_in: str, config: CodeConCatConfig
+) -> Tuple[List[ParsedFileData], str]:
+    """
+    Synchronous wrapper for backward compatibility.
+    Collect files from a remote Git repository by cloning it.
+
+    Args:
+        source_url_in: Git repository URL or shorthand (e.g., owner/repo).
+        config: Configuration object.
+
+    Returns:
+        Tuple[List[ParsedFileData], str]: List of parsed file data objects and the path to the temporary directory used.
+    """
+    # Check if we're already in an event loop
+    try:
+        try:
+            asyncio.get_running_loop()
+            # We're in an async context, but called synchronously
+            # This is not ideal but we'll handle it
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, collect_git_repo_async(source_url_in, config))
+                return future.result()
+        except RuntimeError:
+            # No event loop running, we can create one
+            return asyncio.run(collect_git_repo_async(source_url_in, config))
+    except Exception as e:
+        # Handle any exceptions from async execution
+        logger.error(f"Error in synchronous Git repository collection: {e}")
+        return [], ""
+
+
 def build_git_clone_url(
-    source_url_in: str, owner: str, repo: str, token: Optional[str] = None
+    _source_url_in: str, owner: str, repo: str, token: Optional[str] = None
 ) -> str:
     """Build GitHub clone URL with optional token. Ensures HTTPS format."""
     # Always construct a standard HTTPS URL for cloning

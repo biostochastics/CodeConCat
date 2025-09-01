@@ -1,7 +1,8 @@
 """Test tree-sitter parsers after fixes"""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 # Mock tree-sitter imports
 mock_language = Mock()
@@ -60,7 +61,7 @@ public:
     int add(int x, int y) {
         return x + y;
     }
-    
+
 private:
     int value;
 };
@@ -89,7 +90,7 @@ class Calculator {
     constructor(value) {
         this.value = value;
     }
-    
+
     add(x, y) {
         return x + y;
     }
@@ -108,11 +109,11 @@ use App\\Models\\User;
 
 class UserController {
     private $userModel;
-    
+
     public function __construct() {
         $this->userModel = new User();
     }
-    
+
     public function getUser($id) {
         return $this->userModel->find($id);
     }
@@ -142,7 +143,7 @@ end # module
 class TestTreeSitterParsersFixed:
     """Test that tree-sitter parsers work after fixes"""
 
-    def test_rust_parser_no_visibility_errors(self, mock_tree_sitter):
+    def test_rust_parser_no_visibility_errors(self, _mock_tree_sitter):
         """Test Rust parser doesn't have visibility field errors"""
         from codeconcat.parser.language_parsers.tree_sitter_rust_parser import RUST_QUERIES
 
@@ -155,7 +156,7 @@ class TestTreeSitterParsersFixed:
         # But visibility should still be captured (as separate nodes)
         assert "(visibility_modifier)? @visibility" in declarations_query
 
-    def test_cpp_parser_field_fixes(self, mock_tree_sitter):
+    def test_cpp_parser_field_fixes(self, _mock_tree_sitter):
         """Test C++ parser field name fixes"""
         from codeconcat.parser.language_parsers.tree_sitter_cpp_parser import CPP_QUERIES
 
@@ -167,7 +168,7 @@ class TestTreeSitterParsersFixed:
             "body: (declaration_list)" in declarations_query or "declarator:" in declarations_query
         )
 
-    def test_csharp_parser_node_type_fixes(self, mock_tree_sitter):
+    def test_csharp_parser_node_type_fixes(self, _mock_tree_sitter):
         """Test C# parser node type fixes"""
         from codeconcat.parser.language_parsers.tree_sitter_csharp_parser import CSHARP_QUERIES
 
@@ -183,7 +184,7 @@ class TestTreeSitterParsersFixed:
         assert "type_parameter_list:" not in declarations_query
         assert "type_parameters:" in declarations_query
 
-    def test_php_parser_field_fixes(self, mock_tree_sitter):
+    def test_php_parser_field_fixes(self, _mock_tree_sitter):
         """Test PHP parser field fixes"""
         from codeconcat.parser.language_parsers.tree_sitter_php_parser import PHP_QUERIES
 
@@ -198,7 +199,7 @@ class TestTreeSitterParsersFixed:
         # Check that modifier field references were removed
         assert "modifier: " not in declarations_query
 
-    def test_julia_parser_node_type_fixes(self, mock_tree_sitter):
+    def test_julia_parser_node_type_fixes(self, _mock_tree_sitter):
         """Test Julia parser node type fixes"""
         from codeconcat.parser.language_parsers.tree_sitter_julia_parser import JULIA_QUERIES
 
@@ -217,7 +218,7 @@ class TestTreeSitterParsersFixed:
         assert "body: (block)" not in declarations_query
         assert "body: (block_expression)" in declarations_query
 
-    def test_javascript_parser_field_fixes(self, mock_tree_sitter):
+    def test_javascript_parser_field_fixes(self, _mock_tree_sitter):
         """Test JavaScript parser field fixes"""
         from codeconcat.parser.language_parsers.tree_sitter_js_ts_parser import JS_TS_QUERIES
 
@@ -227,9 +228,9 @@ class TestTreeSitterParsersFixed:
         # JS parser should use 'left:' for assignments
         if "expression:" in declarations_query:
             # Should have been replaced with 'left:'
-            assert False, "expression: field should have been replaced with left:"
+            raise AssertionError("expression: field should have been replaced with left:")
 
-    def test_all_parsers_capture_unpacking_fixed(self, mock_tree_sitter):
+    def test_all_parsers_capture_unpacking_fixed(self, _mock_tree_sitter):
         """Test all parsers handle both 2-tuple and 3-tuple captures"""
         parsers_to_test = [
             "tree_sitter_rust_parser",
@@ -247,7 +248,7 @@ class TestTreeSitterParsersFixed:
             # Read the parser file
             parser_path = f"/Users/biostochastics/Development/GitHub/codeconcat/codeconcat/parser/language_parsers/{parser_module}.py"
             try:
-                with open(parser_path, "r") as f:
+                with open(parser_path) as f:
                     content = f.read()
 
                 # Check that the old pattern doesn't exist
@@ -262,7 +263,7 @@ class TestTreeSitterParsersFixed:
             except FileNotFoundError:
                 pass  # Skip if file doesn't exist
 
-    def test_regex_escaping_fixed(self, mock_tree_sitter):
+    def test_regex_escaping_fixed(self, _mock_tree_sitter):
         """Test regex patterns in doc comments are properly escaped"""
         parsers_with_regex = [
             ("tree_sitter_rust_parser", "RUST_QUERIES"),
@@ -282,7 +283,7 @@ class TestTreeSitterParsersFixed:
                 # Check that asterisks in regex patterns are properly escaped
                 # Should have \\\\* not \\*
                 if "/\\*\\*" in doc_comments_query:
-                    assert False, f"{module_name} has unescaped asterisk in regex"
+                    raise AssertionError(f"{module_name} has unescaped asterisk in regex")
 
                 # Properly escaped patterns should have \\\\*
                 if "^/\\\\*\\\\*" in doc_comments_query:

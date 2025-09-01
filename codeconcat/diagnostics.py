@@ -7,8 +7,8 @@ debugging parsing issues, and validating the codebase setup.
 
 import importlib
 import logging
-from typing import Dict, List, Optional, Tuple
 import traceback
+from typing import Any, Dict, List, Optional, Tuple
 
 from codeconcat.parser.language_parsers import TREE_SITTER_PARSER_MAP
 
@@ -121,7 +121,7 @@ def diagnose_parser(language: str, file_path: Optional[str] = None) -> Tuple[boo
     from codeconcat.base_types import CodeConCatConfig
     from codeconcat.parser.file_parser import get_language_parser
 
-    results = {
+    results: Dict[str, Any] = {
         "language": language,
         "parsers_found": {},
         "parsers_tested": {},
@@ -130,8 +130,13 @@ def diagnose_parser(language: str, file_path: Optional[str] = None) -> Tuple[boo
     }
 
     # Create a minimal config for testing
-    config = CodeConCatConfig(
-        target_path=".", disable_tree=False, use_enhanced_parsers=True, fallback_to_regex=True
+    config = CodeConCatConfig.model_validate(
+        {
+            "target_path": ".",
+            "disable_tree": False,
+            "use_enhanced_parsers": True,
+            "fallback_to_regex": True,
+        }
     )
 
     # Try to load all parser types for this language
@@ -159,7 +164,7 @@ def diagnose_parser(language: str, file_path: Optional[str] = None) -> Tuple[boo
                 # If a test file is provided, try to parse it
                 if file_path:
                     try:
-                        with open(file_path, "r", encoding="utf-8") as f:
+                        with open(file_path, encoding="utf-8") as f:
                             content = f.read()
 
                         parse_result = parser_instance.parse(content, file_path)

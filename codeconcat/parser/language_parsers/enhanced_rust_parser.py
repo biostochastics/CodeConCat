@@ -43,8 +43,8 @@ class EnhancedRustParser(EnhancedBaseParser):
         # Initialize patterns dict (will be populated in _setup_rust_patterns)
         self.patterns = {}
 
-        # Initialize recognized Rust modifiers (converted to a frozenset for faster lookups)
-        self.modifiers = frozenset(
+        # Initialize recognized Rust modifiers
+        self.modifiers: set[str] = set(
             {
                 "pub",
                 "fn",
@@ -153,9 +153,9 @@ class EnhancedRustParser(EnhancedBaseParser):
         try:
             logger.debug(f"Starting EnhancedRustParser.parse for file: {file_path}")
 
-            declarations = []
-            imports = []
-            errors = []
+            declarations: list[Declaration] = []
+            imports: list[str] = []
+            errors: list[str] = []
 
             lines = content.split("\n")
 
@@ -232,7 +232,9 @@ class EnhancedRustParser(EnhancedBaseParser):
             )
             return end
 
-        logger.debug(f"Processing Rust block from lines {start+1}-{end+1} at depth {current_depth}")
+        logger.debug(
+            f"Processing Rust block from lines {start + 1}-{end + 1} at depth {current_depth}"
+        )
 
         # Initialize line counter for safety
         line_counter = 0
@@ -320,7 +322,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                     start_line = i + 1  # 1-indexed
                     end_line = i + 1  # Default end line
                     end_line_idx = i  # Default end line index (0-based)
-                    docstring_text = self._extract_rust_docstring(lines, i)
+                    docstring_text = self._extract_rust_docstring(lines, i) or ""
 
                     # Find the end of the block if necessary
                     block_found = False
@@ -355,13 +357,13 @@ class EnhancedRustParser(EnhancedBaseParser):
                                 else:
                                     # Log error if block end not found and estimate
                                     logger.warning(
-                                        f"Could not find matching }} for {{ at line {i+1}. Declaration: {kind} {name}"
+                                        f"Could not find matching }} for {{ at line {i + 1}. Declaration: {kind} {name}"
                                     )
                                     end_line_idx = min(i + 49, len(lines) - 1)  # Estimate index
                                     end_line = end_line_idx + 1
                             except Exception as e:
                                 logger.error(
-                                    f"Error finding block end for {kind} {name} at line {i+1}: {e}",
+                                    f"Error finding block end for {kind} {name} at line {i + 1}: {e}",
                                     exc_info=True,
                                 )
                                 end_line_idx = min(i + 9, len(lines) - 1)  # Fallback index
@@ -392,7 +394,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                     end_line = min(end_line, len(lines))
 
                     # Extract modifiers
-                    modifiers = self._extract_modifiers(line)
+                    modifiers = set(self._extract_modifiers(line))
 
                     # Normalize kinds
                     normalized_kind = kind
@@ -430,7 +432,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                         # Ensure the calculated range for nested processing is valid
                         if nested_start_idx <= nested_end_idx:
                             logger.debug(
-                                f"Processing nested declarations within {kind} {name} (lines {nested_start_idx+1}-{nested_end_idx+1})"
+                                f"Processing nested declarations within {kind} {name} (lines {nested_start_idx + 1}-{nested_end_idx + 1})"
                             )
                             # RECURSIVE CALL - Pass the current declaration as the parent
                             self._process_block(
@@ -449,7 +451,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                             )
                         else:
                             logger.debug(
-                                f"Skipping nested processing for {kind} {name} due to invalid range ({nested_start_idx+1}-{nested_end_idx+1})"
+                                f"Skipping nested processing for {kind} {name} due to invalid range ({nested_start_idx + 1}-{nested_end_idx + 1})"
                             )
 
                     # Advance 'i' past the current declaration block (or single line)
@@ -463,7 +465,7 @@ class EnhancedRustParser(EnhancedBaseParser):
         # Safety check for infinite loop
         if line_counter >= max_line_iterations:
             logger.warning(
-                f"Possible infinite loop detected in _process_block at lines {start+1}-{end+1}"
+                f"Possible infinite loop detected in _process_block at lines {start + 1}-{end + 1}"
             )
             return end
 
@@ -572,10 +574,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                     elif char == "'" and not in_string and not in_raw_string:
                         escaped = prev_char == "\\" and col > 0
                         if not escaped:
-                            if not in_char:
-                                in_char = True
-                            else:
-                                in_char = False
+                            in_char = not in_char
 
                     # Skip line comments (only if not in any kind of string/char literal)
                     elif (
@@ -638,16 +637,16 @@ class EnhancedRustParser(EnhancedBaseParser):
                         if char == open_char:
                             nesting_level += 1
                             logger.debug(
-                                f"L{i+1}:{col+1} Found '{open_char}', nesting level -> {nesting_level}"
+                                f"L{i + 1}:{col + 1} Found '{open_char}', nesting level -> {nesting_level}"
                             )
                         elif char == close_char:
                             nesting_level -= 1
                             logger.debug(
-                                f"L{i+1}:{col+1} Found '{close_char}', nesting level -> {nesting_level}"
+                                f"L{i + 1}:{col + 1} Found '{close_char}', nesting level -> {nesting_level}"
                             )
                             if nesting_level == 0:
                                 logger.debug(
-                                    f"L{i+1}:{col+1} Found final '{close_char}', returning line {i+1}"
+                                    f"L{i + 1}:{col + 1} Found final '{close_char}', returning line {i + 1}"
                                 )
                                 return i
 
@@ -670,7 +669,7 @@ class EnhancedRustParser(EnhancedBaseParser):
 
         # If no matching closing character found after loop finishes, log a warning and return a reasonable end line
         logger.warning(
-            f"Could not find matching {close_char} for {open_char} at line {start+1}. Returning a reasonable estimate."
+            f"Could not find matching {close_char} for {open_char} at line {start + 1}. Returning a reasonable estimate."
         )
         return min(start + 50, len(lines) - 1)  # Return at most 50 lines after start
 
@@ -706,10 +705,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                             imports.append(module_name)
                 else:
                     # Simple path like 'use std::fs;'
-                    if "::" in path:
-                        module_name = path.split("::")[0]
-                    else:
-                        module_name = path
+                    module_name = path.split("::")[0] if "::" in path else path
                     imports.append(module_name)
 
                 return True
@@ -730,7 +726,7 @@ class EnhancedRustParser(EnhancedBaseParser):
             return ""
 
         # Look for docstring comments before the current line
-        doc_lines = []
+        doc_lines: list[str] = []
         i = current_line - 1
 
         while i >= 0 and i >= current_line - 20:  # Look up to 20 lines back

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Debug utilities for comparing parsers and generating test files.
@@ -10,16 +9,16 @@ This module provides tools for:
 3. Creating visual debug output to help identify parser issues
 """
 
+import logging
 import os
 import sys
-import logging
 import tempfile
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
-from codeconcat.base_types import Declaration, ParseResult
-from codeconcat.parser.file_parser import get_language_parser
+from codeconcat.base_types import CodeConCatConfig, Declaration, ParseResult
 from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
+from codeconcat.parser.file_parser import get_language_parser
 
 # No need for external utils, we'll use standard file operations
 
@@ -94,7 +93,7 @@ def compute_declaration_metrics(declarations: List[Declaration]) -> Dict[str, An
 
     # Count declarations by type
     def count_by_type(decl_list):
-        counts = {}
+        counts: Dict[str, int] = {}
         for decl in decl_list:
             kind = decl.kind
             counts[kind] = counts.get(kind, 0) + 1
@@ -155,10 +154,12 @@ def compare_parsers_for_file(file_path: str) -> ParserComparisonResult:
     language = None
 
     for lang, ext in SUPPORTED_LANGUAGES.items():
-        if isinstance(ext, str) and ext == file_ext:
-            language = lang
-            break
-        elif isinstance(ext, (list, tuple)) and file_ext in ext:
+        if (
+            isinstance(ext, str)
+            and ext == file_ext
+            or isinstance(ext, (list, tuple))
+            and file_ext in ext
+        ):
             language = lang
             break
 
@@ -173,15 +174,43 @@ def compare_parsers_for_file(file_path: str) -> ParserComparisonResult:
 
     # Read file content
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
     except Exception as e:
         logger.error(f"Error reading file {file_path}: {e}")
         return result
 
+    # Create a minimal config for testing with required fields
+    config = CodeConCatConfig(
+        parser_engine="tree_sitter",
+        fallback_to_regex=True,
+        use_enhanced_parsers=False,
+        use_enhanced_pipeline=False,
+        target_path=".",
+        source_url=None,
+        github_token=None,
+        source_ref=None,
+        use_gitignore=False,
+        use_default_excludes=False,
+        include_languages=None,
+        enable_semgrep=False,
+        semgrep_languages=None,
+        install_semgrep=False,
+        strict_security=False,
+        enable_external_semgrep=False,
+        semgrep_ruleset=None,
+        xml_processing_instructions=False,
+        mask_output_content=False,
+        enable_compression=False,
+        compression_level="standard",
+        compression_placeholder="[Code compressed for brevity]",
+        compression_keep_threshold=50,
+        analysis_prompt=None,
+    )
+
     # Parse with basic regex parser
     try:
-        basic_parser = get_language_parser(language, use_tree_sitter=False, use_enhanced=False)
+        basic_parser = get_language_parser(language, config)
         if basic_parser:
             result.basic_result = basic_parser.parse(content, file_path)
             result.basic_metrics = compute_declaration_metrics(result.basic_result.declarations)
@@ -190,7 +219,7 @@ def compare_parsers_for_file(file_path: str) -> ParserComparisonResult:
 
     # Parse with enhanced regex parser
     try:
-        enhanced_parser = get_language_parser(language, use_tree_sitter=False, use_enhanced=True)
+        enhanced_parser = get_language_parser(language, config)
         if enhanced_parser:
             result.enhanced_result = enhanced_parser.parse(content, file_path)
             result.enhanced_metrics = compute_declaration_metrics(
@@ -201,7 +230,7 @@ def compare_parsers_for_file(file_path: str) -> ParserComparisonResult:
 
     # Parse with tree-sitter parser
     try:
-        tree_sitter_parser = get_language_parser(language, use_tree_sitter=True)
+        tree_sitter_parser = get_language_parser(language, config)
         if tree_sitter_parser:
             result.tree_sitter_result = tree_sitter_parser.parse(content, file_path)
             result.tree_sitter_metrics = compute_declaration_metrics(
@@ -262,32 +291,29 @@ def analyze_parser_differences(result: ParserComparisonResult) -> ParserComparis
             )
 
     # Compare with tree-sitter if available
-    if result.tree_sitter_result:
-        if result.enhanced_result:
-            # Compare enhanced vs tree-sitter
-            enhanced_count = result.enhanced_metrics["total_declarations"]
-            ts_count = result.tree_sitter_metrics["total_declarations"]
+    if result.tree_sitter_result and result.enhanced_result:
+        # Compare enhanced vs tree-sitter
+        enhanced_count = result.enhanced_metrics["total_declarations"]
+        ts_count = result.tree_sitter_metrics["total_declarations"]
 
-            if abs(enhanced_count - ts_count) > 2:  # Allow small differences
-                result.declaration_diffs.append(
-                    f"Significant difference between enhanced ({enhanced_count}) and tree-sitter ({ts_count})"
-                )
+        if abs(enhanced_count - ts_count) > 2:  # Allow small differences
+            result.declaration_diffs.append(
+                f"Significant difference between enhanced ({enhanced_count}) and tree-sitter ({ts_count})"
+            )
 
-            # Compare declaration paths
-            enhanced_paths = result.enhanced_metrics.get("declaration_paths", set())
-            ts_paths = result.tree_sitter_metrics.get("declaration_paths", set())
+        # Compare declaration paths
+        enhanced_paths = result.enhanced_metrics.get("declaration_paths", set())
+        ts_paths = result.tree_sitter_metrics.get("declaration_paths", set())
 
-            missing_in_ts = enhanced_paths - ts_paths
-            if missing_in_ts:
-                result.declaration_diffs.append(
-                    f"Declarations found in enhanced but missing in tree-sitter: {missing_in_ts}"
-                )
+        missing_in_ts = enhanced_paths - ts_paths
+        if missing_in_ts:
+            result.declaration_diffs.append(
+                f"Declarations found in enhanced but missing in tree-sitter: {missing_in_ts}"
+            )
 
-            new_in_ts = ts_paths - enhanced_paths
-            if new_in_ts:
-                result.declaration_diffs.append(
-                    f"New declarations found in tree-sitter: {new_in_ts}"
-                )
+        new_in_ts = ts_paths - enhanced_paths
+        if new_in_ts:
+            result.declaration_diffs.append(f"New declarations found in tree-sitter: {new_in_ts}")
 
     # Compare imports
     if result.basic_result and result.enhanced_result:
@@ -314,9 +340,9 @@ def print_parser_comparison_report(result: ParserComparisonResult):
     Args:
         result: ParserComparisonResult to report on
     """
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"PARSER COMPARISON REPORT: {result.file_path}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"Language: {result.language}")
 
     # Print metrics for each parser
@@ -358,7 +384,7 @@ def print_parser_comparison_report(result: ParserComparisonResult):
         for diff in result.nested_structure_diffs:
             print(f"  * {diff}")
 
-    print(f"\n{'='*80}\n")
+    print(f"\n{'=' * 80}\n")
 
 
 def create_minimal_test_file(language: str, output_dir: Optional[str] = None) -> str:
@@ -398,29 +424,29 @@ VERSION = "1.0.0"
 
 class TestClass:
     """Test class with nested method."""
-    
+
     def __init__(self, name: str):
         """Initialize with name."""
         self.name = name
-    
+
     def outer_method(self, value: int = 0) -> int:
         """Method containing a nested function."""
         def inner_function(x):
             """Nested function docstring."""
             return x * 2
-        
+
         return inner_function(value)
 
 def top_level_function(param1: str, param2: int = 0) -> Dict:
     """A top-level function with type hints."""
     result = {"param1": param1, "param2": param2}
-    
+
     # Nested class in function
     class LocalClass:
         """A class defined inside a function."""
         def local_method(self):
             return "local result"
-    
+
     return result
 
 # Decorated function
@@ -450,7 +476,7 @@ class TestClass {
     constructor(name) {
         this.name = name;
     }
-    
+
     /**
      * Instance method with a nested function
      */
@@ -461,10 +487,10 @@ class TestClass {
         function innerFunction(x) {
             return x * 2;
         }
-        
+
         return innerFunction(value);
     }
-    
+
     /**
      * Static method
      */
@@ -483,7 +509,7 @@ function topLevelFunction(param1, param2 = 0) {
     function nestedFunction() {
         return "nested result";
     }
-    
+
     return {
         param1,
         param2,
@@ -543,7 +569,7 @@ function outer_function(param1::String, param2::Int=0)
     function inner_function(x)
         return x * 2
     end
-    
+
     return Dict("param1" => param1, "param2" => param2, "result" => inner_function(param2))
 end
 
@@ -584,7 +610,7 @@ class TestClass {{
     constructor() {{
         // Initialize
     }}
-    
+
     /**
      * A method
      */

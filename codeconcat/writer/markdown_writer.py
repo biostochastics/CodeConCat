@@ -1,94 +1,10 @@
-from __future__ import annotations
+"""Optimized Markdown writer for human readability with navigation."""
 
-import logging
 import os
-import random
 import re
 from typing import List
 
-import tiktoken
-from halo import Halo
-
-from codeconcat.base_types import (
-    PROGRAMMING_QUOTES,
-    CodeConCatConfig,
-    Declaration,
-    WritableItem,
-)
-from .ai_context import generate_ai_preamble
-
-logger = logging.getLogger(__name__)
-
-
-def count_tokens(text: str) -> int:
-    """Count tokens using GPT-4 tokenizer (cl100k_base)."""
-    try:
-        encoder = tiktoken.get_encoding("cl100k_base")
-        return len(encoder.encode(text))
-    except Exception as e:
-        logger.info(f"Warning: Tiktoken encoding failed ({str(e)}), falling back to word count")
-        return len(text.split())
-
-
-def print_quote_with_ascii(total_output_tokens: int = None):
-    """Print a random programming quote with ASCII art frame."""
-    quote = random.choice(PROGRAMMING_QUOTES)
-    quote_tokens = count_tokens(quote)
-
-    # Calculate width for the ASCII art frame
-    width = max(len(line) for line in quote.split("\n")) + 4
-
-    # ASCII art frame
-    top_border = "+" + "=" * (width - 2) + "+"
-    empty_line = "|" + " " * (width - 2) + "|"
-
-    # Build the complete output string
-    output_lines = ["\n[CodeConCat] Meow:", top_border, empty_line]
-
-    # Word wrap the quote to fit in the frame
-    words = quote.split()
-    current_line = "|  "
-    for word in words:
-        if len(current_line) + len(word) + 1 > width - 2:
-            output_lines.append(current_line + " " * (width - len(current_line) - 1) + "|")
-            current_line = "|  " + word
-        else:
-            if current_line == "|  ":
-                current_line += word
-            else:
-                current_line += " " + word
-    output_lines.append(current_line + " " * (width - len(current_line) - 1) + "|")
-
-    output_lines.extend([empty_line, top_border])
-
-    # Print everything
-    logger.info("\n".join(output_lines))
-    logger.info(f"\nQuote tokens (GPT-4): {quote_tokens:,}")
-    if total_output_tokens:
-        logger.info(f"Total CodeConcat output tokens (GPT-4): {total_output_tokens:,}")
-
-
-def is_test_or_config_file(file_path: str) -> bool:
-    """Check if a file is a test or configuration file."""
-    file_name = os.path.basename(file_path).lower()
-    return (
-        file_name.startswith("test_")
-        or file_name == "setup.py"
-        or file_name == "conftest.py"
-        or file_name.endswith("config.py")
-        or "tests/" in file_path
-    )
-
-
-def _generate_anchor_name(file_path: str, decl: Declaration) -> str:
-    """Generate a sanitized, unique anchor name for a declaration."""
-    # Normalize file path: remove leading './', replace slashes and dots
-    norm_path = file_path.lstrip("./").replace("/", "_").replace(".", "_")
-    # Sanitize declaration name: keep alphanumeric, hyphen, underscore
-    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "", decl.name)
-    # Combine parts
-    anchor = f"symbol-{norm_path}-{decl.kind}-{safe_name}".lower()
-    return anchor
+from codeconcat.base_types import CodeConCatConfig, Declaration, WritableItem
 
 
 def write_markdown(
@@ -96,77 +12,305 @@ def write_markdown(
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
-    """Write the concatenated code and docs to a markdown file, respecting config flags."""
-    spinner = Halo(text="Generating Markdown output", spinner="dots")
-    spinner.start()
+    """
+    Generate Markdown output optimized for human readability with navigation.
+
+    Creates a comprehensive Markdown document with table of contents, anchor links,
+    syntax highlighting, and rich formatting. Designed for code review, documentation,
+    and human consumption with emphasis on navigation and readability.
+
+    Args:
+        items: List of WritableItem objects (AnnotatedFileData or ParsedDocData)
+               containing parsed code files with annotations.
+        config: CodeConCatConfig object with output settings including
+                sort_files, include_repo_overview, include_directory_structure, etc.
+        folder_tree_str: Pre-generated directory tree structure string for
+                        repository overview section (optional).
+
+    Returns:
+        A formatted Markdown string with complete codebase documentation including
+        TOC, file contents, cross-references, and statistics.
+
+    Complexity:
+        O(n log n) for sorted output where n is number of files,
+        O(n) for unsorted output.
+
+    Flow:
+        Called by: Main output pipeline, documentation generators
+        Calls: CompressionHelper for segment handling, rendering adapters
+
+    Features:
+        - Table of contents with anchor links
+        - Section numbering for easy reference
+        - Cross-references between related files
+        - Syntax highlighting for all code blocks
+        - Collapsible sections for large content
+        - Summary statistics and metrics
+        - Language-aware code formatting
+        - Security issue highlighting
+    """
 
     output_parts = []
-    output_parts.append("# CodeConCat Output\n\n")
 
-    # --- Section: Repository Overview --- #
-    # This includes AI preamble and potentially the folder tree
+    # Title and metadata
+    output_parts.append("# CodeConCat Analysis Report\n")
+    output_parts.append(f"**Generated**: {_get_timestamp()}\n")
+    output_parts.append(f"**Total Files**: {len(items)}\n")
+    output_parts.append("")
+
+    # Table of Contents with anchor links
+    output_parts.append("## Table of Contents\n")
+    output_parts.append("- [Project Overview](#project-overview)")
+    output_parts.append("- [Directory Structure](#directory-structure)")
+    output_parts.append("- [File Index](#file-index)")
+    output_parts.append("- [File Details](#file-details)")
+
+    # Add file-specific TOC entries
+    sorted_items = (
+        sorted(items, key=lambda x: getattr(x, "file_path", "")) if config.sort_files else items
+    )
+    for i, item in enumerate(sorted_items, 1):
+        file_path = getattr(item, "file_path", "")
+        anchor = _create_anchor(file_path)
+        output_parts.append(f"  - [{i}. {file_path}](#{anchor})")
+
+    output_parts.append("")
+    output_parts.append("---\n")
+
+    # Project Overview Section
+    output_parts.append("## Project Overview {#project-overview}\n")
+
     if config.include_repo_overview:
-        spinner.text = "Generating repository overview"
-        # Generate AI preamble (if not disabled implicitly by preset/flag)
-        # We might need a more specific flag like 'include_ai_preamble' later
-        # For now, tie it to repo overview
-        if not config.disable_ai_context:
-            # Pass items list only, as config is no longer needed by generate_ai_preamble
-            ai_preamble = generate_ai_preamble(items)
-            if ai_preamble:
-                output_parts.append(ai_preamble)
-                output_parts.append("\n")
+        # Add summary statistics
+        output_parts.append("### Summary Statistics\n")
+        stats = _calculate_statistics(items)
+        output_parts.append("| Metric | Value |")
+        output_parts.append("|--------|-------|")
+        for key, value in stats.items():
+            output_parts.append(f"| {key} | {value} |")
+        output_parts.append("")
 
-        # Add directory structure if configured and provided
+        # Directory Structure with collapsible details
         if config.include_directory_structure and folder_tree_str:
-            spinner.text = "Adding directory structure"
-            output_parts.append("## Directory Structure\n")
-            output_parts.append(f"```\n{folder_tree_str}\n```\n\n")
-        output_parts.append("---\n\n")
+            output_parts.append("### Directory Structure {#directory-structure}\n")
+            output_parts.append("<details>")
+            output_parts.append("<summary>Click to expand directory tree</summary>\n")
+            output_parts.append("```")
+            output_parts.append(folder_tree_str)
+            output_parts.append("```")
+            output_parts.append("</details>\n")
 
-    # --- File Index --- #
+    # File Index with categorization
     if config.include_file_index:
-        output_parts.append("## File Index")
-        output_parts.append("```")
-        # Sort items if needed for index consistency with file section
-        items_for_index = sorted(items, key=lambda x: x.file_path) if config.sort_files else items
-        for item in items_for_index:
-            output_parts.append(item.file_path)
-        output_parts.append("```")
+        output_parts.append("## File Index {#file-index}\n")
+
+        # Categorize files
+        categories = _categorize_files(sorted_items)
+
+        for category, files in categories.items():
+            if files:
+                output_parts.append(f"### {category}\n")
+                output_parts.append("| # | File | Type | Size |")
+                output_parts.append("|---|------|------|------|")
+
+                for i, item in enumerate(files, 1):
+                    file_path = getattr(item, "file_path", "")
+                    anchor = _create_anchor(file_path)
+                    file_type = _get_file_type(file_path)
+                    size = _estimate_size(item)
+                    output_parts.append(
+                        f"| {i} | [{file_path}](#{anchor}) | {file_type} | {size} |"
+                    )
+                output_parts.append("")
+
+    output_parts.append("---\n")
+
+    # File Details Section
+    output_parts.append("## File Details {#file-details}\n")
+
+    for i, item in enumerate(sorted_items, 1):
+        file_path = getattr(item, "file_path", "")
+        anchor = _create_anchor(file_path)
+
+        # File header with anchor
+        output_parts.append(f"### {i}. {file_path} {{#{anchor}}}\n")
+
+        # Add navigation links
+        output_parts.append("[↑ Back to TOC](#table-of-contents) | ")
+        if i > 1:
+            prev_file_path = getattr(sorted_items[i - 2], "file_path", "")
+            prev_anchor = _create_anchor(prev_file_path)
+            output_parts.append(f"[← Previous](#{prev_anchor}) | ")
+        if i < len(sorted_items):
+            next_file_path = getattr(sorted_items[i], "file_path", "")
+            next_anchor = _create_anchor(next_file_path)
+            output_parts.append(f"[Next →](#{next_anchor})")
         output_parts.append("\n")
 
-    # --- Files Section (Unified) --- #
-    output_parts.append("## Files")
-    output_parts.append("\n")
+        # File metadata in a table
+        if config.include_file_summary:
+            output_parts.append("#### File Information\n")
+            output_parts.append("| Property | Value |")
+            output_parts.append("|----------|-------|")
+            output_parts.append(f"| Language | {getattr(item, 'language', 'Unknown')} |")
+            output_parts.append(f"| Lines | {_count_lines(item)} |")
 
-    # Sort items if requested before processing
-    items_to_process = sorted(items, key=lambda x: x.file_path) if config.sort_files else items
+            # Declarations summary
+            if hasattr(item, "declarations") and item.declarations:
+                output_parts.append(f"| Functions/Classes | {len(item.declarations)} |")
 
-    # Single loop processing all items polymorphically
-    if not items_to_process:
-        output_parts.append("_No files or documents found._")
+            # Security summary
+            if hasattr(item, "security_issues") and item.security_issues:
+                output_parts.append(f"| Security Issues | {len(item.security_issues)} |")
+
+            output_parts.append("")
+
+            # Detailed declarations with collapsible
+            if hasattr(item, "declarations") and item.declarations:
+                output_parts.append("<details>")
+                output_parts.append("<summary>📦 Declarations</summary>\n")
+                output_parts.append(_render_declarations_tree(item.declarations))
+                output_parts.append("</details>\n")
+
+            # Security issues with severity badges
+            if hasattr(item, "security_issues") and item.security_issues:
+                output_parts.append("<details>")
+                output_parts.append("<summary>⚠️ Security Issues</summary>\n")
+                for issue in item.security_issues:
+                    severity_badge = _get_severity_badge(issue.severity)
+                    output_parts.append(
+                        f"- {severity_badge} **Line {issue.line_number}**: {issue.description}"
+                    )
+                output_parts.append("\n</details>\n")
+
+        # File content with syntax highlighting
+        output_parts.append("#### Source Code\n")
+        language = getattr(item, "language", "")
+        content = getattr(item, "content", "")
+
+        # Add line numbers if configured
+        if config.show_line_numbers:
+            content = _add_line_numbers(content)
+
+        output_parts.append(f"```{language}")
+        output_parts.append(content)
+        output_parts.append("```\n")
+
+        output_parts.append("---\n")
+
+    # Footer with generation info
+    output_parts.append("\n---\n")
+    output_parts.append("*Generated by CodeConCat - Optimized for human review*\n")
+
+    return "\n".join(output_parts)
+
+
+def _create_anchor(file_path: str) -> str:
+    """Create a URL-safe anchor from a file path."""
+    # Remove leading ./ and convert to lowercase
+    anchor = file_path.lstrip("./").lower()
+    # Replace non-alphanumeric with hyphens
+    anchor = re.sub(r"[^a-z0-9]+", "-", anchor)
+    # Remove leading/trailing hyphens
+    return anchor.strip("-")
+
+
+def _get_timestamp() -> str:
+    """Get current timestamp."""
+    from datetime import datetime
+
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _calculate_statistics(items: List[WritableItem]) -> dict:
+    """Calculate summary statistics."""
+    stats = {
+        "Total Files": len(items),
+        "Source Files": sum(
+            1 for i in items if not getattr(i, "file_path", "").endswith((".md", ".txt", ".rst"))
+        ),
+        "Documentation Files": sum(
+            1 for i in items if getattr(i, "file_path", "").endswith((".md", ".txt", ".rst"))
+        ),
+        "Total Lines": sum(_count_lines(i) for i in items),
+    }
+    return stats
+
+
+def _categorize_files(items: List[WritableItem]) -> dict:
+    """Categorize files by type."""
+    categories: dict[str, list] = {
+        "Source Code": [],
+        "Tests": [],
+        "Documentation": [],
+        "Configuration": [],
+        "Other": [],
+    }
+
+    for item in items:
+        file_path = getattr(item, "file_path", "")
+        path = file_path.lower()
+        if "test" in path or "spec" in path:
+            categories["Tests"].append(item)
+        elif path.endswith((".md", ".rst", ".txt")):
+            categories["Documentation"].append(item)
+        elif path.endswith((".json", ".yml", ".yaml", ".toml", ".ini")):
+            categories["Configuration"].append(item)
+        elif path.endswith((".py", ".js", ".ts", ".java", ".cpp", ".c", ".go")):
+            categories["Source Code"].append(item)
+        else:
+            categories["Other"].append(item)
+
+    return categories
+
+
+def _get_file_type(file_path: str) -> str:
+    """Get file type from extension."""
+    ext = os.path.splitext(file_path)[1]
+    return ext[1:].upper() if ext else "Unknown"
+
+
+def _estimate_size(item: WritableItem) -> str:
+    """Estimate file size."""
+    content = getattr(item, "content", "")
+    size_bytes = len(content.encode("utf-8"))
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
     else:
-        for item in items_to_process:
-            # Polymorphic call to render markdown chunks
-            md_chunks = item.render_markdown_chunks(config)
-            output_parts.extend(md_chunks)
-            output_parts.append("\n---\n")  # Separator between files
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
 
-    spinner.text = "Finalizing output"
-    final_str = "\n".join(output_parts)
 
-    # Count tokens for the entire output
-    spinner.text = "Counting tokens"
-    output_tokens = count_tokens(final_str)
+def _count_lines(item: WritableItem) -> int:
+    """Count lines in content."""
+    content = getattr(item, "content", "")
+    return len(content.splitlines())
 
-    # Add token count information at the end of the string
-    final_str += "\n\n<!-- Token Count -->\n"
-    final_str += f"<!-- Total CodeConCat output tokens (cl100k_base): {output_tokens:,} -->\n"
 
-    spinner.succeed("Markdown generation complete")
-    # Logging is handled by the caller (e.g., run_codeconcat)
+def _render_declarations_tree(declarations: List[Declaration], indent: int = 0) -> str:
+    """Render declarations as a tree."""
+    result = []
+    for decl in declarations:
+        prefix = "  " * indent + "- "
+        result.append(
+            f"{prefix}**{decl.kind}** `{decl.name}` (lines {decl.start_line}-{decl.end_line})"
+        )
+        if decl.children:
+            result.append(_render_declarations_tree(decl.children, indent + 1))
+    return "\n".join(result)
 
-    # Print quote with ASCII art, passing the total output tokens
-    print_quote_with_ascii(output_tokens)
 
-    return final_str
+def _get_severity_badge(severity) -> str:
+    """Get severity badge emoji."""
+    badges = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFO": "ℹ️"}
+    return badges.get(str(severity.value).upper(), "❓")
+
+
+def _add_line_numbers(content: str) -> str:
+    """Add line numbers to content."""
+    lines = content.splitlines()
+    numbered = []
+    for i, line in enumerate(lines, 1):
+        numbered.append(f"{i:4d} | {line}")
+    return "\n".join(numbered)

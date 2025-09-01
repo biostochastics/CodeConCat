@@ -153,7 +153,7 @@ class JavaParser(BaseParser):
                 language="java",
                 content=content,
                 declarations=declarations,
-                imports=sorted(list(imports)),
+                imports=sorted(imports),
                 engine_used="regex",
             )
 
@@ -164,4 +164,4 @@ class JavaParser(BaseParser):
                 message=f"Failed to parse Java file ({type(e).__name__}): {e}",
                 file_path=file_path,
                 original_exception=e,
-            )
+            ) from e

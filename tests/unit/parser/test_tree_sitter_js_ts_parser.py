@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the Tree-Sitter JavaScript/TypeScript parser in CodeConCat.
@@ -7,10 +6,11 @@ Unit tests for the Tree-Sitter JavaScript/TypeScript parser in CodeConCat.
 Tests the tree-sitter based parser for JavaScript and TypeScript files.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from codeconcat.base_types import ParseResult, Declaration
+import pytest
+
+from codeconcat.base_types import Declaration, ParseResult
 
 # Skip the entire module if tree-sitter is not available
 pytestmark = pytest.mark.skipif(
@@ -23,11 +23,9 @@ pytestmark = pytest.mark.skipif(
 def mock_tree_sitter_classes():
     """Mock the tree-sitter classes needed for testing."""
     ts_patch = "codeconcat.parser.language_parsers.base_tree_sitter_parser"
-    with (
-        patch(f"{ts_patch}.TREE_SITTER_LANGUAGE_PACK_AVAILABLE", True),
-        patch(f"{ts_patch}.get_language") as mock_get_language,
-        patch(f"{ts_patch}.get_parser") as mock_get_parser,
-    ):
+    with patch(f"{ts_patch}.TREE_SITTER_LANGUAGE_PACK_AVAILABLE", True), patch(
+        f"{ts_patch}.get_language"
+    ) as mock_get_language, patch(f"{ts_patch}.get_parser") as mock_get_parser:
         # Create mock Language and Parser
         mock_language = MagicMock()
         mock_parser = MagicMock()
@@ -51,7 +49,7 @@ class TestTreeSitterJsTs:
     """Test class for the tree-sitter JS/TS parser."""
 
     @pytest.fixture(autouse=True)
-    def setup_method(self, mock_tree_sitter_classes):
+    def setup_method(self, _mock_tree_sitter_classes):
         """Set up test fixtures."""
         # Import here to avoid errors when tree-sitter is not available
         from codeconcat.parser.language_parsers.tree_sitter_js_ts_parser import TreeSitterJsTsParser
@@ -96,7 +94,7 @@ function add(a, b) {
 
 /**
  * Fetch data from the API
- * 
+ *
  * @param {string} endpoint - API endpoint
  * @param {Object} params - Query parameters
  * @returns {Promise<Object>} API response
@@ -125,7 +123,7 @@ class User {
         this.email = email;
         this._lastLogin = null;
     }
-    
+
     /**
      * Get user's display name
      * @returns {string} Formatted display name
@@ -133,7 +131,7 @@ class User {
     getDisplayName() {
         return `${this.name} <${this.email}>`;
     }
-    
+
     /**
      * Update the last login timestamp
      * @private
@@ -141,7 +139,7 @@ class User {
     _updateLastLogin() {
         this._lastLogin = new Date();
     }
-    
+
     /**
      * Log the user in
      */
@@ -165,7 +163,7 @@ class AdminUser extends User {
         super(name, email);
         this.permissions = permissions;
     }
-    
+
     /**
      * Check if admin has specific permission
      * @param {string} permission - Permission to check
@@ -208,22 +206,22 @@ type SortDirection = 'asc' | 'desc';
  * @returns Sorted user list
  */
 export function sortUsers(
-    users: UserData[], 
-    field: keyof UserData, 
+    users: UserData[],
+    field: keyof UserData,
     direction: SortDirection = 'asc'
 ): UserData[] {
     return [...users].sort((a, b) => {
         const valueA = a[field];
         const valueB = b[field];
-        
+
         if (typeof valueA === 'string' && typeof valueB === 'string') {
-            return direction === 'asc' 
-                ? valueA.localeCompare(valueB) 
+            return direction === 'asc'
+                ? valueA.localeCompare(valueB)
                 : valueB.localeCompare(valueA);
         }
-        
-        return direction === 'asc' 
-            ? (valueA as number) - (valueB as number) 
+
+        return direction === 'asc'
+            ? (valueA as number) - (valueB as number)
             : (valueB as number) - (valueA as number);
     });
 }
@@ -235,7 +233,7 @@ export function useUsers() {
     const [users, setUsers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
-    
+
     async function fetchUsers(): Promise<void> {
         try {
             setLoading(true);
@@ -251,11 +249,11 @@ export function useUsers() {
             setLoading(false);
         }
     }
-    
+
     useEffect(() => {
         fetchUsers();
     }, []);
-    
+
     return { users, loading, error, refetch: fetchUsers };
 }
 
@@ -264,11 +262,11 @@ export function useUsers() {
  */
 export class UserService {
     private apiUrl: string;
-    
+
     constructor(baseUrl: string = '/api') {
         this.apiUrl = `${baseUrl}/users`;
     }
-    
+
     /**
      * Get user by ID
      */
@@ -287,7 +285,7 @@ export class UserService {
             throw error;
         }
     }
-    
+
     /**
      * Create a new user
      */
@@ -299,17 +297,17 @@ export class UserService {
             },
             body: JSON.stringify(userData)
         });
-        
+
         if (!response.ok) {
             throw new Error(`Error creating user: ${response.statusText}`);
         }
-        
+
         return await response.json();
     }
 }
 """
 
-    def test_parser_initialization(self, mock_tree_sitter_classes):
+    def test_parser_initialization(self, _mock_tree_sitter_classes):
         """Test initializing the tree-sitter JavaScript parser."""
         # Parsers are already initialized in setup_method
         assert self.js_parser is not None
@@ -322,7 +320,7 @@ export class UserService {
             self.ts_parser.language == "typescript"
         ), "TypeScript Parser language not set correctly"
 
-    def test_parse_js_file(self, js_code_sample, mock_tree_sitter_classes):
+    def test_parse_js_file(self, js_code_sample, _mock_tree_sitter_classes):
         """Test parsing a JavaScript file."""
         # Mock the return value of _run_queries to return some declarations
         declarations = [
@@ -331,7 +329,7 @@ export class UserService {
                 name="User",
                 start_line=10,
                 end_line=20,
-                modifiers=set(["export"]),
+                modifiers={"export"},
                 docstring="User class docstring",
             ),
             Declaration(
@@ -382,7 +380,7 @@ export class UserService {
                 "_updateLastLogin" in method_names
             ), "Private method '_updateLastLogin' not found in User class"
 
-    def test_parse_ts_file(self, ts_code_sample, mock_tree_sitter_classes):
+    def test_parse_ts_file(self, ts_code_sample, _mock_tree_sitter_classes):
         """Test parsing a TypeScript file."""
         # Mock the return value of _run_queries for TypeScript
         declarations = [
@@ -391,7 +389,7 @@ export class UserService {
                 name="DataInterface",
                 start_line=1,
                 end_line=5,
-                modifiers=set(["export"]),
+                modifiers={"export"},
                 docstring="Data interface",
             ),
             Declaration(
@@ -399,7 +397,7 @@ export class UserService {
                 name="DataService",
                 start_line=7,
                 end_line=15,
-                modifiers=set(["export"]),
+                modifiers={"export"},
                 docstring="Service class",
             ),
         ]
@@ -438,7 +436,7 @@ export class UserService {
                 "createUser" in method_names
             ), "Method 'createUser' not found in UserService class"
 
-    def test_private_declarations_filtering(self, js_code_sample, mock_tree_sitter_classes):
+    def test_private_declarations_filtering(self, js_code_sample, _mock_tree_sitter_classes):
         """Test filtering of private declarations."""
         # In the modernized version, private declarations are handled directly by the parser
         # First create some declarations including private ones
@@ -448,7 +446,7 @@ export class UserService {
                 name="User",
                 start_line=10,
                 end_line=20,
-                modifiers=set(["export"]),
+                modifiers={"export"},
                 docstring="User class",
             ),
             Declaration(
@@ -456,7 +454,7 @@ export class UserService {
                 name="#privateMethod",  # Private method with # prefix
                 start_line=12,
                 end_line=15,
-                modifiers=set(["private"]),
+                modifiers={"private"},
                 docstring="Private method",
             ),
         ]
@@ -504,7 +502,7 @@ export class UserService {
                 "_updateLastLogin" not in methods_without_private
             ), "Private method should be excluded with include_private=False"
 
-    def test_parse_with_docstrings(self, js_code_sample, mock_tree_sitter_classes):
+    def test_parse_with_docstrings(self, js_code_sample, _mock_tree_sitter_classes):
         """Test parsing a file with JSDoc docstrings."""
         # Mock declarations with docstrings
         declarations = [
@@ -513,7 +511,7 @@ export class UserService {
                 name="User",
                 start_line=10,
                 end_line=50,
-                modifiers=set(["export"]),
+                modifiers={"export"},
                 docstring="User class that represents a user in the system.",
             ),
             Declaration(
@@ -566,7 +564,7 @@ export class UserService {
                 "display name" in get_display_name.docstring
             ), "Expected docstring content not found"
 
-    def test_source_locations(self, js_code_sample, mock_tree_sitter_classes):
+    def test_source_locations(self, js_code_sample, _mock_tree_sitter_classes):
         """Test that source locations are correctly extracted."""
         # Mock declarations with various line positions
         declarations = [
@@ -575,7 +573,7 @@ export class UserService {
                 name="User",
                 start_line=10,
                 end_line=50,
-                modifiers=set(["export"]),
+                modifiers={"export"},
                 docstring="User class",
                 children=[
                     Declaration(

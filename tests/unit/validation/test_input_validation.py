@@ -2,12 +2,13 @@
 Unit tests for the input validation module.
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
-from codeconcat.validation import validator, InputValidator
+import pytest
+
 from codeconcat.errors import ValidationError
+from codeconcat.validation import InputValidator, validator
 
 
 class TestInputValidator:
@@ -93,7 +94,7 @@ class TestInputValidator:
         assert validator.validate_file_content(test_file) is True
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"\x00\x01\x02\x03")
-    def test_validate_file_content_binary(self, mock_file, tmp_path):
+    def test_validate_file_content_binary(self, _mock_file, tmp_path):
         """Test validating binary file content."""
         test_file = tmp_path / "test.bin"
         test_file.touch()

@@ -7,12 +7,15 @@ from pathlib import Path
 from typing import List, Optional
 
 from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern
+from pathspec.patterns import GitWildMatchPattern  # type: ignore[attr-defined]
 from tqdm import tqdm
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
-from codeconcat.language_map import GUESSLANG_AVAILABLE, ext_map, get_language_guesslang
 from codeconcat.constants import DEFAULT_EXCLUDE_PATTERNS
+from codeconcat.language_map import GUESSLANG_AVAILABLE, ext_map, get_language_guesslang
+from codeconcat.processor.security_processor import SecurityProcessor
+from codeconcat.utils import is_file_too_large_for_binary_check, is_file_too_large_for_collection
+from codeconcat.utils.feature_flags import is_enabled
 
 logger = logging.getLogger(__name__)
 # Do not set up handlers or formatters here; let the CLI configure logging.
@@ -22,17 +25,28 @@ def get_gitignore_spec(root_path: str) -> PathSpec:
     """
     Read .gitignore file and create a PathSpec for matching.
 
+    This function parses the .gitignore file in the root directory and creates
+    a PathSpec object that can be used to efficiently match file paths against
+    gitignore patterns. It also includes common patterns that should always be
+    ignored (e.g., __pycache__, node_modules).
+
     Args:
         root_path: Root directory to search for .gitignore
 
     Returns:
         PathSpec object for matching paths against .gitignore patterns
+
+    Complexity: O(n) where n is the number of patterns in .gitignore
+
+    Flow:
+        Called by: collect_files()
+        Calls: PathSpec.from_lines()
     """
     gitignore_path = os.path.join(root_path, ".gitignore")
     patterns = []
 
     if os.path.exists(gitignore_path):
-        with open(gitignore_path, "r") as f:
+        with open(gitignore_path) as f:
             patterns = [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
     # Add common patterns that should always be ignored
@@ -154,13 +168,12 @@ def should_include_file(
         try:
             # Read content specifically for guesslang if not already read
             # TODO: Optimize - can we avoid reading twice?
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="replace") as f:
                 content_for_guess = f.read(5000)  # Read a chunk for detection
             language = get_language_guesslang(content_for_guess)
-            if language:
-                if config.verbose:
-                    logger.debug(f"Language detected by guesslang as '{language}' for {rel_path}")
-        except Exception as e:
+            if language and config.verbose:
+                logger.debug(f"Language detected by guesslang as '{language}' for {rel_path}")
+        except (OSError, ValueError, UnicodeDecodeError) as e:
             if config.verbose:
                 logger.debug(f"guesslang check failed for {rel_path}: {e}")
             language = None  # Ensure language is None if guesslang fails
@@ -222,7 +235,8 @@ def should_include_file(
 
 
 def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[ParsedFileData]:
-    """Walks a directory tree or processes a single file, identifies, reads, and collects data for code files.
+    """
+    Walks a directory tree or processes a single file, identifies, reads, and collects data for code files.
 
     This function orchestrates the file collection process:
     1. Checks if `root_path` is a file or directory.
@@ -241,12 +255,52 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
         root_path: The absolute path to the root directory or file to process.
         config: The CodeConCatConfig object containing user settings and derived specs.
 
+    Complexity: O(n*m) where n is number of files, m is average file operations
+
+    Flow:
+        Called by: Main processing pipeline
+        Calls: should_include_file(), process_file() in parallel, should_skip_dir(),
+               get_gitignore_spec()
+
+    Features:
+        - Parallel file processing with ThreadPoolExecutor (directories only)
+        - Progress tracking with tqdm
+        - Single file or directory tree processing
+        - Comprehensive filtering pipeline
+        - File size limits (20MB default)
+        Note: Security scanning is performed in the parsing stage, not in collection
+
+    Error Handling:
+        - FileNotFoundError: Logs error and returns empty list
+        - OSError: Logs error for individual files, continues processing
+        - Exception: Logs unexpected errors, returns partial results
+
     Returns:
         A list of ParsedFileData objects, each containing the file path,
         determined language, and file content for files that passed all checks.
         Files that are skipped (binary, excluded, etc.) are not included.
     """
     logger.info(f"[CodeConCat] Collecting files from target: {root_path}")
+
+    # Validate the root path for security
+    if is_enabled("enable_path_validation"):
+        try:
+            # Validate that the root path is safe
+            # Use the parent of root_path as base for absolute paths, or cwd for relative paths
+            base_path = (
+                os.path.dirname(os.path.abspath(root_path))
+                if os.path.isabs(root_path)
+                else os.getcwd()
+            )
+            root_path = str(
+                SecurityProcessor.validate_path(
+                    base_path, root_path, allow_symlinks=getattr(config, "follow_symlinks", False)
+                )
+            )
+        except (ValueError, TypeError, OSError, AttributeError) as e:
+            logger.error(f"Path validation failed for {root_path}: {e}")
+            return []
+
     parsed_files_data: List[ParsedFileData] = []
 
     # --- Compile PathSpec objects --- #
@@ -299,7 +353,7 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
                     logger.info(f"Successfully processed single file: {root_path}")
                 else:
                     logger.warning(f"Processing single file '{root_path}' returned no data.")
-            except Exception as exc:
+            except (OSError, UnicodeDecodeError, ValueError) as exc:
                 logger.error(f"[CodeConCat] Error processing single file {root_path}: {exc}")
         else:
             # Log exclusion reason if verbose
@@ -446,15 +500,9 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
             future_to_file_lang = {}
             for file_path in all_files:
                 # Skip any files that are too large (early filter to prevent hangs)
-                try:
-                    file_size = os.path.getsize(file_path)
-                    if file_size > 20 * 1024 * 1024:  # Skip files larger than 20MB
-                        logger.warning(
-                            f"Skipping large file ({file_size/1024/1024:.2f}MB): {file_path}"
-                        )
-                        continue
-                except Exception as e:
-                    logger.error(f"Error checking file size: {file_path}: {e}")
+                # Check file size before processing
+                if is_file_too_large_for_collection(file_path):
+                    continue  # File is too large, skip it
 
                 # We already filtered in the walk, but let's re-determine language for process_file
 
@@ -496,7 +544,7 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
                         logger.warning(
                             f"[CodeConCat] Timeout processing file {file_path} after {timeout_seconds}s"
                         )
-                    except Exception as exc:
+                    except (OSError, UnicodeDecodeError, ValueError, RuntimeError) as exc:
                         logger.error(
                             f"[CodeConCat] Error processing file {file_path} in worker: {exc}"
                         )
@@ -508,7 +556,7 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
                         # Periodically log progress
                         if completed % 50 == 0 or completed == total:
                             logger.info(
-                                f"Processed {completed}/{total} files ({completed/total*100:.1f}%)"
+                                f"Processed {completed}/{total} files ({completed / total * 100:.1f}%)"
                             )
         return parsed_files_data  # Return results from directory scan
 
@@ -531,6 +579,22 @@ def process_file(
         Optional[ParsedFileData]: Data object if successful, None otherwise.
     """
     try:
+        # Validate file path for security
+        if is_enabled("enable_path_validation"):
+            try:
+                # Use the parent directory of the file as base for absolute paths
+                base_path = (
+                    os.path.dirname(os.path.abspath(file_path))
+                    if os.path.isabs(file_path)
+                    else os.getcwd()
+                )
+                validated_path = SecurityProcessor.validate_path(
+                    base_path, file_path, allow_symlinks=getattr(config, "follow_symlinks", False)
+                )
+                file_path = str(validated_path)
+            except (ValueError, TypeError, OSError, AttributeError) as e:
+                logger.error(f"Path validation failed for {file_path}: {e}")
+                return None
         # Log before binary check
         logger.debug(f"[process_file] Checking if binary: {file_path}")
         is_bin = is_binary_file(file_path)
@@ -542,7 +606,7 @@ def process_file(
 
         # Log before open
         logger.debug(f"[process_file] Attempting to open for read: {file_path}")
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             # Log after open, before read
             logger.debug(f"[process_file] Opened {file_path}, attempting read.")
             content = f.read()
@@ -559,8 +623,10 @@ def process_file(
         # Resolve the file path to handle symlinks and ensure consistency
         original_path = file_path
         resolved_path = str(Path(file_path).resolve())
-        logger.debug(f"[process_file] Path resolution: original={original_path}, resolved={resolved_path}")
-        
+        logger.debug(
+            f"[process_file] Path resolution: original={original_path}, resolved={resolved_path}"
+        )
+
         return ParsedFileData(
             file_path=resolved_path,
             language=language,  # Use the passed language
@@ -570,7 +636,7 @@ def process_file(
     except UnicodeDecodeError:
         logger.debug(f"[CodeConCat] Skipping non-text file: {file_path}")
         return None
-    except Exception as e:
+    except (OSError, PermissionError, FileNotFoundError) as e:
         logger.error(f"[CodeConCat] Error processing {file_path}: {str(e)}")
         return None
 
@@ -617,9 +683,7 @@ def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept c
     else:
         rel_path = dirpath
         # Remove leading ./ if present for consistent matching
-        if rel_path.startswith("./"):
-            rel_path = rel_path[2:]
-        elif rel_path.startswith(".\\"):
+        if rel_path.startswith("./") or rel_path.startswith(".\\"):
             rel_path = rel_path[2:]
 
     # Normalize path separators for PathSpec and ensure it's treated as a directory
@@ -680,12 +744,15 @@ def determine_language(file_path: str, config: CodeConCatConfig) -> Optional[str
     language = None
     if GUESSLANG_AVAILABLE and config.parser_engine == "tree_sitter":
         try:
-            language = get_language_guesslang(file_path)
+            # Read file content for language detection (guesslang needs content, not path)
+            with open(file_path, encoding="utf-8", errors="replace") as f:
+                sample = f.read(5000)  # Read first 5KB for language detection
+            language = get_language_guesslang(sample)
             if language and language.lower() != "unknown" and config.verbose:
                 logger.debug(
                     f"Using language '{language}' for {file_path} based on content analysis."
                 )
-        except Exception as e:
+        except (OSError, ValueError, UnicodeDecodeError, AttributeError) as e:
             if config.verbose:
                 logger.debug(f"guesslang check failed for {file_path}: {e}")
             language = None  # Ensure language is None if guesslang fails
@@ -816,16 +883,9 @@ def is_binary_file(file_path: str) -> bool:
         return True
 
     # Check file size before opening - skip very large files
-    try:
-        file_size = os.path.getsize(file_path)
-        # Skip files larger than 5MB
-        if file_size > 5 * 1024 * 1024:
-            logger.debug(
-                f"[is_binary_file] File too large (>{file_size/1024/1024:.2f}MB): {file_path}"
-            )
-            return True
-    except Exception as e:
-        logger.error(f"[is_binary_file] Error checking file size for {file_path}: {str(e)}")
+    # Check file size before opening - skip very large files
+    if is_file_too_large_for_binary_check(file_path):
+        return True  # Treat as binary if too large to check
 
     try:
         # First, quick check with binary read for null bytes
@@ -844,13 +904,13 @@ def is_binary_file(file_path: str) -> bool:
                 return True
 
         # If passes binary checks, verify as text with a readline
-        with open(file_path, "r", encoding="utf-8", errors="replace") as check_file:
+        with open(file_path, encoding="utf-8", errors="replace") as check_file:
             check_file.readline()
             return False
     except UnicodeDecodeError:
         logger.debug(f"[is_binary_file] UnicodeDecodeError for: {file_path} (Likely binary)")
         return True
-    except Exception as e:
+    except (OSError, PermissionError, FileNotFoundError) as e:
         logger.error(f"[is_binary_file] Error checking file {file_path}: {str(e)}")
         return False  # Assume not binary on error
 
@@ -895,10 +955,7 @@ def is_excluded(
         return True
 
     # If it's a directory, check if it should be excluded
-    if is_dir and should_skip_dir(path, config):
-        return True
-
-    return False
+    return bool(is_dir and should_skip_dir(path, config))
 
 
 def _log_exclusion_reason(
@@ -930,7 +987,9 @@ def _log_exclusion_reason(
     norm_path = Path(rel_path).as_posix()
 
     if config.verbose:
-        logger.debug(f"Attempting to log exclusion reason for: {rel_path} (Normalized: {norm_path}, Full: {file_path})")
+        logger.debug(
+            f"Attempting to log exclusion reason for: {rel_path} (Normalized: {norm_path}, Full: {file_path})"
+        )
 
     # Check .gitignore (if spec exists and enabled)
     if config.use_gitignore and gitignore_spec and gitignore_spec.match_file(norm_path):
@@ -960,11 +1019,15 @@ def _log_exclusion_reason(
     # Re-run language determination to get the specific reason
     language = determine_language(file_path, config)
     if not language:
-        logger.debug(f"Excluded by language filtering: {rel_path} (Language not determined or unknown)")
+        logger.debug(
+            f"Excluded by language filtering: {rel_path} (Language not determined or unknown)"
+        )
         return
 
     if is_binary_file(file_path):
         logger.debug(f"Excluded binary file: {rel_path}")
         return
 
-    logger.debug(f"File {rel_path} was not excluded by any known rule, but was not included. This should not happen.")
+    logger.debug(
+        f"File {rel_path} was not excluded by any known rule, but was not included. This should not happen."
+    )

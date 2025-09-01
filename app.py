@@ -3,7 +3,8 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from codeconcat import CodeConCatConfig, run_codeconcat_in_memory
+from codeconcat.config.config_builder import ConfigBuilder
+from codeconcat.main import run_codeconcat_in_memory
 
 app = FastAPI(
     title="CodeConCat API",
@@ -30,6 +31,7 @@ class CodeConcatRequest(BaseModel):
     disable_symbols: bool = False
     disable_ai_context: bool = False
     max_workers: int = 4
+    output_preset: str = "medium"
 
 
 @app.post("/concat")
@@ -38,29 +40,18 @@ async def concat_code(request: CodeConcatRequest):
     Process code files and return concatenated output
     """
     try:
-        config = CodeConCatConfig(
-            target_path=request.target_path,
-            format=request.format,
-            github_url=request.github_url,
-            github_token=request.github_token,
-            github_ref=request.github_ref,
-            extract_docs=request.extract_docs,
-            merge_docs=request.merge_docs,
-            include_paths=request.include_paths,
-            exclude_paths=request.exclude_paths,
-            include_languages=request.include_languages,
-            exclude_languages=request.exclude_languages,
-            disable_tree=request.disable_tree,
-            disable_annotations=request.disable_annotations,
-            disable_copy=request.disable_copy,
-            disable_symbols=request.disable_symbols,
-            disable_ai_context=request.disable_ai_context,
-            max_workers=request.max_workers,
+        cli_args = request.dict()
+        config_builder = ConfigBuilder()
+        config = (
+            config_builder.with_defaults()
+            .with_preset(request.output_preset)
+            .with_cli_args(cli_args)
+            .build()
         )
         output = run_codeconcat_in_memory(config)
         return {"output": output}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/")

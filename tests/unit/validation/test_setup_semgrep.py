@@ -1,12 +1,13 @@
 """Unit tests for the Semgrep setup module."""
 
-import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from codeconcat.validation.setup_semgrep import install_semgrep, install_apiiro_ruleset
+import pytest
+
 from codeconcat.errors import ValidationError
+from codeconcat.validation.setup_semgrep import install_apiiro_ruleset, install_semgrep
 
 
 class TestSetupSemgrep:
@@ -56,16 +57,15 @@ class TestSetupSemgrep:
 
             with patch(
                 "tempfile.TemporaryDirectory",
-                return_value=MagicMock(__enter__=lambda *args: temp_dir),
-            ):
-                with patch("pathlib.Path.glob", return_value=[rule_file]):
-                    with patch("pathlib.Path.mkdir"):
-                        with patch("shutil.copy"):
-                            result = install_apiiro_ruleset(str(tmp_path))
-                            assert result == str(tmp_path)
-                            mock_run.assert_called_once()
-                            assert "git" in mock_run.call_args[0][0][0]
-                            assert "clone" in mock_run.call_args[0][0][1]
+                return_value=MagicMock(__enter__=lambda *_args: temp_dir),
+            ), patch("pathlib.Path.glob", return_value=[rule_file]), patch(
+                "pathlib.Path.mkdir"
+            ), patch("shutil.copy"):
+                result = install_apiiro_ruleset(str(tmp_path))
+                assert result == str(tmp_path)
+                mock_run.assert_called_once()
+                assert "git" in mock_run.call_args[0][0][0]
+                assert "clone" in mock_run.call_args[0][0][1]
 
     @patch("subprocess.run")
     def test_install_apiiro_ruleset_failure(self, mock_run, tmp_path):

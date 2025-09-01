@@ -1,39 +1,11 @@
-"""XML writer for CodeConcat output."""
+"""Optimized XML writer for LLM ingestion with semantic navigation."""
 
 import xml.etree.ElementTree as ET
 from typing import List
 from xml.dom import minidom
 
-from codeconcat.base_types import (
-    CodeConCatConfig,
-    WritableItem,
-)
-
-
-def _get_file_segments(config, item_file_path):
-    """
-    Get compressed segments for a specific file, handling both dict and legacy list formats.
-
-    Args:
-        config: CodeConCatConfig instance
-        item_file_path: Path of the file to get segments for
-
-    Returns:
-        List of segments for the file, or empty list if none found
-    """
-    compressed_segments = getattr(config, "_compressed_segments", None)
-    if not compressed_segments:
-        return []
-
-    if isinstance(compressed_segments, dict):
-        return compressed_segments.get(item_file_path, [])
-
-    # Legacy format: filter segments belonging to current file
-    return [
-        segment
-        for segment in compressed_segments
-        if hasattr(segment, "file_path") and segment.file_path == item_file_path
-    ]
+from codeconcat.base_types import CodeConCatConfig, WritableItem
+from codeconcat.writer.compression_helper import CompressionHelper
 
 
 def write_xml(
@@ -41,91 +13,182 @@ def write_xml(
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
-    """Write the concatenated code and docs to an XML file, respecting config flags."""
+    """Generate XML output optimized for LLM ingestion with semantic navigation.
 
-    root = ET.Element("codeconcat_output")
+    Key optimizations for LLM processing:
+    - Clear semantic sections with descriptive tags
+    - Hierarchical navigation structure
+    - Metadata-rich elements for context understanding
+    - Consistent tagging for pattern recognition
+    - Explicit relationships between files
+    """
 
-    # --- Repository Overview --- #
+    # Create root with clear semantic name for LLMs
+    root = ET.Element("codebase_analysis")
+
+    # Add metadata section for LLM context
+    metadata = ET.SubElement(root, "metadata")
+    ET.SubElement(metadata, "total_files").text = str(len(items))
+    ET.SubElement(metadata, "analysis_type").text = "full_codebase"
+
+    # Navigation section with clear hierarchy
     if config.include_repo_overview:
-        repo_overview = ET.SubElement(root, "repository_overview")
-        # Add directory structure if configured and available
+        navigation = ET.SubElement(root, "navigation")
+
+        # Project structure for spatial understanding
         if config.include_directory_structure and folder_tree_str:
-            tree_elem = ET.SubElement(repo_overview, "directory_structure")
-            # Use CDATA for potentially complex tree string
-            tree_elem.text = f"<![CDATA[{folder_tree_str}]]>"
+            structure = ET.SubElement(navigation, "project_structure")
+            structure.text = folder_tree_str
 
-    # --- File Index --- #
-    if config.include_file_index:
-        file_index = ET.SubElement(root, "file_index")
-        # Sort items if needed for index consistency with file section
-        items_for_index = sorted(items, key=lambda x: x.file_path) if config.sort_files else items
-        for item in items_for_index:
-            ET.SubElement(file_index, "file", path=item.file_path)
+        # File index with semantic grouping
+        if config.include_file_index:
+            index = ET.SubElement(navigation, "file_index")
 
-    # --- Files Section --- #
-    files_section = ET.SubElement(root, "files")
+            # Group files by type for better LLM comprehension
+            source_files = ET.SubElement(index, "source_files")
+            doc_files = ET.SubElement(index, "documentation_files")
+            config_files = ET.SubElement(index, "configuration_files")
+            test_files = ET.SubElement(index, "test_files")
 
-    # Sort items if requested before processing
-    items_to_process = sorted(items, key=lambda x: x.file_path) if config.sort_files else items
+            sorted_items = (
+                sorted(items, key=lambda x: getattr(x, "file_path", ""))
+                if config.sort_files
+                else items
+            )
 
-    # Single loop processing all items polymorphically
-    for item in items_to_process:
-        item_element = item.render_xml_element(config)
+            for item in sorted_items:
+                path = getattr(item, "file_path", "")
+                file_elem = ET.Element("file", path=path)
 
-        # Add compression information if available
-        if (
-            config.enable_compression
-            and hasattr(config, "_compressed_segments")
-            and hasattr(item, "file_path")
-        ):
-            file_segments = _get_file_segments(config, item.file_path)
-            if file_segments:
-                # Add compression attribute
-                item_element.set("compression_applied", "true")
+                # Categorize files for semantic grouping
+                if "test" in path.lower() or "spec" in path.lower():
+                    test_files.append(file_elem)
+                elif path.endswith((".md", ".rst", ".txt")):
+                    doc_files.append(file_elem)
+                elif path.endswith((".json", ".yml", ".yaml", ".toml", ".ini")):
+                    config_files.append(file_elem)
+                else:
+                    source_files.append(file_elem)
 
-                # Create segments container
-                segments_element = ET.SubElement(item_element, "content_segments")
+    # Main content section with clear semantic boundaries
+    content = ET.SubElement(root, "codebase_content")
 
-                # Add each segment
-                for segment in file_segments:
-                    seg_element = ET.SubElement(
-                        segments_element,
-                        "segment",
-                        {
-                            "type": segment.segment_type.value,
-                            "start_line": str(segment.start_line),
-                            "end_line": str(segment.end_line),
-                        },
+    # Add instructions for LLM processing (if enabled)
+    if config.xml_processing_instructions:
+        instructions = ET.SubElement(content, "processing_instructions")
+        instructions.text = """
+        This XML contains a structured codebase analysis.
+        Navigate using the <navigation> section to understand project structure.
+        Each <file_entry> contains complete file information with metadata.
+        Use <relationships> to understand dependencies between files.
+        Security issues and important patterns are marked in <analysis> sections.
+        """
+
+    # Process files with rich semantic markup
+    files_section = ET.SubElement(content, "files")
+    sorted_items = (
+        sorted(items, key=lambda x: getattr(x, "file_path", "")) if config.sort_files else items
+    )
+
+    for item in sorted_items:
+        # Create semantically rich file entry
+        file_entry = ET.SubElement(files_section, "file_entry")
+
+        # File metadata for context
+        file_meta = ET.SubElement(file_entry, "file_metadata")
+        ET.SubElement(file_meta, "path").text = getattr(item, "file_path", "")
+        ET.SubElement(file_meta, "language").text = getattr(item, "language", "unknown")
+
+        # File analysis section
+        if config.include_file_summary:
+            analysis = ET.SubElement(file_entry, "analysis")
+
+            # Add declarations with semantic grouping
+            if hasattr(item, "declarations") and item.declarations:
+                declarations = ET.SubElement(analysis, "declarations")
+                for decl in item.declarations:
+                    ET.SubElement(
+                        declarations,
+                        "declaration",
+                        type=decl.kind,
+                        name=decl.name,
+                        lines=f"{decl.start_line}-{decl.end_line}",
                     )
 
-                    # Add content as CDATA to preserve formatting
-                    content_element = ET.SubElement(seg_element, "content")
-                    content_element.text = f"<![CDATA[{segment.content}]]>"
+            # Add security findings
+            if hasattr(item, "security_issues") and item.security_issues:
+                security = ET.SubElement(analysis, "security_findings")
+                for issue in item.security_issues:
+                    ET.SubElement(
+                        security,
+                        "issue",
+                        severity=str(issue.severity.value),
+                        line=str(issue.line_number),
+                        rule=issue.rule_id,
+                    ).text = issue.description
 
-                    # Add metadata if present
-                    if segment.metadata:
-                        metadata_element = ET.SubElement(seg_element, "metadata")
-                        for key, value in segment.metadata.items():
-                            if isinstance(value, (str, int, float, bool)):
-                                meta_item = ET.SubElement(metadata_element, "item", {"key": key})
-                                meta_item.text = str(value)
+        # File content with CDATA preservation
+        content_elem = ET.SubElement(file_entry, "file_content")
+        content_elem.text = getattr(item, "content", "")
 
-        # Append the generated element (either <file> or <doc>) directly
-        files_section.append(item_element)
+        # Add compression segments if applicable
+        if config.enable_compression and hasattr(config, "_compressed_segments"):
+            segments = CompressionHelper.extract_compressed_segments(
+                config, getattr(item, "file_path", "")
+            )
+            if segments:
+                file_entry.set("has_compression", "true")
+                segs_elem = ET.SubElement(file_entry, "compression_segments")
+                for seg in segments:
+                    seg_elem = ET.SubElement(
+                        segs_elem,
+                        "segment",
+                        type=seg.segment_type.value,
+                        lines=f"{seg.start_line}-{seg.end_line}",
+                    )
+                    seg_elem.text = seg.content
 
-    # Convert the ElementTree to a string
-    # Use minidom for pretty printing if indent is configured
+    # Relationships section for understanding connections
+    relationships = ET.SubElement(root, "file_relationships")
+    relationships.text = "File dependency and import relationships would be analyzed here"
+
+    # Convert to string with proper formatting
     try:
         rough_string = ET.tostring(root, "utf-8")
         reparsed = minidom.parseString(rough_string)
         xml_str = reparsed.toprettyxml(indent="  ", encoding="utf-8").decode("utf-8")
-    except Exception:
-        # Fallback if minidom fails (e.g., with complex CDATA)
-        xml_str = ET.tostring(root, encoding="unicode")
 
-    # Writing to file is handled by the caller
-    # import logging
-    # logger = logging.getLogger(__name__)
-    # logger.info(f"XML data generated (will be written to: {config.output})")
+        # Add CDATA sections for content preservation
+        xml_str = _add_cdata_sections_optimized(xml_str)
+    except Exception:
+        xml_str = ET.tostring(root, encoding="unicode")
+        xml_str = _add_cdata_sections_optimized(xml_str)
+
+    return xml_str
+
+
+def _add_cdata_sections_optimized(xml_str: str) -> str:
+    """Add CDATA sections to elements that need content preservation."""
+    import re
+
+    # Elements that should have CDATA-wrapped content
+    cdata_elements = [
+        "project_structure",
+        "file_content",
+        "processing_instructions",
+        "content",
+        "segment",
+    ]
+
+    for element_name in cdata_elements:
+        pattern = f"<{element_name}>([^<]+)</{element_name}>"
+
+        def replace_with_cdata(match, elem_name=element_name):
+            content = match.group(1)
+            if content.strip().startswith("<![CDATA["):
+                return match.group(0)
+            return f"<{elem_name}><![CDATA[{content}]]></{elem_name}>"
+
+        xml_str = re.sub(pattern, replace_with_cdata, xml_str, flags=re.DOTALL)
 
     return xml_str

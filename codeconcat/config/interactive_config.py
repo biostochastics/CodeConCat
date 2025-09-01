@@ -6,11 +6,11 @@ and customizing CodeConCat configuration files. It guides users through
 the process of setting up a configuration tailored to their project's needs.
 """
 
-import os
-import yaml
 import logging
-from typing import Dict, Any
+import os
+from typing import Any, Dict, cast
 
+import yaml  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class InteractiveConfigBuilder:
         """
         self.target_dir = target_dir
         self.config_filename = os.path.join(target_dir, ".codeconcat.yml")
-        self.config = {}
+        self.config: Dict[str, Any] = {}
         self.template_path = os.path.join(
             os.path.dirname(__file__), "templates", "default_config.template.yml"
         )
@@ -47,9 +47,10 @@ class InteractiveConfigBuilder:
             The default configuration as a dictionary.
         """
         try:
-            with open(self.template_path, "r") as f:
+            with open(self.template_path) as f:
                 # Parse as yaml but preserve comments for later
-                return yaml.safe_load(f)
+                template_data = yaml.safe_load(f)
+                return cast(Dict[str, Any], template_data) if template_data else {}
         except FileNotFoundError:
             logger.error(f"Default configuration template not found: {self.template_path}")
             return {}
@@ -64,10 +65,9 @@ class InteractiveConfigBuilder:
         Returns:
             True if the configuration was successfully created, False otherwise.
         """
-        if os.path.exists(self.config_filename):
-            if not self._confirm_overwrite():
-                print(f"\n🛑 Keeping existing {self.config_filename} file.")
-                return False
+        if os.path.exists(self.config_filename) and not self._confirm_overwrite():
+            print(f"\n🛑 Keeping existing {self.config_filename} file.")
+            return False
 
         # Welcome message
         self._print_welcome()
@@ -342,7 +342,7 @@ class InteractiveConfigBuilder:
         """
         try:
             # Read the original template file to preserve comments
-            with open(self.template_path, "r") as f:
+            with open(self.template_path) as f:
                 template_content = f.read()
 
             # Write the configuration to file

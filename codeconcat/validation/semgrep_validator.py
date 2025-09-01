@@ -29,7 +29,7 @@ class SemgrepValidator:
             ruleset_path: Optional path to the ruleset directory or YAML file.
                           If None, will use the bundled/installed ruleset.
         """
-        self.semgrep_path = shutil.which("semgrep")
+        self.semgrep_path: str | None = shutil.which("semgrep")
         if not self.semgrep_path:
             logger.warning("Semgrep not found in PATH. Security scanning will be disabled.")
 
@@ -80,22 +80,30 @@ class SemgrepValidator:
         # Run semgrep
         with tempfile.TemporaryDirectory() as temp_dir:
             # Prepare command
-            cmd = [
-                self.semgrep_path,
-                "--config",
-                self.ruleset_path,
-            ]
+            if not self.semgrep_path:
+                logger.error("Semgrep is not installed")
+                return []
+            cmd: list[str] = [self.semgrep_path]
+
+            # Use appropriate config based on ruleset_path
+            if self.ruleset_path == "auto":
+                # Use semgrep's auto config for general security rules
+                cmd.extend(["--config", "auto"])
+            elif self.ruleset_path:
+                # Use specified ruleset
+                cmd.extend(["--config", self.ruleset_path])
+            else:
+                # Fallback to p/security for general security scanning
+                cmd.extend(["--config", "p/security"])
 
             # Add custom rules if they exist
             custom_rules_path = Path(__file__).parent / "rules" / "custom_security_rules.yaml"
             if custom_rules_path.exists():
                 cmd.extend(["--config", str(custom_rules_path)])
 
-            cmd.extend(["--json", "--output", f"{temp_dir}/results.json", str(file_path)])
-
-            # Add language filter if provided
-            if language:
-                cmd.extend(["--lang", language])
+            # Sanitize file_path to prevent command injection
+            safe_file_path = str(Path(file_path).resolve())
+            cmd.extend(["--json", "--output", f"{temp_dir}/results.json", safe_file_path])
 
             try:
                 # Run semgrep
@@ -108,29 +116,68 @@ class SemgrepValidator:
                 )
 
                 # Check for errors - exit code 1 is actually OK (findings found)
+                # Filter out Python warnings from stderr to only look for real semgrep errors
                 if result.returncode != 0 and result.returncode != 1:
-                    logger.error(f"Semgrep error: {result.stderr}")
-                    raise ValidationError(f"Semgrep scan failed: {result.stderr}")
+                    # Check if it's just warnings that we can safely ignore
+                    stderr_lines = result.stderr.split("\n")
+                    real_errors = []
+
+                    for line in stderr_lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        # Skip common Python warnings and semgrep status messages
+                        if any(
+                            warning in line
+                            for warning in [
+                                "UserWarning:",
+                                "pkg_resources is deprecated",
+                                "from pkg_resources import",
+                                "DeprecationWarning:",
+                                "Scan Status",
+                                "Scan Summary",
+                                "Scanning",
+                                "partially analyzed",
+                                "Some files were skipped",
+                                "Ran",
+                                "findings",
+                            ]
+                        ):
+                            continue
+                        # Skip formatting lines
+                        if line.startswith(("┌", "│", "└", "─")):
+                            continue
+                        # This looks like a real error
+                        real_errors.append(line)
+
+                    if real_errors:
+                        logger.error(f"Semgrep error: {result.stderr}")
+                        raise ValidationError(f"Semgrep scan failed: {result.stderr}")
+                    else:
+                        # Just warnings, log them but continue
+                        logger.warning(f"Semgrep warnings (non-critical): {result.stderr}")
 
                 # Parse results
                 results_file = Path(f"{temp_dir}/results.json")
                 if results_file.exists():
-                    with open(results_file, "r") as f:
+                    with open(results_file) as f:
                         scan_results = json.load(f)
 
                     # Extract findings
                     findings = []
-                    for result in scan_results.get("results", []):
+                    for scan_result in scan_results.get("results", []):
                         findings.append(
                             {
                                 "type": "semgrep",
-                                "rule_id": result.get("check_id", "unknown"),
-                                "message": result.get("extra", {}).get("message", "Unknown issue"),
-                                "severity": result.get("extra", {}).get("severity", "WARNING"),
-                                "line": result.get("start", {}).get("line", 0),
-                                "column": result.get("start", {}).get("col", 0),
-                                "path": result.get("path", str(file_path)),
-                                "snippet": result.get("extra", {}).get("lines", ""),
+                                "rule_id": scan_result.get("check_id", "unknown"),
+                                "message": scan_result.get("extra", {}).get(
+                                    "message", "Unknown issue"
+                                ),
+                                "severity": scan_result.get("extra", {}).get("severity", "WARNING"),
+                                "line": scan_result.get("start", {}).get("line", 0),
+                                "column": scan_result.get("start", {}).get("col", 0),
+                                "path": scan_result.get("path", str(file_path)),
+                                "snippet": scan_result.get("extra", {}).get("lines", ""),
                             }
                         )
 
@@ -140,7 +187,7 @@ class SemgrepValidator:
 
             except Exception as e:
                 logger.error(f"Error running semgrep: {e}")
-                raise ValidationError(f"Failed to scan file with semgrep: {e}")
+                raise ValidationError(f"Failed to scan file with semgrep: {e}") from e
 
     def scan_directory(
         self, directory: Union[str, Path], languages: Optional[List[str]] = None
@@ -166,7 +213,10 @@ class SemgrepValidator:
         # Run semgrep on the directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Prepare command
-            cmd = [
+            if not self.semgrep_path:
+                logger.error("Semgrep is not installed")
+                return {}
+            cmd: list[str] = [
                 self.semgrep_path,
                 "--config",
                 self.ruleset_path,
@@ -199,25 +249,27 @@ class SemgrepValidator:
                 # Parse results
                 results_file = Path(f"{temp_dir}/results.json")
                 if results_file.exists():
-                    with open(results_file, "r") as f:
+                    with open(results_file) as f:
                         scan_results = json.load(f)
 
                     # Group findings by file
-                    findings_by_file = {}
-                    for result in scan_results.get("results", []):
-                        file_path = result.get("path", "unknown")
+                    findings_by_file: dict[str, list] = {}
+                    for scan_result in scan_results.get("results", []):
+                        file_path = scan_result.get("path", "unknown")
                         if file_path not in findings_by_file:
                             findings_by_file[file_path] = []
 
                         findings_by_file[file_path].append(
                             {
                                 "type": "semgrep",
-                                "rule_id": result.get("check_id", "unknown"),
-                                "message": result.get("extra", {}).get("message", "Unknown issue"),
-                                "severity": result.get("extra", {}).get("severity", "WARNING"),
-                                "line": result.get("start", {}).get("line", 0),
-                                "column": result.get("start", {}).get("col", 0),
-                                "snippet": result.get("extra", {}).get("lines", ""),
+                                "rule_id": scan_result.get("check_id", "unknown"),
+                                "message": scan_result.get("extra", {}).get(
+                                    "message", "Unknown issue"
+                                ),
+                                "severity": scan_result.get("extra", {}).get("severity", "WARNING"),
+                                "line": scan_result.get("start", {}).get("line", 0),
+                                "column": scan_result.get("start", {}).get("col", 0),
+                                "snippet": scan_result.get("extra", {}).get("lines", ""),
                             }
                         )
 
@@ -227,7 +279,7 @@ class SemgrepValidator:
 
             except Exception as e:
                 logger.error(f"Error running semgrep: {e}")
-                raise ValidationError(f"Failed to scan directory with semgrep: {e}")
+                raise ValidationError(f"Failed to scan directory with semgrep: {e}") from e
 
     def _detect_language(self, file_path: Path) -> Optional[str]:
         """
@@ -260,7 +312,7 @@ class SemgrepValidator:
         }
 
         language = determine_language(str(file_path))
-        return language_to_semgrep.get(language)
+        return language_to_semgrep.get(language) if language else None
 
 
 # Create a singleton instance

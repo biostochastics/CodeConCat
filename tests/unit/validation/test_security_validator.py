@@ -1,11 +1,12 @@
 """Unit tests for the SecurityValidator class."""
 
 import re
-import pytest
 from unittest.mock import patch
 
+import pytest
+
+from codeconcat.errors import FileIntegrityError, ValidationError
 from codeconcat.validation.security import security_validator
-from codeconcat.errors import ValidationError
 
 
 class TestSecurityValidator:
@@ -39,7 +40,8 @@ class TestSecurityValidator:
         with pytest.raises(ValidationError) as excinfo:
             security_validator.compute_file_hash("/nonexistent/file.txt")
 
-        assert "Failed to compute hash" in str(excinfo.value)
+        # Updated to match the new error message from security improvements
+        assert "Cannot access file" in str(excinfo.value)
 
     def test_verify_file_integrity_valid(self, tmp_path):
         """Test verifying file integrity with matching hash."""
@@ -59,12 +61,13 @@ class TestSecurityValidator:
 
         incorrect_hash = "0000000000000000000000000000000000000000000000000000000000000000"
 
-        with pytest.raises(ValidationError) as excinfo:
+        with pytest.raises(FileIntegrityError) as excinfo:
             security_validator.verify_file_integrity(test_file, incorrect_hash)
 
-        # Check that the error message contains the expected and actual hash information
-        assert "Expected hash:" in str(excinfo.value)
-        assert "actual hash:" in str(excinfo.value)
+        # Check that the error has the expected and actual hash attributes
+        assert excinfo.value.expected_hash == incorrect_hash
+        assert excinfo.value.actual_hash != incorrect_hash
+        assert len(excinfo.value.actual_hash) == 64  # SHA256 hash length
 
     def test_sanitize_content(self):
         """Test sanitizing content by replacing patterns."""
@@ -170,7 +173,7 @@ class TestSecurityValidator:
 
         # Write some binary data
         with open(test_file, "wb") as f:
-            f.write(b"\x00\x01\x02\x03\x04\xFF\xFE\xFD")
+            f.write(b"\x00\x01\x02\x03\x04\xff\xfe\xfd")
 
         assert security_validator.is_binary_file(test_file) is True
 
@@ -202,7 +205,7 @@ class TestSecurityValidator:
         assert len(manifest) == 3
 
         # Verify hashes are correct format (64 hex characters for SHA-256)
-        for file_path, hash_value in manifest.items():
+        for _file_path, hash_value in manifest.items():
             assert len(hash_value) == 64
             assert all(c in "0123456789abcdef" for c in hash_value)
 

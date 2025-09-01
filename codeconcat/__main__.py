@@ -1,4 +1,4 @@
-from .main import cli_entry_point
+from .cli import app
 
 if __name__ == "__main__":
-    cli_entry_point()
+    app()

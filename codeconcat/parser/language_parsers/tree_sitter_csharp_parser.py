@@ -2,8 +2,21 @@
 
 import logging
 import re
-import xml.etree.ElementTree as ET
 from typing import Dict, List, Set
+
+try:
+    import defusedxml.ElementTree as ET
+except ImportError:
+    # Fallback to standard ET with security warning
+    import warnings
+    import xml.etree.ElementTree as ET
+
+    warnings.warn(
+        "defusedxml not installed - XML parsing may be vulnerable to XXE attacks. "
+        "Install with: pip install defusedxml",
+        UserWarning,
+        stacklevel=2,
+    )
 
 from tree_sitter import Node
 
@@ -21,18 +34,7 @@ CSHARP_QUERIES = {
             name: (identifier) @import_path)
         (using_directive
             name: (qualified_name) @import_path)
-        
-        ; Static using directives
-        (using_directive
-            (using_directive)
-            name: (qualified_name) @static_import_path)
-        
-        ; Using aliases
-        (using_directive
-            (name_equals
-                name: (identifier) @alias_name)
-            name: (qualified_name) @aliased_namespace)
-        
+
         ; Global using directives (C# 10+)
         (using_directive
             (global_modifier)
@@ -44,7 +46,7 @@ CSHARP_QUERIES = {
             name: [(identifier) (qualified_name)] @name
             body: (block) @body
         ) @namespace
-        
+
         ; File-scoped namespace (C# 10+)
         (file_scoped_namespace_declaration
             name: [(identifier) (qualified_name)] @name
@@ -53,31 +55,31 @@ CSHARP_QUERIES = {
         ; Class declarations with access modifiers, base classes, interfaces, and attributes
         (class_declaration
             (attribute_list)? @attributes
-            (modifier)* @modifiers 
+            (modifier)* @modifiers
             name: (identifier) @name
-            type_parameters: (type_parameters
+            type_parameters: (type_parameter_list
                 (type_parameter)+ @type_params
             )?
             base_list: (base_list)? @inheritance
             body: (class_body) @body
         ) @class
-        
+
         ; Record declarations (C# 9.0+)
         (record_declaration
             (attribute_list)? @attributes
             (modifier)* @modifiers
             name: (identifier) @name
-            type_parameters: (type_parameters)? @type_params
+            (type_parameter_list)? @type_params
             parameter_list: (parameter_list)? @params
             body: (class_body)? @body
         ) @record
-        
+
         ; Record struct declarations (C# 10+)
         (record_struct_declaration
             (attribute_list)? @attributes
             (modifier)* @modifiers
             name: (identifier) @name
-            type_parameters: (type_parameters)? @type_params
+            (type_parameter_list)? @type_params
             parameter_list: (parameter_list)? @params
             body: (struct_body)? @body
         ) @record_struct
@@ -87,7 +89,7 @@ CSHARP_QUERIES = {
             (attribute_list)? @attributes
             (modifier)* @modifiers
             name: (identifier) @name
-            type_parameters: (type_parameters
+            type_parameters: (type_parameter_list
                 (type_parameter)+ @type_params
             )?
             base_list: (base_list)? @inheritance
@@ -99,7 +101,7 @@ CSHARP_QUERIES = {
             (attribute_list)? @attributes
             (modifier)* @modifiers
             name: (identifier) @name
-            type_parameters: (type_parameters)? @type_params
+            (type_parameter_list)? @type_params
             base_list: (base_list)? @inheritance
             body: (struct_body) @body
         ) @struct
@@ -114,7 +116,7 @@ CSHARP_QUERIES = {
                 (enum_member_declaration
                     name: (identifier) @enum_value_name
                     (equals_value_clause)? @enum_value
-                )* 
+                )*
             ) @body
         ) @enum
 
@@ -124,7 +126,7 @@ CSHARP_QUERIES = {
             (modifier)* @modifiers
             return_type: (_) @return_type
             name: (identifier) @name
-            type_parameters: (type_parameters)? @type_params
+            (type_parameter_list)? @type_params
             parameter_list: (parameter_list
                 (parameter)* @params
             )
@@ -143,7 +145,7 @@ CSHARP_QUERIES = {
             constructor_initializer: (constructor_initializer)? @initializer
             body: (block) @body
         ) @constructor
-        
+
         ; Destructor declarations
         (destructor_declaration
             (attribute_list)? @attributes
@@ -162,7 +164,7 @@ CSHARP_QUERIES = {
             (arrow_expression_clause)? @expression_body
             (equals_value_clause)? @initializer
         ) @property
-        
+
         ; Indexer property declaration
         (indexer_declaration
             (attribute_list)? @attributes
@@ -185,7 +187,7 @@ CSHARP_QUERIES = {
                     (equals_value_clause)? @initializer
                 ))
         ) @field
-        
+
         ; Constant field declarations
         (field_declaration
             (modifier)* @modifiers (#match? @modifiers "const")
@@ -203,13 +205,13 @@ CSHARP_QUERIES = {
             (modifier)* @modifiers
             return_type: (_) @return_type
             name: (identifier) @name
-            type_parameters: (type_parameters)? @type_params
+            (type_parameter_list)? @type_params
             parameter_list: (parameter_list
                 (parameter)* @params
             )
             constraint_clause: (type_parameter_constraints_clause)* @constraints
         ) @delegate
-        
+
         ; Event field declarations
         (event_field_declaration
             (attribute_list)? @attributes
@@ -221,7 +223,7 @@ CSHARP_QUERIES = {
                     (equals_value_clause)? @initializer
                 ))
         ) @event
-        
+
         ; Event declaration with accessors
         (event_declaration
             (attribute_list)? @attributes
@@ -230,7 +232,7 @@ CSHARP_QUERIES = {
             name: (identifier) @name
             accessor_list: (accessor_list) @accessors
         ) @event_accessor
-        
+
         ; Operator declarations
         (operator_declaration
             (attribute_list)? @attributes
@@ -240,7 +242,7 @@ CSHARP_QUERIES = {
             parameter_list: (parameter_list) @params
             body: [(block) (arrow_expression_clause)] @body
         ) @operator
-        
+
         ; Conversion operator declarations
         (conversion_operator_declaration
             (attribute_list)? @attributes
@@ -250,14 +252,14 @@ CSHARP_QUERIES = {
             parameter_list: (parameter_list) @params
             body: [(block) (arrow_expression_clause)] @body
         ) @conversion_operator
-        
+
         ; Top-level statements (C# 9.0+)
         (global_statement) @top_level_statement
     """,
     "doc_comments": """
         ; XML documentation comments
         (comment) @xml_doc (#match? @xml_doc "^///")
-        
+
         ; Regular comments
         (comment) @comment
     """,
@@ -297,11 +299,9 @@ def _clean_csharp_doc_comment(xml_content: str) -> str:
                 elem.tag
                 not in ["root", "param", "typeparam", "returns", "summary", "see", "exception"]
                 and elem.text
+                and elem.text.strip()
             ):
-                # Add other text content, but maybe indent or format based on tag?
-                # For now, just append stripped text if it exists
-                if elem.text.strip():
-                    text_parts.append(elem.text.strip())
+                text_parts.append(elem.text.strip())
 
         # Filter empty parts and join
         return "\n".join(filter(None, text_parts))
@@ -332,7 +332,6 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
         queries = self.get_queries()
         declarations = []
         imports: Set[str] = set()
-        declaration_map = {}  # node_id -> declaration info
         doc_comment_map = {}  # end_line -> raw comment_text (list of lines)
 
         # --- Pass 1: Extract Doc Comments --- #
@@ -342,22 +341,24 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
             last_comment_line = -2
             current_doc_block: List[str] = []
 
-            for node, _ in doc_captures:
-                # Strip leading '///' and optional space
-                comment_text = byte_content[node.start_byte : node.end_byte].decode(
-                    "utf8", errors="ignore"
-                )
-                cleaned_line = re.sub(r"^///\s?", "", comment_text).strip()
-                current_line = node.start_point[0]
+            # doc_captures is a dict: {capture_name: [list of nodes]}
+            for _capture_name, nodes in doc_captures.items():
+                for node in nodes:
+                    # Strip leading '///' and optional space
+                    comment_text = byte_content[node.start_byte : node.end_byte].decode(
+                        "utf8", errors="replace"
+                    )
+                    cleaned_line = re.sub(r"^///\s?", "", comment_text).strip()
+                    current_line = node.start_point[0]
 
-                if current_line == last_comment_line + 1:
-                    current_doc_block.append(cleaned_line)
-                else:
-                    if current_doc_block:
-                        doc_comment_map[last_comment_line] = "\n".join(current_doc_block)
-                    current_doc_block = [cleaned_line]
+                    if current_line == last_comment_line + 1:
+                        current_doc_block.append(cleaned_line)
+                    else:
+                        if current_doc_block:
+                            doc_comment_map[last_comment_line] = "\n".join(current_doc_block)
+                        current_doc_block = [cleaned_line]
 
-                last_comment_line = current_line
+                    last_comment_line = current_line
 
             if current_doc_block:
                 doc_comment_map[last_comment_line] = "\n".join(current_doc_block)
@@ -376,18 +377,12 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
                 logger.debug(f"Running C# query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for capture in captures:
-                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                    # captures is a dict of {capture_name: [list of nodes]}
+                    # Fixed capture unpacking pattern
+                    for capture in captures.items():
                         if len(capture) == 2:
-                            node, capture_name = capture
+                            capture_name, nodes = capture
                         else:
-                            node, capture_name, _ = capture
-                        # Capture all import paths regardless of specific capture name
-                        import_path = byte_content[node.start_byte : node.end_byte].decode(
-                            "utf8", errors="ignore"
-                        )
-                        # Clean up potential alias definitions for simplicity
-                        if "@" in capture_name:  # Heuristic for alias parts
                             continue
                         if capture_name in [
                             "import_path",
@@ -395,19 +390,23 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
                             "aliased_namespace",
                             "global_import_path",
                         ]:
-                            imports.add(import_path)
+                            for node in nodes:
+                                import_path = byte_content[node.start_byte : node.end_byte].decode(
+                                    "utf8", errors="replace"
+                                )
+                                imports.add(import_path)
 
                 elif query_name == "declarations":
-                    current_decl_node_id = None
-                    current_decl_info = None
-                    for capture in captures:
-                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
-                        if len(capture) == 2:
-                            node, capture_name = capture
-                        else:
-                            node, capture_name, _ = capture
-                        # Identify the main declaration node using the @kind capture
-                        if capture_name in [
+                    # Use matches for better structure
+                    matches = query.matches(root_node)
+                    for _match_id, captures_dict in matches:
+                        declaration_node = None
+                        name_node = None
+                        kind = None
+                        modifiers = set()
+
+                        # Check for various declaration types
+                        decl_types = [
                             "namespace",
                             "file_namespace",
                             "class",
@@ -429,69 +428,66 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
                             "operator",
                             "conversion_operator",
                             "top_level_statement",
-                        ]:
-                            current_decl_node_id = node.id
-                            if current_decl_node_id not in declaration_map:
-                                declaration_map[current_decl_node_id] = {
-                                    "kind": capture_name,
-                                    "node": node,
-                                    "name": None,
-                                    "start_line": node.start_point[0],
-                                    "end_line": node.end_point[0],
-                                    "modifiers": set(),
-                                    "docstring": "",
-                                }
-                            current_decl_info = declaration_map[current_decl_node_id]
-                            # Update end line if needed (e.g., nested captures extend range)
-                            current_decl_info["end_line"] = max(
-                                current_decl_info["end_line"], node.end_point[0]
-                            )
+                        ]
 
-                        # Capture details associated with the current declaration node ID
-                        elif current_decl_info:
-                            if capture_name == "name":
-                                # Only capture the first 'name' encountered for a declaration node
-                                if current_decl_info["name"] is None:
-                                    name_text = byte_content[
-                                        node.start_byte : node.end_byte
-                                    ].decode("utf8", errors="ignore")
-                                    current_decl_info["name"] = name_text
-                            elif capture_name == "modifiers":
+                        for decl_type in decl_types:
+                            if decl_type in captures_dict:
+                                nodes = captures_dict[decl_type]
+                                if nodes and len(nodes) > 0:
+                                    declaration_node = nodes[0]
+                                    kind = decl_type
+                                    break
+
+                        # Get the name node
+                        if "name" in captures_dict:
+                            name_nodes = captures_dict["name"]
+                            if name_nodes and len(name_nodes) > 0:
+                                name_node = name_nodes[0]
+
+                        # Get modifiers
+                        if "modifiers" in captures_dict:
+                            modifier_nodes = captures_dict["modifiers"]
+                            for mod_node in modifier_nodes:
                                 modifier_text = byte_content[
-                                    node.start_byte : node.end_byte
-                                ].decode("utf8", errors="ignore")
-                                current_decl_info["modifiers"].add(modifier_text)
-                            # Add other captures like 'params', 'return_type', etc. if needed later
-                            # Update end line based on any sub-capture
-                            current_decl_info["end_line"] = max(
-                                current_decl_info["end_line"], node.end_point[0]
+                                    mod_node.start_byte : mod_node.end_byte
+                                ].decode("utf8", errors="replace")
+                                modifiers.add(modifier_text)
+
+                        # Add declaration if we have the node (name is optional for some like top_level_statement)
+                        if declaration_node:
+                            name_text = None
+                            if name_node:
+                                name_text = byte_content[
+                                    name_node.start_byte : name_node.end_byte
+                                ].decode("utf8", errors="replace")
+                            else:
+                                name_text = (
+                                    f"<{kind}>"  # Default name for declarations without names
+                                )
+
+                            # Check for docstring
+                            docstring = doc_comment_map.get(declaration_node.start_point[0] - 1, "")
+                            if docstring:
+                                docstring = _clean_csharp_doc_comment(docstring)
+
+                            declarations.append(
+                                Declaration(
+                                    kind=kind or "unknown",
+                                    name=name_text,
+                                    start_line=declaration_node.start_point[0] + 1,
+                                    end_line=declaration_node.end_point[0] + 1,
+                                    docstring=docstring,
+                                    modifiers=modifiers,
+                                )
                             )
 
             except Exception as e:
                 logger.warning(f"Failed to execute C# query '{query_name}': {e}", exc_info=True)
 
-        # --- Pass 3: Process declarations and associate docstrings --- #
-        for decl_info in declaration_map.values():
-            # Use a default name if none was captured (e.g., top-level statements)
-            decl_name = decl_info.get("name") or f"<{decl_info['kind']}>"
-
-            # Check for doc comments ending on the line before the declaration
-            raw_docstring = doc_comment_map.get(decl_info["start_line"] - 1, "")
-            cleaned_docstring = _clean_csharp_doc_comment(raw_docstring) if raw_docstring else ""
-
-            declarations.append(
-                Declaration(
-                    kind=decl_info["kind"],
-                    name=decl_name,
-                    start_line=decl_info["start_line"],
-                    end_line=decl_info["end_line"],
-                    docstring=cleaned_docstring,
-                    modifiers=decl_info["modifiers"],  # Store captured modifiers
-                )
-            )
+        # Declaration processing now happens inline
 
         declarations.sort(key=lambda d: d.start_line)
-        sorted_imports = sorted(list(imports))
+        sorted_imports = sorted(imports)
 
         logger.debug(
             f"Tree-sitter C# extracted {len(declarations)} declarations and {len(sorted_imports)} imports."

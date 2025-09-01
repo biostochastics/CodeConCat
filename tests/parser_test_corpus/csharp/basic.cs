@@ -8,10 +8,10 @@ namespace TestNamespace
 {
     /// <summary>
     /// Basic C# test file for parser validation.
-    /// 
+    ///
     /// This file contains common C# constructs that should be properly parsed.
     /// </summary>
-    
+
     /// <summary>
     /// Constants class with documentation.
     /// </summary>
@@ -21,13 +21,13 @@ namespace TestNamespace
         /// The mathematical constant pi, approximately.
         /// </summary>
         public const double PI = 3.14159;
-        
+
         /// <summary>
         /// Maximum number of retry attempts.
         /// </summary>
         public const int MAX_RETRIES = 3;
     }
-    
+
     /// <summary>
     /// Represents a person with name, age, and optional address.
     /// </summary>
@@ -37,17 +37,17 @@ namespace TestNamespace
         /// The person's name
         /// </summary>
         protected string Name { get; set; }
-        
+
         /// <summary>
         /// The person's age
         /// </summary>
         protected int Age { get; set; }
-        
+
         /// <summary>
         /// The person's address (optional)
         /// </summary>
         protected string Address { get; set; }
-        
+
         /// <summary>
         /// Create a new person instance.
         /// </summary>
@@ -59,7 +59,7 @@ namespace TestNamespace
             Age = age;
             Address = null;
         }
-        
+
         /// <summary>
         /// Get a greeting from the person.
         /// </summary>
@@ -68,7 +68,7 @@ namespace TestNamespace
         {
             return $"Hello, my name is {Name} and I am {Age} years old.";
         }
-        
+
         /// <summary>
         /// Set the person's address.
         /// </summary>
@@ -77,7 +77,7 @@ namespace TestNamespace
         {
             Address = address;
         }
-        
+
         /// <summary>
         /// Get the person's address or a default message.
         /// </summary>
@@ -87,7 +87,7 @@ namespace TestNamespace
             return Address ?? "Address not set";
         }
     }
-    
+
     /// <summary>
     /// Employee class extending Person with job information.
     /// </summary>
@@ -97,12 +97,12 @@ namespace TestNamespace
         /// The employee's job title
         /// </summary>
         private string Title { get; set; }
-        
+
         /// <summary>
         /// The employee's annual salary
         /// </summary>
         private double Salary { get; set; }
-        
+
         /// <summary>
         /// Create a new employee instance.
         /// </summary>
@@ -116,7 +116,7 @@ namespace TestNamespace
             Title = title;
             Salary = salary;
         }
-        
+
         /// <summary>
         /// Give the employee a raise.
         /// </summary>
@@ -125,7 +125,7 @@ namespace TestNamespace
         {
             Salary *= (1 + percentage / 100);
         }
-        
+
         /// <summary>
         /// Get information about the employee's job.
         /// </summary>
@@ -134,7 +134,7 @@ namespace TestNamespace
         {
             return $"I work as a {Title} and earn ${Salary} per year.";
         }
-        
+
         /// <summary>
         /// Override the parent's greet method.
         /// </summary>
@@ -145,7 +145,7 @@ namespace TestNamespace
             return $"{parentGreeting} I work as a {Title}.";
         }
     }
-    
+
     /// <summary>
     /// Interface for data processors.
     /// </summary>
@@ -157,14 +157,14 @@ namespace TestNamespace
         /// <param name="data">The data to process</param>
         /// <returns>The processed data</returns>
         string Process(string data);
-        
+
         /// <summary>
         /// Get processing statistics.
         /// </summary>
         /// <returns>A dictionary of statistics</returns>
         Dictionary<string, int> GetStats();
     }
-    
+
     /// <summary>
     /// Simple implementation of the IProcessor interface.
     /// </summary>
@@ -174,7 +174,7 @@ namespace TestNamespace
         /// Number of successful processing operations
         /// </summary>
         private int _count = 0;
-        
+
         /// <summary>
         /// Process the data by adding a prefix.
         /// </summary>
@@ -187,13 +187,13 @@ namespace TestNamespace
             {
                 throw new ArgumentException("Empty data");
             }
-            
+
             _count++;
             Console.WriteLine($"Processing data: {data.Substring(0, Math.Min(20, data.Length))}...");
-            
+
             return $"Processed: {data}";
         }
-        
+
         /// <summary>
         /// Get the count of successful processing operations.
         /// </summary>
@@ -206,7 +206,7 @@ namespace TestNamespace
             };
         }
     }
-    
+
     /// <summary>
     /// Enumeration of status codes.
     /// </summary>
@@ -214,17 +214,17 @@ namespace TestNamespace
     {
         /// <summary>Success status</summary>
         Success = 0,
-        
+
         /// <summary>Warning status</summary>
         Warning = 1,
-        
+
         /// <summary>Error status</summary>
         Error = 2,
-        
+
         /// <summary>Fatal error status</summary>
         Fatal = 3
     }
-    
+
     /// <summary>
     /// Static utility class with helper methods.
     /// </summary>
@@ -241,14 +241,14 @@ namespace TestNamespace
             {
                 return null;
             }
-            
+
             int min = numbers.Min();
             int max = numbers.Max();
             double avg = numbers.Average();
-            
+
             return (min, max, avg);
         }
-        
+
         /// <summary>
         /// Divide two numbers and return the result.
         /// </summary>
@@ -262,10 +262,10 @@ namespace TestNamespace
             {
                 throw new DivideByZeroException("Division by zero");
             }
-            
+
             return a / b;
         }
-        
+
         /// <summary>
         /// Asynchronously read a file.
         /// </summary>
@@ -277,11 +277,11 @@ namespace TestNamespace
             {
                 throw new FileNotFoundException("File not found", path);
             }
-            
+
             return await File.ReadAllTextAsync(path);
         }
     }
-    
+
     /// <summary>
     /// Main program class with entry point.
     /// </summary>
@@ -297,13 +297,13 @@ namespace TestNamespace
             Person person = new Person("John", 30);
             person.SetAddress("123 Main St");
             Console.WriteLine(person.Greet());
-            
+
             // Create an employee
             Employee employee = new Employee("Jane", 28, "Software Engineer", 100000);
             employee.GiveRaise(10);
             Console.WriteLine(employee.GetWorkInfo());
             Console.WriteLine(employee.Greet());
-            
+
             // Use the processor
             IProcessor processor = new SimpleProcessor();
             try
@@ -315,7 +315,7 @@ namespace TestNamespace
             {
                 Console.WriteLine($"Error: {e.Message}");
             }
-            
+
             // Use standalone functions
             int[] numbers = { 3, 7, 2, 9, 5 };
             var stats = Utils.CalculateStats(numbers);
@@ -323,7 +323,7 @@ namespace TestNamespace
             {
                 Console.WriteLine($"Min: {stats.Value.Min}, Max: {stats.Value.Max}, Avg: {stats.Value.Avg}");
             }
-            
+
             try
             {
                 int result = Utils.Divide(10, 2);
@@ -333,11 +333,11 @@ namespace TestNamespace
             {
                 Console.WriteLine($"Error: {e.Message}");
             }
-            
+
             // Use constants
             Console.WriteLine($"PI: {Constants.PI}");
             Console.WriteLine($"MAX_RETRIES: {Constants.MAX_RETRIES}");
-            
+
             // Use enum
             StatusCode status = StatusCode.Success;
             Console.WriteLine($"Status: {status}");

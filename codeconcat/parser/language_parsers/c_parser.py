@@ -14,17 +14,15 @@ logger = logging.getLogger(__name__)
 def parse_c_code(file_path: str, content: str) -> ParseResult:
     parser = CParser()
     try:
-        declarations = parser.parse(content)
+        result = parser.parse(content, file_path)
     except Exception as e:
         # Wrap internal parser errors in LanguageParserError
         raise LanguageParserError(
             message=f"Failed to parse C file: {e}",
             file_path=file_path,
             original_exception=e,
-        )
-    return ParseResult(
-        file_path=file_path, language="c", content=content, declarations=declarations
-    )
+        ) from e
+    return result
 
 
 class CParser(BaseParser):
@@ -65,7 +63,7 @@ class CParser(BaseParser):
         self.block_comment_start = "/*"
         self.block_comment_end = "*/"
 
-    def parse(self, content: str) -> List[CodeSymbol]:
+    def parse(self, content: str, file_path: str) -> ParseResult:
         lines = content.split("\n")
         symbols: List[CodeSymbol] = []
         line_count = len(lines)
@@ -106,7 +104,14 @@ class CParser(BaseParser):
                     logger.info("No matching pattern found for enum declaration")
             i += 1
 
-        return symbols
+        # Convert CodeSymbol list to Declaration list
+        declarations = []
+        for symbol in symbols:
+            declarations.extend(self._flatten_symbol(symbol))
+
+        return ParseResult(
+            file_path=file_path, language="c", content=content, declarations=declarations
+        )
 
     def _find_block_end(self, lines: List[str], start: int) -> int:
         """

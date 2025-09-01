@@ -2,17 +2,17 @@
 Simple unit tests for the diagnostics module.
 """
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from codeconcat.diagnostics import verify_tree_sitter_dependencies, diagnose_parser
 from codeconcat.base_types import ParseResult
+from codeconcat.diagnostics import diagnose_parser, verify_tree_sitter_dependencies
 
 
 class TestDiagnostics:
     """Test suite for diagnostics functions."""
 
     @patch("codeconcat.diagnostics.logger")
-    def test_verify_dependencies_import_error(self, mock_logger):
+    def test_verify_dependencies_import_error(self, _mock_logger):
         """Test when tree-sitter import fails."""
         with patch.dict("sys.modules", {"tree_sitter": None}):
             success, successful, failed = verify_tree_sitter_dependencies()
@@ -105,7 +105,7 @@ class TestDiagnostics:
 
     @patch("codeconcat.diagnostics.TREE_SITTER_PARSER_MAP", {})
     @patch("codeconcat.diagnostics.logger")
-    def test_verify_dependencies_empty_map(self, mock_logger):
+    def test_verify_dependencies_empty_map(self, _mock_logger):
         """Test with empty parser map."""
         # This should work since tree_sitter is imported
         success, successful, failed = verify_tree_sitter_dependencies()
@@ -134,7 +134,7 @@ class TestDiagnostics:
         """Test diagnosing multiple parser types."""
         call_count = 0
 
-        def get_parser_side_effect(lang, config, parser_type=None):
+        def get_parser_side_effect(_lang, _config, parser_type=None):
             nonlocal call_count
             call_count += 1
             if parser_type == "tree_sitter":

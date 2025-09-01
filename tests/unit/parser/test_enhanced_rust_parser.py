@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the enhanced Rust parser in CodeConCat.
@@ -9,15 +8,13 @@ nested declarations, functions, closures, and other Rust-specific features.
 """
 
 import logging
+
 import pytest
 
-from codeconcat.base_types import (
-    ParseResult,
-    ParserInterface,
-)
+from codeconcat.base_types import ParseResult, ParserInterface
+from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.enhanced_rust_parser import EnhancedRustParser
-from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -53,7 +50,7 @@ impl Config {
     pub fn new(name: String, value: u32) -> Self {
         Config { name, value }
     }
-    
+
     /// Gets the config name
     pub fn get_name(&self) -> &str {
         &self.name

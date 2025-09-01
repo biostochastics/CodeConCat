@@ -42,7 +42,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
 
         # Python uses indentation rather than braces
         self.block_start = ":"
-        self.block_end = None  # Use indentation
+        self.block_end = ""  # Use indentation
 
         # Initialize patterns dict (will be populated in _setup_python_patterns)
         self.patterns = {}
@@ -86,14 +86,14 @@ class EnhancedPythonParser(EnhancedBaseParser):
         try:
             logger.debug(f"Starting EnhancedPythonParser.parse for file: {file_path}")
 
-            declarations = []
-            imports = []
-            errors = []
+            declarations: list[Declaration] = []
+            imports: list[str] = []
+            errors: list[str] = []
 
             lines = content.split("\n")
 
             # First pass: extract imports for the entire file
-            for i, line in enumerate(lines):
+            for _i, line in enumerate(lines):
                 line = line.strip()
                 self._process_imports(line, imports)
 
@@ -163,13 +163,10 @@ class EnhancedPythonParser(EnhancedBaseParser):
         i = start
 
         # Track the current indentation level for this block
-        if i < len(lines):
-            current_indent = self._get_indent_level(lines[i])
-        else:
-            current_indent = 0
+        current_indent = self._get_indent_level(lines[i]) if i < len(lines) else 0
 
         logger.debug(
-            f"Processing Python block at lines {start+1}-{end+1} (indent level: {current_indent})"
+            f"Processing Python block at lines {start + 1}-{end + 1} (indent level: {current_indent})"
         )
 
         while i <= end:
@@ -187,7 +184,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
 
             # If indentation is less than the block's indentation, we've exited the block
             if line_indent < current_indent and i > start:
-                logger.debug(f"Exiting block at line {i+1} due to decreased indentation")
+                logger.debug(f"Exiting block at line {i + 1} due to decreased indentation")
                 break
 
             # Process imports
@@ -196,7 +193,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
                 continue
 
             # Collect decorators
-            decorators = []
+            decorators: list[str] = []
             while line.startswith("@"):
                 decorator = line
                 j = i + 1
@@ -237,7 +234,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
                     end_line = i
                     docstring_text = ""
 
-                    logger.debug(f"Found potential {kind} declaration: {name} at line {i+1}")
+                    logger.debug(f"Found potential {kind} declaration: {name} at line {i + 1}")
 
                     # Handle block definitions (class, function)
                     if ":" in line:
@@ -268,10 +265,10 @@ class EnhancedPythonParser(EnhancedBaseParser):
                             j += 1
 
                         # Extract docstring (if present at start of block)
-                        docstring_text = self.extract_docstring(lines, i + 1, end_line)
+                        docstring_text = self.extract_docstring(lines, i + 1, end_line) or ""
 
                         logger.debug(
-                            f"Found block for {kind} {name} from lines {start_line+1} to {end_line+1}"
+                            f"Found block for {kind} {name} from lines {start_line + 1} to {end_line + 1}"
                         )
 
                     # Create declaration
@@ -281,9 +278,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
                         start_line=start_line + 1,  # 1-indexed
                         end_line=end_line + 1,  # 1-indexed
                         docstring=docstring_text,
-                        modifiers=list(
-                            set(d for d in decorators if any(m in d for m in self.modifiers))
-                        ),
+                        modifiers={d for d in decorators if any(m in d for m in self.modifiers)},
                         children=[],
                     )
 
@@ -360,7 +355,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
 
         return False
 
-    def extract_docstring(self, lines: List[str], start: int, end: int) -> str:
+    def extract_docstring(self, lines: List[str], start: int, end: int) -> Optional[str]:
         """
         Extract Python docstring from a block of code.
 
@@ -390,7 +385,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
                     # Single-line docstring
                     if line.endswith(quote_type) and len(line) > 3:
                         docstring = line[3:-3].strip()
-                        logger.debug(f"Found single-line docstring at line {j+1}")
+                        logger.debug(f"Found single-line docstring at line {j + 1}")
                         return docstring
 
                     # Multi-line docstring
@@ -405,13 +400,13 @@ class EnhancedPythonParser(EnhancedBaseParser):
                                 current_line[:idx]
                             )  # Add text before closing quotes
                             docstring = "\n".join(docstring_lines).strip()
-                            logger.debug(f"Found multi-line docstring from lines {j+1}-{k+1}")
+                            logger.debug(f"Found multi-line docstring from lines {j + 1}-{k + 1}")
                             return docstring
                         docstring_lines.append(current_line)
                         k += 1
 
                     # If we reached here, the docstring wasn't properly closed
-                    logger.warning(f"Unclosed docstring starting at line {j+1}")
+                    logger.warning(f"Unclosed docstring starting at line {j + 1}")
 
         return ""
 
@@ -488,7 +483,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
         Returns:
             List of decorator strings.
         """
-        decorators = []
+        decorators: list[str] = []
         j = i - 1
 
         while j >= 0:
@@ -499,7 +494,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
             decorators.insert(0, line)
             j -= 1
 
-        logger.debug(f"Found {len(decorators)} decorators for declaration at line {i+1}")
+        logger.debug(f"Found {len(decorators)} decorators for declaration at line {i + 1}")
         return decorators
 
     def get_capabilities(self) -> Dict[str, bool]:

@@ -6,10 +6,10 @@ used throughout the CodeConCat application, including file paths, content,
 configuration, and API inputs.
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 from urllib.parse import urlparse
-import logging
 
 from ..errors import ValidationError
 
@@ -52,7 +52,6 @@ POTENTIALLY_MALICIOUS_EXTENSIONS = {
     ".vbe",
     ".wsf",
     ".wsh",
-    ".ps1",
     ".psm1",
     ".psd1",
     # Hidden files on Unix-like systems
@@ -64,8 +63,6 @@ POTENTIALLY_MALICIOUS_EXTENSIONS = {
     ".swl",
     ".swk",
     ".swj",
-    ".swn",
-    ".swp",
 }
 
 # Common binary file signatures (magic numbers)
@@ -82,7 +79,24 @@ BINARY_SIGNATURES = [
 
 
 class InputValidator:
-    """A class to handle input validation for CodeConCat."""
+    """A class to handle input validation for CodeConCat.
+
+    This class provides comprehensive validation methods for various input types
+    including file paths, URLs, configurations, and file content. It includes
+    security checks for path traversal attacks, malicious file types, and
+    binary content detection.
+
+    Attributes:
+        MAX_FILE_SIZE: Maximum allowed file size (100MB by default)
+        POTENTIALLY_MALICIOUS_EXTENSIONS: Set of file extensions that may pose security risks
+        BINARY_SIGNATURES: Common binary file magic numbers for detection
+
+    Example:
+        >>> validator = InputValidator()
+        >>> path = validator.validate_file_path("/path/to/file.py")
+        >>> validator.validate_file_size(path, max_size=10*1024*1024)
+        >>> validator.validate_file_extension(path, allowed_extensions={".py", ".js"})
+    """
 
     @staticmethod
     def validate_file_path(
@@ -116,6 +130,7 @@ class InputValidator:
             raise ValidationError(f"File does not exist: {path} (from original: {file_path})")
 
         # Check for path traversal attempts only if base_dir is provided
+        # This prevents directory traversal attacks like "../../etc/passwd"
         if base_dir:
             logger.debug(f"[validate_file_path] Original base_dir for '{file_path}': {base_dir}")
             effective_base_dir = base_dir.resolve()
@@ -123,14 +138,16 @@ class InputValidator:
                 f"[validate_file_path] Effective base_dir for '{file_path}': {effective_base_dir}"
             )
             try:
+                # relative_to() will raise ValueError if path is outside base_dir
                 path.relative_to(effective_base_dir)
-            except ValueError:
+            except ValueError as e:
+                # Path is outside the allowed base directory - potential security issue
                 logger.debug(
                     f"Path traversal check failed: path='{path}', effective_base_dir='{effective_base_dir}'"
                 )
                 raise ValidationError(
                     f"Path traversal attempt detected for '{file_path}' (resolved to '{path}') relative to base '{effective_base_dir}'"
-                )
+                ) from e
 
         return path
 
@@ -173,12 +190,17 @@ class InputValidator:
         Args:
             file_path: Path to the file
             allowed_extensions: Set of allowed file extensions (with leading .), or None to only check for malicious
+            base_dir: Optional base directory for path validation
 
         Returns:
             bool: True if the file extension is allowed
 
         Raises:
             ValidationError: If the file extension is not allowed or is potentially malicious
+
+        Note:
+            If allowed_extensions is None, only checks against POTENTIALLY_MALICIOUS_EXTENSIONS.
+            If provided, checks both for malicious extensions and allowed list.
         """
         path = InputValidator.validate_file_path(file_path, base_dir=base_dir)
         ext = path.suffix.lower()
@@ -205,12 +227,16 @@ class InputValidator:
         Args:
             file_path: Path to the file
             check_binary: If True, checks if the file appears to be binary
+            base_dir: Optional base directory for path validation
 
         Returns:
             bool: True if the file content is valid
 
         Raises:
             ValidationError: If the file content is invalid or appears to be binary (when check_binary=True)
+
+        Complexity:
+            O(1) for file path validation, O(n) for binary check where n is min(file_size, 8192)
         """
         path = InputValidator.validate_file_path(file_path, base_dir=base_dir)
 
@@ -230,6 +256,7 @@ class InputValidator:
         Args:
             directory_path: The directory path to validate
             check_exists: If True, checks if the directory exists
+            base_dir: Optional base directory for path traversal validation
 
         Returns:
             Path: The validated Path object
@@ -237,6 +264,9 @@ class InputValidator:
         Raises:
             ValidationError: If the path is invalid, doesn't exist (when check_exists=True),
                             or is not a directory
+
+        See Also:
+            validate_file_path: For validating file paths
         """
         path = InputValidator.validate_file_path(
             directory_path, check_exists=check_exists, base_dir=base_dir
@@ -282,12 +312,10 @@ class InputValidator:
                 raise ValidationError("Invalid URL: No network location")
 
             # For git@ URLs, extract the domain
-            if url.startswith("git@"):
-                domain = url.split("@")[1].split(":")[0]
-            else:
-                domain = parsed.netloc
+            # Format: git@github.com:user/repo.git -> github.com
+            domain = url.split("@")[1].split(":")[0] if url.startswith("git@") else parsed.netloc
 
-            # Remove port if present
+            # Remove port if present (e.g., "example.com:8080" -> "example.com")
             domain = domain.split(":")[0]
 
             # Check against allowed domains if specified
@@ -333,11 +361,23 @@ class InputValidator:
         """
         Check if a file appears to be binary.
 
+        This method uses multiple heuristics to detect binary files:
+        1. Checks file extension against known text extensions
+        2. Looks for null bytes in the first 8KB
+        3. Checks for common binary file signatures (magic numbers)
+        4. Attempts UTF-8 decoding
+
         Args:
             file_path: Path to the file
 
         Returns:
             bool: True if the file appears to be binary
+
+        Complexity:
+            O(1) for extension check, O(n) for content check where n = min(file_size, 8192)
+
+        Note:
+            This is a heuristic check and may not be 100% accurate for all file types.
         """
         # Check file extension first (faster than reading content)
         text_extensions = {
@@ -404,20 +444,25 @@ class InputValidator:
         try:
             with open(file_path, "rb") as f:
                 # Read first 8KB to check for binary content
+                # This is a good balance between accuracy and performance
                 chunk = f.read(8192)
-                # Check for null bytes (common in binary files)
+
+                # Check for null bytes (common in binary files but rare in text)
                 if b"\x00" in chunk:
                     return True
-                # Check for common binary file signatures
+
+                # Check for common binary file signatures (magic numbers)
                 for signature, _ in BINARY_SIGNATURES:
                     if chunk.startswith(signature):
                         return True
-                # Try to decode as text
+
+                # Try to decode as UTF-8 text
+                # Binary files will typically fail this check
                 try:
                     chunk.decode("utf-8")
                 except UnicodeDecodeError:
                     return True
-        except (IOError, OSError):
+        except OSError:
             return True
 
         return False

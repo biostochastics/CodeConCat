@@ -167,7 +167,7 @@ class JsTsParser(BaseParser):
                 language=language,
                 content=content,
                 declarations=declarations,
-                imports=sorted(list(imports)),
+                imports=sorted(imports),
                 engine_used="regex",  # Indicate regex engine was used
                 token_stats=None,  # Regex parsers don't provide token stats
                 security_issues=[],  # Regex parsers don't provide security issues
@@ -181,14 +181,14 @@ class JsTsParser(BaseParser):
                 message=f"Failed to parse {language} file ({type(e).__name__}) using Regex: {e}",
                 file_path=file_path,
                 original_exception=e,
-            )
+            ) from e
 
     def _clean_jsdoc(self, docstring_lines: List[str]) -> str:
         """Cleans a JSDoc block comment buffer, removing delimiters and leading asterisks."""
         if not docstring_lines:
             return ""
 
-        cleaned_lines = []
+        cleaned_lines: list[str] = []
         for i, line in enumerate(docstring_lines):
             stripped = line.strip()
             # Handle first line: remove /**

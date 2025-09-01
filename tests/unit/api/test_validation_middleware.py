@@ -1,7 +1,8 @@
 """Unit tests for the API validation middleware."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
@@ -26,11 +27,11 @@ def app():
         return {"status": "success", "data": "No validation needed"}
 
     @app.post("/api/error")
-    async def error_endpoint(request: Request):
+    async def error_endpoint(_request: Request):
         raise ValidationError("Test validation error", field="test_field")
 
     @app.post("/api/exception")
-    async def exception_endpoint(request: Request):
+    async def exception_endpoint(_request: Request):
         raise Exception("Test exception")
 
     return app

@@ -1,20 +1,21 @@
 """Simple tests for local file collector functionality."""
 
-import pytest
-from unittest.mock import Mock, patch
-import tempfile
 import os
+import tempfile
+from unittest.mock import Mock, patch
 
+import pytest
+
+from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 from codeconcat.collector.local_collector import (
     collect_local_files,
-    process_file,
-    is_binary_file,
     determine_language,
-    should_skip_dir,
-    should_include_file,
     get_gitignore_spec,
+    is_binary_file,
+    process_file,
+    should_include_file,
+    should_skip_dir,
 )
-from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 
 
 class TestCollectLocalFiles:
@@ -49,7 +50,8 @@ class TestCollectLocalFiles:
             result = collect_local_files(temp_dir, config)
 
             assert len(result) == 1
-            assert result[0].file_path == test_file
+            # Normalize paths to handle /private symlink on macOS
+            assert os.path.realpath(result[0].file_path) == os.path.realpath(test_file)
             assert result[0].content == "print('Hello, World!')"
             assert result[0].language == "python"
 
@@ -78,7 +80,10 @@ class TestProcessFile:
             result = process_file(temp_file, config, "text")
 
             assert isinstance(result, ParsedFileData)
-            assert result.file_path == temp_file
+            # Normalize paths to handle /private symlink on macOS
+            import os
+
+            assert os.path.realpath(result.file_path) == os.path.realpath(temp_file)
             assert result.content == "Hello, World!"
         finally:
             os.unlink(temp_file)

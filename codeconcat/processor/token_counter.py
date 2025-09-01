@@ -1,13 +1,12 @@
 """Token counting functionality using tiktoken."""
 
 import threading
-from typing import Dict
+from typing import Any, Dict, Union
 
 import tiktoken
 from transformers import GPT2TokenizerFast
 
 from ..base_types import TokenStats
-
 
 # Cache for encoders to avoid recreating them
 _ENCODER_CACHE: Dict[str, tiktoken.Encoding] = {}
@@ -18,7 +17,7 @@ _CLAUDE_TOKENIZER = None
 _CLAUDE_TOKENIZER_LOCK = threading.Lock()
 
 
-def get_claude_tokenizer() -> GPT2TokenizerFast:
+def get_claude_tokenizer() -> Union[GPT2TokenizerFast, Any]:
     """Get or create the Claude tokenizer."""
     global _CLAUDE_TOKENIZER
     if _CLAUDE_TOKENIZER is None:
@@ -30,7 +29,7 @@ def get_claude_tokenizer() -> GPT2TokenizerFast:
                     # If loading fails, create a dummy tokenizer for testing
                     # This helps with test isolation issues
                     class DummyTokenizer:
-                        def encode(self, text: str) -> list:
+                        def encode(self, text: str) -> list[str]:
                             # Simple approximation for testing
                             return text.split()
 
@@ -67,7 +66,13 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
 def get_token_stats(text: str) -> TokenStats:
     """Get token statistics for different models."""
     tokenizer = get_claude_tokenizer()
+    try:
+        claude_token_count = len(tokenizer.encode(text))  # type: ignore[union-attr]
+    except Exception:
+        # Fallback for tokenizer encode issues
+        claude_token_count = len(text.split())
+
     return TokenStats(
         gpt4_tokens=count_tokens(text, "gpt-4"),
-        claude_tokens=len(tokenizer.encode(text)),
+        claude_tokens=claude_token_count,
     )

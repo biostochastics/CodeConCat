@@ -5,20 +5,20 @@ security tools (e.g., Semgrep) and convert them to the internal
 SecurityIssue format.
 """
 
-import subprocess
 import json
-import sys
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import List, Optional
 
-from .security_types import SecurityIssue
 from ..base_types import CodeConCatConfig, SecuritySeverity
+from .security_types import SecurityIssue
 
 
 def run_semgrep_scan(
     file_path: str | Path,
-    config: Optional[CodeConCatConfig] = None,
+    config: Optional[CodeConCatConfig] = None,  # noqa: ARG001
     semgrep_path: str = "semgrep",
     rules: Optional[str] = "p/ci",  # Default to Semgrep's community ruleset
 ) -> List[SecurityIssue]:
@@ -46,12 +46,11 @@ def run_semgrep_scan(
         return []
 
     # Validate rules parameter - allow only safe patterns
-    if rules:
+    if rules and not re.match(r"^[a-zA-Z0-9_./\\:@-]+$", rules):
         # Allow: p/something, path/to/file.yml, ./rules, etc.
         # Disallow: shell metacharacters and command separators
-        if not re.match(r"^[a-zA-Z0-9_./\\:@-]+$", rules):
-            print(f"Error: Invalid rules parameter: {rules}", file=sys.stderr)
-            return []
+        print(f"Error: Invalid rules parameter: {rules}", file=sys.stderr)
+        return []
 
     cmd = [semgrep_path, "--json", "--quiet", path]
     if rules:
@@ -79,7 +78,7 @@ def run_semgrep_scan(
         if not result.stdout:
             # Should only happen if --json wasn't respected or Semgrep errored early
             print(
-                f"Semgrep produced no JSON output for {path}. " f"Stderr: {result.stderr.strip()}",
+                f"Semgrep produced no JSON output for {path}. Stderr: {result.stderr.strip()}",
                 file=sys.stderr,
             )
             return []
@@ -134,7 +133,7 @@ def run_semgrep_scan(
                 line_number=finding.get("start", {}).get("line", 0),
                 line_content=line_content,  # Store the line Semgrep provides
                 issue_type=finding.get("check_id", "semgrep"),
-                severity=severity,
+                severity=severity.value,
                 description=description,
                 raw_finding=str(raw_finding).strip(),  # Store matched code or relevant part
                 file_path=finding.get("path", str(path)),  # Use path from Semgrep result

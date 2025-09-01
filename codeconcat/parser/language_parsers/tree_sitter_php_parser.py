@@ -19,16 +19,16 @@ PHP_QUERIES = {
         (use_declaration
           (namespace_use_clause name: (name) @import_path)
         ) @use_statement
-        
+
         ; Function imports with 'use function'
         (use_declaration
-          kind: "function"
+          "function"
           (namespace_use_clause name: (name) @function_import_path)
         ) @function_use_statement
-        
+
         ; Constant imports with 'use const'
         (use_declaration
-          kind: "const"
+          "const"
           (namespace_use_clause name: (name) @const_import_path)
         ) @const_use_statement
 
@@ -36,7 +36,7 @@ PHP_QUERIES = {
         (namespace_use_declaration
             (namespace_name) @group_import_prefix
         ) @use_statement_group
-        
+
         ; Group use statements - individual items
         (namespace_use_declaration
             (namespace_use_group
@@ -45,10 +45,10 @@ PHP_QUERIES = {
                 )
             )
         )
-        
+
         ; Function use statements with aliases
         (use_declaration
-          (namespace_use_clause 
+          (namespace_use_clause
             name: (name) @import_path
             alias: (name) @import_alias
           )
@@ -59,7 +59,7 @@ PHP_QUERIES = {
           function: (name) @func_name (#match? @func_name "^(require|require_once|include|include_once)$")
           arguments: (arguments (string) @import_path)
         ) @require_include
-        
+
         ; autoload registration (common pattern)
         (call_expression
           function: (name) @register_func (#eq? @register_func "spl_autoload_register")
@@ -68,148 +68,41 @@ PHP_QUERIES = {
     "declarations": """
         ; Namespace definitions
         (namespace_definition
-            name: (name)? @name
+            name: (namespace_name) @name
         ) @namespace
 
-        ; Class declarations with modifiers, extends and implements
+        ; Class declarations
         (class_declaration
-            (attribute_list
-                (attribute
-                    name: (name) @class_attr_name
-                    arguments: (arguments)? @class_attr_args
-                )
-            )* @class_attributes
             name: (name) @name
-            extends: (base_clause
-                (name) @extends_name
-            )?
-            implements: (class_interface_clause
-                (name_list)? @implements_list
-            )?
-            body: (declaration_list) @body
         ) @class
-        
-        ; Anonymous class declarations
-        (anonymous_class_declaration
-            (attribute_list)? @anon_class_attr
-            extends: (base_clause
-                (name) @anon_extends_name
-            )?
-            implements: (class_interface_clause
-                (name_list)? @anon_implements_list
-            )?
-        ) @anonymous_class
 
         ; Interface declarations
         (interface_declaration
-            (attribute_list
-                (attribute
-                    name: (name) @interface_attr_name
-                    arguments: (arguments)? @interface_attr_args
-                )
-            )* @interface_attributes
             name: (name) @name
-            extends: (base_clause
-                (name_list) @interface_extends
-            )?
-            body: (declaration_list) @body
         ) @interface
 
         ; Trait declarations
         (trait_declaration
-            (attribute_list
-                (attribute
-                    name: (name) @trait_attr_name
-                    arguments: (arguments)? @trait_attr_args
-                )
-            )* @trait_attributes
             name: (name) @name
-            body: (declaration_list) @body
         ) @trait
 
-        ; Function definitions with return types, parameters and modifiers
+        ; Function definitions
         (function_definition
-            (attribute_list
-                (attribute
-                    name: (name) @func_attr_name
-                    arguments: (arguments)? @func_attr_args
-                )
-            )* @function_attributes
             name: (name) @name
-            parameters: (formal_parameters
-                (simple_parameter
-                    type: (_)? @param_type
-                    name: (variable_name) @param_name
-                    default_value: (_)? @param_default
-                )* @params
-            )
-            return_type: (return_type)? @return_type
-            body: (compound_statement) @body
         ) @function
-        
-        ; Method declarations with modifiers, return types and parameters
-        (method_declaration
-            (attribute_list
-                (attribute
-                    name: (name) @method_attr_name
-                    arguments: (arguments)? @method_attr_args
-                )
-            )* @method_attributes
-            modifiers: [
-                "public" "protected" "private"
-                "static" "abstract" "final"
-            ]* @modifiers
-            name: (name) @name
-            parameters: (formal_parameters
-                (simple_parameter
-                    type: (_)? @param_type
-                    name: (variable_name) @param_name
-                    default_value: (_)? @param_default
-                )* @params
-            )
-            return_type: (return_type)? @return_type
-            body: (compound_statement)? @body
-        ) @method
-        
-        ; Constructor method with property promotion (PHP 8+)
-        (method_declaration
-            modifiers: [
-                "public" "protected" "private"
-                "final"
-            ]* @constructor_modifiers
-            name: (name) @constructor_name (#eq? @constructor_name "__construct")
-            parameters: (formal_parameters
-                (property_promotion_parameter
-                    modifiers: [
-                        "public" "protected" "private"
-                    ]* @prop_promotion_modifiers
-                    type: (_)? @prop_promotion_type
-                    name: (variable_name) @prop_promotion_name
-                    default_value: (_)? @prop_promotion_default
-                )* @promoted_params
-            )
-            body: (compound_statement) @constructor_body
-        ) @constructor_with_promotion
 
-        ; Constants (global scope)
+        ; Method declarations
+        (method_declaration
+            name: (name) @name
+        ) @method
+
+        ; Const declarations
         (const_declaration
-            (const_element 
+            (const_element
                 name: (name) @name
                 value: (_) @const_value
             )
-        ) @constant
-
-        ; Class Constants with visibility modifiers
-        (class_const_declaration
-            modifiers: [
-                "public" "protected" "private"
-                "final"
-            ]* @const_modifiers
-            (const_element 
-                name: (name) @name
-                value: (_) @class_const_value
-            )
-        ) @class_constant
+        ) @const
 
         ; Properties with type declarations and nullability
         (property_declaration
@@ -224,12 +117,12 @@ PHP_QUERIES = {
                 "static" "readonly"
             ]* @property_modifiers
             type: (_)? @property_type
-            (property_element 
+            (property_element
                 name: (variable_name) @name
                 default_value: (_)? @property_default
             )
         ) @property
-        
+
         ; Enum declarations (PHP 8.1+)
         (enum_declaration
             (attribute_list
@@ -248,9 +141,9 @@ PHP_QUERIES = {
             )* @enum_cases
             body: (declaration_list) @enum_body
         ) @enum
-        
+
         ; Global variables (less common)
-        (global_declaration 
+        (global_declaration
             (variable_name) @name
         ) @global_variable
     """,
@@ -258,10 +151,10 @@ PHP_QUERIES = {
     "doc_comments": """
         ; PHPDoc block comments
         (comment) @doc_comment (#match? @doc_comment "^/\\\\*\\\\*")
-        
+
         ; Single line annotations (less common but used in some codebases)
         (comment) @line_annotation (#match? @line_annotation "^//\\\\s*@")
-        
+
         ; File-level docblock
         (program . (comment) @file_doc_comment (#match? @file_doc_comment "^/\\\\*\\\\*"))
     """,
@@ -275,7 +168,7 @@ PHP_DOC_COMMENT_END_PATTERN = re.compile(r"\s*\*/$")
 
 def _clean_php_doc_comment(comment_block: List[str]) -> str:
     """Cleans a block of PHPDoc comment lines."""
-    cleaned_lines = []
+    cleaned_lines: list[str] = []
     for i, line in enumerate(comment_block):
         original_line = line  # Keep original for block end check
         if i == 0:
@@ -308,10 +201,7 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
         queries = self.get_queries()
         declarations = []
         imports: Set[str] = set()
-        declaration_map = {}  # node_id -> declaration info
         doc_comment_map = {}  # end_line -> raw comment_text (list of lines)
-
-        # Keep track of modifiers for declarations
         current_namespace = ""
 
         # --- Pass 1: Extract Doc Comments --- #
@@ -319,13 +209,15 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
             doc_query = self.ts_language.query(queries.get("doc_comments", ""))
             doc_captures = doc_query.captures(root_node)
 
-            for node, _ in doc_captures:
-                comment_text = byte_content[node.start_byte : node.end_byte].decode(
-                    "utf8", errors="ignore"
-                )
-                # PHPDoc comments are always block comments /** ... */
-                if comment_text.startswith("/**"):
-                    doc_comment_map[node.end_point[0]] = comment_text.splitlines()
+            # doc_captures is a dict: {capture_name: [list of nodes]}
+            for _capture_name, nodes in doc_captures.items():
+                for node in nodes:
+                    comment_text = byte_content[node.start_byte : node.end_byte].decode(
+                        "utf8", errors="replace"
+                    )
+                    # PHPDoc comments are always block comments /** ... */
+                    if comment_text.startswith("/**"):
+                        doc_comment_map[node.end_point[0]] = comment_text.splitlines()
 
         except Exception as e:
             logger.warning(f"Failed to execute PHP doc_comments query: {e}", exc_info=True)
@@ -342,273 +234,115 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                 logger.debug(f"Running PHP query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
-                    for capture in captures:
-                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
+                    # captures is a dict of {capture_name: [list of nodes]}
+                    # Fixed capture unpacking pattern
+                    for capture in captures.items():
                         if len(capture) == 2:
-                            node, capture_name = capture
+                            capture_name, nodes = capture
                         else:
-                            node, capture_name, _ = capture
-                        if capture_name == "import_path":
-                            import_path = (
-                                byte_content[node.start_byte : node.end_byte]
-                                .decode("utf8", errors="ignore")
-                                .strip("'\"")
-                            )
-                            # Handle group use statements (multiple paths possible)
-                            if node.parent and node.parent.type == "namespace_use_clause":
-                                # Part of a group use statement like 'use N\{C1, C2}'
-                                # Find the common prefix
-                                group_node = node.parent
-                                while group_node and group_node.type != "namespace_use_declaration":
-                                    group_node = group_node.parent
-                                if group_node:
-                                    prefix_node = next(
-                                        (
-                                            n
-                                            for n, name in query.captures(group_node)
-                                            if name == "import_path"
-                                        ),
-                                        None,
-                                    )
-                                    if prefix_node:
-                                        prefix = byte_content[
-                                            prefix_node.start_byte : prefix_node.end_byte
-                                        ].decode("utf8", errors="ignore")
-                                        import_path = f"{prefix}\\{import_path}"
-
-                            imports.add(import_path)
+                            continue
+                        if capture_name in [
+                            "import_path",
+                            "function_import_path",
+                            "const_import_path",
+                            "group_import_item",
+                            "group_import_prefix",
+                        ]:
+                            for node in nodes:
+                                import_path = (
+                                    byte_content[node.start_byte : node.end_byte]
+                                    .decode("utf8", errors="replace")
+                                    .strip("'\"")
+                                )
+                                imports.add(import_path)
 
                 elif query_name == "declarations":
-                    # Group captures by the main declaration node ID
-                    node_capture_map = {}
-                    for capture in captures:
-                        # Handle both 2-tuple and 3-tuple captures from different tree-sitter versions
-                        if len(capture) == 2:
-                            node, capture_name = capture
-                        else:
-                            node, capture_name, _ = capture
-                        # Heuristic: Use the node associated with the @declaration_kind capture
-                        decl_node = node  # Start with the captured node
-                        # Find the ancestor that represents the whole declaration
-                        # (e.g., class_declaration, function_definition)
-                        while decl_node.parent and decl_node.type not in [
-                            "namespace_definition",
-                            "class_declaration",
-                            "interface_declaration",
-                            "trait_declaration",
-                            "function_definition",
-                            "const_declaration",
-                            "class_const_declaration",
-                            "property_declaration",
-                            "program",
-                        ]:
-                            decl_node = decl_node.parent
-                        if not decl_node:
-                            decl_node = node  # Fallback
+                    # Use matches for better structure
+                    matches = query.matches(root_node)
+                    for _match_id, captures_dict in matches:
+                        declaration_node = None
+                        name_node = None
+                        kind = None
+                        modifiers = set()
 
-                        decl_id = decl_node.id
-                        if decl_id not in node_capture_map:
-                            node_capture_map[decl_id] = {
-                                "node": decl_node,
-                                "captures": [],
-                                "kind": None,
-                            }
-                        node_capture_map[decl_id]["captures"].append((node, capture_name))
-                        if capture_name in [
+                        # Check for various declaration types
+                        decl_types = [
                             "namespace",
                             "class",
                             "interface",
                             "trait",
-                            "function",
-                            "constant",
-                            "class_constant",
-                            "property",
-                        ]:
-                            # Prioritize explicit kind capture if available
-                            node_capture_map[decl_id]["kind"] = capture_name
-
-                    # Process grouped captures
-                    for decl_id, data in node_capture_map.items():
-                        decl_node = data["node"]
-                        node_captures = data["captures"]
-                        kind = data["kind"] or decl_node.type  # Fallback to node type
-
-                        # Normalize kinds from the Tree-sitter node types
-                        if kind == "class_declaration":
-                            kind = "class"
-                        elif kind == "anonymous_class_declaration":
-                            kind = "anonymous_class"
-                        elif kind == "interface_declaration":
-                            kind = "interface"
-                        elif kind == "trait_declaration":
-                            kind = "trait"
-                        elif kind == "function_definition":
-                            kind = "function"
-                        elif kind == "method_declaration":
-                            kind = "method"
-                        elif kind == "constructor_with_promotion":
-                            kind = "constructor"
-                        elif kind == "const_declaration":
-                            kind = "constant"
-                        elif kind == "class_const_declaration":
-                            kind = "class_constant"
-                        elif kind == "property_declaration":
-                            kind = "property"
-                        elif kind == "namespace_definition":
-                            kind = "namespace"
-                        elif kind == "enum_declaration":
-                            kind = "enum"
-                        elif kind == "global_declaration":
-                            kind = "global_variable"
-                        # Keep existing kind if already mapped
-
-                        if kind not in [
-                            "namespace",
-                            "class",
-                            "anonymous_class",
-                            "interface",
-                            "trait",
+                            "enum",
                             "function",
                             "method",
-                            "constructor",
-                            "constant",
-                            "class_constant",
                             "property",
-                            "enum",
+                            "class_constant",
                             "global_variable",
-                        ]:
-                            continue  # Skip nodes we don't classify as declarations
-
-                        # Extract name from relevant captured nodes
-                        name_node = next((n for n, name in node_captures if name == "name"), None)
-                        name_text = (
-                            byte_content[name_node.start_byte : name_node.end_byte].decode(
-                                "utf8", errors="ignore"
-                            )
-                            if name_node
-                            else "<anonymous>"
-                        )
-                        name_text = name_text.lstrip("$")  # Remove leading $ from property names
-
-                        start_line = decl_node.start_point[0]
-                        end_line = decl_node.end_point[0]
-
-                        # Extract modifiers into a set
-                        modifiers = set()
-                        # Look for common modifier captures
-                        modifier_nodes = [
-                            (n, cname)
-                            for n, cname in node_captures
-                            if cname
-                            in [
-                                "modifiers",
-                                "class_modifier",
-                                "property_modifiers",
-                                "const_modifiers",
-                                "constructor_modifiers",
-                                "prop_promotion_modifiers",
-                            ]
                         ]
 
-                        for mod_node, _ in modifier_nodes:
-                            mod_text = byte_content[mod_node.start_byte : mod_node.end_byte].decode(
-                                "utf8", errors="ignore"
+                        for decl_type in decl_types:
+                            if decl_type in captures_dict:
+                                nodes = captures_dict[decl_type]
+                                if nodes and len(nodes) > 0:
+                                    declaration_node = nodes[0]
+                                    kind = decl_type
+                                    break
+
+                        # Get the name node
+                        if "name" in captures_dict:
+                            name_nodes = captures_dict["name"]
+                            if name_nodes and len(name_nodes) > 0:
+                                name_node = name_nodes[0]
+
+                        # Get modifiers
+                        if "property_modifiers" in captures_dict:
+                            for mod_node in captures_dict["property_modifiers"]:
+                                modifier_text = byte_content[
+                                    mod_node.start_byte : mod_node.end_byte
+                                ].decode("utf8", errors="replace")
+                                modifiers.add(modifier_text)
+
+                        # Add declaration if we have both node and name
+                        if declaration_node and name_node:
+                            name_text = byte_content[
+                                name_node.start_byte : name_node.end_byte
+                            ].decode("utf8", errors="replace")
+
+                            # Update current namespace if this is a namespace declaration
+                            if kind == "namespace":
+                                current_namespace = name_text
+
+                            # For non-namespace declarations, prepend namespace if exists
+                            if kind != "namespace" and current_namespace:
+                                full_name = f"{current_namespace}\\{name_text}"
+                            else:
+                                full_name = name_text
+
+                            # Check for docstring
+                            docstring_lines = doc_comment_map.get(
+                                declaration_node.start_point[0] - 1, []
                             )
-                            modifiers.add(mod_text)
-
-                        # Check for attributes (PHP 8+)
-                        attr_nodes = [
-                            (n, cname)
-                            for n, cname in node_captures
-                            if cname
-                            in [
-                                "class_attributes",
-                                "method_attributes",
-                                "function_attributes",
-                                "interface_attributes",
-                                "trait_attributes",
-                                "property_attributes",
-                                "enum_attributes",
-                            ]
-                        ]
-
-                        has_attributes = len(attr_nodes) > 0
-                        if has_attributes:
-                            modifiers.add("attribute")
-
-                        # Look for return types
-                        return_type_node = next(
-                            (n for n, cname in node_captures if cname == "return_type"), None
-                        )
-                        has_return_type = return_type_node is not None
-                        if has_return_type:
-                            modifiers.add("typed")
-
-                        # Update current namespace
-                        if kind == "namespace":
-                            current_namespace = name_text if name_text != "<anonymous>" else ""
-                            # Create a declaration for the namespace
-                            declaration_map[decl_id] = {
-                                "kind": kind,
-                                "name": name_text,
-                                "start_line": start_line,
-                                "end_line": end_line,
-                                "modifiers": modifiers,
-                                "docstring": "",
-                            }
-                            continue  # Don't add other specific properties for namespaces
-
-                        # Prepend namespace if exists
-                        full_name = (
-                            f"{current_namespace}\\{name_text}"
-                            if current_namespace and name_text != "<anonymous>"
-                            else name_text
-                        )
-
-                        if decl_id not in declaration_map:
-                            declaration_map[decl_id] = {
-                                "kind": kind,
-                                "name": full_name,
-                                "start_line": start_line,
-                                "end_line": end_line,
-                                "modifiers": modifiers,
-                                "docstring": "",
-                            }
-                        else:
-                            # Update end line, modifiers, or potentially missed name
-                            declaration_map[decl_id]["end_line"] = max(
-                                declaration_map[decl_id]["end_line"], end_line
+                            docstring = (
+                                _clean_php_doc_comment(docstring_lines) if docstring_lines else ""
                             )
-                            declaration_map[decl_id]["modifiers"].update(modifiers)
-                            if (
-                                declaration_map[decl_id]["name"] == "<anonymous>"
-                                and full_name != "<anonymous>"
-                            ):
-                                declaration_map[decl_id]["name"] = full_name
+
+                            declarations.append(
+                                Declaration(
+                                    kind=kind or "unknown",
+                                    name=full_name,
+                                    start_line=declaration_node.start_point[0] + 1,
+                                    end_line=declaration_node.end_point[0] + 1,
+                                    docstring=docstring,
+                                    modifiers=modifiers,
+                                )
+                            )
 
             except Exception as e:
                 logger.warning(f"Failed to execute PHP query '{query_name}': {e}", exc_info=True)
 
-        # --- Pass 3: Process declarations and associate docstrings --- #
-        for decl_info in declaration_map.values():
-            if decl_info.get("name") and decl_info["name"] != "<anonymous>":
-                # Check for doc comments ending on the line before the declaration
-                raw_doc_block = doc_comment_map.get(decl_info["start_line"] - 1, [])
-                cleaned_docstring = _clean_php_doc_comment(raw_doc_block) if raw_doc_block else ""
-
-                declarations.append(
-                    Declaration(
-                        kind=decl_info["kind"],
-                        name=decl_info["name"],
-                        start_line=decl_info["start_line"],
-                        end_line=decl_info["end_line"],
-                        docstring=cleaned_docstring,
-                        modifiers=decl_info["modifiers"],
-                    )
-                )
+        # Declaration processing now happens inline
 
         declarations.sort(key=lambda d: d.start_line)
-        sorted_imports = sorted(list(imports))
+        sorted_imports = sorted(imports)
 
         logger.debug(
             f"Tree-sitter PHP extracted {len(declarations)} declarations and {len(sorted_imports)} imports."

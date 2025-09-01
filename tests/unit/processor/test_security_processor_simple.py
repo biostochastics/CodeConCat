@@ -2,8 +2,8 @@
 
 from unittest.mock import MagicMock
 
+from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 from codeconcat.processor.attack_patterns import ALL_PATTERNS
-from codeconcat.base_types import ParsedFileData, CodeConCatConfig
 
 
 class MockSecurityProcessor:
@@ -188,7 +188,9 @@ class TestSecurityEdgeCases:
         """Test scanning Unicode content."""
         processor = MockSecurityProcessor(MagicMock())
         file_data = ParsedFileData(
-            file_path="/test/unicode.py", content='# 中文注释\npassword = "秘密123"', language="python"
+            file_path="/test/unicode.py",
+            content='# 中文注释\npassword = "秘密123"',
+            language="python",
         )
 
         results = processor.scan_files([file_data])

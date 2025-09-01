@@ -1,8 +1,8 @@
 """Tests for __main__ module execution."""
 
-from unittest.mock import patch
-import sys
 import subprocess
+import sys
+from unittest.mock import patch
 
 
 class TestMainModule:
@@ -15,7 +15,7 @@ class TestMainModule:
         assert True
 
     @patch("codeconcat.main.cli_entry_point")
-    def test_main_module_as_script(self, mock_cli):
+    def test_main_module_as_script(self, _mock_cli):
         """Test running codeconcat with python -m."""
         # Test that we can run the module
         result = subprocess.run(

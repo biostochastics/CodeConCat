@@ -5,12 +5,11 @@ Reconstructs original files from CodeConCat output (markdown, XML, or JSON).
 """
 
 import json
+import logging
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, Optional, Any
-
-import logging
+from typing import Any, Dict, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class CodeConcatReconstructor:
         self.errors = 0
         self.verbose = verbose
 
-    def reconstruct(self, input_file: str, format_type: Optional[str] = None) -> None:
+    def reconstruct(self, input_file: str, format_type: Optional[str] = None) -> Dict[str, int]:
         """
         Reconstruct files from a CodeConCat output file.
 
@@ -85,7 +84,7 @@ class CodeConcatReconstructor:
         """Parse markdown output and extract files."""
         files = {}
 
-        with open(input_path, "r", encoding="utf-8") as f:
+        with open(input_path, encoding="utf-8") as f:
             content = f.read()
 
         # Try different markdown header patterns to be robust against variations
@@ -144,19 +143,21 @@ class CodeConcatReconstructor:
 
             # Try multiple code block patterns
             # 1. Standard code blocks with language
-            match = re.search(r"```[\w-]*\n(.*?)\n```", file_content_with_meta, re.DOTALL)
-            if not match:
+            code_match: Optional[re.Match[str]] = re.search(
+                r"```[\w-]*\n(.*?)\n```", file_content_with_meta, re.DOTALL
+            )
+            if not code_match:
                 # 2. Code blocks without language
-                match = re.search(r"```\n(.*?)\n```", file_content_with_meta, re.DOTALL)
-            if not match:
+                code_match = re.search(r"```\n(.*?)\n```", file_content_with_meta, re.DOTALL)
+            if not code_match:
                 # 3. Code blocks with file path/language in first line
-                match = re.search(
+                code_match = re.search(
                     r"```.*?\n(?:.*?\n)?(.*?)\n```", file_content_with_meta, re.DOTALL
                 )
 
-            if match:
+            if code_match:
                 # Get raw content
-                raw_content = match.group(1)
+                raw_content = code_match.group(1)
 
                 # Clean up file path (remove any markdown artifacts)
                 file_path = file_path.strip("`").strip()
@@ -183,10 +184,10 @@ class CodeConcatReconstructor:
                     logger.debug(f"Parsed file: {file_path}")
             else:
                 # One more attempt - try to find ANY code block
-                match = re.search(r"```(.*?)```", file_content_with_meta, re.DOTALL)
-                if match:
+                match_any = re.search(r"```(.*?)```", file_content_with_meta, re.DOTALL)
+                if match_any:
                     # Get raw content
-                    raw_content = match.group(1).strip()
+                    raw_content = match_any.group(1).strip()
 
                     # Clean up the extracted content
                     content_lines = raw_content.split("\n")
@@ -219,7 +220,7 @@ class CodeConcatReconstructor:
         files = {}
 
         try:
-            with open(input_path, "r", encoding="utf-8") as f:
+            with open(input_path, encoding="utf-8") as f:
                 xml_content = f.read()
 
             # Remove any XML declaration that might cause parsing issues
@@ -261,7 +262,7 @@ class CodeConcatReconstructor:
             # Process all found file elements
             for file_elem in file_elements:
                 # Try to get path from different attributes
-                file_path = None
+                file_path: Optional[str] = None
                 for attr_name in ["path", "name", "filename", "filepath"]:
                     file_path = file_elem.get(attr_name)
                     if file_path:
@@ -272,7 +273,7 @@ class CodeConcatReconstructor:
                     continue
 
                 # Look for content in different ways
-                content = None
+                content: Optional[str] = None
 
                 # 1. Standard content element
                 content_elem = file_elem.find("./content")
@@ -326,24 +327,26 @@ class CodeConcatReconstructor:
         files = {}
 
         try:
-            with open(input_path, "r", encoding="utf-8") as f:
+            with open(input_path, encoding="utf-8") as f:
                 try:
                     data = json.load(f)
                 except json.JSONDecodeError as e:
                     # Try to fix common JSON issues
                     logger.warning(f"JSON parsing failed: {e}. Attempting to fix...")
                     f.seek(0)  # Go back to start of file
-                    content = f.read()
+                    json_content = f.read()
 
                     # Fix unquoted keys
-                    content = re.sub(r"([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:", r'\1"\2":', content)
+                    json_content = re.sub(
+                        r"([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:", r'\1"\2":', json_content
+                    )
                     # Fix trailing commas
-                    content = re.sub(r",\s*([}\]])", r"\1", content)
+                    json_content = re.sub(r",\s*([}\]])", r"\1", json_content)
                     # Fix single quotes
-                    content = re.sub(r"'([^']*)'\s*:", r'"\1":', content)
+                    json_content = re.sub(r"'([^']*)'\s*:", r'"\1":', json_content)
 
                     try:
-                        data = json.loads(content)
+                        data = json.loads(json_content)
                     except json.JSONDecodeError as e2:
                         logger.error(f"JSON parsing failed after fixes: {e2}")
                         raise
@@ -356,23 +359,25 @@ class CodeConcatReconstructor:
 
                 for file_data in file_array:
                     # Different file path keys
-                    file_path = None
+                    file_path: Optional[str] = None
                     for key in ["path", "filepath", "name", "filename"]:
                         if key in file_data:
                             file_path = file_data[key]
                             break
 
                     # Different content keys
-                    content = None
+                    file_content: Optional[str] = None
                     for key in ["content", "code", "text", "source"]:
                         if key in file_data:
-                            content = file_data[key]
+                            file_content = file_data[key]
                             break
 
-                    if not file_path or content is None:
+                    if not file_path or file_content is None:
                         continue
 
-                    files[file_path] = content
+                    # Type narrowing: at this point file_path is guaranteed to be str
+                    assert file_path is not None
+                    files[file_path] = file_content
                     self.files_processed += 1
                     if self.verbose:
                         logger.debug(f"Parsed file: {file_path}")
@@ -380,21 +385,23 @@ class CodeConcatReconstructor:
             # Approach 2: Files as a dictionary with paths as keys
             elif "files" in data and isinstance(data["files"], dict):
                 for file_path, file_data in data["files"].items():
+                    # Cast to ensure type safety - JSON keys are always strings
+                    file_path = cast(str, file_path)
                     # Check if the value is a string (content) or a dictionary
                     if isinstance(file_data, str):
-                        content = file_data
+                        dict_content = file_data
                     elif isinstance(file_data, dict):
                         # Try different content keys
-                        content = None
+                        dict_content = None
                         for key in ["content", "code", "text", "source"]:
                             if key in file_data:
-                                content = file_data[key]
+                                dict_content = file_data[key]
                                 break
                     else:
                         continue
 
-                    if content is not None:
-                        files[file_path] = content
+                    if dict_content is not None:
+                        files[file_path] = dict_content
                         self.files_processed += 1
                         if self.verbose:
                             logger.debug(f"Parsed file from dictionary: {file_path}")
@@ -403,16 +410,18 @@ class CodeConcatReconstructor:
             elif len(data) > 0 and all(isinstance(v, (str, dict)) for v in data.values()):
                 # This might be a direct mapping of file paths to content
                 for file_path, value in data.items():
+                    # Cast to ensure type safety - JSON keys are always strings
+                    file_path = cast(str, file_path)
                     # Only consider keys that look like file paths
                     if (
                         "/" in file_path or "\\" in file_path or "." in file_path
                     ) and not file_path.startswith("_"):
-                        content = value if isinstance(value, str) else None
+                        root_content = value if isinstance(value, str) else None
                         if isinstance(value, dict) and "content" in value:
-                            content = value["content"]
+                            root_content = value["content"]
 
-                        if content is not None:
-                            files[file_path] = content
+                        if root_content is not None:
+                            files[file_path] = root_content
                             self.files_processed += 1
                             if self.verbose:
                                 logger.debug(f"Parsed file from root level: {file_path}")
@@ -496,12 +505,7 @@ class CodeConcatReconstructor:
         if "citationSloth/" in file_path:
             # Find the last occurrence of "citationSloth/"
             index = file_path.rfind("citationSloth/")
-            if index >= 0:
-                # Get everything after "citationSloth/"
-                norm_path = file_path[index + len("citationSloth/") :]
-            else:
-                # Keep the original path as fallback
-                norm_path = file_path
+            norm_path = file_path[index + len("citationSloth/") :] if index >= 0 else file_path
         else:
             # For all other paths, keep the structure but ensure it's relative
             norm_path = file_path

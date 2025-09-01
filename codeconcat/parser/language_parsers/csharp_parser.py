@@ -188,7 +188,7 @@ class CSharpParser(BaseParser):
                 language="csharp",
                 content=content,
                 declarations=declarations,
-                imports=sorted(list(imports)),  # Usings are treated as imports
+                imports=sorted(imports),  # Usings are treated as imports
                 engine_used="regex",
                 token_stats=None,
                 security_issues=[],
@@ -200,7 +200,7 @@ class CSharpParser(BaseParser):
                 message=f"Failed to parse C# file ({type(e).__name__}) using Regex: {e}",
                 file_path=file_path,
                 original_exception=e,
-            )
+            ) from e
 
     def _format_docstring(self, doc_buffer: List[str]) -> str:
         """Formats the collected /// comments, potentially stripping XML tags."""

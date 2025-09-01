@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the base types in CodeConCat.
@@ -13,17 +12,18 @@ of the codebase, including:
 """
 
 import logging
+
 import pytest
 
 from codeconcat.base_types import (
+    AnnotatedFileData,
     CodeConCatConfig,
     Declaration,
+    ParsedDocData,
     ParseResult,
     SecurityIssue,
     SecuritySeverity,
     TokenStats,
-    AnnotatedFileData,
-    ParsedDocData,
 )
 
 # Configure logging for tests

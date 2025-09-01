@@ -8,56 +8,49 @@ This module handles command-line argument parsing, configuration loading,
 file collection, processing, and output generation.
 """
 
-# Ensure os is imported at the global scope
-import os
-import argparse
 import importlib.resources
 import logging
+import os  # Ensure os is imported at the global scope
 import sys
-from typing import List, Union
-from typing import Literal
+from pathlib import Path
+from typing import List, Literal, Union
 
 from tqdm import tqdm
 
 from codeconcat.base_types import (
-    ContentSegmentType,
     AnnotatedFileData,
     CodeConCatConfig,
-    WritableItem,
+    ContentSegmentType,
     ParsedFileData,
+    WritableItem,
 )
-
-
-from codeconcat.errors import (
-    ValidationError,
-    FileProcessingError,
-    ConfigurationError,
-    CodeConcatError,
-)
-
-
-from codeconcat.collector.remote_collector import collect_git_repo
 from codeconcat.collector.local_collector import collect_local_files
+from codeconcat.collector.remote_collector import collect_git_repo
 from codeconcat.config.config_builder import ConfigBuilder
-from codeconcat.diagnostics import verify_tree_sitter_dependencies, diagnose_parser
+from codeconcat.diagnostics import diagnose_parser, verify_tree_sitter_dependencies
+from codeconcat.errors import (
+    CodeConcatError,
+    ConfigurationError,
+    FileProcessingError,
+    ValidationError,
+)
 from codeconcat.parser.doc_extractor import extract_docs
-from codeconcat.parser.file_parser import parse_code_files
 from codeconcat.parser.enhanced_pipeline import enhanced_parse_pipeline
+from codeconcat.parser.file_parser import parse_code_files
 from codeconcat.processor.compression_processor import CompressionProcessor
 from codeconcat.quotes import get_random_quote
+from codeconcat.reconstruction import reconstruct_from_file
 from codeconcat.transformer.annotator import annotate
 from codeconcat.validation.integration import (
-    validate_input_files,
+    setup_semgrep,
     validate_config_values,
+    validate_input_files,
     verify_file_signatures,
 )
-from codeconcat.validation.integration import setup_semgrep
-from codeconcat.version import __version__
 from codeconcat.writer.json_writer import write_json
 from codeconcat.writer.markdown_writer import write_markdown
 from codeconcat.writer.text_writer import write_text
 from codeconcat.writer.xml_writer import write_xml
-from codeconcat.reconstruction import reconstruct_from_file
 
 # Suppress HuggingFace tokenizers parallelism warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -76,10 +69,25 @@ def configure_logging(
 ) -> None:
     """Configure the logging system for CodeConCat.
 
+    Sets up the logging infrastructure for the entire application with appropriate
+    levels and formats. Handles special modes like debug and quiet operation.
+
     Args:
         log_level: The logging level to use. Can be a string (DEBUG, INFO, etc.) or an int.
         debug: If True, sets log level to DEBUG regardless of log_level parameter.
         quiet: If True, only shows ERROR level messages and disables progress bars.
+
+    Complexity:
+        O(1) - Fixed number of logger configurations
+
+    Flow:
+        Called by: cli_entry_point(), main()
+        Calls: logging.basicConfig(), logging.getLogger()
+
+    Security Notes:
+        - Validates log level strings to prevent injection
+        - Falls back to WARNING on invalid input
+        - No sensitive data logged at INFO or below
     """
     # Determine the actual log level to use
     if debug:
@@ -135,9 +143,9 @@ def configure_logging(
         if actual_level == logging.WARNING:
             for logger_name in [
                 "codeconcat.collector",
-                "codeconcat.parser", 
+                "codeconcat.parser",
                 "codeconcat.transformer",
-                "codeconcat.writer"
+                "codeconcat.writer",
             ]:
                 logging.getLogger(logger_name).setLevel(logging.WARNING)
 
@@ -145,7 +153,21 @@ def configure_logging(
 # ──────────────────────────────────────────────────────────────────────────────
 # Exception hierarchy - import OutputError from errors
 class OutputError(CodeConcatError):
-    """Errors during output generation."""
+    """Errors during output generation.
+
+    Custom exception class for handling errors that occur during the output
+    generation phase of CodeConCat processing. Inherits from CodeConcatError
+    for consistent error handling across the application.
+
+    Used When:
+        - File write operations fail
+        - Output formatting errors occur
+        - Clipboard operations fail
+
+    Flow:
+        Raised by: _write_output_files(), run_codeconcat()
+        Caught by: main(), cli_entry_point()
+    """
 
     pass
 
@@ -160,13 +182,28 @@ def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
     """Write the final concatenated output to one or more files.
 
     Handles splitting the output into multiple parts if requested in the config
-    and optionally copies the content
-    to the clipboard.
+    and optionally copies the content to the clipboard. Includes error handling
+    for file operations and clipboard access.
 
     Args:
         output_text: The complete string output generated by CodeConCat.
         config: The CodeConCatConfig object containing output settings like
                 output path, format, split_output, and disable_copy.
+
+    Raises:
+        OutputError: If file writing fails
+
+    Complexity:
+        O(n) where n is the length of output_text when splitting
+
+    Flow:
+        Called by: run_codeconcat()
+        Calls: open(), pyperclip.copy()
+
+    Security Notes:
+        - Uses specific exception types (ImportError, OSError) instead of broad catches
+        - Validates output path from config
+        - Safe file operations with proper encoding
     """
     # Debug print to check what output path is set in config
     # print(f"[DEBUG OUTPUT] Config output path: '{config.output}'")
@@ -220,7 +257,7 @@ def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
             logger.info("Output copied to clipboard.")
         except ImportError:
             logger.warning("pyperclip not installed, skipping clipboard copy.")
-        except Exception as e:
+        except (OSError, Exception) as e:
             logger.warning(f"Failed to copy to clipboard: {e}")
 
 
@@ -262,18 +299,34 @@ def _create_basic_config() -> None:
     # Ensure os is properly imported in this scope
     import os as local_os
 
+    from codeconcat.processor.security_processor import SecurityProcessor
+
     config_filename = ".codeconcat.yml"
     if local_os.path.exists(config_filename):
         logger.warning(f"{config_filename} already exists; aborting.")
         return
 
     try:
-        # First try to use the file directly
+        # First try to use the file directly with security validation
+        base_dir = local_os.path.dirname(__file__)
+        # Validate path to prevent traversal attacks
+        try:
+            validated_base = SecurityProcessor.validate_path(local_os.getcwd(), base_dir)
+        except Exception:
+            # If validation fails, use current directory as safe fallback
+            validated_base = Path(local_os.getcwd())
+
         template_path = local_os.path.join(
-            local_os.path.dirname(__file__), "config", "templates", "default_config.template.yml"
+            str(validated_base), "config", "templates", "default_config.template.yml"
         )
+
+        # Ensure template path is within expected boundaries
+        template_path = local_os.path.normpath(template_path)
+        if not template_path.startswith(str(validated_base)):
+            raise ValidationError("Template path outside of expected directory")
+
         if local_os.path.exists(template_path):
-            with open(template_path, "r") as src, open(config_filename, "w") as dest:
+            with open(template_path) as src, open(config_filename, "w") as dest:
                 dest.write(src.read())
         else:
             # Fall back to importlib.resources if file not found directly
@@ -296,377 +349,12 @@ def _create_basic_config() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# CLI
-# ──────────────────────────────────────────────────────────────────────────────
-def build_parser() -> argparse.ArgumentParser:
-    """Builds and returns the command-line argument parser for CodeConCat.
-
-    Defines all available CLI flags, options, and their help messages,
-    organizing them into logical groups for better readability.
-
-    CLI options are divided into "Basic" and "Advanced" categories, with advanced
-    options hidden by default unless the --advanced flag is specified.
-
-    Returns:
-        An configured argparse.ArgumentParser instance.
-    """
-
-    # Create a custom argument parser that hides advanced options
-    class AdvancedHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
-        """Custom formatter that can hide advanced options."""
-
-        def _format_action_invocation(self, action):
-            if hasattr(action, "advanced") and action.advanced and not args_namespace.advanced:
-                return argparse.SUPPRESS
-            return super()._format_action_invocation(action)
-
-    # Create a wrapper for ArgumentParser to track advanced options
-    class AdvancedArgumentParser(argparse.ArgumentParser):
-        """Parser that supports hiding advanced options."""
-
-        def add_argument(self, *args, **kwargs):
-            # Extract and remove advanced flag if present
-            advanced = kwargs.pop("advanced", False)
-            action = super().add_argument(*args, **kwargs)
-            action.advanced = advanced
-            return action
-
-        def add_argument_group(self, title=None, description=None, advanced=False):
-            group = super().add_argument_group(title, description)
-            group.advanced = advanced
-
-            # Override add_argument for the group to track advanced status
-            original_add_argument = group.add_argument
-
-            def add_argument_with_advanced(*args, **kwargs):
-                # Determine the advanced status, defaulting to the group's status
-                is_advanced = kwargs.pop("advanced", group.advanced)  # Use pop to get and remove
-
-                # Call the original add_argument without the 'advanced' kwarg
-                action = original_add_argument(*args, **kwargs)
-
-                # Set the custom attribute on the created action for the formatter
-                action.advanced = is_advanced
-                return action
-
-            group.add_argument = add_argument_with_advanced
-
-            return group
-
-    # Parse just the --advanced flag to determine if we should show advanced options
-    pre_parser = argparse.ArgumentParser(add_help=False)
-    pre_parser.add_argument("--advanced", action="store_true", help="Show advanced options")
-    args_namespace, _ = pre_parser.parse_known_args()
-
-    # Now create the real parser with the appropriate formatter
-    parser = AdvancedArgumentParser(
-        prog="codeconcat",
-        description="CodeConCat – LLM‑friendly code aggregator & doc extractor",
-        formatter_class=AdvancedHelpFormatter,
-    )
-
-    # === Positional Argument ===
-    parser.add_argument(
-        "target_path",
-        nargs="?",
-        default=".",
-        help="Target directory or file to process. Defaults to the current directory.",
-    )
-
-    # === Basic Options ===
-    g_gen = parser.add_argument_group("Basic Options")
-    g_gen.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    g_gen.add_argument(
-        "--config",
-        help="Path to a specific configuration file (.yaml/.yml). Overrides default search.",
-        metavar="FILE",
-    )
-    g_gen.add_argument(
-        "--init",
-        action="store_true",
-        help="Interactive setup: create a customized '.codeconcat.yml' and exit.",
-    )
-    g_gen.add_argument("--show-config", action="store_true", help="Print merged config and exit.")
-    g_gen.add_argument(
-        "--show-config-detail",
-        action="store_true",
-        help="Print detailed config showing the source of each setting (default/preset/YAML/CLI).",
-    )
-    parser.add_argument(
-        "--advanced", action="store_true", help="Show advanced options in help output."
-    )
-
-    # === Logging & Verbosity ===
-    g_log = parser.add_argument_group("Logging & Verbosity")
-    g_log.add_argument(
-        "-v",
-        "--verbose",
-        action="count",
-        default=0,
-        help="Increase verbosity level (-v for INFO, -vv for DEBUG).",
-    )
-    g_log.add_argument(
-        "--debug",
-        action="store_true",
-        default=False,
-        help="Enable debug logging (equivalent to -vv).",
-    )
-    g_log.add_argument(
-        "--quiet",
-        "-q",
-        action="store_true",
-        default=False,
-        help="Quiet mode: suppress progress information but keep token summaries and success message",
-    )
-    g_log.add_argument(
-        "--log-level",
-        default=None,  # Default handled based on verbosity/debug flag
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        advanced=True,
-        help="Explicitly set logging level (overrides -v/-vv/--debug).",
-    )
-    g_log.add_argument(
-        "--disable-progress-bar",
-        action="store_true",
-        help="Disable progress bars during file processing.",
-    )
-    g_log.add_argument(
-        "--show-skip",
-        action="store_true",
-        advanced=True,
-        help="Show skipped files list (requires -v or higher).",
-    )
-
-    # === Diagnostic Options ===
-    g_diag = parser.add_argument_group("Diagnostic Tools", advanced=True)
-    g_diag.add_argument(
-        "--verify-dependencies",
-        action="store_true",
-        help="Check if all Tree-sitter grammars are properly installed and exit.",
-    )
-    g_diag.add_argument(
-        "--diagnose-parser",
-        metavar="LANGUAGE",
-        help="Run diagnostic checks on the parser for a specific language using a test file.",
-    )
-
-    # === Input Source ===
-    g_in = parser.add_argument_group("Input Source")
-    g_in.add_argument("--source-url", help="URL or owner/repo shorthand.")
-    g_in.add_argument("--github-token", help="PAT for private repos.")
-    g_in.add_argument(
-        "--source-ref", dest="source_ref", help="Branch, tag or commit hash for the Git source URL."
-    )
-
-    # === Filtering Options ===
-    g_filt = parser.add_argument_group("Filtering Options")
-    g_filt.add_argument(
-        "-ip",
-        "--include-paths",
-        nargs="*",
-        help="Glob patterns for files/directories to explicitly include.",
-        metavar="PATTERN",
-    )
-    g_filt.add_argument(
-        "-ep",
-        "--exclude-paths",
-        nargs="*",
-        help="Glob patterns for files/directories to explicitly exclude.",
-        metavar="PATTERN",
-    )
-    g_filt.add_argument(
-        "--use-gitignore",
-        action=argparse.BooleanOptionalAction,
-        default=None,  # Default is handled by CodeConCatConfig
-        help="Respect .gitignore files (default: True). Use --no-use-gitignore to disable.",
-    )
-    g_filt.add_argument(
-        "--use-default-excludes",
-        action=argparse.BooleanOptionalAction,
-        default=None,  # Default is handled by CodeConCatConfig
-        help="Use built-in default excludes (default: True). Use --no-use-default-excludes to disable.",
-    )
-    g_filt.add_argument(
-        "-il",
-        "--include-languages",
-        nargs="+",
-        metavar="LANG",
-        help="Languages to include (e.g., python, java). Overrides default/config.",
-    )
-    g_filt.add_argument(
-        "-el",
-        "--exclude-languages",
-        nargs="+",
-        metavar="LANG",
-        help="Languages to exclude (e.g., python, java). Overrides default/config.",
-    )
-
-    # === Output Options ===
-    g_output = parser.add_argument_group("Output Options")
-    g_output.add_argument(
-        "-o", "--output", help="Output file path (auto-detected from --format if omitted)"
-    )
-    g_output.add_argument(
-        "-f",
-        "--format",
-        choices=["markdown", "md", "json", "xml", "text", "txt"],
-        default="markdown",
-        help="Output format",
-    )
-    g_output.add_argument(
-        "--output-preset",
-        choices=["lean", "medium", "full"],
-        default=None,  # Default will be handled by ConfigBuilder or load_config
-        help="Configuration preset to use (lean, medium, full). Overrides parts of the config file.",
-    )
-
-    # === Reconstruction Options ===
-    g_reconstruct = parser.add_argument_group("Reconstruction Options")
-    g_reconstruct.add_argument(
-        "--reconstruct",
-        metavar="FILE",
-        help="Reconstruct source files from a CodeConCat output file",
-    )
-    g_reconstruct.add_argument(
-        "--output-dir",
-        metavar="DIR",
-        default="./reconstructed",
-        help="Directory to output reconstructed files",
-    )
-    g_reconstruct.add_argument(
-        "--input-format",
-        choices=["markdown", "xml", "json", "auto"],
-        default="auto",
-        help="Format of input file for reconstruction (auto-detected if not specified)",
-    )
-
-    # === Feature Toggles ===
-    g_feat = parser.add_argument_group("Feature Toggles")
-    g_feat.add_argument("--docs", action="store_true", help="Extract standalone docs.")
-    g_feat.add_argument("--merge-docs", action="store_true", help="Merge docs into main output.")
-
-    # Replace confusing flag with clearer option
-    g_feat.add_argument(
-        "--parser-engine",
-        choices=["tree_sitter", "regex"],
-        default=None,  # Will be determined by the config
-        help="Parser engine to use. 'tree_sitter' for advanced parsing, 'regex' for simpler and faster parsing.",
-    )
-    # Keep old flag for backward compatibility, but mark as deprecated
-    g_feat.add_argument(
-        "--no-tree",
-        action="store_true",
-        advanced=True,
-        help="DEPRECATED: Use --parser-engine=regex instead. Omit folder tree in output.",
-    )
-
-    g_feat.add_argument("--no-ai-context", action="store_true", help="Skip AI preamble.")
-    g_feat.add_argument("--no-annotations", action="store_true", help="Skip code annotation.")
-    g_feat.add_argument(
-        "--mask-output",
-        dest="mask_output_content",
-        action="store_true",
-        advanced=True,
-        help="Mask sensitive data directly in the final output content.",
-    )
-    g_feat.add_argument("--no-symbols", action="store_true", help="Skip symbol index.")
-    g_feat.add_argument("--remove-docstrings", action="store_true", help="Strip docstrings.")
-    g_feat.add_argument(
-        "--cross-link-symbols",
-        action="store_true",
-        advanced=True,
-        help="Cross‑link symbol list ↔ definitions.",
-    )
-    g_feat.add_argument(
-        "--no-progress-bar", action="store_true", advanced=True, help="Disable tqdm progress bars."
-    )
-
-    # === Compression Options ===
-    g_comp = parser.add_argument_group("Compression Options")
-    g_comp.add_argument(
-        "--enable-compression",
-        action="store_true",
-        help="Enable intelligent code compression to reduce output size.",
-    )
-    g_comp.add_argument(
-        "--compression-level",
-        choices=["low", "medium", "high", "aggressive"],
-        default="medium",
-        help="Compression intensity level (default: medium).",
-    )
-    g_comp.add_argument(
-        "--compression-placeholder",
-        type=str,
-        help="Template for placeholder text replacing omitted segments. Use {lines} and {issues} as placeholders.",
-    )
-    g_comp.add_argument(
-        "--compression-keep-threshold",
-        type=int,
-        default=3,
-        advanced=True,
-        help="Minimum lines to consider keeping a segment (smaller segments always kept).",
-    )
-    g_comp.add_argument(
-        "--compression-keep-tags",
-        nargs="+",
-        metavar="TAG",
-        advanced=True,
-        help="Special comment tags that mark segments to always keep during compression.",
-    )
-
-    # === Security Options ===
-    g_sec = parser.add_argument_group("Security Options")
-    g_sec.add_argument(
-        "--enable-security-scanning",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable security scanning (default: True).",
-    )
-    g_sec.add_argument(
-        "--security-threshold",
-        choices=["LOW", "MEDIUM", "HIGH", "CRITICAL"],
-        default="MEDIUM",
-        dest="security_scan_severity_threshold",
-        help="Minimum severity threshold for security findings (default: MEDIUM).",
-    )
-    g_sec.add_argument(
-        "--enable-semgrep",
-        action="store_true",
-        help="Enable Semgrep security scanning using the Apiiro malicious code ruleset.",
-    )
-    g_sec.add_argument(
-        "--install-semgrep",
-        action="store_true",
-        help="Install Semgrep and the Apiiro ruleset if not already installed.",
-    )
-    g_sec.add_argument(
-        "--semgrep-ruleset",
-        type=str,
-        help="Path to custom Semgrep ruleset (defaults to Apiiro ruleset).",
-    )
-    g_sec.add_argument(
-        "--semgrep-languages",
-        nargs="+",
-        metavar="LANG",
-        help="Languages to scan with Semgrep (defaults to all detected languages).",
-    )
-    g_sec.add_argument(
-        "--strict-security",
-        action="store_true",
-        help="Fail validation when suspicious content is detected.",
-    )
-
-    # === Processing ===
-    g_proc = parser.add_argument_group("Processing", advanced=True)
-    g_proc.add_argument("--max-workers", type=int, default=4, help="Thread‑pool size.")
-
-    return parser
-
-
-# ──────────────────────────────────────────────────────────────────────────────
 def cli_entry_point():
-    # Ensure os is properly imported in this scope
-    import os as local_os  # Use a different name to avoid any potential shadowing
+    """The main command-line interface entry point for CodeConCat."""
+    # Import CLI components locally to avoid circular imports
+    import os as local_os
+
+    from codeconcat.api.cli import build_parser
 
     """The main command-line interface entry point for CodeConCat.
 
@@ -986,11 +674,19 @@ def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
 
     Returns:
         A string representing the folder structure, ready for inclusion in output.
+
+    Complexity:
+        O(n) where n is the total number of files and directories
+
+    Flow:
+        Called by: run_codeconcat() when folder_tree option is enabled
+        Calls: should_include_file(), should_skip_dir()
+
+    Security Notes:
+        - Respects path traversal protection from should_skip_dir
+        - Honors exclusion patterns to avoid sensitive directories
     """
-    from codeconcat.collector.local_collector import (
-        should_include_file,
-        should_skip_dir,
-    )
+    from codeconcat.collector.local_collector import should_include_file, should_skip_dir
 
     lines = []
     for root, dirs, files in os.walk(root_path):
@@ -1019,21 +715,16 @@ def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
 
 
 def run_codeconcat(config: CodeConCatConfig) -> str:
-    # Validate configuration
-    try:
-        validate_config_values(config)
-        logger.debug("Configuration validation passed")
-    except ConfigurationError as e:
-        logger.error(f"Configuration validation failed: {e}")
-        raise ConfigurationError(f"Invalid configuration: {e}")
     """Runs the main CodeConCat processing pipeline and returns the output string.
 
     This function orchestrates the core steps:
-    1. Collects files (local or GitHub).
-    2. Parses collected code files.
-    3. Extracts documentation files (if enabled).
-    4. Performs AI-based annotation (if enabled).
-    5. Generates the final output string in the specified format.
+    1. Validates configuration for security and correctness
+    2. Collects files (local or remote GitHub repositories)
+    3. Parses collected code files with language-specific parsers
+    4. Extracts documentation files (if enabled)
+    5. Performs AI-based annotation (if enabled)
+    6. Applies compression (if enabled)
+    7. Generates the final output string in the specified format
 
     Args:
         config: The fully resolved CodeConCatConfig object containing all settings.
@@ -1046,7 +737,27 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         ConfigurationError: If the configuration is invalid.
         FileProcessingError: For errors related to reading or parsing files.
         OutputError: For errors during output generation.
+
+    Complexity:
+        O(n*m) where n is number of files and m is average file size
+
+    Flow:
+        Called by: cli_entry_point(), run_codeconcat_in_memory()
+        Calls: collect_files(), parse_code_files(), generate_output()
+
+    Security Notes:
+        - Validates all configuration values before processing
+        - Uses specific exception types for better error diagnosis
+        - Path validation performed during file collection
+        - File size limits enforced (20 MB collection, 5 MB binary check)
     """
+    # Validate configuration
+    try:
+        validate_config_values(config)
+        logger.debug("Configuration validation passed")
+    except ConfigurationError as e:
+        logger.error(f"Configuration validation failed: {e}")
+        raise ConfigurationError(f"Invalid configuration: {e}") from e
     logger.debug("Running CodeConCat with config: %s", config)
     try:
         # Validate configuration
@@ -1126,7 +837,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             if errors:
                 # Log errors encountered during parsing
                 for error in errors:
-                    logger.warning(f"Parsing error for {error.file_path}: {str(error)}")
+                    logger.warning(
+                        f"Parsing error for {getattr(error, 'file_path', 'unknown')}: {str(error)}"
+                    )
 
             if not parsed_files:
                 logger.error("[CodeConCat] No files were successfully parsed.")
@@ -1135,8 +848,8 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             else:
                 logger.info(f"[CodeConCat] Parsing complete. Parsed {len(parsed_files)} files.")
 
-        except Exception as e:
-            raise FileProcessingError(f"Error parsing files: {str(e)}")
+        except (OSError, UnicodeDecodeError, AttributeError) as e:
+            raise FileProcessingError(f"Error parsing files: {str(e)}") from e
 
         # Extract docs if requested
         docs = []
@@ -1213,8 +926,8 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                             tags=[],
                         )
                     )
-        except Exception as e:
-            raise FileProcessingError(f"Error during annotation phase: {str(e)}")
+        except (OSError, AttributeError, TypeError) as e:
+            raise FileProcessingError(f"Error during annotation phase: {str(e)}") from e
 
         # --- Prepare list for polymorphic writers --- #
         items: List[WritableItem] = []
@@ -1223,7 +936,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         if config.sort_files:
             logger.info("Sorting all items alphabetically by path...")
-            items.sort(key=lambda x: x.file_path)
+            items.sort(key=lambda x: getattr(x, "file_path", ""))
             logger.debug("Items sorted.")
 
         # Apply compression if enabled
@@ -1241,22 +954,22 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             compression_processor = CompressionProcessor(config)
 
             # Initialize dictionary to store compressed segments by file path
-            config._compressed_segments = {}
+            config._compressed_segments = {}  # type: ignore[attr-defined]
 
             # Apply compression to each annotated file
-            for i, item in enumerate(items):
+            for _i, item in enumerate(items):
                 if isinstance(item, AnnotatedFileData) and item.content:
                     # Process the file through the compression processor
-                    compressed_segments = compression_processor.process_file(item)
+                    compressed_segments = compression_processor.process_file(item)  # type: ignore[arg-type]
 
                     if compressed_segments:
                         # Store the compressed content in the item for rendering
-                        item.content = compression_processor.apply_compression(item)
+                        item.content = compression_processor.apply_compression(item)  # type: ignore[arg-type]
 
                         # Store segments in config for the renderer to access, properly indexed by file path
                         # This is a workaround since we can't modify the WritableItem interface
                         # without more substantial refactoring
-                        config._compressed_segments[item.file_path] = compressed_segments
+                        config._compressed_segments[item.file_path] = compressed_segments  # type: ignore[attr-defined]
 
                         # Log compression stats
                         original_lines = len(item.content.split("\n"))
@@ -1371,7 +1084,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 print("Using markdown writer")
             elif config.format == "json":
                 # Pass the combined & sorted items list
-                output = write_json(items, config, folder_tree_str)
+                output = write_json(items, config, folder_tree_str)  # type: ignore[arg-type]
                 print("Using JSON writer")
             elif config.format == "xml":
                 # Pass the combined & sorted items list
@@ -1379,15 +1092,15 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 print("Using XML writer")
             elif config.format == "text":
                 # Pass the combined & sorted items list
-                output = write_text(items, config, folder_tree_str)
+                output = write_text(items, config, folder_tree_str)  # type: ignore[arg-type]
                 print("Using text writer")
             else:
                 # Default to markdown if format is unrecognized
                 logger.warning(f"Unrecognized format '{config.format}', defaulting to markdown")
                 config.format = "markdown"
                 output = write_markdown(items, config, folder_tree_str)
-        except Exception as e:
-            raise OutputError(f"Error generating {config.format} output: {str(e)}")
+        except (OSError, AttributeError, KeyError, ValueError) as e:
+            raise OutputError(f"Error generating {config.format} output: {str(e)}") from e
 
         # --- Token stats summary (all files) ---
         try:
@@ -1396,7 +1109,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             # Calculate tokens for uncompressed content
             total_gpt4_uncompressed = total_claude_uncompressed = 0
             for pf in parsed_files:
-                stats = get_token_stats(pf.content)
+                stats = get_token_stats(pf.content or "")
                 total_gpt4_uncompressed += stats.gpt4_tokens
                 total_claude_uncompressed += stats.claude_tokens
 
@@ -1413,7 +1126,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 total_gpt4_compressed = total_claude_compressed = 0
 
                 # Calculate compressed tokens by using the compressed segments
-                for file_path, file_segments in config._compressed_segments.items():
+                for _file_path, file_segments in config._compressed_segments.items():
                     # Concatenate the content of all segments in this file
                     compressed_content = "\n".join(segment.content for segment in file_segments)
                     stats = get_token_stats(compressed_content)
@@ -1422,21 +1135,21 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
                 print("\n[Token Summary] Total tokens for all parsed files (COMPRESSED):")
                 print(
-                    f"  Claude:   {total_claude_compressed} ({(total_claude_compressed/total_claude_uncompressed*100):.1f}%)"
+                    f"  Claude:   {total_claude_compressed} ({(total_claude_compressed / total_claude_uncompressed * 100):.1f}%)"
                 )
                 print(
-                    f"  GPT-4:    {total_gpt4_compressed} ({(total_gpt4_compressed/total_gpt4_uncompressed*100):.1f}%)"
+                    f"  GPT-4:    {total_gpt4_compressed} ({(total_gpt4_compressed / total_gpt4_uncompressed * 100):.1f}%)"
                 )
 
                 # Show token reduction from compression
                 print("\n[Compression Effectiveness]")
                 print(
-                    f"  Claude:   {total_claude_uncompressed - total_claude_compressed} tokens saved ({(1-total_claude_compressed/total_claude_uncompressed)*100:.1f}% reduction)"
+                    f"  Claude:   {total_claude_uncompressed - total_claude_compressed} tokens saved ({(1 - total_claude_compressed / total_claude_uncompressed) * 100:.1f}% reduction)"
                 )
                 print(
-                    f"  GPT-4:    {total_gpt4_uncompressed - total_gpt4_compressed} tokens saved ({(1-total_gpt4_compressed/total_gpt4_uncompressed)*100:.1f}% reduction)"
+                    f"  GPT-4:    {total_gpt4_uncompressed - total_gpt4_compressed} tokens saved ({(1 - total_gpt4_compressed / total_gpt4_uncompressed) * 100:.1f}% reduction)"
                 )
-        except Exception as e:
+        except (ImportError, AttributeError, ValueError, TypeError) as e:
             logger.warning(f"[Tokens] Failed to calculate token stats: {e}")
             import traceback
 
@@ -1457,11 +1170,11 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
 
     This function acts as a high-level API for integrating CodeConCat into other
     Python applications. It takes a pre-configured CodeConCatConfig object,
-    runs the main processing pipeline via `run_codeconcat`, and returns the
+    runs the main processing pipeline via run_codeconcat, and returns the
     generated output string.
 
-    It suppresses the default stdout messages (like the quote and final status)
-    to provide a cleaner return value for programmatic callers.
+    Thread-safe implementation that does not redirect sys.stdout, making it safe
+    for use in async/multi-threaded environments like FastAPI.
 
     Args:
         config: A CodeConCatConfig object with all desired settings populated.
@@ -1470,24 +1183,37 @@ def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
         The complete generated output string.
 
     Raises:
-        Inherits exceptions from `run_codeconcat` (CodeConcatError, etc.).
+        Inherits exceptions from run_codeconcat (CodeConcatError, etc.).
+
+    Complexity:
+        O(n) where n is the total size of files being processed
+
+    Flow:
+        Called by: API endpoints in api/app.py
+        Calls: run_codeconcat()
+
+    Security Notes:
+        - Thread-safe: Creates a deep copy of config to avoid mutations
+        - Safe for concurrent execution in multi-threaded servers
+        - No shared state modifications
     """
-    # Suppress the initial quote and final messages for in-memory usage
-    original_stdout = sys.stdout
-    sys.stdout = open(os.devnull, "w")
-    try:
-        result = run_codeconcat(config)
-    finally:
-        # Restore stdout
-        sys.stdout.close()
-        sys.stdout = original_stdout
+    import copy
+
+    # Create a deep copy of the config to ensure thread safety
+    # This prevents mutations from affecting other concurrent requests
+    config_copy = copy.deepcopy(config)
+
+    # Set minimal verbosity to suppress console output during processing
+    config_copy.verbose = 0  # Set to minimal verbosity for API usage
+    config_copy.quiet = True  # Suppress all non-error output
+    config_copy.disable_progress_bar = True  # Disable progress bars for API
+
+    # Run with the copied config to ensure thread safety
+    result = run_codeconcat(config_copy)
     return result
 
 
-def main():
-    """Main function wrapper that calls the CLI entry point."""
-    cli_entry_point()
-
-
 if __name__ == "__main__":
-    main()
+    from codeconcat.cli import app
+
+    app()

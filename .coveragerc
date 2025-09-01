@@ -7,7 +7,7 @@ omit =
     */env/*
     */dist/*
     */build/*
-    
+
 [report]
 exclude_lines =
     pragma: no cover

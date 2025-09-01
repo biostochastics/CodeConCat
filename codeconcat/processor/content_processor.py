@@ -2,15 +2,278 @@
 
 import os
 import re
-from typing import List
+from typing import Any, List, Optional
 
 from ..base_types import CodeConCatConfig, ParsedFileData
-from .string_utils import is_inside_string
 
 
-def process_file_content(content: str, config: CodeConCatConfig) -> str:
-    """Process file content according to configuration options."""
-    # Don't return empty content for test files
+def remove_comments(content: str) -> str:
+    """
+    Remove comments from code while preserving comments inside strings.
+
+    Intelligently handles both single-line and multi-line comments, preserving
+    content within strings and multiline strings. Supports various comment styles
+    including //, #, /* */, and language-specific patterns.
+
+    Args:
+        content: The source code content to process.
+
+    Returns:
+        The code content with comments removed but strings intact.
+
+    Complexity:
+        O(n) where n is the number of lines in the content.
+
+    Features:
+        - Preserves comments inside string literals
+        - Handles multiline string detection (triple quotes)
+        - Removes both block comments (/* */) and line comments (// and #)
+        - Maintains proper line structure for debugging
+    """
+    # First handle multiline block comments
+    content = _remove_multiline_block_comments(content)
+
+    # Then handle single-line comments
+    lines = content.split("\n")
+    processed_lines = []
+    in_multiline_string = False
+    multiline_delimiter: Optional[str] = None
+
+    for line in lines:
+        # Check for multiline string continuation
+        if in_multiline_string:
+            # Look for end of multiline string
+            assert (
+                multiline_delimiter is not None
+            ), "multiline_delimiter should not be None when in_multiline_string is True"
+            if multiline_delimiter in line:
+                # Find where the multiline string ends
+                end_pos = line.find(multiline_delimiter) + len(multiline_delimiter)
+                # Process the part after the string ends
+                remaining = line[end_pos:]
+                processed_remaining = _remove_comments_from_line(remaining)
+                processed_line = line[:end_pos] + processed_remaining
+                in_multiline_string = False
+                multiline_delimiter = None
+            else:
+                # Still inside multiline string, preserve entire line
+                processed_line = line
+        else:
+            # Check if this line starts a multiline string
+            triple_quote_pos = _find_multiline_string_start(line)
+            if triple_quote_pos >= 0:
+                delimiter = (
+                    '"""' if line[triple_quote_pos : triple_quote_pos + 3] == '"""' else "'''"
+                )
+                # Check if the multiline string ends on the same line
+                end_pos = line.find(delimiter, triple_quote_pos + 3)
+                if end_pos >= 0:
+                    # Single-line multiline string, process normally
+                    processed_line = _remove_comments_from_line(line)
+                else:
+                    # Multiline string starts here
+                    in_multiline_string = True
+                    multiline_delimiter = delimiter
+                    # Process the part before the multiline string
+                    before_string = line[:triple_quote_pos]
+                    processed_before = _remove_comments_from_line(before_string)
+                    processed_line = processed_before + line[triple_quote_pos:]
+            else:
+                # Normal line, process for single-line comments
+                processed_line = _remove_comments_from_line(line)
+
+        processed_lines.append(processed_line)
+
+    return "\n".join(processed_lines)
+
+
+def _find_multiline_string_start(line: str) -> int:
+    """Find the position of a multiline string start that's not inside another string."""
+    in_string = False
+    string_delimiter = None
+    i = 0
+
+    while i < len(line) - 2:
+        char = line[i]
+
+        if not in_string:
+            if char in ('"', "'"):
+                # Check for triple quotes
+                if line[i : i + 3] in ['"""', "'''"]:
+                    return i
+                # Regular string
+                in_string = True
+                string_delimiter = char
+            i += 1
+        else:
+            # Inside string
+            if char == "\\":
+                i += 2  # Skip escaped character
+                continue
+            elif char == string_delimiter:
+                in_string = False
+                string_delimiter = None
+            i += 1
+
+    return -1
+
+
+def _remove_multiline_block_comments(content: str) -> str:
+    """Remove multiline /* */ block comments while preserving strings."""
+    result = []
+    i = 0
+    in_string = False
+    string_delimiter = None
+
+    while i < len(content):
+        char = content[i]
+
+        if not in_string:
+            # Check for string start
+            if char in ('"', "'"):
+                # Check for triple quotes first
+                if i + 2 < len(content) and content[i : i + 3] in ['"""', "'''"]:
+                    # Triple-quoted string
+                    delimiter = content[i : i + 3]
+                    result.append(delimiter)
+                    i += 3
+                    # Find end of triple-quoted string
+                    while i < len(content):
+                        if content[i : i + 3] == delimiter:
+                            result.append(delimiter)
+                            i += 3
+                            break
+                        result.append(content[i])
+                        i += 1
+                    continue
+                else:
+                    # Regular string
+                    in_string = True
+                    string_delimiter = char
+                    result.append(char)
+                    i += 1
+                    continue
+
+            # Check for block comment start
+            if char == "/" and i + 1 < len(content) and content[i + 1] == "*":
+                # Found block comment, skip until */
+                i += 2
+                while i + 1 < len(content):
+                    if content[i] == "*" and content[i + 1] == "/":
+                        i += 2
+                        break
+                    i += 1
+                continue
+
+            result.append(char)
+            i += 1
+
+        else:
+            # Inside string
+            if char == "\\" and i + 1 < len(content):
+                # Escaped character
+                result.append(char)
+                result.append(content[i + 1])
+                i += 2
+                continue
+            elif char == string_delimiter:
+                # End of string
+                in_string = False
+                string_delimiter = None
+
+            result.append(char)
+            i += 1
+
+    return "".join(result)
+
+
+def _remove_comments_from_line(line: str) -> str:
+    """Remove single-line comments from a line of code, preserving strings."""
+    result = []
+    i = 0
+    in_string = False
+    string_delimiter = None
+
+    while i < len(line):
+        char = line[i]
+
+        if not in_string:
+            # Check for string start (but not triple quotes, those are handled elsewhere)
+            if char in ('"', "'") and (i + 2 >= len(line) or line[i : i + 3] not in ['"""', "'''"]):
+                in_string = True
+                string_delimiter = char
+                result.append(char)
+                i += 1
+                continue
+
+            # Check for comments
+            if char == "#":
+                # Python-style comment
+                break
+            elif char == "/" and i + 1 < len(line):
+                next_char = line[i + 1]
+                if next_char == "/":
+                    # C++-style comment
+                    break
+
+            result.append(char)
+            i += 1
+
+        else:
+            # Inside string
+            if char == "\\" and i + 1 < len(line):
+                # Escaped character - add both chars
+                result.append(char)
+                result.append(line[i + 1])
+                i += 2
+                continue
+            elif char == string_delimiter:
+                # End of string
+                in_string = False
+                string_delimiter = None
+
+            result.append(char)
+            i += 1
+
+    return "".join(result).rstrip()
+
+
+def process_file_content(
+    content: str,
+    config: CodeConCatConfig,
+    file_data: ParsedFileData,  # noqa: ARG001
+) -> str:
+    """
+    Process file content according to configuration options.
+
+    Applies various content transformations based on the provided configuration,
+    including comment removal, docstring removal, line numbering, and empty line
+    handling. Special handling for test files with empty content.
+
+    Args:
+        content: The raw file content to process.
+        config: CodeConCatConfig object containing processing settings like
+                remove_comments, remove_docstrings, show_line_numbers, etc.
+        file_data: ParsedFileData object containing file metadata (unused but
+                  reserved for future enhancements).
+
+    Returns:
+        The processed content string with all requested transformations applied.
+
+    Complexity:
+        O(n) where n is the number of lines in the content.
+
+    Flow:
+        Called by: Writer modules when preparing content for output
+        Calls: remove_docstrings(), remove_comments()
+
+    Features:
+        - Comment and docstring removal
+        - Line numbering with aligned formatting
+        - Empty line removal (configurable)
+        - Special handling for empty test files
+    """
+    # Handle empty content for test files
     if not content.strip() and (
         "/tests/" in config.target_path
         or config.target_path.startswith("test_")
@@ -19,118 +282,74 @@ def process_file_content(content: str, config: CodeConCatConfig) -> str:
     ):
         return "# Empty test file"
 
-    # If we need to remove docstrings, do it before any other processing
+    # Apply content transformations
+    processed_content = content
+
+    # Remove docstrings if requested
     if config.remove_docstrings:
-        content = remove_docstrings(content)
+        processed_content = remove_docstrings(processed_content)
 
-    lines = content.split("\n")
+    # Remove comments if requested
+    if config.remove_comments:
+        processed_content = remove_comments(processed_content)
+
+    # Process line by line for remaining options
+    lines = processed_content.split("\n")
     processed_lines = []
+    line_number = 1
 
-    in_multiline_comment = False  # Track state for block comments /* ... */
-
-    for i, line in enumerate(lines):
-        processed_line = line
-
-        # --- Comment Removal (only if enabled) ---
-        if config.remove_comments:
-            # 1. Handle Multi-line Block Comments /* ... */
-            if in_multiline_comment:
-                end_block_index = processed_line.find("*/")
-                if end_block_index != -1:
-                    # End of block comment found on this line
-                    in_multiline_comment = False
-                    processed_line = processed_line[end_block_index + 2 :]  # Keep content after */
-                else:
-                    # Line is entirely within a block comment
-                    continue  # Skip this line
-
-            # 2. Handle Start of Block Comments and Single-Line Block Comments /* ... */
-            start_block_index = processed_line.find("/*")
-            while start_block_index != -1:
-                # Use robust string detection - ignore if inside quotes
-                if not is_inside_string(processed_line, start_block_index):
-                    end_block_index = processed_line.find("*/", start_block_index + 2)
-                    if end_block_index != -1:
-                        # Block comment starts and ends on the same line
-                        # Remove the comment section
-                        processed_line = (
-                            processed_line[:start_block_index]
-                            + processed_line[end_block_index + 2 :]
-                        )
-                        # Check again for more block comments on the same line
-                        start_block_index = processed_line.find("/*")
-                        continue  # Re-evaluate the modified line
-                    else:
-                        # Block comment starts but does not end on this line
-                        in_multiline_comment = True
-                        processed_line = processed_line[
-                            :start_block_index
-                        ]  # Keep content before /*
-                        break  # Move to next line or process remaining part
-                else:  # Inside quotes, find next potential start
-                    start_block_index = processed_line.find("/*", start_block_index + 1)
-
-            # If the line became empty after removing block comments, continue if removing empty lines
-            if not processed_line.strip() and config.remove_empty_lines:
-                continue
-            if (
-                in_multiline_comment and not processed_line.strip()
-            ):  # If only /* was left and it started a block
-                continue
-
-            # 3. Handle Single-Line Comments (#, //)
-            # Check only if not inside a multi-line comment that started on this line
-            if not in_multiline_comment or (in_multiline_comment and processed_line.strip()):
-                hash_pos = processed_line.find("#")
-                slash_pos = processed_line.find("//")
-
-                comment_pos = -1
-                if hash_pos != -1 and (slash_pos == -1 or hash_pos < slash_pos):
-                    # Use robust string detection
-                    if not is_inside_string(processed_line, hash_pos):
-                        comment_pos = hash_pos
-                elif slash_pos != -1:
-                    # Use robust string detection
-                    if not is_inside_string(processed_line, slash_pos):
-                        comment_pos = slash_pos
-
-                if comment_pos != -1:
-                    processed_line = processed_line[:comment_pos]  # Remove comment onwards
-        # --- End of Comment Removal ---
-
-        # Remove empty lines (check *after* potential comment removal)
-        if config.remove_empty_lines and not processed_line.strip():
+    for line in lines:
+        # Remove empty lines if requested, or if they became empty after processing
+        if config.remove_empty_lines and not line.strip():
             continue
 
-        # Add line numbers (if enabled)
-        if config.show_line_numbers:
-            processed_line = f"{i + 1:4d} | {processed_line}"
+        # Also remove lines that became empty after comment/docstring removal
+        # (but only if the original line had content)
+        if (config.remove_comments or config.remove_docstrings) and not line.strip():
+            continue
 
-        processed_lines.append(processed_line)
+        # Add line numbers if requested
+        if config.show_line_numbers:
+            line = f"{line_number:4d} | {line}"
+
+        processed_lines.append(line)
+        line_number += 1
 
     return "\n".join(processed_lines)
 
 
 def remove_docstrings(content: str) -> str:
-    """Remove documentation strings from code.
+    """
+    Remove documentation strings from code while preserving strings in code.
 
-    It preserves inline comments (#, //).
+    Detects and removes language-specific documentation patterns including Python
+    docstrings, JSDoc comments, and similar constructs. Preserves regular string
+    literals and comments that are not documentation.
 
     Args:
-        content: The source code content
+        content: The source code content to process.
 
     Returns:
-        Code content with docstrings removed
-    """
-    # Python triple-quoted docstrings (both ''' and """)
-    # Using non-greedy matching and handling escaped quotes within docstrings requires
-    # more complex regex or a proper parser. This simpler version works for most cases.
-    content = re.sub(r'"""[\s\S]*?"""', "", content)
-    content = re.sub(r"'''[\s\S]*?'''", "", content)
+        Code content with docstrings removed but functional strings intact.
 
-    # JavaScript/TypeScript/Java JSDoc/JavaDoc style comments (/** ... */)
-    # Need to be careful not to remove /* */ style comments if remove_comments is False
-    content = re.sub(r"/\*\*.*?\*/", "", content, flags=re.DOTALL)
+    Complexity:
+        O(n) where n is the length of the content.
+
+    Flow:
+        Called by: process_file_content() when config.remove_docstrings is True
+        Calls: _remove_jsdoc_comments(), _remove_python_docstrings()
+
+    Features:
+        - Language-aware docstring detection
+        - Preserves non-documentation strings
+        - Handles multi-line documentation formats
+        - Supports Python, JavaScript/TypeScript, and JSDoc patterns
+    """
+    # Handle Python triple-quoted strings carefully
+    content = _remove_python_docstrings(content)
+
+    # JavaScript/TypeScript JSDoc style comments (/** ... */)
+    content = _remove_jsdoc_comments(content)
 
     # C# XML documentation comments (/// ...)
     content = re.sub(r"^\s*///.*$", "", content, flags=re.MULTILINE)
@@ -142,86 +361,247 @@ def remove_docstrings(content: str) -> str:
     # R roxygen2 comments (#' ...)
     content = re.sub(r"^\s*#'.*$", "", content, flags=re.MULTILINE)
 
-    # Remove potential empty lines left after docstring removal
-    content = re.sub(r"\n\s*\n", "\n", content)
+    # Clean up excessive empty lines
+    content = re.sub(r"\n\s*\n\s*\n", "\n\n", content)
 
     return content
 
 
+def _remove_jsdoc_comments(content: str) -> str:
+    """Remove JSDoc comments while preserving strings that contain JSDoc-like patterns."""
+    result = []
+    i = 0
+    in_string = False
+    string_delimiter = None
+
+    while i < len(content):
+        char = content[i]
+
+        if not in_string:
+            # Check for string start
+            if char in ('"', "'"):
+                # Check for triple quotes first
+                if i + 2 < len(content) and content[i : i + 3] in ['"""', "'''"]:
+                    # Triple-quoted string
+                    delimiter = content[i : i + 3]
+                    result.append(delimiter)
+                    i += 3
+                    # Find end of triple-quoted string
+                    while i < len(content):
+                        if content[i : i + 3] == delimiter:
+                            result.append(delimiter)
+                            i += 3
+                            break
+                        result.append(content[i])
+                        i += 1
+                    continue
+                else:
+                    # Regular string
+                    in_string = True
+                    string_delimiter = char
+                    result.append(char)
+                    i += 1
+                    continue
+
+            # Check for JSDoc comment start
+            if char == "/" and i + 2 < len(content) and content[i : i + 3] == "/**":
+                # Found JSDoc comment, skip until */
+                i += 3
+                while i + 1 < len(content):
+                    if content[i] == "*" and content[i + 1] == "/":
+                        i += 2
+                        break
+                    i += 1
+                continue
+
+            result.append(char)
+            i += 1
+
+        else:
+            # Inside string
+            if char == "\\" and i + 1 < len(content):
+                # Escaped character
+                result.append(char)
+                result.append(content[i + 1])
+                i += 2
+                continue
+            elif char == string_delimiter:
+                # End of string
+                in_string = False
+                string_delimiter = None
+
+            result.append(char)
+            i += 1
+
+    return "".join(result)
+
+
+def _remove_python_docstrings(content: str) -> str:
+    """Remove Python docstrings while preserving strings that contain triple quotes."""
+    lines = content.split("\n")
+    result_lines = []
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # Check if this line starts a docstring
+        if stripped.startswith('"""') or stripped.startswith("'''"):
+            quote_type = stripped[:3]
+
+            # Check if it's a one-line docstring
+            if stripped.count(quote_type) >= 2 and len(stripped) > 3:
+                # One-line docstring, skip the entire line
+                i += 1
+                continue
+
+            # Multi-line docstring
+            i += 1  # Skip the opening line
+
+            # Find the closing line
+            while i < len(lines):
+                current_line = lines[i]
+                if quote_type in current_line:
+                    # Found potential closing line
+                    i += 1
+                    break
+                i += 1
+            continue
+
+        result_lines.append(line)
+        i += 1
+
+    return "\n".join(result_lines)
+
+
 def generate_file_summary(file_data: ParsedFileData, config: CodeConCatConfig) -> str:
-    """Generate a summary for a file based on config settings."""
+    """
+    Generate a summary for a file based on configuration settings.
+
+    Creates a formatted summary including file metadata, imports, declarations,
+    token counts, and security issues based on enabled configuration flags.
+    Organizes information hierarchically for better readability.
+
+    Args:
+        file_data: ParsedFileData object containing the file's parsed information
+                  including path, language, imports, declarations, and analysis results.
+        config: CodeConCatConfig object with summary flags like include_imports_in_summary,
+                include_declarations_in_summary, include_tokens_in_summary, etc.
+
+    Returns:
+        A formatted markdown string containing the file summary, or empty string
+        if no summary components are enabled.
+
+    Complexity:
+        O(d + i) where d is number of declarations and i is number of imports.
+
+    Flow:
+        Called by: Writer modules when generating output with summaries
+        Calls: get_token_stats() indirectly through file_data.token_stats
+
+    Features:
+        - Conditional inclusion of summary components
+        - Grouped declarations by type (function, class, etc.)
+        - Token count display for multiple AI models
+        - Security issue highlighting with severity levels
+    """
     summary = []
-    # Basic info always included if summary is requested
-    summary.append(f"- **File:** `{os.path.basename(file_data.file_path)}`")
-    summary.append(f"- **Language:** `{file_data.language}`")
+
+    # Return early if no summary components are enabled
+    if not any(
+        [
+            config.include_imports_in_summary,
+            config.include_declarations_in_summary,
+            config.include_tokens_in_summary,
+            config.include_security_in_summary,
+        ]
+    ):
+        return ""
+
+    # Basic file info (always included when any summary is requested)
+    summary.append(f"**File:** `{os.path.basename(file_data.file_path)}`")
+    summary.append(f"**Language:** `{file_data.language}`")
 
     # Conditionally include imports
     if config.include_imports_in_summary and file_data.imports:
         summary.append(
-            f"- **Imports ({len(file_data.imports)}):** `{', '.join(sorted(file_data.imports))}`"
+            f"**Imports ({len(file_data.imports)}):** `{', '.join(sorted(file_data.imports))}`"
         )
-
-    # Conditionally include token stats
-    if config.include_tokens_in_summary and file_data.token_stats:
-        summary.append("- **Token Counts:**")
-        # Check for each token type individually
-        if (
-            hasattr(file_data.token_stats, "gpt4_tokens")
-            and file_data.token_stats.gpt4_tokens is not None
-        ):
-            summary.append(f"  - GPT-4: `{file_data.token_stats.gpt4_tokens:,}`")
-        if (
-            hasattr(file_data.token_stats, "claude_tokens")
-            and file_data.token_stats.claude_tokens is not None
-        ):
-            summary.append(f"  - Claude: `{file_data.token_stats.claude_tokens:,}`")
-
-    # Conditionally include security issues
-    if config.include_security_in_summary and file_data.security_issues:
-        summary.append("- **Security Issues:**")
-        # Sort issues by severity (assuming SecurityIssue has appropriate comparison or severity enum value)
-        # sorted_issues = sorted(file_data.security_issues, key=lambda issue: issue.severity, reverse=True)
-        sorted_issues = file_data.security_issues  # Keep original order for now
-        for issue in sorted_issues:
-            # Use severity.value if it's an Enum
-            severity_val = (
-                issue.severity.value if hasattr(issue.severity, "value") else issue.severity
-            )
-            summary.append(f"  - `{severity_val}` (Line {issue.line_number}): {issue.description}")
-            # Optionally include context if needed and available
-            # if issue.context:
-            #     summary.append(f"    Context: {issue.context}")
 
     # Conditionally include declarations
     if config.include_declarations_in_summary and file_data.declarations:
-        summary.append("- **Declarations:**")
+        summary.append("**Declarations:**")
         # Group by kind for better readability
-        decls_by_kind = {}
+        decls_by_kind: dict[str, list] = {}
         for decl in file_data.declarations:
             if decl.kind not in decls_by_kind:
                 decls_by_kind[decl.kind] = []
             decls_by_kind[decl.kind].append(decl.name)
 
         for kind, names in sorted(decls_by_kind.items()):
-            summary.append(
-                f"  - **{kind.capitalize()} ({len(names)}):** `{', '.join(sorted(names))}`"
-            )
-            # Optionally list individual declarations if verbose
-            # for decl in sorted(file_data.declarations, key=lambda d: d.start_line):
-            #     summary.append(
-            #         f"  - {decl.kind}: {decl.name} (lines {decl.start_line}-{decl.end_line})"
-            #     )
+            summary.append(f"**{kind.capitalize()} ({len(names)}):** `{', '.join(sorted(names))}`")
 
-    # Return empty string if no summary parts were added beyond basic info and flags disable them
-    if len(summary) == 2:
-        return ""  # Or perhaps a default message like "No summary details enabled."
+    # Conditionally include token stats
+    if config.include_tokens_in_summary and file_data.token_stats:
+        token_lines = []
+        # Check for each token type individually
+        if (
+            hasattr(file_data.token_stats, "gpt4_tokens")
+            and file_data.token_stats.gpt4_tokens is not None
+        ):
+            token_lines.append(f"GPT-4: `{file_data.token_stats.gpt4_tokens}`")
+        if (
+            hasattr(file_data.token_stats, "claude_tokens")
+            and file_data.token_stats.claude_tokens is not None
+        ):
+            token_lines.append(f"Claude: `{file_data.token_stats.claude_tokens}`")
+
+        if token_lines:
+            summary.append("**Token Counts:**")
+            summary.extend(token_lines)
+
+    # Conditionally include security issues
+    if config.include_security_in_summary and file_data.security_issues:
+        summary.append("**Security Issues:**")
+        for issue in file_data.security_issues:
+            severity_val = (
+                issue.severity.value if hasattr(issue.severity, "value") else str(issue.severity)
+            )
+            summary.append(f"`{severity_val}` (Line {issue.line_number}): {issue.description}")
 
     return "\n".join(summary)
 
 
 def generate_directory_structure(file_paths: List[str]) -> str:
-    """Generate a tree-like directory structure."""
-    structure = {}
+    """
+    Generate a tree-like directory structure representation from file paths.
+
+    Creates an ASCII art tree structure showing the hierarchy of files and
+    directories, similar to the 'tree' command output. Handles deep nesting
+    and sorts entries for consistent display.
+
+    Args:
+        file_paths: List of file path strings to visualize.
+
+    Returns:
+        A formatted string showing the directory tree structure with proper
+        indentation and tree characters (├──, └──, │).
+
+    Complexity:
+        O(n log n) where n is the number of file paths due to sorting.
+
+    Flow:
+        Called by: Writer modules when generating repository overviews
+        Calls: os.path operations for path manipulation
+
+    Features:
+        - ASCII art tree visualization
+        - Sorted directory and file display
+        - Proper handling of nested structures
+        - Compact representation for large codebases
+    """
+    structure: dict[str, Any] = {}
     for path in file_paths:
         parts = path.split(os.sep)
         current = structure
@@ -231,7 +611,7 @@ def generate_directory_structure(file_paths: List[str]) -> str:
             current = current[part]
         current[parts[-1]] = None
 
-    def print_tree(node: dict, prefix: str = "", is_last: bool = True) -> List[str]:
+    def print_tree(node: dict, prefix: str = "", is_last: bool = True) -> List[str]:  # noqa: ARG001
         lines = []
         if node is None:
             return lines

@@ -1,12 +1,13 @@
 """Unit tests for the security validation module."""
 
 import os
-import pytest
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
-from codeconcat.validation.security import security_validator, FILE_HASH_CACHE
+import pytest
+
 from codeconcat.errors import ValidationError
+from codeconcat.validation.security import FILE_HASH_CACHE, security_validator
 
 
 class TestSecurityValidator:
@@ -66,17 +67,17 @@ class TestSecurityValidator:
         def malicious_function():
             # This is potentially dangerous
             eval("__import__('os').system('rm -rf /')")
-            
+
             # SQL injection
             user_input = "' OR '1'='1"
             query = "SELECT * FROM users WHERE username = '" + user_input + "'"
-            
+
             # Path traversal
             file_path = "../../../etc/passwd"
-            
+
             # Template injection
             template = "{{ user.admin = True }}"
-            
+
             # Hardcoded secret
             API_KEY = "abcd1234efgh5678ijkl9012mnop3456"
         """
@@ -179,7 +180,7 @@ class TestSecurityValidator:
         def dangerous_function():
             # Execute arbitrary code
             exec(user_input)
-            
+
             # SQL injection vulnerability
             query = f"SELECT * FROM users WHERE username = '{username}'"
         """
@@ -273,7 +274,7 @@ class TestSecurityValidator:
         assert security_validator.is_binary_file(test_file) is False
 
     @patch("builtins.open", new_callable=mock_open, read_data=b"\x00\x01\x02\x03")
-    def test_is_binary_file_binary(self, mock_file, tmp_path):
+    def test_is_binary_file_binary(self, _mock_file, tmp_path):
         """Test detecting binary files."""
         test_file = tmp_path / "binary.bin"
 

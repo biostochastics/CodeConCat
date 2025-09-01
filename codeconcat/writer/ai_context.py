@@ -1,13 +1,12 @@
 """AI context generation for CodeConcat output."""
 
+import logging
 import os
 from typing import List
 
-from codeconcat.base_types import (
-    AnnotatedFileData,
-    ParsedDocData,
-    WritableItem,
-)
+from codeconcat.base_types import AnnotatedFileData, ParsedDocData, WritableItem
+
+logger = logging.getLogger(__name__)
 
 
 def generate_ai_preamble(
@@ -26,17 +25,30 @@ def generate_ai_preamble(
         # Note: If other WritableItem types exist, they are ignored here.
 
     # --- Calculate Stats (mostly from code files) --- #
-    file_types = {}
+    file_types: dict[str, int] = {}
     total_functions = 0
     total_function_lines = 0
     for file in code_files:
-        ext = file.file_path.split(".")[-1] if "." in file.file_path else "unknown"
-        file_types[ext] = file_types.get(ext, 0) + 1
+        try:
+            # Safely extract file extension
+            ext = file.file_path.split(".")[-1] if "." in file.file_path else "unknown"
+            file_types[ext] = file_types.get(ext, 0) + 1
 
-        for element in file.declarations:
-            if element.kind == "function":
-                total_functions += 1
-                total_function_lines += element.end_line - element.start_line + 1
+            # Handle missing or None declarations attribute
+            declarations = getattr(file, "declarations", [])
+            if declarations:
+                for element in declarations:
+                    try:
+                        if getattr(element, "kind", None) == "function":
+                            total_functions += 1
+                            start_line = getattr(element, "start_line", 0)
+                            end_line = getattr(element, "end_line", 0)
+                            if start_line and end_line:
+                                total_function_lines += end_line - start_line + 1
+                    except (AttributeError, TypeError) as e:
+                        logger.debug(f"Error processing declaration in {file.file_path}: {e}")
+        except Exception as e:
+            logger.warning(f"Error processing file {getattr(file, 'file_path', 'unknown')}: {e}")
 
     avg_function_length = (
         round(total_function_lines / total_functions, 1) if total_functions > 0 else 0
@@ -66,9 +78,14 @@ def generate_ai_preamble(
     # Identify key files (based on having annotations/summaries)
     key_files_with_summaries = []
     for file in code_files:
-        # Access summary directly from the item
-        if file.summary:
-            key_files_with_summaries.append(f"- `{file.file_path}`: {file.summary}")
+        try:
+            # Safely access summary attribute with default
+            summary = getattr(file, "summary", None)
+            if summary:
+                file_path = getattr(file, "file_path", "unknown")
+                key_files_with_summaries.append(f"- `{file_path}`: {summary}")
+        except Exception as e:
+            logger.debug(f"Error accessing summary for file: {e}")
 
     # Generate summary
     lines = [

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the token counter module.
@@ -8,15 +7,17 @@ This tests the token counting functionality and coverage for the recently added
 compression token comparison features.
 """
 
+from unittest.mock import MagicMock, call, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, call
+
+from codeconcat.base_types import TokenStats
 from codeconcat.processor.token_counter import (
-    get_token_stats,
+    _ENCODER_CACHE,
     count_tokens,
     get_encoder,
-    _ENCODER_CACHE,
+    get_token_stats,
 )
-from codeconcat.base_types import TokenStats
 
 
 class TestTokenCounter:

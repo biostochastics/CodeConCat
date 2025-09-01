@@ -9,7 +9,7 @@ with specific patterns and functionality for JavaScript and TypeScript.
 
 import logging
 import re
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
@@ -119,14 +119,14 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
                 self.language = "javascript"
                 logger.debug(f"Detected JavaScript file: {file_path}")
 
-            declarations = []
-            imports = []
-            errors = []
+            declarations: list[Declaration] = []
+            imports: list[str] = []
+            errors: list[str] = []
 
             lines = content.split("\n")
 
             # First pass: extract imports for the entire file
-            for i, line in enumerate(lines):
+            for line in lines:
                 line = line.strip()
                 self._process_imports(line, imports)
 
@@ -202,14 +202,13 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
         # Track the current brace level for the block
         brace_level = 0
 
-        logger.debug(f"Processing JS/TS block at lines {start+1}-{end+1}")
+        logger.debug(f"Processing JS/TS block at lines {start + 1}-{end + 1}")
 
         while i <= end:
             if i >= len(lines):
                 break
 
             line = lines[i].strip()
-            lines[i]
 
             # Skip empty lines and single-line comments
             if not line or line.startswith("//"):
@@ -228,8 +227,8 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
                 continue
 
             # Process declarations
-            declaration_match = None
-            declared_kind = None
+            declaration_match: Any = None
+            declared_kind: str | None = None
 
             # Check for different declaration types in priority order
             # First check for class
@@ -286,15 +285,18 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
                 anon_match = self.patterns["anon_function"].match(line)
                 if anon_match:
                     # Generate a name for the anonymous function based on line number
-                    func_name = f"anonymous_{i+1}"
+                    func_name = f"anonymous_{i + 1}"
                     declared_kind = "function"
 
                     # Create a simulated match object for processing
                     class SimulatedMatch:
-                        def group(self, name):
-                            return func_name
+                        def __init__(self, name):
+                            self.name = name
 
-                    declaration_match = SimulatedMatch()
+                        def group(self, _name):
+                            return self.name
+
+                    declaration_match = SimulatedMatch(func_name)
 
             # Process the declaration if found
             if declaration_match:
@@ -311,12 +313,14 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
                         continue
 
                 modifiers = self._extract_modifiers(line)
-                docstring = self._extract_jsdoc(lines, i)
+                docstring = self._extract_jsdoc(lines, i) or ""
 
                 # Normalize the declaration kind
-                normalized_kind = self._normalize_declaration_kind(declared_kind)
+                normalized_kind = self._normalize_declaration_kind(declared_kind or "")
 
-                logger.debug(f"Found potential {normalized_kind} declaration: {name} at line {i+1}")
+                logger.debug(
+                    f"Found potential {normalized_kind} declaration: {name} at line {i + 1}"
+                )
 
                 # Find block boundaries
                 start_line = i
@@ -353,8 +357,8 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
                         declaration = Declaration(
                             name=name,
                             kind=normalized_kind,
-                            docstring=docstring,
-                            modifiers=list(modifiers),
+                            docstring=docstring or "",
+                            modifiers=modifiers,
                             start_line=start_line + 1,  # 1-indexed
                             end_line=end_line + 1,  # 1-indexed
                             children=[],
@@ -424,8 +428,8 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
                             declaration = Declaration(
                                 name=name,
                                 kind=normalized_kind,
-                                docstring=docstring,
-                                modifiers=list(modifiers),
+                                docstring=docstring or "",
+                                modifiers=modifiers,
                                 start_line=start_line + 1,  # 1-indexed
                                 end_line=end_line + 1,  # 1-indexed
                                 children=[],
@@ -473,8 +477,8 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
                         declaration = Declaration(
                             name=name,
                             kind=normalized_kind,
-                            docstring=docstring,
-                            modifiers=list(modifiers),
+                            docstring=docstring or "",
+                            modifiers=modifiers,
                             start_line=start_line + 1,  # 1-indexed
                             end_line=start_line + 1,  # Same line
                             children=[],
@@ -559,7 +563,7 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
 
             # Found a JSDoc block
             if line.startswith("/**"):
-                comment_lines = []
+                comment_lines: list[str] = []
 
                 # Single-line JSDoc
                 if line.endswith("*/"):

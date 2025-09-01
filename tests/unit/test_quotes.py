@@ -1,6 +1,7 @@
 """Tests for quotes module."""
 
 from unittest.mock import patch
+
 from codeconcat.quotes import get_random_quote
 
 

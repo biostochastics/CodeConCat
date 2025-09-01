@@ -7,8 +7,9 @@ CodeConCat API server with configurable options.
 
 import argparse
 import logging
-from codeconcat.api.app import start_server
+
 from codeconcat import version
+from codeconcat.api.app import start_server
 
 logger = logging.getLogger(__name__)
 

@@ -9,8 +9,7 @@ organized by their purpose and language family compatibility.
 """
 
 import re
-from typing import List, Pattern
-
+from typing import List, Optional, Pattern
 
 # Common identifier patterns
 IDENTIFIER_BASIC = r"[a-zA-Z_][a-zA-Z0-9_]*"
@@ -69,7 +68,7 @@ class DocstringPatterns:
         for i in range(start, min(end + 1, len(lines))):
             line = lines[i].strip()
             if line.startswith('"""') or line.startswith("'''"):
-                doc_lines = []
+                doc_lines: list[str] = []
                 quote = line[:3]
                 if line.endswith(quote) and len(line) > 3:
                     return line[3:-3].strip()
@@ -211,7 +210,7 @@ class ImportPatterns:
 
 
 def create_pattern_with_modifiers(
-    base_pattern: str, modifiers: List[str] = None, prefix: str = r"^\s*"
+    base_pattern: str, modifiers: Optional[List[str]] = None, prefix: str = r"^\s*"
 ) -> Pattern:
     """
     Create a regex pattern with optional modifiers.

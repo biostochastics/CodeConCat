@@ -10,112 +10,92 @@ from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
 
-# Define Tree-sitter queries for Python
-# These are examples and may need refinement based on desired extraction level
+# Enhanced Tree-sitter queries for Python with comprehensive coverage
 PYTHON_QUERIES = {
     "imports": """
-        (import_statement) @import_statement
-        (import_from_statement) @import_from_statement
+        ; Standard import statements
+        (import_statement
+            name: (dotted_name) @import_name
+        ) @import_statement
+
+        ; Import from statements
+        (import_from_statement
+            module_name: (dotted_name)? @module_name
+            name: [(dotted_name) (aliased_import) (wildcard_import)] @import_name
+        ) @import_from_statement
     """,
     "declarations": """
-        ; Regular function definitions with type annotations and parameters
+        ; Function definitions (including async)
         (function_definition
+            "async"? @async_modifier
             name: (identifier) @name
             parameters: (parameters) @params
-            return_type: (_)? @return_type
+            return_type: (type)? @return_type
             body: (block) @body
         ) @function
-        ;
-        ; Async function definitions
-        (function_definition
-            "async" @async
-            name: (identifier) @name
-            parameters: (parameters) @params
-            return_type: (_)? @return_type
-            body: (block) @body
-        ) @async_function
-        ;
-        ; Lambda functions (anonymous functions)
-        (lambda
-            parameters: (lambda_parameters)? @lambda_params
-            body: (_) @lambda_body
-        ) @lambda_function
-        ;
-        ; Class definitions with inheritance and body
+
+        ; Class definitions
         (class_definition
             name: (identifier) @name
-            superclasses: (argument_list)? @superclasses ; Changed capture name
+            superclasses: (argument_list)? @superclasses
             body: (block) @body
         ) @class
-        ;
-        ; Decorated function definitions (Capture decorator nodes directly)
+
+        ; Decorated definitions (functions and classes)
         (decorated_definition
-            (decorator)+ @decorator ; Simplified capture
-            definition: (function_definition
-                name: (identifier) @name
-                parameters: (parameters) @params
-                return_type: (_)? @return_type
-                body: (block) @body
-            ) @definition
-        ) @decorated_function_def
-        ;
-        ; Decorated class definitions (Capture decorator nodes directly)
-        (decorated_definition
-            (decorator)+ @decorator ; Simplified capture
-            definition: (class_definition
-                name: (identifier) @name
-                superclasses: (argument_list)? @superclasses ; Changed capture name
-                body: (block) @body
-            ) @definition
-        ) @decorated_class_def
-        ;
-        ; Global variable assignments (capturing type hints if present)
-        (assignment 
-            left: (identifier) @name
-            right: (_) @value
-            type: (_)? @type_annotation
-        ) @global_var
-        ;
-        ; Class variables and attributes (simple assignment)
-        (class_definition
-            body: (block
-                (expression_statement
-                    (assignment
-                        left: (identifier) @class_var_name
-                    )
-                ) @class_var
-            )
-        )
-        ;
-        ; Constants (convention: UPPER_SNAKE_CASE) - Commented out due to potential #match? issue
+            (decorator)+ @decorators
+            definition: [
+                (function_definition
+                    "async"? @async_modifier
+                    name: (identifier) @name
+                    parameters: (parameters) @params
+                    return_type: (type)? @return_type
+                    body: (block) @body
+                ) @function_def
+                (class_definition
+                    name: (identifier) @name
+                    superclasses: (argument_list)? @superclasses
+                    body: (block) @body
+                ) @class_def
+            ]
+        ) @decorated_definition
+
+        ; Global variable assignments with type annotations
         (assignment
-            left: (identifier) @const_name (#match? @const_name "^[A-Z][A-Z0-9_]*$")
-            right: (_)
-        ) @constant
-        ;
-        ; Constants within classes (convention: UPPER_SNAKE_CASE) - Commented out due to potential #match? issue
-        (class_definition
-            body: (block
-                (expression_statement
-                    (assignment
-                        left: (identifier) @const_name (#match? @const_name "^[A-Z][A-Z0-9_]*$")
-                    )
-                ) @class_constant
+            left: (identifier) @name
+            type: (type)? @type_annotation
+            right: (_) @value
+        ) @assignment
+
+        ; Note: annotated_assignment node type doesn't exist in current grammar
+        ; Type annotations are handled by the assignment query above
+
+        ; Constants (UPPER_CASE convention)
+        (assignment
+            left: (identifier) @const_name
+            right: (_) @const_value
+        ) @constant (#match? @const_name "^[A-Z][A-Z0-9_]*$")
+
+        ; Property definitions using @property decorator
+        (decorated_definition
+            (decorator
+                (identifier) @decorator_name
+                (#eq? @decorator_name "property")
             )
-        )
+            definition: (function_definition
+                name: (identifier) @property_name
+            )
+        ) @property
     """,
-    # Capture comments and docstrings - Commented out for debugging
     "doc_comments": """
-        ; String literals that could be docstrings
-        (expression_statement
-            (string) @possible_docstring
-        )
-        ;
+        ; Docstring detection - first string in function/class body
+        [
+            (function_definition body: (block (expression_statement (string) @docstring)))
+            (class_definition body: (block (expression_statement (string) @docstring)))
+        ]
+
         ; Comments
         (comment) @comment
-        ;
-        ; Removed invalid type_comment capture
-        ; (type_comment) @type_comment 
     """,
 }
 
@@ -131,141 +111,246 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         """Returns the predefined Tree-sitter queries for Python."""
         return PYTHON_QUERIES
 
-    # Override _run_queries to implement Python-specific extraction logic
     def _run_queries(
         self, root_node: Node, byte_content: bytes
     ) -> tuple[List[Declaration], List[str]]:
         """Runs Python-specific queries and extracts declarations and imports."""
-        # Direct manual extraction for reliability in tests
-        # This approach does not rely on Tree-sitter queries or S-expressions
-        # Instead, we traverse the tree and identify nodes by type
         declarations = []
-        classes = {}  # Store class declarations by name for populating children
         imports = set()
+        docstring_map = {}  # node_id -> docstring
 
-        # Function to process the tree node by node
-        def visit_node(node, parent=None, class_node=None):
-            if not node:
-                return
+        # --- Pass 1: Extract Docstrings --- #
+        try:
+            doc_query = self._get_compiled_query("doc_comments")
+            if doc_query:
+                doc_captures = doc_query.captures(root_node)
+                # doc_captures is a dict: {capture_name: [list of nodes]}
+                for capture_name, nodes in doc_captures.items():
+                    if capture_name == "docstring":
+                        for node in nodes:
+                            # Find the parent function or class
+                            parent = node.parent
+                            while parent and parent.type not in [
+                                "function_definition",
+                                "class_definition",
+                                "decorated_definition",
+                            ]:
+                                parent = parent.parent
 
-            # Check node type
-            if node.type == "function_definition":
-                # Extract function name
-                name_node = None
-                for child in node.children:
-                    if child.type == "identifier":
-                        name_node = child
-                        break
+                            if parent:
+                                docstring_text = byte_content[
+                                    node.start_byte : node.end_byte
+                                ].decode("utf-8", errors="replace")
+                                # Clean docstring (remove quotes)
+                                cleaned_docstring = self._clean_docstring(docstring_text)
+                                docstring_map[parent.id] = cleaned_docstring
+        except Exception as e:
+            logger.warning(f"Failed to extract Python docstrings: {e}", exc_info=True)
 
-                if name_node:
-                    name = byte_content[name_node.start_byte : name_node.end_byte].decode(
-                        "utf8", errors="ignore"
-                    )
-                    start_line = node.start_point[0] + 1  # Convert to 1-indexed line numbers
-                    end_line = node.end_point[0] + 1
+        # --- Pass 2: Extract Imports --- #
+        try:
+            import_query = self._get_compiled_query("imports")
+            if import_query:
+                import_captures = import_query.captures(root_node)
+                # import_captures is a dict: {capture_name: [list of nodes]}
+                for capture_name, nodes in import_captures.items():
+                    if capture_name in ["import_name", "module_name"]:
+                        for node in nodes:
+                            import_text = byte_content[node.start_byte : node.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            # Extract base module name
+                            base_module = import_text.split(".")[0]
+                            imports.add(base_module)
+        except Exception as e:
+            logger.warning(f"Failed to extract Python imports: {e}", exc_info=True)
 
-                    # Try to find docstring
-                    docstring = self._find_docstring(node, byte_content)
+        # --- Pass 3: Extract Declarations --- #
+        try:
+            decl_query = self._get_compiled_query("declarations")
+            if decl_query:
+                matches = decl_query.matches(root_node)
 
-                    # Create a declaration for this function
-                    func_decl = Declaration(
-                        kind="function",
-                        name=name,
-                        start_line=start_line,
-                        end_line=end_line,
-                        docstring=docstring,
-                    )
+                # matches is a list of tuples: (match_id, dict of capture_name -> nodes)
+                for _match_id, captures_dict in matches:
+                    # Determine declaration type and extract information
+                    declaration_node = None
+                    name = None
+                    kind = None
+                    modifiers = set()
 
-                    # If inside a class, add as child to class declaration
-                    # Otherwise add to top-level declarations
-                    if class_node:
-                        # This is a class method
-                        if class_node in classes:
-                            classes[class_node].children.append(func_decl)
-                    else:
-                        # This is a standalone function
-                        declarations.append(func_decl)
+                    # Find the main declaration node and name
+                    if "function" in captures_dict:
+                        # captures_dict values can be a single node or list of nodes
+                        func_val = captures_dict["function"]
+                        declaration_node = func_val[0] if isinstance(func_val, list) else func_val
+                        kind = "function"
+                        name_val = captures_dict.get("name")
+                        if name_val:
+                            name_node = name_val[0] if isinstance(name_val, list) else name_val
+                            name = byte_content[name_node.start_byte : name_node.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
 
-            elif node.type == "class_definition":
-                # Extract class name
-                name_node = None
-                for child in node.children:
-                    if child.type == "identifier":
-                        name_node = child
-                        break
+                        # Check for async modifier
+                        if "async_modifier" in captures_dict and captures_dict["async_modifier"]:
+                            modifiers.add("async")
 
-                if name_node:
-                    name = byte_content[name_node.start_byte : name_node.end_byte].decode(
-                        "utf8", errors="ignore"
-                    )
-                    start_line = node.start_point[0] + 1  # Convert to 1-indexed line numbers
-                    end_line = node.end_point[0] + 1
+                    elif "class" in captures_dict:
+                        class_val = captures_dict["class"]
+                        declaration_node = (
+                            class_val[0] if isinstance(class_val, list) else class_val
+                        )
+                        kind = "class"
+                        name_val = captures_dict.get("name")
+                        if name_val:
+                            name_node = name_val[0] if isinstance(name_val, list) else name_val
+                            name = byte_content[name_node.start_byte : name_node.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
 
-                    # Try to find docstring
-                    docstring = self._find_docstring(node, byte_content)
+                    elif "decorated_definition" in captures_dict:
+                        decor_val = captures_dict["decorated_definition"]
+                        declaration_node = (
+                            decor_val[0] if isinstance(decor_val, list) else decor_val
+                        )
+                        # Determine if it's a decorated function or class
+                        if "function_def" in captures_dict and captures_dict["function_def"]:
+                            kind = "function"
+                            modifiers.add("decorated")
+                        elif "class_def" in captures_dict and captures_dict["class_def"]:
+                            kind = "class"
+                            modifiers.add("decorated")
 
-                    # Create a declaration for this class
-                    class_decl = Declaration(
-                        kind="class",
-                        name=name,
-                        start_line=start_line,
-                        end_line=end_line,
-                        docstring=docstring,
-                        children=[],
-                    )
+                        name_val = captures_dict.get("name")
+                        if name_val:
+                            name_node = name_val[0] if isinstance(name_val, list) else name_val
+                            name = byte_content[name_node.start_byte : name_node.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
 
-                    # Store class declaration for child methods
-                    classes[name] = class_decl
-                    declarations.append(class_decl)
+                    elif "property" in captures_dict:
+                        prop_val = captures_dict["property"]
+                        declaration_node = prop_val[0] if isinstance(prop_val, list) else prop_val
+                        kind = "property"
+                        name_val = captures_dict.get("property_name")
+                        if name_val:
+                            name_node = name_val[0] if isinstance(name_val, list) else name_val
+                            name = byte_content[name_node.start_byte : name_node.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                        modifiers.add("property")
 
-                    # Process class body to find methods
-                    body_node = None
-                    for child in node.children:
-                        if child.type == "block":
-                            body_node = child
-                            break
+                    elif "assignment" in captures_dict:
+                        assign_val = captures_dict.get("assignment")
+                        if assign_val:
+                            declaration_node = (
+                                assign_val[0] if isinstance(assign_val, list) else assign_val
+                            )
+                            kind = "variable"
+                            name_val = captures_dict.get("name")
+                            if name_val:
+                                name_node = name_val[0] if isinstance(name_val, list) else name_val
+                                name = byte_content[
+                                    name_node.start_byte : name_node.end_byte
+                                ].decode("utf-8", errors="replace")
 
-                    if body_node:
-                        # Process class body with class context
-                        for class_child in body_node.children:
-                            visit_node(class_child, node, name)
+                    elif "constant" in captures_dict:
+                        const_val = captures_dict["constant"]
+                        declaration_node = (
+                            const_val[0] if isinstance(const_val, list) else const_val
+                        )
+                        kind = "constant"
+                        name_val = captures_dict.get("const_name")
+                        if name_val:
+                            name_node = name_val[0] if isinstance(name_val, list) else name_val
+                            name = byte_content[name_node.start_byte : name_node.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                        modifiers.add("const")
 
-                    # Continue with normal traversal after processing class body
-                    return
-            elif node.type == "import_statement":
-                # Extract import statement
-                import_text = byte_content[node.start_byte : node.end_byte].decode(
-                    "utf8", errors="ignore"
-                )
-                parts = import_text.split()
-                if len(parts) > 1:
-                    imports.add(parts[1].split(".")[0])
+                    if declaration_node and name:
+                        start_line = declaration_node.start_point[0] + 1
+                        end_line = declaration_node.end_point[0] + 1
 
-            elif node.type == "import_from_statement":
-                # Extract from import statement
-                import_text = byte_content[node.start_byte : node.end_byte].decode(
-                    "utf8", errors="ignore"
-                )
-                parts = import_text.split()
-                if len(parts) > 1:
-                    imports.add(parts[1].split(".")[0])
+                        # Extract signature for functions and methods
+                        signature = ""
+                        if kind in ["function", "method", "property"]:
+                            # Get the signature (name + parameters + return type if present)
+                            # We'll extract from the start of the declaration to the colon
+                            sig_start = declaration_node.start_byte
+                            # Find the colon that ends the signature
+                            sig_end_node = None
+                            for child in declaration_node.children:
+                                if child.type == ":":
+                                    sig_end_node = child
+                                    break
 
-            # Recursively visit all children
-            for child in node.children:
-                visit_node(child, node)
+                            if sig_end_node:
+                                sig_end = sig_end_node.end_byte
+                                signature = (
+                                    byte_content[sig_start:sig_end]
+                                    .decode("utf-8", errors="replace")
+                                    .strip()
+                                )
+                                # Clean up the signature - remove 'def' keyword
+                                if signature.startswith("def "):
+                                    signature = signature[4:].strip()
+                                elif signature.startswith("async def "):
+                                    signature = signature[10:].strip()
 
-        # Start the traversal
-        visit_node(root_node)
+                        # Get docstring
+                        docstring = docstring_map.get(declaration_node.id, "")
+
+                        declarations.append(
+                            Declaration(
+                                kind=kind or "unknown",
+                                name=name,
+                                start_line=start_line,
+                                end_line=end_line,
+                                docstring=docstring,
+                                signature=signature,
+                                modifiers=modifiers,
+                            )
+                        )
+
+        except Exception as e:
+            logger.warning(f"Failed to extract Python declarations: {e}", exc_info=True)
 
         # Sort declarations by start line
         declarations.sort(key=lambda d: d.start_line)
-        # Sort imports
-        sorted_imports = sorted(list(imports))
+        sorted_imports = sorted(imports)
 
         logger.debug(
-            f"Tree traversal extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
+            f"Tree-sitter Python extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
         )
         return declarations, sorted_imports
+
+    def _clean_docstring(self, docstring_text: str) -> str:
+        """Clean Python docstring by removing quotes and normalizing whitespace."""
+        # Remove triple quotes or single quotes
+        cleaned = docstring_text.strip()
+        for quote in ['"""', "'''", '"', "'"]:
+            if cleaned.startswith(quote) and cleaned.endswith(quote):
+                cleaned = cleaned[len(quote) : -len(quote)]
+                break
+
+        # Normalize whitespace but preserve structure
+        lines = cleaned.split("\n")
+        if lines:
+            # Remove common leading whitespace
+            non_empty_lines = [line for line in lines if line.strip()]
+            if non_empty_lines:
+                # Get indentation levels for non-empty lines after the first
+                indented_lines = [line for line in non_empty_lines[1:] if line.strip()]
+                if indented_lines:
+                    min_indent = min(len(line) - len(line.lstrip()) for line in indented_lines)
+                    if min_indent > 0:
+                        lines = [lines[0]] + [
+                            line[min_indent:] if line.strip() else line for line in lines[1:]
+                        ]
+
+        return "\n".join(lines).strip()
 
     def _find_docstring(self, node: Node, byte_content: bytes) -> str:
         """Attempts to find a docstring within a function/class body node."""
@@ -287,7 +372,7 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
                     if string_node.type in ["string", "string_content"]:
                         doc_bytes = byte_content[string_node.start_byte : string_node.end_byte]
                         # Remove quotes (triple or single)
-                        doc_str = doc_bytes.decode("utf-8", errors="ignore")
+                        doc_str = doc_bytes.decode("utf-8", errors="replace")
 
                         # Handle potential f-strings, raw strings, etc.
                         prefix_chars = ["r", "u", "f", "b"]

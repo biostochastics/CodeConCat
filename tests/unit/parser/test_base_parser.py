@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 
@@ -9,17 +8,14 @@ Tests the EnhancedBaseParser class to ensure shared functionality
 works across all language parsers.
 """
 
-import re
 import logging
+import re
+
 import pytest
 
-from codeconcat.base_types import (
-    Declaration,
-    ParseResult,
-    ParserInterface,
-)
-from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
+from codeconcat.base_types import Declaration, ParseResult, ParserInterface
 from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
+from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()
@@ -52,7 +48,7 @@ class TestParser(EnhancedBaseParser):
             "method": r"method\s+(\w+)",
         }
 
-    def parse(self, content: str, file_path: str) -> ParseResult:
+    def parse(self, content: str, _file_path: str) -> ParseResult:
         """Override parse method for testing."""
         lines = content.splitlines()
         declarations = []
@@ -95,14 +91,14 @@ class TestBaseParser:
         """Fixture providing a sample mixed-language code for testing base parser functions."""
         return """// This file has mixed language syntax to test parser flexibility
 
-/* 
+/*
  * Block comment at the top
  * with multiple lines
  */
 
 # Python-style comment
 # Another comment
- 
+
 function testFunction() {
     /* Function docstring */
     const x = 10;
@@ -113,7 +109,7 @@ class TestClass {
     /* Class docstring
      * with multiple lines
      */
-    
+
     method test() {
         return "test";
     }

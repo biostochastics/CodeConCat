@@ -288,7 +288,7 @@ class RustParser(ParserInterface):
                 language="rust",
                 content=content,
                 declarations=declarations,
-                imports=sorted(list(imports)),
+                imports=sorted(imports),
                 engine_used="regex",
                 token_stats=None,
                 security_issues=[],
@@ -300,4 +300,4 @@ class RustParser(ParserInterface):
                 message=f"Failed to parse Rust file ({type(e).__name__}) using Regex: {e}",
                 file_path=file_path,
                 original_exception=e,
-            )
+            ) from e

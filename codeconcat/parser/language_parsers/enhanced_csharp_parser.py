@@ -12,9 +12,7 @@ import re
 from typing import Dict, List, Optional
 
 from codeconcat.parser.language_parsers.enhanced_c_family_parser import EnhancedCFamilyParser
-from codeconcat.parser.language_parsers.pattern_library import (
-    C_FAMILY_MODIFIERS,
-)
+from codeconcat.parser.language_parsers.pattern_library import C_FAMILY_MODIFIERS
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +117,7 @@ class EnhancedCSharpParser(EnhancedCFamilyParser):
             Extracted docstring if found, None otherwise.
         """
         # First check for XML comments (///)
-        xml_comment_lines = []
+        xml_comment_lines: list[str] = []
 
         # Look for XML comments before the current position
         prev_i = start - 1

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Pytest configuration file for CodeConCat tests.
@@ -7,10 +6,11 @@ Pytest configuration file for CodeConCat tests.
 This file contains shared fixtures and configuration for all unit and integration tests.
 """
 
-import os
 import logging
-import pytest
+import os
 import sys
+
+import pytest
 
 # Add the project root to the Python path for reliable imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))

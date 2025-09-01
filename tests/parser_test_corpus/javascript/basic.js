@@ -1,6 +1,6 @@
 /**
  * Basic JavaScript test file for parser validation.
- * 
+ *
  * This file contains common JavaScript constructs that should be properly parsed.
  */
 
@@ -82,8 +82,8 @@ const transformObject = (obj) => {
   const result = {};
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      result[key.toUpperCase()] = typeof obj[key] === 'string' 
-        ? obj[key].toUpperCase() 
+      result[key.toUpperCase()] = typeof obj[key] === 'string'
+        ? obj[key].toUpperCase()
         : obj[key];
     }
   }
@@ -110,7 +110,7 @@ function outerFunction(x) {
   function innerFunction(y) {
     return x + y;
   }
-  
+
   return innerFunction;
 }
 

@@ -75,7 +75,7 @@ def verify_tree_sitter_dependencies() -> Tuple[bool, List[str], List[str]]:
         )
 
     # For each language in TREE_SITTER_PARSER_MAP, try to load the parser
-    for language, parser_class_name in TREE_SITTER_PARSER_MAP.items():
+    for language, _parser_class_name in TREE_SITTER_PARSER_MAP.items():
         try:
             # Try to dynamically import the parser module
             module_name = f"codeconcat.parser.language_parsers.tree_sitter_{language}_parser"
@@ -103,7 +103,7 @@ def verify_tree_sitter_dependencies() -> Tuple[bool, List[str], List[str]]:
 
                 # Attempt to locate the module where the Language object is defined
                 lang_module_path = os.path.join(
-                    os.path.dirname(spec.origin),
+                    os.path.dirname(spec.origin or ""),
                     (
                         f"tree_sitter_{language.lower()}.so"
                         if language not in ["javascript", "typescript", "c", "cpp"]

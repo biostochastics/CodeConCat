@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Test script to validate the enhanced Julia parser's nested function detection.
@@ -8,9 +7,10 @@ This script tests the EnhancedJuliaParser on a file with complex nested function
 and prints out the parser results showing all declarations with their nesting.
 """
 
-import sys
 import logging
+import sys
 from pathlib import Path
+
 from codeconcat.parser.language_parsers.enhanced_julia_parser import EnhancedJuliaParser
 
 # Add the project root to sys.path
@@ -36,7 +36,7 @@ def main():
     parser = EnhancedJuliaParser()
     test_file = project_root / "tests" / "parser_test_corpus" / "julia" / "nested_functions.jl"
 
-    with open(test_file, "r") as f:
+    with open(test_file) as f:
         content = f.read()
 
     result = parser.parse(content, str(test_file))

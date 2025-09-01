@@ -1,14 +1,14 @@
 """End-to-end tests for the validation system with Semgrep integration."""
 
 import json
-import pytest
 import logging
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from codeconcat.base_types import CodeConCatConfig
-from codeconcat.main import run_codeconcat, cli_entry_point
-from codeconcat.errors import ValidationError, ConfigurationError
-
+from codeconcat.errors import ConfigurationError, ValidationError
+from codeconcat.main import cli_entry_point, run_codeconcat
 
 # Configure logging
 logging.basicConfig(
@@ -132,7 +132,7 @@ function processUserData(userId) {
     exec('grep ' + userId + ' /var/log/users.log', (error, stdout, stderr) => {
         console.log(stdout);
     });
-    
+
     // Potential path traversal
     const userFile = '../data/' + userId + '.json';
     return fs.readFileSync(userFile, 'utf8');
@@ -196,86 +196,83 @@ python src/clean.py
         with patch(
             "codeconcat.validation.semgrep_validator.semgrep_validator.is_available",
             return_value=True,
-        ):
-            with patch(
-                "codeconcat.validation.semgrep_validator.SemgrepValidator.scan_file"
-            ) as mock_scan:
-                # Mock different findings based on file path
-                def mock_scan_file(file_path, language=None):
-                    file_path = str(file_path)
-                    if "suspicious.py" in file_path:
-                        return [
-                            {
-                                "type": "semgrep",
-                                "rule_id": "python.lang.security.dangerous-system-call",
-                                "message": "Dangerous system call detected",
-                                "severity": "HIGH",
-                                "line": 6,
-                                "column": 12,
-                                "snippet": "return os.system(cmd)",
-                            },
-                            {
-                                "type": "semgrep",
-                                "rule_id": "python.lang.security.sql-injection",
-                                "message": "Potential SQL injection detected",
-                                "severity": "HIGH",
-                                "line": 11,
-                                "column": 13,
-                                "snippet": 'query = f"SELECT * FROM users WHERE id = {user_id}"',
-                            },
-                        ]
-                    elif "app.js" in file_path:
-                        return [
-                            {
-                                "type": "semgrep",
-                                "rule_id": "javascript.lang.security.command-injection",
-                                "message": "Command injection vulnerability",
-                                "severity": "HIGH",
-                                "line": 6,
-                                "column": 10,
-                                "snippet": "exec('grep ' + userId + ' /var/log/users.log'",
-                            },
-                            {
-                                "type": "semgrep",
-                                "rule_id": "javascript.lang.security.path-traversal",
-                                "message": "Path traversal vulnerability",
-                                "severity": "MEDIUM",
-                                "line": 11,
-                                "column": 23,
-                                "snippet": "const userFile = '../data/' + userId + '.json';",
-                            },
-                            {
-                                "type": "semgrep",
-                                "rule_id": "javascript.lang.security.sql-injection",
-                                "message": "SQL injection vulnerability",
-                                "severity": "HIGH",
-                                "line": 17,
-                                "column": 18,
-                                "snippet": "const query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;",
-                            },
-                        ]
-                    elif "config.py" in file_path:
-                        return [
-                            {
-                                "type": "semgrep",
-                                "rule_id": "python.lang.security.hardcoded-credentials",
-                                "message": "Hardcoded credentials detected",
-                                "severity": "MEDIUM",
-                                "line": 4,
-                                "column": 13,
-                                "snippet": 'SECRET_KEY = "abcdef1234567890abcdef1234567890"',
-                            }
-                        ]
-                    else:
-                        return []  # No findings for clean files
+        ), patch("codeconcat.validation.semgrep_validator.SemgrepValidator.scan_file") as mock_scan:
+            # Mock different findings based on file path
+            def mock_scan_file(file_path, _language=None):
+                file_path = str(file_path)
+                if "suspicious.py" in file_path:
+                    return [
+                        {
+                            "type": "semgrep",
+                            "rule_id": "python.lang.security.dangerous-system-call",
+                            "message": "Dangerous system call detected",
+                            "severity": "HIGH",
+                            "line": 6,
+                            "column": 12,
+                            "snippet": "return os.system(cmd)",
+                        },
+                        {
+                            "type": "semgrep",
+                            "rule_id": "python.lang.security.sql-injection",
+                            "message": "Potential SQL injection detected",
+                            "severity": "HIGH",
+                            "line": 11,
+                            "column": 13,
+                            "snippet": 'query = f"SELECT * FROM users WHERE id = {user_id}"',
+                        },
+                    ]
+                elif "app.js" in file_path:
+                    return [
+                        {
+                            "type": "semgrep",
+                            "rule_id": "javascript.lang.security.command-injection",
+                            "message": "Command injection vulnerability",
+                            "severity": "HIGH",
+                            "line": 6,
+                            "column": 10,
+                            "snippet": "exec('grep ' + userId + ' /var/log/users.log'",
+                        },
+                        {
+                            "type": "semgrep",
+                            "rule_id": "javascript.lang.security.path-traversal",
+                            "message": "Path traversal vulnerability",
+                            "severity": "MEDIUM",
+                            "line": 11,
+                            "column": 23,
+                            "snippet": "const userFile = '../data/' + userId + '.json';",
+                        },
+                        {
+                            "type": "semgrep",
+                            "rule_id": "javascript.lang.security.sql-injection",
+                            "message": "SQL injection vulnerability",
+                            "severity": "HIGH",
+                            "line": 17,
+                            "column": 18,
+                            "snippet": "const query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;",
+                        },
+                    ]
+                elif "config.py" in file_path:
+                    return [
+                        {
+                            "type": "semgrep",
+                            "rule_id": "python.lang.security.hardcoded-credentials",
+                            "message": "Hardcoded credentials detected",
+                            "severity": "MEDIUM",
+                            "line": 4,
+                            "column": 13,
+                            "snippet": 'SECRET_KEY = "abcdef1234567890abcdef1234567890"',
+                        }
+                    ]
+                else:
+                    return []  # No findings for clean files
 
-                mock_scan.side_effect = mock_scan_file
-                yield mock_scan
+            mock_scan.side_effect = mock_scan_file
+            yield mock_scan
 
     @pytest.mark.parametrize(
         "scenario", SECURITY_SCENARIOS, ids=[s["name"] for s in SECURITY_SCENARIOS]
     )
-    def test_security_scenarios(self, scenario, sample_project, mock_semgrep, tmp_path):
+    def test_security_scenarios(self, scenario, sample_project, _mock_semgrep, tmp_path):
         """Test various security validation scenarios."""
         logger.info(f"Running security scenario: {scenario['name']} - {scenario['description']}")
 
@@ -324,12 +321,11 @@ rules:
                 # Should run without raising exceptions
                 with patch(
                     "codeconcat.validation.setup_semgrep.install_semgrep", return_value=True
+                ), patch(
+                    "codeconcat.validation.setup_semgrep.install_apiiro_ruleset",
+                    return_value="/mock/ruleset/path",
                 ):
-                    with patch(
-                        "codeconcat.validation.setup_semgrep.install_apiiro_ruleset",
-                        return_value="/mock/ruleset/path",
-                    ):
-                        result = run_codeconcat(config)
+                    result = run_codeconcat(config)
 
                 # Write the result to the output file
                 with open(output_path, "w") as f:
@@ -341,7 +337,7 @@ rules:
                 ), f"Output file not created for scenario {scenario['name']}"
 
                 # Check if the output contains expected information
-                with open(output_path, "r") as f:
+                with open(output_path) as f:
                     output_data = json.load(f)
 
                 # Verify we have processed files
@@ -368,15 +364,13 @@ rules:
                 raise
         else:
             # Should raise an exception for strict security with suspicious content
-            with pytest.raises((ValidationError, ConfigurationError)) as excinfo:
-                with patch(
-                    "codeconcat.validation.setup_semgrep.install_semgrep", return_value=True
-                ):
-                    with patch(
-                        "codeconcat.validation.setup_semgrep.install_apiiro_ruleset",
-                        return_value="/mock/ruleset/path",
-                    ):
-                        run_codeconcat(config)
+            with pytest.raises((ValidationError, ConfigurationError)) as excinfo, patch(
+                "codeconcat.validation.setup_semgrep.install_semgrep", return_value=True
+            ), patch(
+                "codeconcat.validation.setup_semgrep.install_apiiro_ruleset",
+                return_value="/mock/ruleset/path",
+            ):
+                run_codeconcat(config)
 
             logger.info(f"Scenario {scenario['name']} failed as expected with: {excinfo.value}")
             assert (
@@ -387,7 +381,7 @@ rules:
     @pytest.mark.skip(
         reason="CLI test needs refactoring - security features are already tested in other tests"
     )
-    def test_cli_security_options(self, sample_project, mock_semgrep, tmp_path):
+    def test_cli_security_options(self, sample_project, _mock_semgrep, tmp_path):
         """Test CLI security options integration."""
         output_file = tmp_path / "cli_output.md"
 
@@ -405,35 +399,31 @@ rules:
         ]
 
         # Mock sys.argv
-        with patch("sys.argv", cli_args):
-            # Mock exit to prevent actual program exit
-            with patch("sys.exit"):
-                # Mock command line argument parsing
-                with patch("codeconcat.main.run_codeconcat") as mock_run:
-                    mock_run.return_value = "Mock output"
-                    with patch(
-                        "codeconcat.validation.setup_semgrep.install_semgrep", return_value=True
-                    ):
-                        with patch(
-                            "codeconcat.validation.setup_semgrep.install_apiiro_ruleset",
-                            return_value="/mock/ruleset/path",
-                        ):
-                            # Run the CLI entry point
-                            cli_entry_point()
+        with patch("sys.argv", cli_args), patch("sys.exit"), patch(
+            "codeconcat.main.run_codeconcat"
+        ) as mock_run, patch(
+            "codeconcat.validation.setup_semgrep.install_semgrep", return_value=True
+        ), patch(
+            "codeconcat.validation.setup_semgrep.install_apiiro_ruleset",
+            return_value="/mock/ruleset/path",
+        ):
+            mock_run.return_value = "Mock output"
+            # Run the CLI entry point
+            cli_entry_point()
 
-                            # Check that run_codeconcat was called
-                            mock_run.assert_called_once()
+            # Check that run_codeconcat was called
+            mock_run.assert_called_once()
 
-                            # Check the configuration passed to run_codeconcat
-                            config = mock_run.call_args[0][0]
-                            assert config.enable_security_scanning is True
-                            assert config.enable_semgrep is True
-                            assert config.format == "markdown"
-                            assert config.output == str(output_file)
+            # Check the configuration passed to run_codeconcat
+            config = mock_run.call_args[0][0]
+            assert config.enable_security_scanning is True
+            assert config.enable_semgrep is True
+            assert config.format == "markdown"
+            assert config.output == str(output_file)
 
-                            logger.info("CLI security options were correctly processed")
+            logger.info("CLI security options were correctly processed")
 
-    def test_validation_with_real_semgrep(self, sample_project, tmp_path):
+    def test_validation_with_real_semgrep(self, _sample_project, tmp_path):
         """Test validation with real Semgrep validation logic but using mocks."""
         # Check if actual semgrep is available
         import shutil
@@ -485,7 +475,7 @@ rules:
             logger.error(f"Error running Semgrep validation test: {e}")
             pytest.skip(f"Error in Semgrep validation test: {e}")
 
-    def test_validation_with_apiiro_ruleset(self, sample_project, tmp_path):
+    def test_validation_with_apiiro_ruleset(self, _sample_project, tmp_path):
         """Test validation with the Apiiro ruleset using a mocked approach."""
         # Check if semgrep is available
         import shutil
@@ -516,66 +506,65 @@ rules:
             # Mock the semgrep validator and install ruleset
             with patch(
                 "codeconcat.validation.semgrep_validator.SemgrepValidator.scan_file"
-            ) as mock_scan:
+            ) as mock_scan, patch(
+                "codeconcat.validation.setup_semgrep.install_apiiro_ruleset",
+                return_value=str(ruleset_dir),
+            ):
+                # Set up mock to return findings specific to Apiiro ruleset
+                mock_scan.return_value = [
+                    {
+                        "type": "semgrep",
+                        "rule_id": "apiiro.command-injection",
+                        "message": "Apiiro ruleset found command injection",
+                        "severity": "HIGH",
+                        "line": 2,
+                        "column": 0,
+                        "snippet": 'os.system("echo test")',
+                    }
+                ]
+
+                # Create a test file with a potential security issue
+                test_file = tmp_path / "test_file.py"
+                test_file.write_text('import os\nos.system("echo test")\n')
+
+                # Test the Semgrep setup process
+                from codeconcat.validation.integration import setup_semgrep
+                from codeconcat.validation.semgrep_validator import semgrep_validator
+
+                # Create a mock config
+                mock_config = MagicMock()
+                mock_config.enable_semgrep = True
+                mock_config.semgrep_ruleset = str(ruleset_dir)
+
+                # Patch is_available to return True
                 with patch(
-                    "codeconcat.validation.setup_semgrep.install_apiiro_ruleset",
-                    return_value=str(ruleset_dir),
+                    "codeconcat.validation.semgrep_validator.semgrep_validator.is_available",
+                    return_value=True,
                 ):
-                    # Set up mock to return findings specific to Apiiro ruleset
-                    mock_scan.return_value = [
-                        {
-                            "type": "semgrep",
-                            "rule_id": "apiiro.command-injection",
-                            "message": "Apiiro ruleset found command injection",
-                            "severity": "HIGH",
-                            "line": 2,
-                            "column": 0,
-                            "snippet": 'os.system("echo test")',
-                        }
+                    # Test the setup process
+                    result = setup_semgrep(mock_config)
+                    assert result is True, "Semgrep setup failed"
+
+                    # Verify ruleset is used
+                    assert semgrep_validator.ruleset_path == str(
+                        ruleset_dir
+                    ), "Ruleset not properly set"
+
+                    # Test scanning a file
+                    from codeconcat.validation.security import security_validator
+
+                    findings = security_validator.check_for_suspicious_content(
+                        test_file, use_semgrep=True
+                    )
+
+                    # Verify we have findings
+                    assert len(findings) > 0, "No security findings detected"
+                    apiiro_findings = [
+                        f for f in findings if f.get("rule_id") == "apiiro.command-injection"
                     ]
+                    assert len(apiiro_findings) > 0, "No Apiiro ruleset findings detected"
 
-                    # Create a test file with a potential security issue
-                    test_file = tmp_path / "test_file.py"
-                    test_file.write_text('import os\nos.system("echo test")\n')
-
-                    # Test the Semgrep setup process
-                    from codeconcat.validation.integration import setup_semgrep
-                    from codeconcat.validation.semgrep_validator import semgrep_validator
-
-                    # Create a mock config
-                    mock_config = MagicMock()
-                    mock_config.enable_semgrep = True
-                    mock_config.semgrep_ruleset = str(ruleset_dir)
-
-                    # Patch is_available to return True
-                    with patch(
-                        "codeconcat.validation.semgrep_validator.semgrep_validator.is_available",
-                        return_value=True,
-                    ):
-                        # Test the setup process
-                        result = setup_semgrep(mock_config)
-                        assert result is True, "Semgrep setup failed"
-
-                        # Verify ruleset is used
-                        assert semgrep_validator.ruleset_path == str(
-                            ruleset_dir
-                        ), "Ruleset not properly set"
-
-                        # Test scanning a file
-                        from codeconcat.validation.security import security_validator
-
-                        findings = security_validator.check_for_suspicious_content(
-                            test_file, use_semgrep=True
-                        )
-
-                        # Verify we have findings
-                        assert len(findings) > 0, "No security findings detected"
-                        apiiro_findings = [
-                            f for f in findings if f.get("rule_id") == "apiiro.command-injection"
-                        ]
-                        assert len(apiiro_findings) > 0, "No Apiiro ruleset findings detected"
-
-                        logger.info("Completed validation test with Apiiro ruleset")
+                    logger.info("Completed validation test with Apiiro ruleset")
 
         except Exception as e:
             logger.error(f"Error running Apiiro ruleset test: {e}")

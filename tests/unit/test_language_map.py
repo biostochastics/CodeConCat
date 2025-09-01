@@ -2,11 +2,7 @@
 
 from unittest.mock import patch
 
-from codeconcat.language_map import (
-    ext_map,
-    get_language_guesslang,
-    GUESSLANG_AVAILABLE,
-)
+from codeconcat.language_map import GUESSLANG_AVAILABLE, ext_map, get_language_guesslang
 
 
 class TestLanguageMap:

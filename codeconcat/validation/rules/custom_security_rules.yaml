@@ -13,7 +13,7 @@ rules:
           free($PTR);
           ...
           *$PTR
-  
+
   - id: c-double-free
     languages: [c, cpp]
     message: Double free vulnerability detected
@@ -22,7 +22,7 @@ rules:
       free($PTR);
       ...
       free($PTR);
-  
+
   # Python Advanced Patterns
   - id: python-jinja2-ssti
     languages: [python]
@@ -36,7 +36,7 @@ rules:
             Environment(...).from_string($INPUT)
       - pattern-not: |
           Template("...").render(...)
-  
+
   - id: python-xxe-vulnerability
     languages: [python]
     message: XML External Entity (XXE) vulnerability
@@ -44,7 +44,7 @@ rules:
     patterns:
       - pattern: etree.XMLParser(resolve_entities=True)
       - pattern: etree.parse(..., parser=etree.XMLParser())
-  
+
   # JavaScript/TypeScript Advanced Patterns
   - id: js-postmessage-origin-validation
     languages: [javascript, typescript]
@@ -57,7 +57,7 @@ rules:
           })
       - pattern-not-inside: |
           if ($E.origin === '...' || $E.origin !== '...') { ... }
-  
+
   - id: js-regex-dos
     languages: [javascript, typescript]
     message: Regular expression vulnerable to ReDoS
@@ -65,7 +65,7 @@ rules:
     patterns:
       - pattern-regex: '/(.*[+*]){2,}/'
       - pattern-regex: '/(\w+\s*)+/'
-  
+
   # Go Advanced Patterns
   - id: go-ssrf-vulnerability
     languages: [go]
@@ -83,7 +83,7 @@ rules:
               - pattern: $VAR
             - pattern-not: |
                 "..."
-  
+
   - id: go-timing-attack
     languages: [go]
     message: Potential timing attack in comparison
@@ -98,7 +98,7 @@ rules:
               - pattern: $PASSWORD
               - pattern: $TOKEN
               - pattern: $SECRET
-  
+
   # PHP Advanced Patterns
   - id: php-ldap-injection
     languages: [php]
@@ -110,7 +110,7 @@ rules:
           metavariable: $FILTER
           patterns:
             - pattern-regex: '.*\$_(GET|POST|REQUEST).*'
-  
+
   - id: php-xpath-injection
     languages: [php]
     message: XPath injection vulnerability
@@ -121,7 +121,7 @@ rules:
           metavariable: $QUERY
           patterns:
             - pattern-regex: '.*\$_(GET|POST|REQUEST).*'
-  
+
   # Rust Advanced Patterns
   - id: rust-unsafe-block-misuse
     languages: [rust]
@@ -139,13 +139,13 @@ rules:
             - pattern: '*$PTR'
       - pattern-not-inside: |
           if !$PTR.is_null() { ... }
-  
+
   - id: rust-uninitialized-memory
     languages: [rust]
     message: Use of uninitialized memory
     severity: ERROR
     pattern: std::mem::uninitialized()
-  
+
   # R Advanced Patterns
   - id: r-shiny-reactive-sql-injection
     languages: [r]
@@ -157,7 +157,7 @@ rules:
             ...
           })
       - pattern: dbGetQuery($CONN, paste(..., input$..., ...))
-  
+
   - id: r-system2-command-injection
     languages: [r]
     message: Command injection via system2
@@ -168,7 +168,7 @@ rules:
           metavariable: $ARGS
           patterns:
             - pattern: paste(...)
-  
+
   # Julia Advanced Patterns
   - id: julia-unsafe-pointer-load
     languages: [julia]
@@ -178,34 +178,34 @@ rules:
       - pattern: unsafe_load($PTR, ...)
       - pattern-not-inside: |
           if $PTR != C_NULL ... end
-  
+
   - id: julia-eval-main-module
     languages: [julia]
     message: Eval in Main module context
     severity: ERROR
     pattern: Main.eval($EXPR)
-  
+
   # Cross-Language Patterns
   - id: weak-tls-version
     languages: [python, go, javascript, typescript, rust]
     message: Use of weak TLS version
     severity: WARNING
     pattern-regex: 'TLS(v?1\.0|v?1\.1|10|11)'
-  
+
   - id: hardcoded-database-password
     languages: [python, javascript, typescript, go, php, java, csharp]
     message: Hardcoded database password
     severity: ERROR
     patterns:
-      - pattern-regex: '(password|passwd|pwd)\s*[:=]\s*["\']\w{6,}["\']'
-      - pattern-not-regex: '(password|passwd|pwd)\s*[:=]\s*["\'](\$\{|\%\(|<\%)'
-  
+      - pattern-regex: "(password|passwd|pwd)\\s*[:=]\\s*[\"']\\w{6,}[\"']"
+      - pattern-not-regex: "(password|passwd|pwd)\\s*[:=]\\s*[\"'](\\$\\{|\\%\\(|<\\%)"
+
   - id: jwt-none-algorithm
     languages: [python, javascript, typescript, go, php, java]
     message: JWT none algorithm vulnerability
     severity: CRITICAL
-    pattern-regex: '["\'](alg|algorithm)["\']:\s*["\'](none|None|NONE)["\']'
-  
+    pattern-regex: "[\"'](alg|algorithm)[\"']:\\s*[\"'](none|None|NONE)[\"']"
+
   - id: cryptominer-detection
     languages: [python, javascript, typescript, go, php]
     message: Potential cryptocurrency miner detected

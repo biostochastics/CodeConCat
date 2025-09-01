@@ -129,16 +129,16 @@ class EnhancedPHPParser(EnhancedBaseParser):
             # Skip if no PHP tags found
             if not any("<?php" in line or "<?=" in line for line in content.split("\n")):
                 return ParseResult(
-                    file_path=file_path,
-                    language=self.language,
-                    symbols=[],
-                    errors=["No PHP tags found in file"],
+                    declarations=[],
+                    imports=[],
+                    missed_features=["No PHP tags found in file"],
+                    security_issues=[],
                     engine_used="regex",
                 )
 
-            declarations = []
-            imports = []
-            errors = []
+            declarations: list[Declaration] = []
+            imports: list[str] = []
+            errors: list[str] = []
 
             lines = content.split("\n")
 
@@ -275,7 +275,7 @@ class EnhancedPHPParser(EnhancedBaseParser):
                     docstring_text = ""
 
                     # Extract PHPDoc comment if present
-                    docstring_text = self._extract_phpdoc(lines, i)
+                    docstring_text = self._extract_phpdoc(lines, i) or ""
 
                     # For declarations with blocks, find the end
                     block_types = ["class", "interface", "trait", "function", "method"]
@@ -315,10 +315,7 @@ class EnhancedPHPParser(EnhancedBaseParser):
                         end_line = j
 
                     # Normalize function types
-                    if kind in ["arrow_function", "method"]:
-                        normalized_kind = "function"
-                    else:
-                        normalized_kind = kind
+                    normalized_kind = "function" if kind in ["arrow_function", "method"] else kind
 
                     # Extract modifiers
                     modifiers = self._extract_modifiers(line)
@@ -348,7 +345,7 @@ class EnhancedPHPParser(EnhancedBaseParser):
                         normalized_kind in ["class", "interface", "trait", "function"]
                         and end_line > start_line
                     ):
-                        nested_declarations = []  # Create new list for children
+                        nested_declarations: list[Declaration] = []  # Create new list for children
                         # Recursively process the block for nested declarations
                         self._process_block(
                             lines,
@@ -447,7 +444,7 @@ class EnhancedPHPParser(EnhancedBaseParser):
                 start_line = i
 
                 # Extract the comment block
-                doc_lines = []
+                doc_lines: list[str] = []
                 for j in range(start_line, end_line + 1):
                     line = lines[j].strip()
                     # Remove comment markers and asterisks

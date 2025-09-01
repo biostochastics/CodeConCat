@@ -1,15 +1,15 @@
 """Tests for Apiiro malicious code ruleset integration."""
 
 import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 import subprocess
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from codeconcat.errors import ValidationError
-from codeconcat.validation.setup_semgrep import install_apiiro_ruleset
 from codeconcat.validation.semgrep_validator import SemgrepValidator
+from codeconcat.validation.setup_semgrep import install_apiiro_ruleset
 
 
 class TestApiiroRuleset:
@@ -23,7 +23,7 @@ class TestApiiroRuleset:
             mock_run.return_value = MagicMock(returncode=0)
 
             # Create a fake git clone side effect
-            def fake_git_clone(cmd, **kwargs):
+            def fake_git_clone(cmd, **_kwargs):
                 if "git" in cmd[0] and "clone" in cmd[1]:
                     # Create some fake rule files in the temp directory
                     temp_dir = Path(cmd[3])
@@ -102,7 +102,7 @@ import os
 def run_code(code):
     # This is a backdoor - dangerous!
     eval(code)
-    
+
 def safe_function():
     return "This is safe"
 """
@@ -155,7 +155,7 @@ function normalFunction() {
             }
 
             # Set up the mock to write results file
-            def mock_semgrep_run(cmd, **kwargs):
+            def mock_semgrep_run(cmd, **_kwargs):
                 # Find the output file in the command
                 output_idx = cmd.index("--output") + 1
                 output_file = cmd[output_idx]
@@ -278,7 +278,7 @@ SECRET_TOKEN = "ghp_1234567890abcdef"
                 ]
             }
 
-            def mock_semgrep_run(cmd, **kwargs):
+            def mock_semgrep_run(cmd, **_kwargs):
                 output_idx = cmd.index("--output") + 1
                 output_file = cmd[output_idx]
                 with open(output_file, "w") as f:
@@ -327,7 +327,7 @@ SECRET_TOKEN = "ghp_1234567890abcdef"
 
         with patch("subprocess.run") as mock_run:
             # Check that language filter is passed to semgrep
-            def check_language_filter(cmd, **kwargs):
+            def check_language_filter(cmd, **_kwargs):
                 # Verify --lang python is in the command
                 assert "--lang" in cmd
                 lang_idx = cmd.index("--lang")

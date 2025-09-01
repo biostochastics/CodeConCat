@@ -77,7 +77,7 @@ def check_tree_sitter_grammars() -> Tuple[bool, List[str], List[str]]:
 
         # Use find_spec to check if the module is available without importing it
         if importlib.util.find_spec("tree_sitter") is None:
-            return False
+            return False, [], []
 
         # Look for grammar .so files in the site-packages directory
         site_packages = None
@@ -109,7 +109,7 @@ def check_tree_sitter_grammars() -> Tuple[bool, List[str], List[str]]:
                 grammar_paths = []
 
                 # Check in site-packages
-                for root, dirs, files in os.walk(site_packages):
+                for root, _dirs, files in os.walk(site_packages):
                     if grammar_name in files:
                         grammar_path = os.path.join(root, grammar_name)
                         grammar_paths.append(grammar_path)

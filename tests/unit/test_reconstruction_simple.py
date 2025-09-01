@@ -1,13 +1,11 @@
 """Simple tests for reconstruction functionality."""
 
-import pytest
-from unittest.mock import patch, MagicMock, mock_open
 import tempfile
+from unittest.mock import MagicMock, mock_open, patch
 
-from codeconcat.reconstruction import (
-    reconstruct_from_file,
-    CodeConcatReconstructor,
-)
+import pytest
+
+from codeconcat.reconstruction import CodeConcatReconstructor, reconstruct_from_file
 
 
 class TestCodeConcatReconstructor:
@@ -24,7 +22,7 @@ class TestCodeConcatReconstructor:
 
     @patch("builtins.open", mock_open(read_data="test content"))
     @patch("os.makedirs")
-    def test_reconstructor_write_file(self, mock_makedirs):
+    def test_reconstructor_write_file(self, _mock_makedirs):
         """Test writing a file with reconstructor."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test initializing reconstructor
@@ -67,7 +65,7 @@ class TestReconstructFromFile:
             assert stats["errors"] == 0
 
     @patch("builtins.open", side_effect=FileNotFoundError())
-    def test_reconstruct_nonexistent_file(self, mock_open):
+    def test_reconstruct_nonexistent_file(self, _mock_open):
         """Test reconstructing from non-existent file."""
         with pytest.raises(FileNotFoundError):
             reconstruct_from_file("nonexistent.md", "/output")

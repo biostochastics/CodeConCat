@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Tests for the ConfigBuilder class.
 """
 
+import logging
 import os
 import tempfile
-import pytest
-import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
-from codeconcat.config.config_builder import ConfigBuilder
+import pytest
+
 from codeconcat.base_types import CodeConCatConfig
+from codeconcat.config.config_builder import ConfigBuilder
 
 # Configure logging for tests
 logging.basicConfig(
@@ -173,11 +173,13 @@ class TestConfigBuilder:
 
     def test_builder_invalid_preset(self):
         """Test that an invalid preset name raises an exception."""
+        from codeconcat.errors import ConfigurationError
+
         builder = ConfigBuilder()
         builder.with_defaults()
 
-        with pytest.raises(Exception):
-            # The exception type might be ConfigurationError instead of ValueError
+        with pytest.raises(ConfigurationError):
+            # The exception type is ConfigurationError, not ValueError
             builder.with_preset("non_existent_preset")
 
     def test_builder_invalid_yaml(self):

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Diagnostic script to debug parser issues in multi-language corpus tests.
@@ -7,12 +6,13 @@ Diagnostic script to debug parser issues in multi-language corpus tests.
 
 import os
 import traceback
+
 from codeconcat.base_types import CodeConCatConfig
 
 
 def read_file_content(file_path):
     try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
             return f.read()
     except Exception as e:
         print(f"Error reading file {file_path}: {e}")

@@ -17,12 +17,12 @@ the EnhancedParserInterface with additional capabilities.
 from .base_parser import BaseParser
 from .enhanced_base_parser import EnhancedBaseParser
 from .pattern_library import (
+    C_FAMILY_MODIFIERS,
     ClassPatterns,
-    FunctionPatterns,
-    ImportPatterns,
     CommentPatterns,
     DocstringPatterns,
-    C_FAMILY_MODIFIERS,
+    FunctionPatterns,
+    ImportPatterns,
     create_pattern_with_modifiers,
 )
 
@@ -44,6 +44,7 @@ __all__ = [
 REGEX_PARSER_MAP = {
     # DEPRECATED: Standard parsers (will be removed in future versions)
     # These are kept for backward compatibility and as final fallbacks
+    # in the progressive parser pipeline
     # in the progressive parser pipeline
     "python": "PythonParser",
     "java": "JavaParser",

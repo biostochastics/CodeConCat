@@ -6,14 +6,14 @@ This script checks if all the required Tree-sitter grammars are correctly
 installed and available.
 """
 
+import logging
 import os
 import sys
-import logging
 
 # Add the parent directory to path so we can import codeconcat modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from codeconcat.diagnostics import verify_tree_sitter_dependencies
+from codeconcat.diagnostics import verify_tree_sitter_dependencies  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

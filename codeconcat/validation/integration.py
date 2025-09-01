@@ -9,14 +9,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Union
 
 from ..base_types import CodeConCatConfig, ParsedFileData
-from ..errors import ValidationError, ConfigurationError
-from . import (
-    InputValidator as IV,
-)
+from ..errors import ConfigurationError, ValidationError
 from .schema_validation import validate_against_schema
 from .security import security_validator
 from .semgrep_validator import semgrep_validator
-from .setup_semgrep import install_semgrep, install_apiiro_ruleset
+from .setup_semgrep import install_apiiro_ruleset, install_semgrep
 
 logger = logging.getLogger(__name__)
 
@@ -68,13 +65,19 @@ def validate_input_files(
                 # Try checking the original path too
                 original_exists = Path(file_path).exists()
                 logger_int.debug(f"[validate_input_files] Original path exists: {original_exists}")
-                raise ValidationError(f"File does not exist: {file_path} (resolved: {resolved_path})", field="file_path")
+                raise ValidationError(
+                    f"File does not exist: {file_path} (resolved: {resolved_path})",
+                    field="file_path",
+                )
 
             # 2. File size validation
             max_size = getattr(config, "max_file_size", 10 * 1024 * 1024)  # Default 10MB
             file_size = Path(file_path).stat().st_size
             if file_size > max_size:
-                raise ValidationError(f"File size exceeds limit: {file_size} bytes (max {max_size} bytes)", field="file_size")
+                raise ValidationError(
+                    f"File size exceeds limit: {file_size} bytes (max {max_size} bytes)",
+                    field="file_size",
+                )
 
             # 3. If strict validation is enabled, perform more checks
             if getattr(config, "strict_validation", False) or config.enable_security_scanning:
@@ -165,7 +168,9 @@ def validate_config_values(config: Union[Dict[str, Any], CodeConCatConfig]) -> b
                 # Try to convert to dict using __dict__
                 config_dict = vars(config)
             except Exception as e:
-                raise ConfigurationError(f"Failed to convert configuration to dictionary: {e}")
+                raise ConfigurationError(
+                    f"Failed to convert configuration to dictionary: {e}"
+                ) from e
     else:
         config_dict = config
 
@@ -174,10 +179,10 @@ def validate_config_values(config: Union[Dict[str, Any], CodeConCatConfig]) -> b
         validate_against_schema(config_dict, "config", context="configuration")
         return True
     except ValidationError as e:
-        raise ConfigurationError(f"Configuration validation failed: {e}")
+        raise ConfigurationError(f"Configuration validation failed: {e}") from e
 
 
-def sanitize_output(content: str, sensitive_data: bool = True) -> str:
+def sanitize_output(content: str, sensitive_data: bool = True) -> str:  # noqa: ARG001
     """
     Sanitize output content to remove sensitive data.
 

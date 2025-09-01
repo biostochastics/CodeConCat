@@ -14,9 +14,9 @@ from typing import Dict, List, Optional, Set
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 from codeconcat.parser.language_parsers.pattern_library import (
+    C_FAMILY_MODIFIERS,
     ClassPatterns,
     FunctionPatterns,
-    C_FAMILY_MODIFIERS,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,9 +61,9 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
         try:
             logger.debug(f"Starting {self.__class__.__name__}.parse for file: {file_path}")
 
-            declarations = []
-            imports = []
-            errors = []
+            declarations: list[Declaration] = []
+            imports: list[str] = []
+            errors: list[str] = []
 
             lines = content.split("\n")
 
@@ -137,7 +137,9 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
 
             # Skip block comments
             if self.block_comment_start and line.startswith(self.block_comment_start):
-                while i < len(lines) and self.block_comment_end not in lines[i]:
+                while i < len(lines) and (
+                    self.block_comment_end and self.block_comment_end not in lines[i]
+                ):
                     i += 1
                 i += 1  # Skip the closing comment line
                 continue
@@ -196,7 +198,7 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
                                 end_line = j
 
                     # Extract docstring if available
-                    docstring_text = self.extract_docstring(lines, start_line, end_line)
+                    docstring_text = self.extract_docstring(lines, start_line, end_line) or ""
 
                     # Extract modifiers like public, static, etc.
                     modifiers = self._extract_modifiers(line)
@@ -226,7 +228,7 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
                         kind in ["class", "struct", "namespace", "function"]
                         and end_line > start_line
                     ):
-                        nested_declarations = []  # Create new list for children
+                        nested_declarations: list[Declaration] = []  # Create new list for children
                         # Recursively process the block for nested declarations
                         self._process_block(
                             lines,
