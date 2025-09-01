@@ -43,9 +43,9 @@ def remove_comments(content: str) -> str:
         # Check for multiline string continuation
         if in_multiline_string:
             # Look for end of multiline string
-            assert (
-                multiline_delimiter is not None
-            ), "multiline_delimiter should not be None when in_multiline_string is True"
+            assert multiline_delimiter is not None, (
+                "multiline_delimiter should not be None when in_multiline_string is True"
+            )
             if multiline_delimiter in line:
                 # Find where the multiline string ends
                 end_pos = line.find(multiline_delimiter) + len(multiline_delimiter)

@@ -674,9 +674,9 @@ def test_repomix_typescript_parsers(repomix_repo):
                 logger.info(f"Found {len(result.imports)} imports in example")
 
             # Test passes if we can process the example
-            assert hasattr(result, "declarations") or hasattr(
-                result, "imports"
-            ), "Parser failed to extract from example"
+            assert hasattr(result, "declarations") or hasattr(result, "imports"), (
+                "Parser failed to extract from example"
+            )
         except Exception as e:
             logger.error(f"Error parsing TypeScript example: {e}")
             raise
@@ -788,9 +788,9 @@ def test_repomix_javascript_parsers(repomix_repo):
     expected_kinds = ["function", "class", "variable", "method"]
     found_kinds = [kind for kind in expected_kinds if kind in declaration_kinds]
 
-    assert (
-        len(found_kinds) > 0
-    ), f"Found no expected declaration kinds, only {declaration_kinds.keys()}"
+    assert len(found_kinds) > 0, (
+        f"Found no expected declaration kinds, only {declaration_kinds.keys()}"
+    )
 
     print(f"Processed {total_files} JavaScript files with {total_declarations} declarations")
     print(f"Declaration types found: {declaration_kinds}")

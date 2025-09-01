@@ -316,9 +316,9 @@ export class UserService {
         assert self.js_parser.language == "javascript", "Parser language not set correctly"
 
         # Check TypeScript parser
-        assert (
-            self.ts_parser.language == "typescript"
-        ), "TypeScript Parser language not set correctly"
+        assert self.ts_parser.language == "typescript", (
+            "TypeScript Parser language not set correctly"
+        )
 
     def test_parse_js_file(self, js_code_sample, _mock_tree_sitter_classes):
         """Test parsing a JavaScript file."""
@@ -362,23 +362,23 @@ export class UserService {
         # Check for classes
         user_class = next((d for d in result.declarations if d.name == "User"), None)
         assert user_class is not None, "Class 'User' not found"
-        assert (
-            user_class.kind == "class"
-        ), f"User is not recognized as a class, got {user_class.kind}"
+        assert user_class.kind == "class", (
+            f"User is not recognized as a class, got {user_class.kind}"
+        )
 
         # Check class methods
         if user_class.children:
             method_names = [m.name for m in user_class.children]
             assert "constructor" in method_names, "Constructor not found in User class"
-            assert (
-                "getDisplayName" in method_names
-            ), "Method 'getDisplayName' not found in User class"
+            assert "getDisplayName" in method_names, (
+                "Method 'getDisplayName' not found in User class"
+            )
             assert "login" in method_names, "Method 'login' not found in User class"
 
             # Check if private methods are included (since include_private is True)
-            assert (
-                "_updateLastLogin" in method_names
-            ), "Private method '_updateLastLogin' not found in User class"
+            assert "_updateLastLogin" in method_names, (
+                "Private method '_updateLastLogin' not found in User class"
+            )
 
     def test_parse_ts_file(self, ts_code_sample, _mock_tree_sitter_classes):
         """Test parsing a TypeScript file."""
@@ -429,12 +429,12 @@ export class UserService {
         if user_service.children:
             method_names = [m.name for m in user_service.children]
             assert "constructor" in method_names, "Constructor not found in UserService class"
-            assert (
-                "getUserById" in method_names
-            ), "Method 'getUserById' not found in UserService class"
-            assert (
-                "createUser" in method_names
-            ), "Method 'createUser' not found in UserService class"
+            assert "getUserById" in method_names, (
+                "Method 'getUserById' not found in UserService class"
+            )
+            assert "createUser" in method_names, (
+                "Method 'createUser' not found in UserService class"
+            )
 
     def test_private_declarations_filtering(self, js_code_sample, _mock_tree_sitter_classes):
         """Test filtering of private declarations."""
@@ -486,21 +486,21 @@ export class UserService {
         )
 
         assert user_class_with_private is not None, "User class not found with include_private=True"
-        assert (
-            user_class_without_private is not None
-        ), "User class not found with include_private=False"
+        assert user_class_without_private is not None, (
+            "User class not found with include_private=False"
+        )
 
         # Check that private methods are filtered differently
         if user_class_with_private.children and user_class_without_private.children:
             methods_with_private = [m.name for m in user_class_with_private.children]
             methods_without_private = [m.name for m in user_class_without_private.children]
 
-            assert (
-                "_updateLastLogin" in methods_with_private
-            ), "Private method should be included with include_private=True"
-            assert (
-                "_updateLastLogin" not in methods_without_private
-            ), "Private method should be excluded with include_private=False"
+            assert "_updateLastLogin" in methods_with_private, (
+                "Private method should be included with include_private=True"
+            )
+            assert "_updateLastLogin" not in methods_without_private, (
+                "Private method should be excluded with include_private=False"
+            )
 
     def test_parse_with_docstrings(self, js_code_sample, _mock_tree_sitter_classes):
         """Test parsing a file with JSDoc docstrings."""
@@ -536,20 +536,20 @@ export class UserService {
         # Check function docstring extraction
         add_func = next((d for d in result.declarations if d.name == "add"), None)
         assert add_func is not None, "Function 'add' not found"
-        assert (
-            add_func.docstring is not None and len(add_func.docstring) > 0
-        ), "No docstring found for 'add' function"
+        assert add_func.docstring is not None and len(add_func.docstring) > 0, (
+            "No docstring found for 'add' function"
+        )
         assert "adds two numbers" in add_func.docstring, "Expected docstring content not found"
 
         # Check class docstring extraction
         user_class = next((d for d in result.declarations if d.name == "User"), None)
         assert user_class is not None, "Class 'User' not found"
-        assert (
-            user_class.docstring is not None and len(user_class.docstring) > 0
-        ), "No docstring found for 'User' class"
-        assert (
-            "manage user information" in user_class.docstring
-        ), "Expected docstring content not found"
+        assert user_class.docstring is not None and len(user_class.docstring) > 0, (
+            "No docstring found for 'User' class"
+        )
+        assert "manage user information" in user_class.docstring, (
+            "Expected docstring content not found"
+        )
 
         # Check method docstring extraction
         if user_class.children:
@@ -557,12 +557,12 @@ export class UserService {
                 (m for m in user_class.children if m.name == "getDisplayName"), None
             )
             assert get_display_name is not None, "Method 'getDisplayName' not found"
-            assert (
-                get_display_name.docstring is not None and len(get_display_name.docstring) > 0
-            ), "No docstring found for 'getDisplayName' method"
-            assert (
-                "display name" in get_display_name.docstring
-            ), "Expected docstring content not found"
+            assert get_display_name.docstring is not None and len(get_display_name.docstring) > 0, (
+                "No docstring found for 'getDisplayName' method"
+            )
+            assert "display name" in get_display_name.docstring, (
+                "Expected docstring content not found"
+            )
 
     def test_source_locations(self, js_code_sample, _mock_tree_sitter_classes):
         """Test that source locations are correctly extracted."""
@@ -603,9 +603,9 @@ export class UserService {
 
         # Check that declarations have start and end lines
         for decl in result.declarations:
-            assert hasattr(
-                decl, "start_line"
-            ), f"Declaration {decl.name} has no start_line attribute"
+            assert hasattr(decl, "start_line"), (
+                f"Declaration {decl.name} has no start_line attribute"
+            )
             assert hasattr(decl, "end_line"), f"Declaration {decl.name} has no end_line attribute"
             assert decl.start_line > 0, f"Invalid start line for {decl.name}"
             assert decl.end_line >= decl.start_line, f"Invalid line range for {decl.name}"
@@ -613,16 +613,16 @@ export class UserService {
             # Check children locations
             if decl.children:
                 for child in decl.children:
-                    assert hasattr(
-                        child, "start_line"
-                    ), f"Child {decl.name}.{child.name} has no start_line attribute"
-                    assert hasattr(
-                        child, "end_line"
-                    ), f"Child {decl.name}.{child.name} has no end_line attribute"
+                    assert hasattr(child, "start_line"), (
+                        f"Child {decl.name}.{child.name} has no start_line attribute"
+                    )
+                    assert hasattr(child, "end_line"), (
+                        f"Child {decl.name}.{child.name} has no end_line attribute"
+                    )
                     assert child.start_line > 0, f"Invalid start line for {decl.name}.{child.name}"
-                    assert (
-                        child.end_line >= child.start_line
-                    ), f"Invalid line range for {decl.name}.{child.name}"
+                    assert child.end_line >= child.start_line, (
+                        f"Invalid line range for {decl.name}.{child.name}"
+                    )
 
     # Removed the test_node_parsing test since it tests internal implementation details
     # that may have changed in the modernized architecture. We should focus on

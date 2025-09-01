@@ -461,16 +461,16 @@ export default (() => {
         # Test JavaScript parser with Python code (should not crash)
         python_code = "def test_function():\n    print('Hello')\n"
         result = js_parser.parse(python_code, "wrong_language.js")
-        assert isinstance(
-            result, ParseResult
-        ), "Parser should return a result even for wrong languages"
+        assert isinstance(result, ParseResult), (
+            "Parser should return a result even for wrong languages"
+        )
 
         # Test Python parser with JavaScript code (should not crash)
         js_code = "function testFunction() {\n    console.log('Hello');\n}\n"
         result = python_parser.parse(js_code, "wrong_language.py")
-        assert isinstance(
-            result, ParseResult
-        ), "Parser should return a result even for wrong languages"
+        assert isinstance(result, ParseResult), (
+            "Parser should return a result even for wrong languages"
+        )
 
         # Test with empty file
         result = python_parser.parse("", "empty.py")

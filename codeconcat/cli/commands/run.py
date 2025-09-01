@@ -480,15 +480,21 @@ def run_command(
         # Process files
         # Initialize security reporter if security scanning is enabled
         if enable_security:
+            security_report_path = os.getenv(
+                "CODECONCAT_SECURITY_REPORT_PATH", ".codeconcat_test_security.json"
+            )
             init_reporter(
                 write_test_report=write_test_security_report,
-                test_report_path=Path(".codeconcat_test_security.json"),
+                test_report_path=Path(security_report_path),
             )
 
         # Initialize unsupported files reporter
+        unsupported_report_path = os.getenv(
+            "CODECONCAT_UNSUPPORTED_REPORT_PATH", ".codeconcat_unsupported_files.json"
+        )
         init_unsupported_reporter(
             write_report=write_unsupported_report,
-            report_path=Path(".codeconcat_unsupported_files.json"),
+            report_path=Path(unsupported_report_path),
         )
 
         if not state.quiet:

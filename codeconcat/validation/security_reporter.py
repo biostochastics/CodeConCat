@@ -125,7 +125,7 @@ class SecurityReporter:
         }
 
         try:
-            with open(self.test_report_path, "w") as f:
+            with open(self.test_report_path, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2, default=str)
             logger.debug(f"Test security report written to {self.test_report_path}")
         except Exception as e:

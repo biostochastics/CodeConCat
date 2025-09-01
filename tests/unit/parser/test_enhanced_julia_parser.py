@@ -180,9 +180,9 @@ class TestEnhancedJuliaParser:
         )
 
         # This test is informative rather than assertive since nested declarations are optional
-        assert total_declarations >= len(
-            result.declarations
-        ), "Total declarations should be at least equal to top-level declarations"
+        assert total_declarations >= len(result.declarations), (
+            "Total declarations should be at least equal to top-level declarations"
+        )
 
 
 if __name__ == "__main__":

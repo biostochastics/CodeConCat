@@ -89,6 +89,9 @@ def should_include_file(
     Returns:
         Optional[str]: The determined language string if the file should be included, otherwise None.
     """
+    # Cache the unsupported reporter to avoid repeated calls
+    unsupported_reporter = get_unsupported_reporter()
+
     # Ensure target_path exists for relative path calculation
     base_path = (
         config.target_path if config.target_path and os.path.isdir(config.target_path) else "."
@@ -199,7 +202,7 @@ def should_include_file(
             # For now, if language is unknown, we don't include unless forced by config?
             # If we got here because include_paths matched, maybe default to 'unknown' language?
             # Let's return None for now if language is undetermined.
-            reporter = get_unsupported_reporter()
+            reporter = unsupported_reporter
             reporter.add_skipped_file(
                 Path(file_path),
                 "Could not determine language from extension or content",
@@ -211,7 +214,7 @@ def should_include_file(
     if not language:
         if config.verbose:
             logger.debug(f"Final language determination failed for {rel_path}")
-        reporter = get_unsupported_reporter()
+        reporter = unsupported_reporter
         reporter.add_skipped_file(Path(file_path), "Language detection failed", "unknown_language")
         return None
 
@@ -221,7 +224,7 @@ def should_include_file(
             logger.debug(
                 f"Excluded by include_languages: {rel_path} (lang: {language} not in {config.include_languages})"
             )
-        reporter = get_unsupported_reporter()
+        reporter = unsupported_reporter
         reporter.add_skipped_file(
             Path(file_path), f"Language '{language}' not in include list", "excluded_pattern"
         )
@@ -233,7 +236,7 @@ def should_include_file(
             logger.debug(
                 f"Excluded by exclude_languages: {rel_path} (lang: {language} in {config.exclude_languages})"
             )
-        reporter = get_unsupported_reporter()
+        reporter = unsupported_reporter
         reporter.add_skipped_file(
             Path(file_path), f"Language '{language}' in exclude list", "excluded_pattern"
         )
@@ -243,7 +246,7 @@ def should_include_file(
     if is_binary_file(file_path):
         if config.verbose:
             logger.debug(f"Excluded binary file: {rel_path}")
-        reporter = get_unsupported_reporter()
+        reporter = unsupported_reporter
         reporter.add_skipped_file(Path(file_path), "Binary file detected", "binary")
         return None
 
@@ -321,6 +324,9 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
             return []
 
     parsed_files_data: List[ParsedFileData] = []
+
+    # Cache the unsupported reporter to avoid repeated calls
+    unsupported_reporter = get_unsupported_reporter()
 
     # --- Compile PathSpec objects --- #
     # (These are needed for both file and directory cases)
@@ -521,7 +527,7 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
                 # Skip any files that are too large (early filter to prevent hangs)
                 # Check file size before processing
                 if is_file_too_large_for_collection(file_path):
-                    reporter = get_unsupported_reporter()
+                    reporter = unsupported_reporter
                     reporter.add_skipped_file(
                         Path(file_path), "File too large for processing", "too_large"
                     )
@@ -580,7 +586,7 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
                         progress.update(task, advance=1)
 
                         # Update the unsupported reporter's process counter
-                        reporter = get_unsupported_reporter()
+                        reporter = unsupported_reporter
                         reporter.increment_processed_count()
 
                         # Periodically log progress

@@ -218,9 +218,9 @@ class TestRepositoryValidation:
 
                     # In a real test, we would check for actual findings in the output
                     if repo["expected_findings"] > 0:
-                        assert (
-                            "WARNING" in output or "security" in output.lower()
-                        ), f"Expected security findings in {repo['name']} output"
+                        assert "WARNING" in output or "security" in output.lower(), (
+                            f"Expected security findings in {repo['name']} output"
+                        )
 
                 except Exception as e:
                     logger.error(f"Error running CodeConCat with Semgrep on {repo['name']}: {e}")

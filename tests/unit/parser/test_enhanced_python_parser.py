@@ -367,9 +367,9 @@ if __name__ == "__main__":
         log_change_func = next(
             (f for f in set_address_method.children if f.name == "log_change"), None
         )
-        assert (
-            log_change_func is not None
-        ), "log_change nested function not found in set_address method"
+        assert log_change_func is not None, (
+            "log_change nested function not found in set_address method"
+        )
 
 
 if __name__ == "__main__":

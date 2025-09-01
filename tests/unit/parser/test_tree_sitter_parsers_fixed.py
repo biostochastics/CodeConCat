@@ -252,9 +252,9 @@ class TestTreeSitterParsersFixed:
                     content = f.read()
 
                 # Check that the old pattern doesn't exist
-                assert (
-                    "for node, capture_name in captures:" not in content
-                ), f"{parser_module} still has old capture unpacking pattern"
+                assert "for node, capture_name in captures:" not in content, (
+                    f"{parser_module} still has old capture unpacking pattern"
+                )
 
                 # Check that the new pattern exists
                 assert (
