@@ -31,12 +31,10 @@ jobs:
       run: poetry install --no-interaction --no-root
     - name: Install project
       run: poetry install --no-interaction
-    - name: Run ruff
+    - name: Run ruff check
       run: poetry run ruff check .
-    - name: Run black
-      run: poetry run black --check .
-    - name: Run isort
-      run: poetry run isort --check-only .
+    - name: Run ruff format check
+      run: poetry run ruff format --check .
     - name: Run mypy
       run: poetry run mypy codeconcat
 
