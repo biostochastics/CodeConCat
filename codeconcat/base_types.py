@@ -98,6 +98,7 @@ class SecuritySeverity(Enum):
         - Provides a standard order for security severity levels: INFO < LOW < MEDIUM < HIGH < CRITICAL.
         - Implements comparison methods to enable ordering of SecuritySeverity instances.
         - If comparison is attempted with a non-SecuritySeverity instance, NotImplemented is returned."""
+
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
@@ -338,6 +339,7 @@ class ParseResult:
         - Caters to both mandatory and discretionary parsing scenarios by providing default values.
         - Facilitates concise feedback on parsing efficacy and areas requiring attention.
     """
+
     # Required fields first (no defaults)
     declarations: list[Declaration] = field(default_factory=list)
     imports: list[str] = field(default_factory=list)

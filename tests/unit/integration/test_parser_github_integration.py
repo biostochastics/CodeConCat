@@ -217,9 +217,9 @@ def fetch_repo_files(repo_name: str, config: CodeConCatConfig) -> Tuple[List[Par
             if files:
                 logger.info("First 5 files found:")
                 for i, f in enumerate(files[:5]):
-                    logger.info(f"  {i+1}. {f.file_path} ({f.language})")
+                    logger.info(f"  {i + 1}. {f.file_path} ({f.language})")
                 if len(files) > 5:
-                    logger.info(f"  ...and {len(files)-5} more files")
+                    logger.info(f"  ...and {len(files) - 5} more files")
 
                 # Create temp dir for consistency with API
                 temp_dir = tempfile.mkdtemp(
@@ -431,7 +431,7 @@ def repomix_repo():
             if ts_files:
                 logger.info(f"First {min(5, len(ts_files))} TypeScript files:")
                 for i, f in enumerate(ts_files[:5]):
-                    logger.info(f"  {i+1}. {f.file_path} (language={f.language})")
+                    logger.info(f"  {i + 1}. {f.file_path} (language={f.language})")
             else:
                 logger.warning("No .ts files found in repository files list")
 
@@ -716,9 +716,9 @@ def test_repomix_javascript_parsers(repomix_repo):
             if js_files:
                 logger.info(f"Found {len(js_files)} .js files directly in filesystem")
                 for i, f in enumerate(js_files[:5]):
-                    logger.info(f"  {i+1}. {f}")
+                    logger.info(f"  {i + 1}. {f}")
                 if len(js_files) > 5:
-                    logger.info(f"  ...and {len(js_files)-5} more files")
+                    logger.info(f"  ...and {len(js_files) - 5} more files")
 
                 # Try loading directly
                 from codeconcat.base_types import ParsedFileData
@@ -818,9 +818,9 @@ def test_tsx_react_component_parsing(repomix_repo):
             if tsx_files:
                 logger.info(f"Found {len(tsx_files)} .tsx files directly in filesystem")
                 for i, f in enumerate(tsx_files[:5]):
-                    logger.info(f"  {i+1}. {f}")
+                    logger.info(f"  {i + 1}. {f}")
                 if len(tsx_files) > 5:
-                    logger.info(f"  ...and {len(tsx_files)-5} more files")
+                    logger.info(f"  ...and {len(tsx_files) - 5} more files")
 
                 # Try loading directly
                 from codeconcat.base_types import ParsedFileData

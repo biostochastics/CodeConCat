@@ -105,9 +105,9 @@ def main(
     state.config_path = config
 
     # Setup logging based on verbosity level
-    # Priority: quiet mode > debug (vv) > info (v) > warning (default)
+    # Priority: quiet mode > debug (vv) > info (v) > error (default for cleaner output)
     log_level = (
-        "ERROR" if quiet else ("DEBUG" if verbose > 1 else "INFO" if verbose > 0 else "WARNING")
+        "ERROR" if quiet else ("DEBUG" if verbose > 1 else "INFO" if verbose > 0 else "ERROR")
     )
     setup_logging(log_level, quiet)
 

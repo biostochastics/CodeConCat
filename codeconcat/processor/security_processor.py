@@ -217,7 +217,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             abs_path = Path(file_path).expanduser().resolve()
         except Exception:  # pylint: disable=broad-except
             logger.warning(
-                "Could not resolve absolute path for '%s'; falling back to the " "provided string.",
+                "Could not resolve absolute path for '%s'; falling back to the provided string.",
                 file_path,
             )
             abs_path = Path(str(file_path))

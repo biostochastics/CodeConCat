@@ -25,6 +25,7 @@ class CodeSymbol:
     Processing Logic:
         - Represents hierarchical code structures where symbols can be nested within each other.
         - Captures the location of the symbols in the code for reference or analysis."""
+
     name: str
     kind: str
     start_line: int

@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern  # type: ignore[attr-defined]
-from tqdm import tqdm
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 from codeconcat.constants import DEFAULT_EXCLUDE_PATTERNS
@@ -16,6 +16,7 @@ from codeconcat.language_map import GUESSLANG_AVAILABLE, ext_map, get_language_g
 from codeconcat.processor.security_processor import SecurityProcessor
 from codeconcat.utils import is_file_too_large_for_binary_check, is_file_too_large_for_collection
 from codeconcat.utils.feature_flags import is_enabled
+from codeconcat.validation.unsupported_reporter import get_reporter as get_unsupported_reporter
 
 logger = logging.getLogger(__name__)
 # Do not set up handlers or formatters here; let the CLI configure logging.
@@ -198,12 +199,20 @@ def should_include_file(
             # For now, if language is unknown, we don't include unless forced by config?
             # If we got here because include_paths matched, maybe default to 'unknown' language?
             # Let's return None for now if language is undetermined.
+            reporter = get_unsupported_reporter()
+            reporter.add_skipped_file(
+                Path(file_path),
+                "Could not determine language from extension or content",
+                "unknown_language",
+            )
             return None
 
     # Ensure we have a language string
     if not language:
         if config.verbose:
             logger.debug(f"Final language determination failed for {rel_path}")
+        reporter = get_unsupported_reporter()
+        reporter.add_skipped_file(Path(file_path), "Language detection failed", "unknown_language")
         return None
 
     # 5. Check include_languages from config
@@ -212,6 +221,10 @@ def should_include_file(
             logger.debug(
                 f"Excluded by include_languages: {rel_path} (lang: {language} not in {config.include_languages})"
             )
+        reporter = get_unsupported_reporter()
+        reporter.add_skipped_file(
+            Path(file_path), f"Language '{language}' not in include list", "excluded_pattern"
+        )
         return None
 
     # 6. Check exclude_languages from config
@@ -220,12 +233,18 @@ def should_include_file(
             logger.debug(
                 f"Excluded by exclude_languages: {rel_path} (lang: {language} in {config.exclude_languages})"
             )
+        reporter = get_unsupported_reporter()
+        reporter.add_skipped_file(
+            Path(file_path), f"Language '{language}' in exclude list", "excluded_pattern"
+        )
         return None
 
     # Check if the file is binary (we only want text files)
     if is_binary_file(file_path):
         if config.verbose:
             logger.debug(f"Excluded binary file: {rel_path}")
+        reporter = get_unsupported_reporter()
+        reporter.add_skipped_file(Path(file_path), "Binary file detected", "binary")
         return None
 
     # If we passed all checks, the file should be included
@@ -502,6 +521,10 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
                 # Skip any files that are too large (early filter to prevent hangs)
                 # Check file size before processing
                 if is_file_too_large_for_collection(file_path):
+                    reporter = get_unsupported_reporter()
+                    reporter.add_skipped_file(
+                        Path(file_path), "File too large for processing", "too_large"
+                    )
                     continue  # File is too large, skip it
 
                 # We already filtered in the walk, but let's re-determine language for process_file
@@ -524,13 +547,16 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
             completed = 0
             total = len(future_to_file_lang)
 
-            # Create progress bar
-            with tqdm(
-                total=total,
-                desc="Processing files",
-                unit="file",
+            # Create progress bar using Rich
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold blue]Processing files"),
+                BarColumn(),
+                TaskProgressColumn(),
+                "[progress.percentage]{task.percentage:>3.0f}%",
                 disable=config.disable_progress_bar,
-            ) as progress_bar:
+            ) as progress:
+                task = progress.add_task("Processing", total=total)
                 # Process each future with a timeout
                 for future in concurrent.futures.as_completed(future_to_file_lang):
                     file_path, language = future_to_file_lang[future]
@@ -551,7 +577,11 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
                     finally:
                         # Always update progress regardless of success or failure
                         completed += 1
-                        progress_bar.update(1)
+                        progress.update(task, advance=1)
+
+                        # Update the unsupported reporter's process counter
+                        reporter = get_unsupported_reporter()
+                        reporter.increment_processed_count()
 
                         # Periodically log progress
                         if completed % 50 == 0 or completed == total:

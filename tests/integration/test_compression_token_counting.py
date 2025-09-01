@@ -139,10 +139,10 @@ if __name__ == "__main__":
             f"Compressed tokens: GPT-4: {compressed_stats.gpt4_tokens}, Claude: {compressed_stats.claude_tokens}"
         )
         print(
-            f"Token reduction: GPT-4: {uncompressed_stats.gpt4_tokens - compressed_stats.gpt4_tokens} tokens ({(1-compressed_stats.gpt4_tokens/uncompressed_stats.gpt4_tokens)*100:.1f}%)"
+            f"Token reduction: GPT-4: {uncompressed_stats.gpt4_tokens - compressed_stats.gpt4_tokens} tokens ({(1 - compressed_stats.gpt4_tokens / uncompressed_stats.gpt4_tokens) * 100:.1f}%)"
         )
         print(
-            f"Token reduction: Claude: {uncompressed_stats.claude_tokens - compressed_stats.claude_tokens} tokens ({(1-compressed_stats.claude_tokens/uncompressed_stats.claude_tokens)*100:.1f}%)"
+            f"Token reduction: Claude: {uncompressed_stats.claude_tokens - compressed_stats.claude_tokens} tokens ({(1 - compressed_stats.claude_tokens / uncompressed_stats.claude_tokens) * 100:.1f}%)"
         )
 
     def test_empty_content_compression(self):

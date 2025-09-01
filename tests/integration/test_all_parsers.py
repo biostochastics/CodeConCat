@@ -294,9 +294,9 @@ plot_data <- function(data) {
 
 def check_parser(name, parser_class, code, language=None):
     """Check a single parser."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Testing {name} Parser")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     try:
         # Initialize parser
@@ -363,9 +363,9 @@ def test_all_tree_sitter_parsers():
         results.append((test_case[0], success))
 
     # Summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Test Summary")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     passed = sum(1 for _, success in results if success)
     total = len(results)

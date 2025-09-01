@@ -214,7 +214,7 @@ def test_c_family_parser_with_corpus(language_corpus_files):
 
     # Process each file
     for index, file_path in enumerate(c_family_files):
-        print(f"\nProcessing C-family file {index+1}/{len(c_family_files)}: {file_path}")
+        print(f"\nProcessing C-family file {index + 1}/{len(c_family_files)}: {file_path}")
 
         # Read the file content
         print("  Reading file content...")
@@ -313,7 +313,7 @@ def test_c_family_parser_with_corpus(language_corpus_files):
     # Print all processed files for debugging
     print(f"\nProcessed {len(processed_files)} files:")
     for i, file in enumerate(processed_files):
-        print(f"  {i+1}. {file}")
+        print(f"  {i + 1}. {file}")
 
     # Print comprehensive test results
     print("\nC-family Parser Test Results:")
@@ -356,7 +356,7 @@ def test_golang_parser_with_corpus(language_corpus_files):
     # Print available Go files for debugging
     print(f"Found {len(go_files)} Go files to test:")
     for i, file in enumerate(go_files):
-        print(f"  Go file {i+1}: {file}")
+        print(f"  Go file {i + 1}: {file}")
 
     CodeConCatConfig(use_enhanced_parsers=True)
 
@@ -380,7 +380,7 @@ def test_golang_parser_with_corpus(language_corpus_files):
 
     # Process each file with comprehensive diagnostics
     for index, file_path in enumerate(go_files):
-        print(f"\nProcessing Go file {index+1}/{len(go_files)}: {file_path}")
+        print(f"\nProcessing Go file {index + 1}/{len(go_files)}: {file_path}")
 
         # Verify file exists
         if not os.path.exists(file_path):
@@ -466,7 +466,7 @@ def test_golang_parser_with_corpus(language_corpus_files):
     # Print all processed files for debugging
     print(f"\nProcessed {len(processed_files)} files:")
     for i, file in enumerate(processed_files):
-        print(f"  {i+1}. {file}")
+        print(f"  {i + 1}. {file}")
 
     # Print comprehensive test results
     print("\nGo Parser Test Results:")
@@ -506,7 +506,7 @@ def test_rust_parser_with_corpus(language_corpus_files):
     print(f"Found {len(rust_files)} Rust files to test")
     # Print the list of Rust files to debug
     for i, file in enumerate(rust_files):
-        print(f"  Rust file {i+1}: {file}")
+        print(f"  Rust file {i + 1}: {file}")
 
     # Test just one simple example instead of all files to isolate issues
     if rust_files:
@@ -534,7 +534,7 @@ def test_rust_parser_with_corpus(language_corpus_files):
 
     # Process one file at a time with extra debugging info
     for index, file_path in enumerate(rust_files):
-        print(f"\nProcessing Rust file {index+1}/{len(rust_files)}: {file_path}")
+        print(f"\nProcessing Rust file {index + 1}/{len(rust_files)}: {file_path}")
 
         # Read the file content
         print("  Reading file content...")
@@ -620,7 +620,7 @@ def test_rust_parser_with_corpus(language_corpus_files):
     # Print all processed files for debugging
     print(f"\nProcessed {len(processed_files)} files:")
     for i, file in enumerate(processed_files):
-        print(f"  {i+1}. {file}")
+        print(f"  {i + 1}. {file}")
 
     # Print comprehensive test results
     print("\nRust Parser Test Results:")

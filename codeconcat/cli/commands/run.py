@@ -23,6 +23,10 @@ from typing_extensions import Annotated
 from codeconcat.config.config_builder import ConfigBuilder
 from codeconcat.errors import CodeConcatError
 from codeconcat.main import _write_output_files, run_codeconcat
+from codeconcat.validation.security_reporter import init_reporter
+from codeconcat.validation.unsupported_reporter import (
+    init_reporter as init_unsupported_reporter,
+)
 
 from ..config import get_state
 from ..utils import console, print_error, print_success, print_warning, show_quote
@@ -284,6 +288,22 @@ def run_command(
             rich_help_panel="Security Options",
         ),
     ] = False,
+    write_test_security_report: Annotated[
+        bool,
+        typer.Option(
+            "--test-security-report",
+            help="Write test file security findings to separate file",
+            rich_help_panel="Security Options",
+        ),
+    ] = False,
+    write_unsupported_report: Annotated[
+        bool,
+        typer.Option(
+            "--unsupported-report",
+            help="Write unsupported/skipped files report to JSON file",
+            rich_help_panel="Reporting Options",
+        ),
+    ] = False,
     # Display options
     show_config: Annotated[
         bool,
@@ -458,6 +478,19 @@ def run_command(
                 raise typer.Exit(1) from e
 
         # Process files
+        # Initialize security reporter if security scanning is enabled
+        if enable_security:
+            init_reporter(
+                write_test_report=write_test_security_report,
+                test_report_path=Path(".codeconcat_test_security.json"),
+            )
+
+        # Initialize unsupported files reporter
+        init_unsupported_reporter(
+            write_report=write_unsupported_report,
+            report_path=Path(".codeconcat_unsupported_files.json"),
+        )
+
         if not state.quiet:
             console.print(f"\n[bold cyan]Processing files from:[/bold cyan] {config.target_path}\n")
 

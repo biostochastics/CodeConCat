@@ -244,9 +244,9 @@ pub fn helper_function(input: &str) -> Result<String, io::Error> {
 
 def check_parser(language: str, sample: dict):
     """Check a specific language parser."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Testing {language.upper()} parser")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Create temporary file
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -386,9 +386,9 @@ def main():
         results[language] = check_parser(language, sample)
 
     # Summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("📈 TEST SUMMARY")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     for language, success in results.items():
         status = "✅ PASSED" if success else "❌ FAILED"

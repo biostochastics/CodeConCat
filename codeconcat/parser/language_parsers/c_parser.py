@@ -41,6 +41,7 @@ class CParser(BaseParser):
         - Ignores lines that are comments or empty when parsing.
         - Identifies block boundaries for code symbols like functions and structs.
         - Logs missing pattern matches for specific declarations like structs and functions."""
+
     def _setup_patterns(self):
         """
         We define capturing groups: 'name' for declarations.

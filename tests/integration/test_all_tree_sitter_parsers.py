@@ -935,7 +935,7 @@ def test_all_tree_sitter_parsers_comprehensive():
                 print(
                     f"  - Functions: {', '.join(found['functions'][:5])}"
                     + (
-                        f"... (+{len(found['functions'])-5} more)"
+                        f"... (+{len(found['functions']) - 5} more)"
                         if len(found["functions"]) > 5
                         else ""
                     )
@@ -944,7 +944,7 @@ def test_all_tree_sitter_parsers_comprehensive():
                 for kind, items in found["other"].items():
                     print(
                         f"  - {kind.capitalize()}s: {', '.join(items[:3])}"
-                        + (f"... (+{len(items)-3} more)" if len(items) > 3 else "")
+                        + (f"... (+{len(items) - 3} more)" if len(items) > 3 else "")
                     )
 
     # Summary

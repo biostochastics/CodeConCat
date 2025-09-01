@@ -4,7 +4,7 @@ import os
 import unicodedata
 from typing import List, Optional, Set, Tuple
 
-from tqdm import tqdm
+from rich.progress import track
 
 from ..base_types import CodeConCatConfig, ParsedFileData, ParserInterface
 from ..errors import ParserError, UnsupportedLanguageError
@@ -62,15 +62,12 @@ def parse_code_files(
     parsed_files_output: List[ParsedFileData] = []
     errors: List[ParserError] = []
 
-    progress_iterator = tqdm(
+    for file_data in track(
         files_to_parse,
-        desc="Parsing files",
-        unit="file",
-        total=len(files_to_parse),
+        description="Parsing files",
         disable=config.disable_progress_bar,  # Use config flag
-    )
-
-    for file_data in progress_iterator:
+        total=len(files_to_parse),
+    ):
         file_path = file_data.file_path
         content = file_data.content
         language = file_data.language  # Use language determined by collector
