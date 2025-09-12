@@ -9,17 +9,22 @@ from ...errors import LanguageParserError
 # Import tree-sitter dependencies with proper error handling
 TREE_SITTER_AVAILABLE = False
 TREE_SITTER_LANGUAGE_PACK_AVAILABLE = False
+TREE_SITTER_BACKEND: Optional[str] = None  # "tree_sitter_language_pack" or "tree_sitter_languages"
 
 try:
     # Try to import both packages in a single block to reduce filesystem operations
     from tree_sitter import Language, Node, Parser, Query, Tree
 
-    # Try both possible module names for tree-sitter languages
+    # Prefer the modern tree_sitter_language_pack backend; fall back to legacy tree_sitter_languages
     try:
-        from tree_sitter_languages import get_language, get_parser
+        from tree_sitter_language_pack import get_language, get_parser
+
+        TREE_SITTER_BACKEND = "tree_sitter_language_pack"
     except ImportError:
         # Fallback to alternative name if first import fails
-        from tree_sitter_language_pack import get_language, get_parser
+        from tree_sitter_languages import get_language, get_parser
+
+        TREE_SITTER_BACKEND = "tree_sitter_languages"
 
     # Set availability flags if imports succeeded
     TREE_SITTER_AVAILABLE = True
@@ -182,7 +187,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                 # get_language returns a tree_sitter.Language object directly
                 language = get_language(self.language_name)
                 logger.debug(
-                    f"Successfully loaded Tree-sitter language for '{self.language_name}' via tree-sitter-language-pack"
+                    f"Successfully loaded Tree-sitter language for '{self.language_name}' via {TREE_SITTER_BACKEND or 'tree-sitter backend'}"
                 )
                 return language  # type: ignore
             except (ImportError, KeyError, ValueError) as e:
@@ -190,20 +195,20 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                 # KeyError: Language not found in pack
                 # ValueError: Invalid language name
                 logger.error(
-                    f"Failed to load '{self.language_name}' with tree-sitter-language-pack: {e}"
+                    f"Failed to load '{self.language_name}' with {TREE_SITTER_BACKEND or 'tree-sitter backend'}: {e}"
                 )
                 raise LanguageParserError(
-                    f"Could not load Tree-sitter language for {self.language_name} using tree-sitter-language-pack. "
-                    f"Error: {e}. Ensure tree-sitter-language-pack is installed and the language name is correct."
+                    f"Could not load Tree-sitter language for {self.language_name} using {TREE_SITTER_BACKEND or 'tree-sitter backend'}. "
+                    f"Error: {e}. Ensure the backend is installed and the language name is correct."
                 ) from e
             except Exception as e:
                 # Any other unexpected error
                 logger.error(
-                    f"Unexpected error loading '{self.language_name}' with tree-sitter-language-pack: {e}",
+                    f"Unexpected error loading '{self.language_name}' with {TREE_SITTER_BACKEND or 'tree-sitter backend'}: {e}",
                     exc_info=True,
                 )
                 raise LanguageParserError(
-                    f"Unexpected error loading Tree-sitter language for {self.language_name} using tree-sitter-language-pack: {e}"
+                    f"Unexpected error loading Tree-sitter language for {self.language_name} using {TREE_SITTER_BACKEND or 'tree-sitter backend'}: {e}"
                 ) from e
         else:
             # tree-sitter-language-pack is not available
@@ -230,11 +235,11 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             LanguageParserError: If parser creation fails
         """
         try:
-            # Use tree-sitter-language-pack's pre-configured parser if available
+            # Use the backend's pre-configured parser if available
             if TREE_SITTER_LANGUAGE_PACK_AVAILABLE:
                 parser = get_parser(self.language_name)
                 logger.debug(
-                    f"Created parser for {self.language_name} via tree-sitter-language-pack"
+                    f"Created parser for {self.language_name} via {TREE_SITTER_BACKEND or 'tree-sitter backend'}"
                 )
                 return parser  # type: ignore[no-any-return]
 

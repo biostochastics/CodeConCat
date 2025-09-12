@@ -1,0 +1,26 @@
+{
+  "unsupported_files": {
+    "unknown_language": [
+      {
+        "path": "/Users/biostochastics/Development/GitHub/codeconcat/LICENSE",
+        "reason": "Could not determine language from extension or content",
+        "category": "unknown_language",
+        "extension": "no_extension"
+      }
+    ]
+  },
+  "summary": {
+    "total_files_processed": 216,
+    "total_skipped": 1,
+    "skip_percentage": 0.4629629629629629,
+    "categories": {
+      "unknown_language": 1
+    },
+    "top_extensions": [
+      [
+        "no_extension",
+        1
+      ]
+    ]
+  }
+}
