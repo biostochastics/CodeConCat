@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Any
 
 from codeconcat.base_types import (
@@ -205,8 +206,9 @@ class MarkdownRenderAdapter:
         """Render a full annotated file as a list of markdown chunks."""
         result = []
 
-        # File header with path
-        result.append(f"## File: {file_data.file_path}\n")
+        # File header with (optionally redacted) path
+        redacted_path = _sanitize_path(file_data.file_path, config)
+        result.append(f"## File: {redacted_path}\n")
 
         # Add summary if present and configured
         if file_data.summary and config.include_file_summary:
@@ -262,10 +264,11 @@ class MarkdownRenderAdapter:
     @staticmethod
     def render_doc_file(doc_data: ParsedDocData, _config: CodeConCatConfig) -> list[str]:
         """Render a documentation file as a list of markdown chunks."""
-        result = []
+        result: list[str] = []
 
         # Doc file header
-        result.append(f"## Documentation: {doc_data.file_path}\n")
+        redacted_path = _sanitize_path(doc_data.file_path, _config)
+        result.append(f"## Documentation: {redacted_path}\n")
 
         # Add summary if present
         if doc_data.summary:
@@ -280,6 +283,44 @@ class MarkdownRenderAdapter:
         result.append(doc_data.content)
 
         return result
+
+
+def _sanitize_path(file_path: str, config: CodeConCatConfig) -> str:
+    """Sanitize a file path for output based on configuration.
+
+    Mirrors the behavior in json_writer._sanitize_path to avoid leaking absolute paths.
+    """
+    try:
+        if not getattr(config, "redact_paths", False):
+            return file_path
+
+        if not file_path:
+            return file_path
+
+        p = Path(file_path)
+        if not p.is_absolute():
+            return file_path
+
+        # Try relative to configured target path
+        try:
+            base = Path(getattr(config, "target_path", ".")).resolve()
+        except Exception:
+            base = Path.cwd()
+
+        try:
+            rel = p.resolve().relative_to(base)
+            return rel.as_posix()
+        except Exception:
+            try:
+                rel2 = p.resolve().relative_to(Path.cwd())
+                return rel2.as_posix()
+            except Exception:
+                parts = p.parts
+                if len(parts) >= 2:
+                    return "/".join(parts[-2:])
+                return p.name
+    except Exception:
+        return file_path
 
 
 class JsonRenderAdapter:
@@ -477,7 +518,7 @@ class XmlRenderAdapter:
     ) -> ET.Element:
         """Create an XML element representing an AnnotatedFileData object."""
         file_element = ET.Element("file")
-        file_element.set("path", file_data.file_path)
+        file_element.set("path", _sanitize_path(file_data.file_path, config))
         file_element.set("language", file_data.language or "unknown")
 
         # Add summary if present and configured
@@ -564,7 +605,7 @@ class XmlRenderAdapter:
     def create_doc_file_element(doc_data: ParsedDocData, _config: CodeConCatConfig) -> ET.Element:
         """Create an XML element representing a ParsedDocData object."""
         doc_elem = ET.Element("doc")
-        doc_elem.set("path", doc_data.file_path)
+        doc_elem.set("path", _sanitize_path(doc_data.file_path, _config))
         doc_elem.set("type", doc_data.doc_type)
 
         # Add summary if present
@@ -695,7 +736,7 @@ class TextRenderAdapter:
         # File header with path
         result.append("")
         result.append("=" * 80)
-        result.append(f"FILE: {file_data.file_path}")
+        result.append(f"FILE: {_sanitize_path(file_data.file_path, config)}")
         result.append("=" * 80)
 
         # Add summary if present and configured
@@ -753,7 +794,7 @@ class TextRenderAdapter:
         # Doc file header
         result.append("")
         result.append("=" * 80)
-        result.append(f"DOCUMENTATION: {doc_data.file_path}")
+        result.append(f"DOCUMENTATION: {_sanitize_path(doc_data.file_path, _config)}")
         result.append("=" * 80)
 
         # Add summary if present

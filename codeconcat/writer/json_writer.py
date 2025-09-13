@@ -1,6 +1,7 @@
 """Optimized JSON writer for API consumption and programmatic access."""
 
 import json
+from pathlib import Path
 from typing import Any, Dict, List, Union
 
 from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedDocData
@@ -100,11 +101,16 @@ def write_json(
 
         # Enhance with additional metadata
         file_path = getattr(item, "file_path", "")
+        # Sanitize path for output if configured
+        sanitized_path = _sanitize_path(file_path, config)
+        # If the item-provided dict includes a file_path, normalize it as well
+        if isinstance(file_data, dict) and "file_path" in file_data:
+            file_data["file_path"] = sanitized_path
         file_data["metadata"] = {
-            "path": file_path,
-            "directory": _get_directory(file_path),
-            "filename": _get_filename(file_path),
-            "extension": _get_extension(file_path),
+            "path": sanitized_path,
+            "directory": _get_directory(sanitized_path),
+            "filename": _get_filename(sanitized_path),
+            "extension": _get_extension(sanitized_path),
             "language": getattr(item, "language", "unknown"),
             "size_bytes": len(getattr(item, "content", "").encode("utf-8")),
             "line_count": len(getattr(item, "content", "").splitlines()),
@@ -159,23 +165,23 @@ def write_json(
         language = file_data["metadata"]["language"]
         if language not in indexes["by_language"]:
             indexes["by_language"][language] = []
-        indexes["by_language"][language].append(file_path)
+        indexes["by_language"][language].append(sanitized_path)
 
-        file_type = _get_file_type(file_path)
+        file_type = _get_file_type(sanitized_path)
         if file_type not in indexes["by_type"]:
             indexes["by_type"][file_type] = []
-        indexes["by_type"][file_type].append(file_path)
+        indexes["by_type"][file_type].append(sanitized_path)
 
         directory = file_data["metadata"]["directory"]
         if directory not in indexes["by_directory"]:
             indexes["by_directory"][directory] = []
-        indexes["by_directory"][directory].append(file_path)
+        indexes["by_directory"][directory].append(sanitized_path)
 
         # Store the enhanced file data in array format for compatibility
         output["files"].append(file_data)
 
-    # Build relationships between files
-    output["relationships"] = _build_relationships(sorted_items)
+    # Build relationships between files (use sanitized paths for keys)
+    output["relationships"] = _build_relationships(sorted_items, config)
 
     # Convert to JSON with proper formatting
     indent = getattr(config, "json_indent", 2)
@@ -269,19 +275,70 @@ def _group_by_severity(issues: List[Any]) -> Dict[str, int]:
     return severity_counts
 
 
-def _build_relationships(items: List[Union[AnnotatedFileData, ParsedDocData]]) -> Dict[str, Any]:
-    """Build relationships between files based on imports and references."""
+def _build_relationships(
+    items: List[Union[AnnotatedFileData, ParsedDocData]],
+    config: CodeConCatConfig,
+) -> Dict[str, Any]:
+    """Build relationships between files based on imports and references.
+
+    Uses sanitized (possibly relative) paths as keys when config.redact_paths is enabled.
+    """
     relationships: Dict[str, Any] = {"imports": {}, "imported_by": {}, "references": {}}
 
     for item in items:
         if hasattr(item, "imports") and item.imports:
-            file_path = getattr(item, "file_path", "")
-            relationships["imports"][file_path] = item.imports
+            original_path = getattr(item, "file_path", "")
+            sanitized_path = _sanitize_path(original_path, config)
+            relationships["imports"][sanitized_path] = item.imports
 
             # Build reverse mapping
             for imp in item.imports:
                 if imp not in relationships["imported_by"]:
                     relationships["imported_by"][imp] = []
-                relationships["imported_by"][imp].append(file_path)
+                relationships["imported_by"][imp].append(sanitized_path)
 
     return relationships
+
+
+def _sanitize_path(file_path: str, config: CodeConCatConfig) -> str:
+    """Sanitize a file path for output based on configuration.
+
+    - If config.redact_paths is False, return the path unchanged.
+    - If the path is absolute, attempt to make it relative to config.target_path or cwd.
+    - As a last resort, return the last two path components to avoid leaking user directories.
+    """
+    try:
+        if not getattr(config, "redact_paths", False):
+            return file_path
+
+        if not file_path:
+            return file_path
+
+        p = Path(file_path)
+        # If already relative, return as-is
+        if not p.is_absolute():
+            return file_path
+
+        # Try relative to configured target path first
+        try:
+            base = Path(getattr(config, "target_path", ".")).resolve()
+        except Exception:
+            base = Path.cwd()
+
+        try:
+            rel = p.resolve().relative_to(base)
+            return rel.as_posix()
+        except Exception:
+            # Try making it relative to the current working directory
+            try:
+                rel2 = p.resolve().relative_to(Path.cwd())
+                return rel2.as_posix()
+            except Exception:
+                # Fallback: keep only the last 2 components
+                parts = p.parts
+                if len(parts) >= 2:
+                    return "/".join(parts[-2:])
+                return p.name
+    except Exception:
+        # On any unexpected error, return the original path
+        return file_path

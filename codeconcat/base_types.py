@@ -699,6 +699,12 @@ class CodeConCatConfig(BaseModel):
         description="Mask sensitive data directly in the final output content (if security scanning is enabled).",
     )
 
+    # Redact absolute paths in outputs/logs to avoid leaking local usernames and directories
+    redact_paths: bool = Field(
+        False,
+        description="Redact absolute filesystem paths in generated outputs and logs (replaces with relative or placeholder paths).",
+    )
+
     # --- Compression Options ---
     enable_compression: bool = Field(
         False,
