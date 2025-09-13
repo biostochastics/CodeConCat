@@ -36,6 +36,7 @@ python = "^3.10"
 typer = {extras = ["all"], version = "^0.16.1"}  # Includes Rich for better terminal output
 rich = "^13.7.0"  # Explicit Rich for advanced features
 pydantic = "^2.0.0"
+annotated-types = ">=0.4,<0.8"  # Pydantic v2 requires >=0.4; pin <0.8 to avoid non-existent 0.8.0
 pydantic-settings = "^2.0.0"  # For configuration management
 pyperclip = "^1.8.2"
 tiktoken = "^0.11.0"

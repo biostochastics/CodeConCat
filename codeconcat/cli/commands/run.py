@@ -339,6 +339,15 @@ def run_command(
             rich_help_panel="Analysis Options",
         ),
     ] = None,
+    # Privacy / Path redaction
+    redact_paths: Annotated[
+        bool,
+        typer.Option(
+            "--redact-paths/--no-redact-paths",
+            help="Redact absolute filesystem paths in outputs/logs (replace with relative or placeholders)",
+            rich_help_panel="Display Options",
+        ),
+    ] = False,
     disable_progress: Annotated[
         bool,
         typer.Option(
@@ -424,6 +433,7 @@ def run_command(
                 "disable_progress_bar": disable_progress or state.quiet,
                 "verbose": state.verbose > 0,
                 "xml_processing_instructions": xml_processing_instructions,
+                "redact_paths": redact_paths,
             }
 
             # Remove None values
@@ -534,6 +544,17 @@ def run_command(
                     padding=(1, 2),
                 )
                 console.print("\n", success_panel)
+
+                # Concise summary line (standard output, not too verbose)
+                stats = getattr(config, "_run_stats", {})
+                if stats:
+                    summary = (
+                        f"Summary: {stats.get('files_scanned', 0)} files scanned, "
+                        f"{stats.get('files_parsed', 0)} parsed, "
+                        f"{stats.get('languages_count', 0)} languages, "
+                        f"{stats.get('total_lines', 0):,} lines"
+                    )
+                    console.print(summary)
             else:
                 print_success(f"Output written to: {config.output}")
 
@@ -549,6 +570,16 @@ def run_command(
                 stats_table.add_row("Output format", config.format)
                 stats_table.add_row("Compression", "Enabled" if enable_compression else "Disabled")
                 stats_table.add_row("Security scan", "Enabled" if enable_security else "Disabled")
+
+                # Add codebase stats if available
+                stats = getattr(config, "_run_stats", {})
+                if stats:
+                    stats_table.add_row("Files scanned", str(stats.get("files_scanned", 0)))
+                    stats_table.add_row("Files parsed", str(stats.get("files_parsed", 0)))
+                    stats_table.add_row("Docs extracted", str(stats.get("docs_extracted", 0)))
+                    stats_table.add_row("Languages", ", ".join(stats.get("languages", [])) or "0")
+                    stats_table.add_row("Total lines", f"{stats.get('total_lines', 0):,}")
+                    stats_table.add_row("Total bytes", f"{stats.get('total_bytes', 0):,}")
 
                 if hasattr(config, "files_processed"):
                     stats_table.add_row("Files processed", str(len(config.target_path)))

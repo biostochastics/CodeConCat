@@ -801,6 +801,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 "Either source_url or target_path must be provided in the configuration."
             )
 
+        # Track initial collected file count for stats (before validation)
+        initial_collected_count = len(files_to_process)
+
         # Setup Semgrep if enabled
         if hasattr(config, "enable_semgrep") and config.enable_semgrep:
             logger.info("Setting up Semgrep for security scanning...")
@@ -1075,6 +1078,27 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 print(f"    🔴 Low (<40%): {low_compression_files} files")
 
             logger.info("[CodeConCat] Compression complete.")
+
+        # Prepare concise run stats for CLI display
+        try:
+            languages_set = sorted(
+                {str(pf.language) for pf in parsed_files if getattr(pf, "language", None)}
+            )
+            total_lines = sum(len((pf.content or "").splitlines()) for pf in parsed_files)
+            total_bytes = sum(len((pf.content or "").encode("utf-8")) for pf in parsed_files)
+            run_stats = {
+                "files_scanned": initial_collected_count,
+                "files_parsed": len(parsed_files),
+                "docs_extracted": len(docs),
+                "languages": languages_set,
+                "languages_count": len(languages_set),
+                "total_lines": total_lines,
+                "total_bytes": total_bytes,
+            }
+            config._run_stats = run_stats
+        except Exception:
+            # Do not fail the run if stats computation has an unexpected issue
+            pass
 
         folder_tree_str = ""
         if hasattr(config, "include_directory_structure") and config.include_directory_structure:

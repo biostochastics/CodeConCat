@@ -74,6 +74,9 @@ dmypy.json
 codeconcat_github_*
 code_concat_output.md
 code_concat_output.*
+tree_sitter_parser_test_results.json
+test_output*.md
+test_quiet.md
 # ---------------------------
 # Local config or secrets (Optional)
 # ---------------------------

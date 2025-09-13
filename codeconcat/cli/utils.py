@@ -33,6 +33,42 @@ def setup_logging(level: str = "WARNING", _quiet: bool = False) -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
+    # Apply path redaction to all handlers by default to avoid leaking usernames/paths
+    # Opt-out by setting CODECONCAT_REDACT_PATHS=0
+    if os.environ.get("CODECONCAT_REDACT_PATHS", "1") != "0":
+        try:
+            home = str(Path.home())
+            cwd = str(Path.cwd())
+
+            class PathRedactingFormatter(logging.Formatter):
+                def __init__(self, fmt=None, datefmt=None):
+                    super().__init__(fmt=fmt, datefmt=datefmt)
+
+                def _redact(self, text: str) -> str:
+                    if not text:
+                        return text
+                    # Replace home directory and CWD with placeholders
+                    redacted = text.replace(home, "<HOME>")
+                    redacted = redacted.replace(cwd, "<CWD>")
+                    return redacted
+
+                def format(self, record: logging.LogRecord) -> str:
+                    formatted = super().format(record)
+                    return self._redact(formatted)
+
+            root_logger = logging.getLogger()
+            for handler in root_logger.handlers:
+                fmt = (
+                    handler.formatter._fmt
+                    if handler.formatter
+                    else "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+                )
+                datefmt = handler.formatter.datefmt if handler.formatter else "%Y-%m-%d %H:%M:%S"
+                handler.setFormatter(PathRedactingFormatter(fmt=fmt, datefmt=datefmt))
+        except Exception:
+            # If anything goes wrong, continue without redaction to avoid breaking logging
+            pass
+
     # Suppress verbose logs from libraries if not in debug mode
     if numeric_level != logging.DEBUG:
         for logger_name in [

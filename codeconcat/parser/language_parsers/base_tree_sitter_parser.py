@@ -8,7 +8,12 @@ from ...errors import LanguageParserError
 
 # Import tree-sitter dependencies with proper error handling
 TREE_SITTER_AVAILABLE = False
-TREE_SITTER_LANGUAGE_PACK_AVAILABLE = False
+TREE_SITTER_LANGUAGE_PACK_AVAILABLE = (
+    False  # Specifically indicates tree_sitter_language_pack presence
+)
+TREE_SITTER_LANGUAGES_AVAILABLE = (
+    False  # Specifically indicates legacy tree_sitter_languages presence
+)
 TREE_SITTER_BACKEND: Optional[str] = None  # "tree_sitter_language_pack" or "tree_sitter_languages"
 
 try:
@@ -28,7 +33,10 @@ try:
 
     # Set availability flags if imports succeeded
     TREE_SITTER_AVAILABLE = True
-    TREE_SITTER_LANGUAGE_PACK_AVAILABLE = True
+    if TREE_SITTER_BACKEND == "tree_sitter_language_pack":
+        TREE_SITTER_LANGUAGE_PACK_AVAILABLE = True
+    elif TREE_SITTER_BACKEND == "tree_sitter_languages":
+        TREE_SITTER_LANGUAGES_AVAILABLE = True
 except ImportError:
     # Create dummy classes to avoid type errors
     class Language:  # type: ignore[no-redef]
@@ -181,8 +189,8 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         Raises:
             LanguageParserError: If the language cannot be loaded
         """
-        # Use tree-sitter-language-pack if available (preferred method)
-        if TREE_SITTER_LANGUAGE_PACK_AVAILABLE:
+        # Use any available backend (prefer language_pack if present)
+        if TREE_SITTER_LANGUAGE_PACK_AVAILABLE or TREE_SITTER_LANGUAGES_AVAILABLE:
             try:
                 # get_language returns a tree_sitter.Language object directly
                 language = get_language(self.language_name)
@@ -211,11 +219,11 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                     f"Unexpected error loading Tree-sitter language for {self.language_name} using {TREE_SITTER_BACKEND or 'tree-sitter backend'}: {e}"
                 ) from e
         else:
-            # tree-sitter-language-pack is not available
-            # This is a helpful error message directing the user to install it
+            # No backend is available
+            # Provide a helpful error message directing the user to install the preferred backend
             logger.error(
                 f"Cannot load Tree-sitter language for '{self.language_name}'. "
-                f"The tree-sitter-language-pack package is required for reliable language loading."
+                f"No Tree-sitter backend is available. Install with: pip install tree-sitter-language-pack>=0.7.2"
             )
             raise LanguageParserError(
                 f"Could not load Tree-sitter language for {self.language_name}. "
@@ -236,7 +244,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         """
         try:
             # Use the backend's pre-configured parser if available
-            if TREE_SITTER_LANGUAGE_PACK_AVAILABLE:
+            if TREE_SITTER_LANGUAGE_PACK_AVAILABLE or TREE_SITTER_LANGUAGES_AVAILABLE:
                 parser = get_parser(self.language_name)
                 logger.debug(
                     f"Created parser for {self.language_name} via {TREE_SITTER_BACKEND or 'tree-sitter backend'}"
