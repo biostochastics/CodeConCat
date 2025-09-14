@@ -120,8 +120,14 @@ class LlamaCppProvider(AIProvider):
         base_prompt = self._create_code_summary_prompt(code, language, context)
 
         # Format for Llama chat model
+        # Use getattr with fallback to prevent AttributeError
+        system_prompt = getattr(
+            self,
+            "SYSTEM_PROMPT_CODE_SUMMARY",
+            "You are a helpful assistant that creates concise, informative code summaries.",
+        )
         prompt = f"""<s>[INST] <<SYS>>
-You are a helpful assistant that creates concise, informative code summaries.
+{system_prompt}
 <</SYS>>
 
 {base_prompt} [/INST]"""
@@ -198,8 +204,14 @@ You are a helpful assistant that creates concise, informative code summaries.
         )
 
         # Format for Llama chat model
+        # Use getattr with fallback to prevent AttributeError
+        system_prompt = getattr(
+            self,
+            "SYSTEM_PROMPT_FUNCTION_SUMMARY",
+            "You are a helpful assistant that creates concise function summaries.",
+        )
         prompt = f"""<s>[INST] <<SYS>>
-You are a helpful assistant that creates brief, accurate function summaries.
+{system_prompt}
 <</SYS>>
 
 {base_prompt} [/INST]"""

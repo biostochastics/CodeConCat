@@ -57,6 +57,7 @@ env/
 coverage/
 .coverage
 .coverage*
+.coveragerc
 htmlcov/
 .cache
 coverage.xml
@@ -65,7 +66,6 @@ coverage.xml
 # Type Checking
 # ---------------------------
 .mypy_cache/
-.dmypy.json
 dmypy.json
 
 # ---------------------------
@@ -77,11 +77,15 @@ code_concat_output.*
 tree_sitter_parser_test_results.json
 test_output*.md
 test_quiet.md
+.codeconcat_test_security.json
+.codeconcat_unsupported_files.json
+
 # ---------------------------
 # Local config or secrets (Optional)
 # ---------------------------
 *.env
 .env
+.env.example
 
 # ---------------------------
 # Logs

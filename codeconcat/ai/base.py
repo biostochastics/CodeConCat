@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, ClassVar, Dict, Optional
 
 
 class AIProviderType(Enum):
@@ -57,6 +57,16 @@ class SummarizationResult:
 
 class AIProvider(ABC):
     """Abstract base class for AI providers."""
+
+    # Centralized system prompts for consistency across all providers
+    # Using ClassVar to ensure these are class-level constants
+    SYSTEM_PROMPT_CODE_SUMMARY: ClassVar[str] = (
+        """You are an expert software architect and technical documentation specialist with deep knowledge of software design patterns, algorithms, and best practices across multiple programming languages. Your role is to analyze code and produce high-quality, actionable summaries that help developers quickly understand codebases. Focus on clarity, technical accuracy, and practical insights."""
+    )
+
+    SYSTEM_PROMPT_FUNCTION_SUMMARY: ClassVar[str] = (
+        """You are a senior software engineer specializing in code documentation. Your expertise includes identifying function contracts, understanding complex algorithms, and explaining code behavior concisely. Create summaries that are technically precise yet accessible, highlighting the 'what', 'how', and 'why' of each function."""
+    )
 
     def __init__(self, config: AIProviderConfig):
         """Initialize the AI provider with configuration."""
@@ -168,32 +178,108 @@ class AIProvider(ABC):
         output_cost = (output_tokens / 1000) * self.config.cost_per_1k_output_tokens
         return input_cost + output_cost
 
+    def _escape_triple_backticks(self, code: str) -> str:
+        """Escape triple backticks in code to prevent markdown/prompt injection.
+
+        Replaces ``` with escaped version to prevent breaking markdown code blocks.
+        This prevents both accidental formatting issues and potential prompt injection attacks.
+        """
+        # Replace triple backticks with escaped version
+        # Using zero-width space (\u200b) to break the sequence while maintaining visual appearance
+        return code.replace("```", "`\u200b`\u200b`")
+
+    def _truncate_code_if_needed(self, code: str, max_chars: int = 50000) -> tuple[str, bool]:
+        """Truncate code if it exceeds model's context window limit.
+
+        Args:
+            code: The source code to potentially truncate
+            max_chars: Maximum number of characters allowed (can be overridden)
+
+        Returns:
+            Tuple of (processed_code, was_truncated)
+        """
+        # Try to get model-specific context window
+        from .models_config import get_model_config
+
+        model_config = get_model_config(self.config.model)
+        if model_config:
+            # Calculate max chars based on context window
+            # Reserve 20% for prompt template and response
+            available_tokens = int(model_config.context_window * 0.8)
+            # Conservative estimate: 1 token ≈ 4 characters for code
+            model_max_chars = available_tokens * 4
+            # Use the smaller of model limit or provided max_chars
+            max_chars = min(max_chars, model_max_chars)
+
+        if len(code) <= max_chars:
+            return code, False
+
+        # Truncate and add a note
+        truncated_code = code[:max_chars]
+        # Try to truncate at a line boundary for cleaner output
+        last_newline = truncated_code.rfind("\n")
+        if last_newline > max_chars * 0.9:  # If we have a newline in the last 10%
+            truncated_code = truncated_code[:last_newline]
+
+        truncated_code += "\n\n# [CODE TRUNCATED - Exceeded model context window]"
+        return truncated_code, True
+
     def _create_code_summary_prompt(
         self, code: str, language: str, context: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Create a prompt for code summarization."""
+        """Create a prompt for code summarization using CO-STAR framework."""
         file_path = context.get("file_path", "unknown") if context else "unknown"
 
-        prompt = f"""Provide a concise summary of this {language} code file.
+        # Extract additional context if available
+        num_functions = context.get("num_functions", 0) if context else 0
+        num_classes = context.get("num_classes", 0) if context else 0
+        imports = context.get("imports", []) if context else []
+        # Escape imports to prevent injection
+        imports_str = ", ".join(imports[:5]) if imports else "none"
+        imports_str = self._escape_triple_backticks(imports_str)
 
+        # Truncate code based on model's context window
+        code, was_truncated = self._truncate_code_if_needed(code)
+        # Escape triple backticks to prevent markdown breaking and prompt injection
+        code = self._escape_triple_backticks(code)
+
+        truncation_note = " (Note: Code was truncated due to length)" if was_truncated else ""
+
+        prompt = f"""### Role
+You are an expert software engineer specializing in {language} code documentation and analysis.
+
+### Context
 File: {file_path}
 Language: {language}
+Structure: {num_classes} classes, {num_functions} functions
+Key imports: {imports_str}
 
-Focus on:
-1. Main purpose and functionality
-2. Key classes/functions and their roles
-3. Important algorithms or patterns used
-4. External dependencies or integrations
-5. Any notable design decisions or complexity
+### Objective
+Analyze and summarize the following {language} code, creating a comprehensive yet concise summary.
 
-Keep the summary brief (2-3 sentences) but informative.
+### Task
+Provide a structured summary that covers:
+1. **Primary Purpose**: What problem does this code solve? (1 sentence)
+2. **Core Components**: Main classes/functions and their responsibilities
+3. **Key Patterns**: Important design patterns, algorithms, or architectural decisions
+4. **Dependencies**: Critical external libraries or modules used
+5. **Technical Highlights**: Notable implementation details or complexity
 
-Code:
+### Style
+Technical but accessible to intermediate developers. Use precise terminology while maintaining clarity.
+
+### Format
+Provide a 2-3 paragraph summary structured as:
+- First paragraph: Overall purpose and functionality
+- Second paragraph: Key implementation details and design choices
+- Third paragraph (if needed): Important dependencies or integration points{truncation_note}
+
+### Code
 ```{language}
 {code}
 ```
 
-Summary:"""
+### Summary"""
 
         return prompt
 
@@ -202,28 +288,75 @@ Summary:"""
         function_code: str,
         function_name: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,  # noqa: ARG002
+        context: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Create a prompt for function summarization."""
-        prompt = f"""Provide a brief summary of this {language} function.
+        """Create a prompt for function summarization using structured format."""
+        file_path = context.get("file_path", "unknown") if context else "unknown"
 
-Function Name: {function_name}
+        # Escape function name to prevent injection
+        function_name = self._escape_triple_backticks(function_name)
+
+        # Truncate function code based on model's context window (with smaller default for functions)
+        # Functions typically should be smaller than full files
+        from .models_config import get_model_config
+
+        model_config = get_model_config(self.config.model)
+        if model_config:
+            # For functions, use 10% of context window or 10k chars, whichever is smaller
+            available_tokens = int(model_config.context_window * 0.1)
+            model_max_chars = available_tokens * 4
+            max_chars = min(10000, model_max_chars)
+        else:
+            max_chars = 10000
+
+        function_code, was_truncated = self._truncate_code_if_needed(
+            function_code, max_chars=max_chars
+        )
+        # Escape triple backticks to prevent markdown breaking and prompt injection
+        function_code = self._escape_triple_backticks(function_code)
+
+        # Try to extract complexity hints from the code
+        lines_of_code = len(function_code.splitlines())
+        complexity_hint = (
+            "simple" if lines_of_code < 10 else "moderate" if lines_of_code < 30 else "complex"
+        )
+
+        truncation_note = " (Note: Function was truncated due to length)" if was_truncated else ""
+
+        prompt = f"""### Role
+You are a senior software engineer documenting {language} code for a technical team.
+
+### Context
+Function: {function_name}
+From file: {file_path}
 Language: {language}
+Complexity: {complexity_hint} (~{lines_of_code} lines)
 
-Focus on:
-1. What the function does
-2. Key parameters and return value
-3. Important side effects or state changes
-4. Algorithmic approach if complex
+### Objective
+Create a precise, informative summary of this function's behavior and implementation.
 
-Keep it to 1-2 sentences.
+### Task
+Analyze the function and provide:
+1. **Purpose**: What problem it solves or functionality it provides
+2. **Signature**: Key parameters and return value with types if evident
+3. **Behavior**: Core logic, including any algorithms or patterns used
+4. **Side Effects**: State mutations, I/O operations, or external interactions
+5. **Error Handling**: How it handles edge cases or errors (if applicable)
 
-Function Code:
+### Format
+Provide a concise 1-2 sentence summary that captures:
+- Primary functionality and purpose
+- Key technical details (algorithm, pattern, or approach used)
+- Important considerations (side effects, performance, constraints)
+
+Use this structure: "[Action verb] [what it does] by [how it does it], [any important notes]."{truncation_note}
+
+### Function Code
 ```{language}
 {function_code}
 ```
 
-Summary:"""
+### Summary"""
 
         return prompt
 
