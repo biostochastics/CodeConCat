@@ -153,7 +153,7 @@ class TestSemgrepValidator:
             assert findings[str(test_file)][0]["rule_id"] == "test-rule"
             assert findings[str(test_file)][0]["severity"] == "WARNING"
 
-    def test_detect_language(self, _tmp_path):
+    def test_detect_language(self, tmp_path):
         """Test language detection for semgrep."""
         with patch(
             "codeconcat.parser.file_parser.determine_language",

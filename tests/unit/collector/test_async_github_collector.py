@@ -318,7 +318,7 @@ class TestAsyncGitHubCollectorComprehensive:
     # === ASYNC REPO COLLECTION TESTS ===
 
     @pytest.mark.asyncio
-    async def test_collect_git_repo_async_success(self, _mock_security_validation, config):
+    async def test_collect_git_repo_async_success(self, mock_security_validation, config):
         """Test successful async git repo collection."""
         with patch(
             "codeconcat.collector.async_github_collector.run_git_command"
@@ -366,7 +366,7 @@ class TestAsyncGitHubCollectorComprehensive:
         assert repo_path == ""
 
     @pytest.mark.asyncio
-    async def test_collect_git_repo_async_with_ref(self, _mock_security_validation, config):
+    async def test_collect_git_repo_async_with_ref(self, mock_security_validation, config):
         """Test collection with specific ref/branch."""
         with patch(
             "codeconcat.collector.async_github_collector.run_git_command"
@@ -390,7 +390,7 @@ class TestAsyncGitHubCollectorComprehensive:
 
     @pytest.mark.asyncio
     async def test_collect_git_repo_async_private_with_token(
-        self, _mock_security_validation, config
+        self, mock_security_validation, config
     ):
         """Test collection of private repo with authentication token."""
         with patch(
@@ -417,7 +417,7 @@ class TestAsyncGitHubCollectorComprehensive:
             assert "ghp_secret123@github.com" in " ".join(clone_cmd)
 
     @pytest.mark.asyncio
-    async def test_collect_git_repo_async_url_ref_priority(self, _mock_security_validation, config):
+    async def test_collect_git_repo_async_url_ref_priority(self, mock_security_validation, config):
         """Test that config.source_ref takes priority over URL ref."""
         with patch(
             "codeconcat.collector.async_github_collector.run_git_command"
@@ -439,7 +439,7 @@ class TestAsyncGitHubCollectorComprehensive:
             assert "--branch config-branch" in clone_cmd
 
     @pytest.mark.asyncio
-    async def test_collect_git_repo_async_fallback_to_main(self, _mock_security_validation, config):
+    async def test_collect_git_repo_async_fallback_to_main(self, mock_security_validation, config):
         """Test fallback to 'main' when no ref specified."""
         with patch(
             "codeconcat.collector.async_github_collector.run_git_command", new_callable=AsyncMock
@@ -454,7 +454,7 @@ class TestAsyncGitHubCollectorComprehensive:
 
     @pytest.mark.asyncio
     async def test_collect_git_repo_async_clone_then_fetch_success(
-        self, _mock_security_validation, config
+        self, mock_security_validation, config
     ):
         """Test successful clone then fetch sequence."""
         with patch(
@@ -482,7 +482,7 @@ class TestAsyncGitHubCollectorComprehensive:
 
     @pytest.mark.asyncio
     async def test_collect_git_repo_async_default_clone_fails(
-        self, _mock_security_validation, config
+        self, mock_security_validation, config
     ):
         """Test when both initial and default clone fail."""
         with patch(
@@ -503,7 +503,7 @@ class TestAsyncGitHubCollectorComprehensive:
 
     @pytest.mark.asyncio
     async def test_collect_git_repo_async_fetch_fails_proceed_default(
-        self, _mock_security_validation, config
+        self, mock_security_validation, config
     ):
         """Test proceeding with default branch when fetch fails."""
         with patch(
@@ -530,7 +530,7 @@ class TestAsyncGitHubCollectorComprehensive:
             assert mock_run_git.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_collect_git_repo_async_checkout_fails(self, _mock_security_validation, config):
+    async def test_collect_git_repo_async_checkout_fails(self, mock_security_validation, config):
         """Test when checkout fails after successful fetch."""
         with patch(
             "codeconcat.collector.async_github_collector.run_git_command", new_callable=AsyncMock
@@ -563,7 +563,7 @@ class TestAsyncGitHubCollectorComprehensive:
 
     @pytest.mark.asyncio
     async def test_collect_git_repo_async_empty_file_collection(
-        self, _mock_security_validation, config
+        self, mock_security_validation, config
     ):
         """Test handling when no files are collected."""
         with patch(
@@ -582,7 +582,7 @@ class TestAsyncGitHubCollectorComprehensive:
 
     @pytest.mark.asyncio
     async def test_collect_git_repo_async_collect_local_files_exception(
-        self, _mock_security_validation, config
+        self, mock_security_validation, config
     ):
         """Test handling when collect_local_files raises exception."""
         with patch(
@@ -613,9 +613,7 @@ class TestAsyncGitHubCollectorComprehensive:
             mock_async.assert_called_once_with("owner/repo", config)
 
     @pytest.mark.asyncio
-    async def test_collect_git_repo_async_command_structure(
-        self, _mock_security_validation, config
-    ):
+    async def test_collect_git_repo_async_command_structure(self, mock_security_validation, config):
         """Test the structure of git commands being executed."""
         with patch(
             "codeconcat.collector.async_github_collector.run_git_command", new_callable=AsyncMock
@@ -643,7 +641,7 @@ class TestAsyncGitHubCollectorComprehensive:
 
     @pytest.mark.asyncio
     async def test_collect_git_repo_async_authenticated_url_structure(
-        self, _mock_security_validation, config
+        self, mock_security_validation, config
     ):
         """Test authenticated URL structure with token."""
         with patch(
@@ -661,7 +659,7 @@ class TestAsyncGitHubCollectorComprehensive:
 
     @pytest.mark.asyncio
     async def test_collect_git_repo_async_fetch_command_structure(
-        self, _mock_security_validation, config
+        self, mock_security_validation, config
     ):
         """Test fetch command structure in fallback scenario."""
         with patch(
@@ -695,7 +693,7 @@ class TestAsyncGitHubCollectorComprehensive:
 
     @pytest.mark.asyncio
     async def test_collect_git_repo_async_checkout_command_structure(
-        self, _mock_security_validation, config
+        self, mock_security_validation, config
     ):
         """Test checkout command structure."""
         with patch(
@@ -721,7 +719,7 @@ class TestAsyncGitHubCollectorComprehensive:
                 assert element in checkout_cmd
 
     @pytest.mark.asyncio
-    async def test_collect_git_repo_async_executor_usage(self, _mock_security_validation, config):
+    async def test_collect_git_repo_async_executor_usage(self, mock_security_validation, config):
         """Test that collect_local_files runs in executor."""
         with patch(
             "codeconcat.collector.async_github_collector.run_git_command"
@@ -825,7 +823,7 @@ class TestAsyncGitHubCollectorComprehensive:
             mock_error.assert_called_with("Error running git command: Test error")
 
     @pytest.mark.asyncio
-    async def test_collect_git_repo_async_logging_coverage(self, _mock_security_validation, config):
+    async def test_collect_git_repo_async_logging_coverage(self, mock_security_validation, config):
         """Test logging statements in collect_git_repo_async for coverage."""
         import logging
 

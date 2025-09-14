@@ -263,6 +263,48 @@ def run_command(
             rich_help_panel="Compression Options",
         ),
     ] = CompressionLevel.MEDIUM,
+    # AI Summarization options
+    enable_ai_summary: Annotated[
+        bool,
+        typer.Option(
+            "--ai-summary/--no-ai-summary",
+            help="Enable AI-powered code summarization",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = False,
+    ai_provider: Annotated[
+        Optional[str],
+        typer.Option(
+            "--ai-provider",
+            help="AI provider (openai, anthropic, openrouter, ollama, llamacpp)",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = None,
+    ai_model: Annotated[
+        Optional[str],
+        typer.Option(
+            "--ai-model",
+            help="Specific AI model to use (e.g., gpt-3.5-turbo, claude-3-haiku)",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = None,
+    ai_api_key: Annotated[
+        Optional[str],
+        typer.Option(
+            "--ai-api-key",
+            help="API key for AI provider (or use env vars)",
+            envvar=["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"],
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = None,
+    ai_summarize_functions: Annotated[
+        bool,
+        typer.Option(
+            "--ai-functions/--no-ai-functions",
+            help="Also summarize individual functions/methods",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = False,
     # Security options
     enable_security: Annotated[
         bool,
@@ -427,6 +469,11 @@ def run_command(
                 "remove_comments": remove_comments,
                 "enable_compression": enable_compression,
                 "compression_level": compression_level.value,
+                "enable_ai_summary": enable_ai_summary,
+                "ai_provider": ai_provider,
+                "ai_model": ai_model,
+                "ai_api_key": ai_api_key,
+                "ai_summarize_functions": ai_summarize_functions,
                 "enable_security_scanning": enable_security,
                 "security_scan_severity_threshold": security_threshold,
                 "enable_semgrep": enable_semgrep,

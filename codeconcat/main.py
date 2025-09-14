@@ -873,6 +873,36 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         except (OSError, UnicodeDecodeError, AttributeError) as e:
             raise FileProcessingError(f"Error parsing files: {str(e)}") from e
 
+        # Apply AI summarization if enabled
+        if config.enable_ai_summary:
+            try:
+                logger.info("[CodeConCat] Generating AI summaries...")
+                import asyncio
+
+                from codeconcat.processor.summarization_processor import (
+                    create_summarization_processor,
+                )
+
+                summarizer = create_summarization_processor(config)
+                if summarizer:
+                    # Run async summarization
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        parsed_files = loop.run_until_complete(
+                            summarizer.process_batch(parsed_files)
+                        )
+                    finally:
+                        loop.run_until_complete(summarizer.cleanup())
+                        loop.close()
+
+                    logger.info(
+                        f"[CodeConCat] AI summaries generated for {len(parsed_files)} files."
+                    )
+            except Exception as e:
+                logger.warning(f"Warning: Failed to generate AI summaries: {str(e)}")
+                # Continue without summaries - this is not a fatal error
+
         # Extract docs if requested
         docs = []
         if config.extract_docs:
@@ -1079,13 +1109,13 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
             logger.info("[CodeConCat] Compression complete.")
 
-        # Prepare concise run stats for CLI display
+        # --- Compute run statistics BEFORE any writing ---
         try:
-            languages_set = sorted(
-                {str(pf.language) for pf in parsed_files if getattr(pf, "language", None)}
-            )
-            total_lines = sum(len((pf.content or "").splitlines()) for pf in parsed_files)
-            total_bytes = sum(len((pf.content or "").encode("utf-8")) for pf in parsed_files)
+            initial_collected_count = len(parsed_files) + len(docs)
+            languages_set = {pf.language for pf in parsed_files if hasattr(pf, "language")}
+            total_lines = sum(len(pf.content.splitlines()) for pf in parsed_files if pf.content)
+            total_bytes = sum(len(pf.content.encode("utf-8")) for pf in parsed_files if pf.content)
+
             run_stats = {
                 "files_scanned": initial_collected_count,
                 "files_parsed": len(parsed_files),
@@ -1095,10 +1125,16 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 "total_lines": total_lines,
                 "total_bytes": total_bytes,
             }
-            config._run_stats = run_stats
-        except Exception:
-            # Do not fail the run if stats computation has an unexpected issue
-            pass
+
+            # Store stats in a way that doesn't violate Pydantic model validation
+            # Use object.__setattr__ to bypass Pydantic validation for this dynamic attribute
+            object.__setattr__(config, "_run_stats", run_stats)
+
+        except Exception as e:
+            # Log the exception at DEBUG level for debugging purposes
+            logger.debug(f"Failed to compute run statistics: {e}")
+            # Initialize empty stats to prevent downstream errors
+            object.__setattr__(config, "_run_stats", {})
 
         folder_tree_str = ""
         if hasattr(config, "include_directory_structure") and config.include_directory_structure:

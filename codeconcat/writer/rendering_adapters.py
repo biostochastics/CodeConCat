@@ -48,7 +48,8 @@ class MarkdownRenderAdapter:
                 - decl (Declaration): The declaration object to be formatted and added, which includes attributes like kind, name, start_line, end_line, modifiers, and children.
                 - indent (int, optional): The indentation level for formatting the output, default is 0.
             Returns:
-                - None: The function modifies a global result list by appending a formatted string representation of the declaration and its children."""
+                - None: The function modifies a global result list by appending a formatted string representation of the declaration and its children.
+            """
             indent_str = "  " * indent
             kind_display = f"{decl.kind.capitalize()}"
 
@@ -290,6 +291,10 @@ def _sanitize_path(file_path: str, config: CodeConCatConfig) -> str:
 
     Mirrors the behavior in json_writer._sanitize_path to avoid leaking absolute paths.
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     try:
         if not getattr(config, "redact_paths", False):
             return file_path
@@ -304,22 +309,27 @@ def _sanitize_path(file_path: str, config: CodeConCatConfig) -> str:
         # Try relative to configured target path
         try:
             base = Path(getattr(config, "target_path", ".")).resolve()
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to resolve target_path, using cwd: {e}")
             base = Path.cwd()
 
         try:
             rel = p.resolve().relative_to(base)
             return rel.as_posix()
-        except Exception:
+        except ValueError:
             try:
                 rel2 = p.resolve().relative_to(Path.cwd())
                 return rel2.as_posix()
-            except Exception:
+            except ValueError:
                 parts = p.parts
                 if len(parts) >= 2:
+                    logger.debug(
+                        f"Path redaction fallback: keeping last 2 components of {file_path}"
+                    )
                     return "/".join(parts[-2:])
                 return p.name
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to sanitize path '{file_path}': {e}. Using original path.")
         return file_path
 
 
@@ -392,6 +402,10 @@ class JsonRenderAdapter:
 
         if file_data.summary and config.include_file_summary:
             result["summary"] = file_data.summary
+
+        # Include AI summary if available
+        if hasattr(file_data, "ai_summary") and file_data.ai_summary:
+            result["ai_summary"] = file_data.ai_summary
 
         if file_data.tags:
             result["tags"] = file_data.tags
@@ -526,6 +540,11 @@ class XmlRenderAdapter:
             summary_elem = ET.SubElement(file_element, "summary")
             summary_elem.text = file_data.summary
 
+        # Add AI summary if available
+        if hasattr(file_data, "ai_summary") and file_data.ai_summary:
+            ai_summary_elem = ET.SubElement(file_element, "ai_summary")
+            ai_summary_elem.text = file_data.ai_summary
+
         # Add tags if present
         if file_data.tags:
             tags_elem = ET.SubElement(file_element, "tags")
@@ -644,7 +663,8 @@ class TextRenderAdapter:
                 - decl (Declaration): The declaration object to add, containing information such as kind, name, line range, and modifiers.
                 - indent (int): The indentation level for formatting the declaration and its children.
             Returns:
-                - None: This function appends formatted declaration lines to a global result list and does not return a value."""
+                - None: This function appends formatted declaration lines to a global result list and does not return a value.
+            """
             indent_str = "  " * indent
             kind_display = f"{decl.kind.capitalize()}"
 

@@ -46,7 +46,8 @@ def safe_parser_method(default_return: Any = None) -> Callable[[F], F]:
                 - logger (Logger): Logger object used for logging error messages.
                 - _get_parser_name (Callable): Function to retrieve parser name from arguments for logging purposes.
             Returns:
-                - Any: The result of the wrapped function call, or the default return value if exceptions are caught."""
+                - Any: The result of the wrapped function call, or the default return value if exceptions are caught.
+            """
             try:
                 return func(*args, **kwargs)
             except (IndexError, KeyError) as e:

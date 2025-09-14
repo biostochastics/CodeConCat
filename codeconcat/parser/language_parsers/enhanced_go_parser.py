@@ -99,6 +99,7 @@ class EnhancedGoParser(EnhancedBaseParser):
 
     def parse(self, content: str, file_path: str) -> ParseResult:
         """Parse Go code and return a ParseResult object."""
+        errors: list[str] = []  # Initialize before try block to avoid UnboundLocalError
         try:
             logger.debug(f"Starting EnhancedGoParser.parse for file: {file_path}")
 
@@ -107,7 +108,6 @@ class EnhancedGoParser(EnhancedBaseParser):
             classes: list[str] = []  # Go struct types
             functions: list[str] = []
             docstrings: dict[str, str] = {}
-            errors: list[str] = []
 
             lines = content.split("\n")
             i = 0

@@ -131,8 +131,15 @@ class ValidationMiddleware(BaseHTTPMiddleware):
 
         if schema and request.method in ("POST", "PUT", "PATCH"):
             try:
-                # Try to parse JSON body
-                body = await request.json()
+                # Store the body for later processing since we can't reliably read it twice
+                # Use a cache approach to avoid blocking issues with TestClient
+                if not hasattr(request, "_json_cache"):
+                    body = await request.json()
+                    # Store for potential reuse
+                    request._json_cache = body  # type: ignore[attr-defined]
+                else:
+                    body = request._json_cache  # type: ignore[attr-defined]
+
                 logger.debug(f"Validating request body against schema for {path}")
                 validate_against_schema(body, schema, context=f"request to {path}")
             except ValidationError as e:
