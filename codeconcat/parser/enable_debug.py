@@ -42,6 +42,12 @@ def enable_debug_for_parsers():
         for _, name, _ in pkgutil.iter_modules([str(parsers_path)]):
             if "parser" in name.lower():
                 try:
+                    # Validate module name to prevent arbitrary module loading
+                    # Only allow alphanumeric, underscore, and hyphen characters
+                    if not all(c.isalnum() or c in "_-" for c in name):
+                        PARSER_DEBUG.warning(f"Skipping module with invalid name: {name}")
+                        continue
+
                     # Import the module
                     module_name = f"codeconcat.parser.language_parsers.{name}"
                     PARSER_DEBUG.debug(f"Loading parser module: {module_name}")
