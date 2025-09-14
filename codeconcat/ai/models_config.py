@@ -377,8 +377,7 @@ def get_cheapest_model(
         candidates.append((total_cost, config))
 
     if candidates:
-        candidates.sort(key=lambda x: x[0])
-        return candidates[0][1]
+        return min(candidates, key=lambda x: x[0])[1]
 
     return None
 

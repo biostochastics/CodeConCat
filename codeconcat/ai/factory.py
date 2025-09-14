@@ -103,16 +103,20 @@ def list_available_providers() -> List[str]:
     # Check for Ollama (uses HTTP but check if server is reachable)
     import os
 
-    import requests  # type: ignore[import-untyped]
-
-    ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     try:
-        response = requests.get(f"{ollama_host.rstrip('/')}/api/tags", timeout=1)
-        response.raise_for_status()  # Raises an exception for 4xx/5xx status codes
-        available.append("ollama")
-    except requests.exceptions.RequestException:
-        # This will catch connection errors, timeouts, and bad status codes
-        pass
+        import requests  # type: ignore[import-untyped]
+    except ImportError:
+        requests = None  # type: ignore
+
+    if requests is not None:
+        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        try:
+            response = requests.get(f"{ollama_host.rstrip('/')}/api/tags", timeout=1)
+            response.raise_for_status()  # Raises an exception for 4xx/5xx status codes
+            available.append("ollama")
+        except requests.exceptions.RequestException:
+            # This will catch connection errors, timeouts, and bad status codes
+            pass
 
     # Check for llama-cpp-python
     if importlib.util.find_spec("llama_cpp") is not None:

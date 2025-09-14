@@ -51,7 +51,7 @@ class OpenAIProvider(AIProvider):
             headers = {
                 "Authorization": f"Bearer {self.config.api_key}",
                 "Content-Type": "application/json",
-                **self.config.custom_headers,
+                **(self.config.custom_headers or {}),
             }
             timeout = aiohttp.ClientTimeout(total=self.config.timeout)
             self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)

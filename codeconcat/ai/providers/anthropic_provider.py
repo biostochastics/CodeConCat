@@ -55,7 +55,7 @@ class AnthropicProvider(AIProvider):
                 "x-api-key": self.config.api_key,
                 "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json",
-                **self.config.custom_headers,
+                **(self.config.custom_headers or {}),
             }
             timeout = aiohttp.ClientTimeout(total=self.config.timeout)
             self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)

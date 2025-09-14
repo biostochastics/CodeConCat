@@ -44,11 +44,12 @@ class SummaryCache:
             Cached summary or None if not found/expired
         """
         # Check memory cache first
-        if key in self._memory_cache:
-            entry = self._memory_cache[key]
-            if time.time() - entry["timestamp"] < self.ttl:
+        with self._lock:
+            entry = self._memory_cache.get(key)
+            if entry and time.time() - entry["timestamp"] < self.ttl:
                 return str(entry["summary"])
-            else:
+            elif entry:
+                # Expired, remove from memory cache
                 del self._memory_cache[key]
 
         # Check file cache
