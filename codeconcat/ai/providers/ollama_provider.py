@@ -86,7 +86,12 @@ class OllamaProvider(AIProvider):
                 )
 
         # Create the prompt (Ollama uses a single prompt, not messages)
-        system_prompt = self.SYSTEM_PROMPT_CODE_SUMMARY
+        # Use getattr with fallback to prevent AttributeError
+        system_prompt = getattr(
+            self,
+            "SYSTEM_PROMPT_CODE_SUMMARY",
+            "You are a helpful assistant that creates concise, informative code summaries.",
+        )
         user_prompt = self._create_code_summary_prompt(code, language, context)
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
 
@@ -159,7 +164,12 @@ class OllamaProvider(AIProvider):
                 )
 
         # Create the prompt
-        system_prompt = self.SYSTEM_PROMPT_FUNCTION_SUMMARY
+        # Use getattr with fallback to prevent AttributeError
+        system_prompt = getattr(
+            self,
+            "SYSTEM_PROMPT_FUNCTION_SUMMARY",
+            "You are a helpful assistant that creates concise function summaries.",
+        )
         user_prompt = self._create_function_summary_prompt(
             function_code, function_name, language, context
         )

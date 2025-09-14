@@ -104,10 +104,16 @@ class OpenAIProvider(AIProvider):
         # Create the prompt
         prompt = self._create_code_summary_prompt(code, language, context)
 
+        # Use getattr with fallback to prevent AttributeError
+        system_prompt = getattr(
+            self,
+            "SYSTEM_PROMPT_CODE_SUMMARY",
+            "You are a helpful assistant that creates concise, informative code summaries.",
+        )
         messages = [
             {
                 "role": "system",
-                "content": self.SYSTEM_PROMPT_CODE_SUMMARY,
+                "content": system_prompt,
             },
             {"role": "user", "content": prompt},
         ]
@@ -176,10 +182,16 @@ class OpenAIProvider(AIProvider):
             function_code, function_name, language, context
         )
 
+        # Use getattr with fallback to prevent AttributeError
+        system_prompt = getattr(
+            self,
+            "SYSTEM_PROMPT_FUNCTION_SUMMARY",
+            "You are a helpful assistant that creates concise function summaries.",
+        )
         messages = [
             {
                 "role": "system",
-                "content": self.SYSTEM_PROMPT_FUNCTION_SUMMARY,
+                "content": system_prompt,
             },
             {"role": "user", "content": prompt},
         ]
