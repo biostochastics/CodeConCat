@@ -24,7 +24,8 @@ CodeConCat is a Python tool that transforms codebases into formats optimized for
 ## Key Features
 
 - **Multi-Language Parsing**: Parsing for 11+ languages using tree-sitter and regex engines
-- **Compression**: Intelligent compression with modern pattern recognition and two simplified modes
+- **AI Summarization** *(Optional)*: Code summarization using OpenAI, Anthropic, Google, OpenRouter, or local models
+- **Compression**: Code compression with pattern recognition and two simplified modes
 - **Security Scanning**: Integrated Semgrep support with configurable severity thresholds
 - **Multiple Output Formats**: Markdown, JSON, XML, and text outputs
 - **Remote Repository Support**: Analyze GitHub repositories directly
@@ -70,13 +71,13 @@ CodeConCat uses a multi-tier parser system for maximum reliability and feature c
 
 1. **Tree-sitter Parsers** (Primary)
    - Full syntax tree parsing for accurate code structure recognition
-   - Support for advanced language features and precise source locations
-   - Best handling of nested declarations and complex constructs
+   - Support for language-specific features and precise source locations
+   - Handles nested declarations and complex constructs
    - Located in `codeconcat/parser/language_parsers/tree_sitter_{language}_parser.py`
 
 2. **Enhanced Regex Parsers** (Fallback)
    - Pattern-based parsing with state tracking
-   - Better support for edge cases and malformed code
+   - Support for edge cases and malformed code
    - Improved docstring extraction and handling
    - Located in `codeconcat/parser/language_parsers/enhanced_{language}_parser.py`
 
@@ -388,7 +389,7 @@ Process files and generate AI-optimized output.
 | `--output` | `-o` | Output file path (auto-detected from format if omitted) |
 | `--format` | `-f` | Output format: `markdown`, `json`, `xml`, `text` (default: markdown) |
 | `--preset` | `-p` | Configuration preset: `lean`, `medium`, `full` |
-| `--compress` | | Enable intelligent code compression |
+| `--compress` | | Enable code compression |
 | `--compression-level` | | Compression level: `low`, `medium` (contextual), `high`/`aggressive` (essential) |
 | `--source-url` | | GitHub URL or owner/repo for remote repositories |
 | `--github-token` | | GitHub PAT for private repositories |
@@ -550,6 +551,120 @@ export CODECONCAT_ALLOW_LOCAL_PATH=false  # Enable local path processing in API 
 export ENV=production                     # Environment mode: production, development, or test
 ```
 
+## AI Summarization (Optional)
+
+CodeConCat includes an optional AI summarization module that generates summaries for code files and functions. This feature provides concise descriptions to help understand codebases.
+
+### Supported Providers
+
+| Provider | Default Model | Cost/1K tokens (Input/Output) | Notes |
+|----------|--------------|-------------------------------|-------|
+| **OpenAI** | gpt-4o-nano | $0.00010/$0.0004 | Low-cost model |
+| **Anthropic** | claude-3-haiku-20240307 | $0.00025/$0.00125 | Fast processing |
+| **Google** | gemini-2.0-flash-exp | Free (experimental) | 1M context window |
+| **OpenRouter** | mistral-7b-instruct | Free | Access to 50+ models |
+| **Ollama** | llama3.2 | Free (local) | Runs on local hardware |
+
+### Available Models (2025)
+
+#### Premium Models
+- **OpenAI**: gpt-5, gpt-4o, gpt-4o-mini
+- **Anthropic**: claude-3-opus, claude-3-sonnet, claude-3-haiku
+- **Google**: gemini-2.5-pro, gemini-2.5-flash
+
+#### Budget Models
+- **OpenAI**: gpt-4o-nano, gpt-3.5-turbo
+- **OpenRouter**: z-ai/glm-4.5, qwen/qwq-32b-preview, deepseek-chat
+- **Local**: Any Ollama-compatible model
+
+### Quick Start
+
+```bash
+# Enable AI summarization with OpenAI
+codeconcat run --enable-ai-summary --ai-provider openai
+
+# Use Anthropic with a specific model
+codeconcat run --enable-ai-summary --ai-provider anthropic --ai-model claude-3-haiku-20240307
+
+# Use free local model with Ollama
+ollama run llama3.2  # First time setup
+codeconcat run --enable-ai-summary --ai-provider ollama --ai-model llama3.2
+```
+
+### API Key Setup
+
+#### Interactive Setup (Recommended)
+```bash
+# Secure key storage with encryption
+python -m codeconcat.ai.key_manager
+
+# This will prompt for:
+# 1. Master password (for encryption)
+# 2. Provider selection
+# 3. API key entry
+```
+
+#### Environment Variables
+```bash
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GOOGLE_API_KEY="..."
+export OPENROUTER_API_KEY="sk-or-..."
+```
+
+### Configuration Options
+
+```yaml
+# In .codeconcat.yml
+enable_ai_summary: true
+ai_provider: openai              # openai, anthropic, google, openrouter, ollama
+ai_model: gpt-4o-nano            # Optional, uses provider defaults
+
+# Processing settings
+ai_min_file_lines: 20            # Skip small files
+ai_summarize_functions: true     # Summarize individual functions
+ai_max_functions_per_file: 10    # Limit functions per file
+
+# Performance
+ai_max_concurrent: 5             # Concurrent API requests
+ai_cache_enabled: true           # Enable result caching
+```
+
+### Security Considerations
+
+⚠️ **Important Security Notes:**
+- API keys are encrypted using Fernet (AES-128) with PBKDF2 key derivation
+- Keys stored in `~/.codeconcat/keys.enc` with restricted permissions (0600)
+- Never commit API keys to version control
+- Code is sent to third-party services - review provider data policies
+- Use local models (Ollama) for sensitive/proprietary code
+- Cache files may contain code snippets - disable for sensitive projects
+
+### Cost Optimization
+
+```bash
+# Use free models
+codeconcat run --enable-ai-summary --ai-provider openrouter --ai-model mistral-7b-instruct
+
+# Use low-cost models
+codeconcat run --enable-ai-summary --ai-provider openai --ai-model gpt-4o-nano
+
+# Limit scope to reduce costs
+codeconcat run --enable-ai-summary --ai-min-file-lines 50 --ai-max-tokens 200
+
+# Enable caching to avoid repeated API calls
+codeconcat run --enable-ai-summary --ai-cache-enabled --ai-cache-ttl 86400
+```
+
+### Features
+
+- **Token Counting**: Uses tiktoken for OpenAI models, estimation for others
+- **Caching**: LRU cache reduces redundant API calls
+- **Rate Limiting**: Configurable concurrency and request rates
+- **Batch Processing**: Handles multiple files concurrently
+- **Error Handling**: Continues processing if AI calls fail
+- **Cost Tracking**: Token usage and cost estimation
+
 ## Advanced Features
 
 ### Compression
@@ -564,7 +679,7 @@ codeconcat run --compress --compression-level medium
 codeconcat run --compress --compression-level aggressive
 ```
 
-Compression effectiveness varies by codebase size and complexity. Larger codebases with more repetitive patterns see better compression ratios.
+Compression effectiveness varies by codebase size and complexity. Larger codebases with repetitive patterns typically see higher compression ratios.
 
 ### Security Features
 
@@ -606,7 +721,7 @@ The `SecurityProcessor` class provides unified access to all security features:
 
 ### File Size Limits
 
-CodeConCat handles file sizes intelligently to optimize performance:
+CodeConCat handles file sizes to optimize performance:
 
 - **20MB limit**: Files larger than 20MB are skipped with a warning
 - **5MB binary detection**: Large files checked for binary content

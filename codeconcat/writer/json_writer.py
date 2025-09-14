@@ -289,10 +289,13 @@ def _build_relationships(
         if hasattr(item, "imports") and item.imports:
             original_path = getattr(item, "file_path", "")
             sanitized_path = _sanitize_path(original_path, config)
-            relationships["imports"][sanitized_path] = item.imports
 
-            # Build reverse mapping
-            for imp in item.imports:
+            # Sanitize all import paths to prevent leaking absolute paths
+            sanitized_imports = [_sanitize_path(imp, config) for imp in item.imports]
+            relationships["imports"][sanitized_path] = sanitized_imports
+
+            # Build reverse mapping with sanitized paths
+            for imp in sanitized_imports:
                 if imp not in relationships["imported_by"]:
                     relationships["imported_by"][imp] = []
                 relationships["imported_by"][imp].append(sanitized_path)
@@ -307,6 +310,10 @@ def _sanitize_path(file_path: str, config: CodeConCatConfig) -> str:
     - If the path is absolute, attempt to make it relative to config.target_path or cwd.
     - As a last resort, return the last two path components to avoid leaking user directories.
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     try:
         if not getattr(config, "redact_paths", False):
             return file_path
@@ -322,23 +329,28 @@ def _sanitize_path(file_path: str, config: CodeConCatConfig) -> str:
         # Try relative to configured target path first
         try:
             base = Path(getattr(config, "target_path", ".")).resolve()
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to resolve target_path, using cwd: {e}")
             base = Path.cwd()
 
         try:
             rel = p.resolve().relative_to(base)
             return rel.as_posix()
-        except Exception:
+        except ValueError:
             # Try making it relative to the current working directory
             try:
                 rel2 = p.resolve().relative_to(Path.cwd())
                 return rel2.as_posix()
-            except Exception:
+            except ValueError:
                 # Fallback: keep only the last 2 components
                 parts = p.parts
                 if len(parts) >= 2:
+                    logger.debug(
+                        f"Path redaction fallback: keeping last 2 components of {file_path}"
+                    )
                     return "/".join(parts[-2:])
                 return p.name
-    except Exception:
-        # On any unexpected error, return the original path
+    except Exception as e:
+        # On any unexpected error, log it and return the original path
+        logger.warning(f"Failed to sanitize path '{file_path}': {e}. Using original path.")
         return file_path

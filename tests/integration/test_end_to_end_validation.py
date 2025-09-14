@@ -272,7 +272,7 @@ python src/clean.py
     @pytest.mark.parametrize(
         "scenario", SECURITY_SCENARIOS, ids=[s["name"] for s in SECURITY_SCENARIOS]
     )
-    def test_security_scenarios(self, scenario, sample_project, _mock_semgrep, tmp_path):
+    def test_security_scenarios(self, scenario, sample_project, mock_semgrep, tmp_path):
         """Test various security validation scenarios."""
         logger.info(f"Running security scenario: {scenario['name']} - {scenario['description']}")
 
@@ -381,7 +381,7 @@ rules:
     @pytest.mark.skip(
         reason="CLI test needs refactoring - security features are already tested in other tests"
     )
-    def test_cli_security_options(self, sample_project, _mock_semgrep, tmp_path):
+    def test_cli_security_options(self, sample_project, mock_semgrep, tmp_path):
         """Test CLI security options integration."""
         output_file = tmp_path / "cli_output.md"
 
@@ -423,7 +423,7 @@ rules:
 
             logger.info("CLI security options were correctly processed")
 
-    def test_validation_with_real_semgrep(self, _sample_project, tmp_path):
+    def test_validation_with_real_semgrep(self, sample_project, tmp_path):
         """Test validation with real Semgrep validation logic but using mocks."""
         # Check if actual semgrep is available
         import shutil
@@ -475,7 +475,7 @@ rules:
             logger.error(f"Error running Semgrep validation test: {e}")
             pytest.skip(f"Error in Semgrep validation test: {e}")
 
-    def test_validation_with_apiiro_ruleset(self, _sample_project, tmp_path):
+    def test_validation_with_apiiro_ruleset(self, sample_project, tmp_path):
         """Test validation with the Apiiro ruleset using a mocked approach."""
         # Check if semgrep is available
         import shutil

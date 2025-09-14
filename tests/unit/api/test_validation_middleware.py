@@ -19,7 +19,12 @@ def app():
 
     @app.post("/api/test")
     async def test_endpoint(request: Request):
-        body = await request.json()
+        # Get the cached body from the middleware
+        body = (
+            request._json_cache  # type: ignore[attr-defined]
+            if hasattr(request, "_json_cache")
+            else {"message": "no body"}
+        )
         return {"status": "success", "data": body}
 
     @app.get("/api/no-validation")
@@ -58,7 +63,9 @@ def client(app):
         rate_limit_window=60,
     )
 
-    return TestClient(app)
+    # Return TestClient with proper async handling
+    with TestClient(app) as client:
+        yield client
 
 
 class TestValidationMiddleware:

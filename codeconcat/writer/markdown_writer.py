@@ -56,6 +56,16 @@ def write_markdown(
     output_parts.append("# CodeConCat Analysis Report\n")
     output_parts.append(f"**Generated**: {_get_timestamp()}\n")
     output_parts.append(f"**Total Files**: {len(items)}\n")
+
+    # Check if AI summarization is enabled
+    ai_summaries_count = sum(1 for item in items if hasattr(item, "ai_summary") and item.ai_summary)
+    if ai_summaries_count > 0:
+        output_parts.append(
+            f"**AI Summaries**: Enabled ({ai_summaries_count}/{len(items)} files)\n"
+        )
+    elif getattr(config, "enable_ai_summary", False):
+        output_parts.append("**AI Summaries**: Enabled but no summaries generated\n")
+
     output_parts.append("")
 
     # Table of Contents with anchor links
@@ -147,6 +157,12 @@ def write_markdown(
             output_parts.append(f"[Next →](#{next_anchor})")
         output_parts.append("\n")
 
+        # AI Summary section if available
+        if hasattr(item, "ai_summary") and item.ai_summary:
+            output_parts.append("#### AI Summary\n")
+            output_parts.append(f"> {item.ai_summary}\n")
+            output_parts.append("")
+
         # File metadata in a table
         if config.include_file_summary:
             output_parts.append("#### File Information\n")
@@ -162,6 +178,10 @@ def write_markdown(
             # Security summary
             if hasattr(item, "security_issues") and item.security_issues:
                 output_parts.append(f"| Security Issues | {len(item.security_issues)} |")
+
+            # AI Summary indicator
+            if hasattr(item, "ai_summary") and item.ai_summary:
+                output_parts.append("| AI Summary | Available |")
 
             output_parts.append("")
 

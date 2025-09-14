@@ -7,7 +7,8 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
         - parsed_data (ParsedFileData): Contains the various components extracted from the parsed file, such as file path, language, content, declarations, imports, token statistics, and potential security issues.
         - config (CodeConCatConfig): Holds configuration options that control features like whether to include symbols in the annotations.
     Returns:
-        - AnnotatedFileData: Includes the original file path, language, content, annotated content with declarations listed by kind, detailed summary, and a set of tags describing the content."""
+        - AnnotatedFileData: Includes the original file path, language, content, annotated content with declarations listed by kind, detailed summary, and a set of tags describing the content.
+    """
     pieces = []
     pieces.append(f"## File: {parsed_data.file_path}\n")
 
@@ -58,7 +59,13 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
     if symbols:
         summary_parts.append(f"{len(symbols)} symbols")
 
-    summary = f"Contains {', '.join(summary_parts)}" if summary_parts else "No declarations found"
+    # Use AI summary if available, otherwise generate basic summary
+    if parsed_data.ai_summary:
+        summary = parsed_data.ai_summary
+    else:
+        summary = (
+            f"Contains {', '.join(summary_parts)}" if summary_parts else "No declarations found"
+        )
 
     # Generate tags
     tags = []

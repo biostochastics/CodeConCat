@@ -41,29 +41,69 @@ def setup_logging(level: str = "WARNING", _quiet: bool = False) -> None:
             cwd = str(Path.cwd())
 
             class PathRedactingFormatter(logging.Formatter):
+                """Custom formatter that redacts sensitive path information from logs."""
+
                 def __init__(self, fmt=None, datefmt=None):
+                    """Initialize the formatter with optional format strings.
+
+                    Args:
+                        fmt: Format string for log messages
+                        datefmt: Format string for dates
+                    """
                     super().__init__(fmt=fmt, datefmt=datefmt)
 
                 def _redact(self, text: str) -> str:
+                    """Replace sensitive paths with placeholders.
+
+                    Args:
+                        text: Text potentially containing sensitive paths
+
+                    Returns:
+                        Text with paths replaced by <CWD> and <HOME>
+                    """
                     if not text:
                         return text
-                    # Replace home directory and CWD with placeholders
-                    redacted = text.replace(home, "<HOME>")
-                    redacted = redacted.replace(cwd, "<CWD>")
+                    # Replace CWD first (more specific), then HOME (more general)
+                    # This ensures CWD is properly replaced even when it's a subdirectory of HOME
+                    redacted = text.replace(cwd, "<CWD>")
+                    redacted = redacted.replace(home, "<HOME>")
                     return redacted
 
                 def format(self, record: logging.LogRecord) -> str:
+                    """Format log record with path redaction.
+
+                    Args:
+                        record: LogRecord to format
+
+                    Returns:
+                        Formatted string with sensitive paths redacted
+                    """
                     formatted = super().format(record)
                     return self._redact(formatted)
 
             root_logger = logging.getLogger()
             for handler in root_logger.handlers:
-                fmt = (
-                    handler.formatter._fmt
-                    if handler.formatter
-                    else "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-                )
-                datefmt = handler.formatter.datefmt if handler.formatter else "%Y-%m-%d %H:%M:%S"
+                # Safely get format string from formatter
+                fmt = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"  # default
+                datefmt = "%Y-%m-%d %H:%M:%S"  # default
+
+                if handler.formatter:
+                    # Try to get _fmt attribute safely
+                    if hasattr(handler.formatter, "_fmt"):
+                        fmt_value = handler.formatter._fmt  # type: ignore[attr-defined]
+                        if fmt_value is not None:
+                            fmt = fmt_value
+                    elif hasattr(handler.formatter, "_style") and hasattr(
+                        handler.formatter._style, "_fmt"
+                    ):
+                        # Python 3.8+ uses PercentStyle internally
+                        fmt_value = handler.formatter._style._fmt  # type: ignore[attr-defined]
+                        if fmt_value is not None:
+                            fmt = fmt_value
+
+                    if hasattr(handler.formatter, "datefmt"):
+                        datefmt = handler.formatter.datefmt or datefmt
+
                 handler.setFormatter(PathRedactingFormatter(fmt=fmt, datefmt=datefmt))
         except Exception:
             # If anything goes wrong, continue without redaction to avoid breaking logging

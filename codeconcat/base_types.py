@@ -97,7 +97,8 @@ class SecuritySeverity(Enum):
     Processing Logic:
         - Provides a standard order for security severity levels: INFO < LOW < MEDIUM < HIGH < CRITICAL.
         - Implements comparison methods to enable ordering of SecuritySeverity instances.
-        - If comparison is attempted with a non-SecuritySeverity instance, NotImplemented is returned."""
+        - If comparison is attempted with a non-SecuritySeverity instance, NotImplemented is returned.
+    """
 
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
@@ -131,16 +132,40 @@ class SecuritySeverity(Enum):
         return NotImplemented
 
     def __le__(self, other):
+        """Check if this Declaration is less than or equal to another.
+
+        Args:
+            other: Another Declaration to compare to
+
+        Returns:
+            bool: True if this Declaration is <= other, NotImplemented otherwise
+        """
         if self.__class__ is other.__class__:
             return self == other or self < other
         return NotImplemented
 
     def __gt__(self, other):
+        """Check if this Declaration is greater than another.
+
+        Args:
+            other: Another Declaration to compare to
+
+        Returns:
+            bool: True if this Declaration is > other, NotImplemented otherwise
+        """
         if self.__class__ is other.__class__:
             return not (self <= other)
         return NotImplemented
 
     def __ge__(self, other):
+        """Check if this Declaration is greater than or equal to another.
+
+        Args:
+            other: Another Declaration to compare to
+
+        Returns:
+            bool: True if this Declaration is >= other, NotImplemented otherwise
+        """
         if self.__class__ is other.__class__:
             return self == other or self > other
         return NotImplemented
@@ -223,7 +248,8 @@ class CustomSecurityPattern(BaseModel):
                 - value (str): Regex pattern to be compiled.
                 - result_queue (queue.Queue): A queue object to store the result of the regex compilation and validation.
             Returns:
-                - None: Results are communicated via the result_queue, which contains a tuple with a boolean indicating success or failure, and a message or the validated pattern."""
+                - None: Results are communicated via the result_queue, which contains a tuple with a boolean indicating success or failure, and a message or the validated pattern.
+            """
             try:
                 # Limit regex length as additional protection
                 if len(value) > 1000:
@@ -282,6 +308,7 @@ class Declaration:
     docstring: str = ""
     signature: str = ""  # Function/method signature without body
     children: list[Declaration] = field(default_factory=list)
+    ai_summary: str | None = None  # AI-generated summary for this declaration
 
     def __post_init__(self):
         """Initialize a declaration."""
@@ -309,6 +336,8 @@ class ParsedFileData:
     token_stats: TokenStats | None = None
     security_issues: list[SecurityIssue] = field(default_factory=list)
     parse_result: Any | None = None
+    ai_summary: str | None = None  # AI-generated summary
+    ai_metadata: dict[str, Any] | None = None  # Metadata about AI generation
 
 
 # New ParseResult Dataclass
@@ -418,21 +447,53 @@ class AnnotatedFileData(WritableItem):
     tags: list[str] = field(default_factory=list)
 
     def render_text_lines(self, config: CodeConCatConfig) -> list[str]:
+        """Render the annotated file as plain text lines.
+
+        Args:
+            config: Configuration for rendering options
+
+        Returns:
+            List of text lines representing the file
+        """
         from codeconcat.writer.rendering_adapters import TextRenderAdapter
 
         return TextRenderAdapter.render_annotated_file(self, config)
 
     def render_markdown_chunks(self, config: CodeConCatConfig) -> list[str]:
+        """Render the annotated file as Markdown chunks.
+
+        Args:
+            config: Configuration for rendering options
+
+        Returns:
+            List of Markdown-formatted text chunks
+        """
         from codeconcat.writer.rendering_adapters import MarkdownRenderAdapter
 
         return MarkdownRenderAdapter.render_annotated_file(self, config)
 
     def render_json_dict(self, config: CodeConCatConfig) -> dict[str, Any]:
+        """Render the annotated file as a JSON-serializable dictionary.
+
+        Args:
+            config: Configuration for rendering options
+
+        Returns:
+            Dictionary representation of the file data
+        """
         from codeconcat.writer.rendering_adapters import JsonRenderAdapter
 
         return JsonRenderAdapter.annotated_file_to_dict(self, config)
 
     def render_xml_element(self, config: CodeConCatConfig) -> ET.Element:
+        """Render the annotated file as an XML element.
+
+        Args:
+            config: Configuration for rendering options
+
+        Returns:
+            ET.Element containing the XML representation
+        """
         from codeconcat.writer.rendering_adapters import XmlRenderAdapter
 
         return XmlRenderAdapter.create_annotated_file_element(self, config)
@@ -696,13 +757,17 @@ class CodeConCatConfig(BaseModel):
     # New flag for output masking
     mask_output_content: bool = Field(
         False,
-        description="Mask sensitive data directly in the final output content (if security scanning is enabled).",
+        description="Mask sensitive data (secrets, API keys, etc.) directly in the file content within the output. "
+        "This flag affects the actual code/content displayed, not just metadata. "
+        "Different from redact_paths which only affects file path display. "
+        "Requires security scanning to be enabled.",
     )
 
     # Redact absolute paths in outputs/logs to avoid leaking local usernames and directories
     redact_paths: bool = Field(
         False,
-        description="Redact absolute filesystem paths in generated outputs and logs (replaces with relative or placeholder paths).",
+        description="Redact absolute filesystem paths in generated outputs and logs (replaces with relative or placeholder paths). "
+        "This flag affects file paths in output structure/metadata but not file content itself.",
     )
 
     # --- Compression Options ---
@@ -732,4 +797,53 @@ class CodeConCatConfig(BaseModel):
         None,
         description="Analysis prompt for AI-assisted code analysis (loaded from file or provided directly).",
     )
+
+    # --- AI Summarization Options ---
+    enable_ai_summary: bool = Field(
+        False, description="Enable AI-powered code summarization (requires API key)."
+    )
+    ai_provider: str = Field(
+        "openai", description="AI provider to use: openai, anthropic, openrouter, ollama, llamacpp"
+    )
+    ai_api_key: str | None = Field(
+        None, description="API key for the AI provider (can also use environment variables)"
+    )
+    ai_model: str | None = Field(
+        None,
+        description="Specific model to use (provider-dependent, e.g., 'gpt-3.5-turbo', 'claude-3-haiku')",
+    )
+    ai_temperature: float = Field(
+        0.3, description="Temperature for AI generation (0.0-1.0, lower is more deterministic)"
+    )
+    ai_max_tokens: int = Field(500, description="Maximum tokens for AI summaries")
+    ai_cache_enabled: bool = Field(
+        True, description="Cache AI summaries to avoid redundant API calls"
+    )
+    ai_summarize_functions: bool = Field(
+        False, description="Generate summaries for individual functions/methods"
+    )
+    ai_min_file_lines: int = Field(
+        20, description="Minimum file size (in lines) to trigger summarization"
+    )
+    ai_min_function_lines: int = Field(
+        10, description="Minimum function size (in lines) to trigger summarization"
+    )
+    ai_max_functions_per_file: int = Field(
+        10, description="Maximum number of functions to summarize per file"
+    )
+    ai_max_content_chars: int = Field(
+        50000, description="Maximum characters of content to send to AI (truncate if larger)"
+    )
+    ai_max_concurrent: int = Field(5, description="Maximum concurrent AI API requests")
+    ai_include_languages: list[str] | None = Field(
+        None, description="Only summarize these languages (None means all)"
+    )
+    ai_exclude_languages: list[str] = Field(
+        default_factory=list, description="Languages to exclude from summarization"
+    )
+    ai_exclude_patterns: list[str] = Field(
+        default_factory=lambda: ["*test*", "*spec*", "*mock*"],
+        description="File path patterns to exclude from summarization",
+    )
+
     # ... rest of the code remains the same ...

@@ -176,6 +176,8 @@ class CodeConcatRequest(BaseModel):
         return v
 
     class Config:
+        """Pydantic configuration for CodeConcatRequest model."""
+
         json_schema_extra = {
             "example": {
                 "source_url": "username/repo",
@@ -683,21 +685,48 @@ def create_app() -> FastAPI:
                     safe_extract(zip_ref, temp_dir)
 
                 # Create configuration
-                config_builder = ConfigBuilder()
-                config_builder.with_defaults()
-                config_builder.with_preset(output_preset)
+                # Temporarily allow local path for upload processing
+                old_allow_local = os.environ.get("CODECONCAT_ALLOW_LOCAL_PATH")
+                old_env = os.environ.get("ENV")
 
-                # Set specific options from form fields
-                config_builder.with_cli_args(
-                    {
-                        "target_path": temp_dir,
-                        "format": format,
-                        "parser_engine": parser_engine,
-                        "enable_compression": enable_compression,
-                    }
-                )
+                try:
+                    # Set environment to allow temp directory processing
+                    os.environ["CODECONCAT_ALLOW_LOCAL_PATH"] = "true"
+                    os.environ["ENV"] = "development"
 
-                config = config_builder.build()
+                    config_builder = ConfigBuilder()
+                    config_builder.with_defaults()
+                    config_builder.with_preset(output_preset)
+
+                    # Set specific options from form fields
+                    config_builder.with_cli_args(
+                        {
+                            "target_path": temp_dir,
+                            "format": format,
+                            "parser_engine": parser_engine,
+                            "enable_compression": enable_compression,
+                            "include_paths": [
+                                "**/*.py",
+                                "**/*.md",
+                                "**/*.txt",
+                                "**/*.js",
+                                "**/*.ts",
+                            ],  # Include common file types
+                        }
+                    )
+
+                    config = config_builder.build()
+                finally:
+                    # Restore original environment
+                    if old_allow_local is not None:
+                        os.environ["CODECONCAT_ALLOW_LOCAL_PATH"] = old_allow_local
+                    else:
+                        os.environ.pop("CODECONCAT_ALLOW_LOCAL_PATH", None)
+
+                    if old_env is not None:
+                        os.environ["ENV"] = old_env
+                    else:
+                        os.environ.pop("ENV", None)
 
                 # Process the code
                 logger.info(f"Processing uploaded files with format: {format}")

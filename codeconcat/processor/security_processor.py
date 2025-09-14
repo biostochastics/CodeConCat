@@ -250,7 +250,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             ) in compiled_patterns.items():
                 # Use original line segment for finding matches, but mask the potentially already masked line
                 current_line_segment = (
-                    output_lines[idx] if mask_output_content and output_lines else line
+                    output_lines[idx] if mask_output_content and output_lines is not None else line
                 )
                 for match in pattern.finditer(original_line_for_masking):
                     try:
@@ -296,7 +296,7 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                         masked_line_for_issue = current_line_segment
 
                     # Mask the actual output line list if requested
-                    if mask_output_content and output_lines:
+                    if mask_output_content and output_lines is not None:
                         try:
                             # Mask the line in the output_lines list
                             output_lines[idx] = cls._mask_sensitive_data(

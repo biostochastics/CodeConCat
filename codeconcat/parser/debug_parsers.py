@@ -97,7 +97,8 @@ def compute_declaration_metrics(declarations: List[Declaration]) -> Dict[str, An
         Parameters:
             - decl_list (List[Declaration]): A list of declaration objects to count types from.
         Returns:
-            - Dict[str, int]: A dictionary where keys are declaration types and values are the counts of those types."""
+            - Dict[str, int]: A dictionary where keys are declaration types and values are the counts of those types.
+        """
         counts: Dict[str, int] = {}
         for decl in decl_list:
             kind = decl.kind

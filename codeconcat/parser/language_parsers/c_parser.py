@@ -85,7 +85,8 @@ class CParser(BaseParser):
             - content (str): The content of the source file as a string.
             - file_path (str): The file path of the source file being parsed.
         Returns:
-            - ParseResult: A structured result containing the file path, language, original content, and parsed declarations as a list of code symbols."""
+            - ParseResult: A structured result containing the file path, language, original content, and parsed declarations as a list of code symbols.
+        """
         lines = content.split("\n")
         symbols: List[CodeSymbol] = []
         line_count = len(lines)
