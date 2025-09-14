@@ -439,6 +439,49 @@ def _try_tree_sitter_parser(language: str) -> Optional[ParserInterface]:
 
     from codeconcat.parser.language_parsers import TREE_SITTER_PARSER_MAP
 
+    # Validate language to prevent arbitrary module loading
+    # Only allow known language identifiers
+    ALLOWED_LANGUAGES = {
+        "python",
+        "javascript",
+        "typescript",
+        "r",
+        "julia",
+        "rust",
+        "cpp",
+        "c",
+        "csharp",
+        "java",
+        "go",
+        "php",
+        "ruby",
+        "swift",
+        "kotlin",
+        "scala",
+        "haskell",
+        "elm",
+        "lua",
+        "perl",
+        "bash",
+        "shell",
+        "powershell",
+        "sql",
+        "html",
+        "css",
+        "xml",
+        "yaml",
+        "json",
+        "toml",
+        "ini",
+        "markdown",
+        "restructuredtext",
+        "latex",
+    }
+
+    if language not in ALLOWED_LANGUAGES:
+        logger.warning(f"Rejecting unknown language for tree-sitter parser: {language}")
+        return None
+
     logger.debug(f"Attempting to load Tree-sitter parser for {language}")
     parser_class_name = TREE_SITTER_PARSER_MAP.get(language)
 
@@ -510,6 +553,49 @@ def _try_enhanced_regex_parser(
         logger.debug(f"Enhanced parsers disabled, skipping for {language}")
         return None
 
+    # Validate language to prevent arbitrary module loading
+    # Only allow known language identifiers
+    ALLOWED_LANGUAGES = {
+        "python",
+        "javascript",
+        "typescript",
+        "r",
+        "julia",
+        "rust",
+        "cpp",
+        "c",
+        "csharp",
+        "java",
+        "go",
+        "php",
+        "ruby",
+        "swift",
+        "kotlin",
+        "scala",
+        "haskell",
+        "elm",
+        "lua",
+        "perl",
+        "bash",
+        "shell",
+        "powershell",
+        "sql",
+        "html",
+        "css",
+        "xml",
+        "yaml",
+        "json",
+        "toml",
+        "ini",
+        "markdown",
+        "restructuredtext",
+        "latex",
+    }
+
+    if language not in ALLOWED_LANGUAGES:
+        logger.warning(f"Rejecting unknown language for enhanced parser: {language}")
+        return None
+
     logger.debug(f"Attempting to load Enhanced Regex parser for {language}")
     enhanced_name = f"{language}_enhanced"
     parser_class_name = REGEX_PARSER_MAP.get(enhanced_name)
@@ -551,6 +637,49 @@ def _try_standard_regex_parser(language: str) -> Optional[ParserInterface]:
     import importlib
 
     from codeconcat.parser.language_parsers import REGEX_PARSER_MAP
+
+    # Validate language to prevent arbitrary module loading
+    # Only allow known language identifiers
+    ALLOWED_LANGUAGES = {
+        "python",
+        "javascript",
+        "typescript",
+        "r",
+        "julia",
+        "rust",
+        "cpp",
+        "c",
+        "csharp",
+        "java",
+        "go",
+        "php",
+        "ruby",
+        "swift",
+        "kotlin",
+        "scala",
+        "haskell",
+        "elm",
+        "lua",
+        "perl",
+        "bash",
+        "shell",
+        "powershell",
+        "sql",
+        "html",
+        "css",
+        "xml",
+        "yaml",
+        "json",
+        "toml",
+        "ini",
+        "markdown",
+        "restructuredtext",
+        "latex",
+    }
+
+    if language not in ALLOWED_LANGUAGES:
+        logger.warning(f"Rejecting unknown language for standard parser: {language}")
+        return None
 
     logger.debug(f"Attempting to load Standard Regex parser for {language}")
     parser_class_name = REGEX_PARSER_MAP.get(language)
