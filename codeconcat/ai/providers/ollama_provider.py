@@ -86,9 +86,7 @@ class OllamaProvider(AIProvider):
                 )
 
         # Create the prompt (Ollama uses a single prompt, not messages)
-        system_prompt = (
-            "You are a helpful assistant that creates concise, informative code summaries."
-        )
+        system_prompt = self.SYSTEM_PROMPT_CODE_SUMMARY
         user_prompt = self._create_code_summary_prompt(code, language, context)
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
 
@@ -161,9 +159,7 @@ class OllamaProvider(AIProvider):
                 )
 
         # Create the prompt
-        system_prompt = (
-            "You are a helpful assistant that creates brief, accurate function summaries."
-        )
+        system_prompt = self.SYSTEM_PROMPT_FUNCTION_SUMMARY
         user_prompt = self._create_function_summary_prompt(
             function_code, function_name, language, context
         )

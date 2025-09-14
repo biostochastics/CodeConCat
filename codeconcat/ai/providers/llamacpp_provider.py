@@ -121,7 +121,7 @@ class LlamaCppProvider(AIProvider):
 
         # Format for Llama chat model
         prompt = f"""<s>[INST] <<SYS>>
-You are a helpful assistant that creates concise, informative code summaries.
+{self.SYSTEM_PROMPT_CODE_SUMMARY}
 <</SYS>>
 
 {base_prompt} [/INST]"""
@@ -199,7 +199,7 @@ You are a helpful assistant that creates concise, informative code summaries.
 
         # Format for Llama chat model
         prompt = f"""<s>[INST] <<SYS>>
-You are a helpful assistant that creates brief, accurate function summaries.
+{self.SYSTEM_PROMPT_FUNCTION_SUMMARY}
 <</SYS>>
 
 {base_prompt} [/INST]"""

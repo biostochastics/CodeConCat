@@ -107,7 +107,7 @@ class OpenAIProvider(AIProvider):
         messages = [
             {
                 "role": "system",
-                "content": "You are a helpful assistant that creates concise, informative code summaries.",
+                "content": self.SYSTEM_PROMPT_CODE_SUMMARY,
             },
             {"role": "user", "content": prompt},
         ]
@@ -179,7 +179,7 @@ class OpenAIProvider(AIProvider):
         messages = [
             {
                 "role": "system",
-                "content": "You are a helpful assistant that creates brief, accurate function summaries.",
+                "content": self.SYSTEM_PROMPT_FUNCTION_SUMMARY,
             },
             {"role": "user", "content": prompt},
         ]

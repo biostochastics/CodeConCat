@@ -58,6 +58,11 @@ class SummarizationResult:
 class AIProvider(ABC):
     """Abstract base class for AI providers."""
 
+    # Centralized system prompts for consistency across all providers
+    SYSTEM_PROMPT_CODE_SUMMARY = """You are an expert software architect and technical documentation specialist with deep knowledge of software design patterns, algorithms, and best practices across multiple programming languages. Your role is to analyze code and produce high-quality, actionable summaries that help developers quickly understand codebases. Focus on clarity, technical accuracy, and practical insights."""
+
+    SYSTEM_PROMPT_FUNCTION_SUMMARY = """You are a senior software engineer specializing in code documentation. Your expertise includes identifying function contracts, understanding complex algorithms, and explaining code behavior concisely. Create summaries that are technically precise yet accessible, highlighting the 'what', 'how', and 'why' of each function."""
+
     def __init__(self, config: AIProviderConfig):
         """Initialize the AI provider with configuration."""
         self.config = config
@@ -171,29 +176,50 @@ class AIProvider(ABC):
     def _create_code_summary_prompt(
         self, code: str, language: str, context: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Create a prompt for code summarization."""
+        """Create a prompt for code summarization using CO-STAR framework."""
         file_path = context.get("file_path", "unknown") if context else "unknown"
 
-        prompt = f"""Provide a concise summary of this {language} code file.
+        # Extract additional context if available
+        num_functions = context.get("num_functions", 0) if context else 0
+        num_classes = context.get("num_classes", 0) if context else 0
+        imports = context.get("imports", []) if context else []
+        imports_str = ", ".join(imports[:5]) if imports else "none"
 
+        prompt = f"""### Role
+You are an expert software engineer specializing in {language} code documentation and analysis.
+
+### Context
 File: {file_path}
 Language: {language}
+Structure: {num_classes} classes, {num_functions} functions
+Key imports: {imports_str}
 
-Focus on:
-1. Main purpose and functionality
-2. Key classes/functions and their roles
-3. Important algorithms or patterns used
-4. External dependencies or integrations
-5. Any notable design decisions or complexity
+### Objective
+Analyze and summarize the following {language} code, creating a comprehensive yet concise summary.
 
-Keep the summary brief (2-3 sentences) but informative.
+### Task
+Provide a structured summary that covers:
+1. **Primary Purpose**: What problem does this code solve? (1 sentence)
+2. **Core Components**: Main classes/functions and their responsibilities
+3. **Key Patterns**: Important design patterns, algorithms, or architectural decisions
+4. **Dependencies**: Critical external libraries or modules used
+5. **Technical Highlights**: Notable implementation details or complexity
 
-Code:
+### Style
+Technical but accessible to intermediate developers. Use precise terminology while maintaining clarity.
+
+### Format
+Provide a 2-3 paragraph summary structured as:
+- First paragraph: Overall purpose and functionality
+- Second paragraph: Key implementation details and design choices
+- Third paragraph (if needed): Important dependencies or integration points
+
+### Code
 ```{language}
 {code}
 ```
 
-Summary:"""
+### Summary"""
 
         return prompt
 
@@ -202,28 +228,51 @@ Summary:"""
         function_code: str,
         function_name: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,  # noqa: ARG002
+        context: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Create a prompt for function summarization."""
-        prompt = f"""Provide a brief summary of this {language} function.
+        """Create a prompt for function summarization using structured format."""
+        file_path = context.get("file_path", "unknown") if context else "unknown"
 
-Function Name: {function_name}
+        # Try to extract complexity hints from the code
+        lines_of_code = len(function_code.splitlines())
+        complexity_hint = (
+            "simple" if lines_of_code < 10 else "moderate" if lines_of_code < 30 else "complex"
+        )
+
+        prompt = f"""### Role
+You are a senior software engineer documenting {language} code for a technical team.
+
+### Context
+Function: {function_name}
+From file: {file_path}
 Language: {language}
+Complexity: {complexity_hint} (~{lines_of_code} lines)
 
-Focus on:
-1. What the function does
-2. Key parameters and return value
-3. Important side effects or state changes
-4. Algorithmic approach if complex
+### Objective
+Create a precise, informative summary of this function's behavior and implementation.
 
-Keep it to 1-2 sentences.
+### Task
+Analyze the function and provide:
+1. **Purpose**: What problem it solves or functionality it provides
+2. **Signature**: Key parameters and return value with types if evident
+3. **Behavior**: Core logic, including any algorithms or patterns used
+4. **Side Effects**: State mutations, I/O operations, or external interactions
+5. **Error Handling**: How it handles edge cases or errors (if applicable)
 
-Function Code:
+### Format
+Provide a concise 1-2 sentence summary that captures:
+- Primary functionality and purpose
+- Key technical details (algorithm, pattern, or approach used)
+- Important considerations (side effects, performance, constraints)
+
+Use this structure: "[Action verb] [what it does] by [how it does it], [any important notes]."
+
+### Function Code
 ```{language}
 {function_code}
 ```
 
-Summary:"""
+### Summary"""
 
         return prompt
 
