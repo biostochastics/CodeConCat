@@ -8,11 +8,11 @@
   <strong>Transform codebases into AI-ready formats with parsing, compression, and security analysis</strong>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.8.1-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
+[![Version](https://img.shields.io/badge/version-0.8.2-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
 
 ## Overview
 
-CodeConCat is a Python tool that transforms codebases into formats optimized for AI consumption and analysis. It automatically processes your code to extract functions, classes, imports, and documentation across 11+ programming languages. The tool provides structured output with context generation, making it ideal for sharing code with AI assistants and automated analysis.
+CodeConCat is a Python tool that transforms codebases into formats optimized for AI consumption and analysis. It automatically processes your code to extract functions, classes, imports, and documentation across 12+ programming languages. The tool provides structured output with context generation, making it ideal for sharing code with AI assistants and automated analysis.
 
 ### Security Features
 - **API access controls**: Configurable path access and authentication
@@ -23,7 +23,7 @@ CodeConCat is a Python tool that transforms codebases into formats optimized for
 
 ## Key Features
 
-- **Multi-Language Parsing**: Parsing for 11+ languages using tree-sitter and regex engines
+- **Multi-Language Parsing**: Parsing for 12+ languages using tree-sitter and regex engines
 - **AI Summarization** *(Optional)*: Code summarization using OpenAI, Anthropic, Google, OpenRouter, or local models
 - **Compression**: Code compression with pattern recognition and two simplified modes
 - **Security Scanning**: Integrated Semgrep support with configurable severity thresholds
@@ -53,6 +53,7 @@ CodeConCat provides comprehensive parsing for the following languages:
 | **PHP** | Yes | Yes | Traits, namespaces, attributes, typed properties |
 | **Julia** | Yes | Yes | Multiple dispatch, macros, type annotations |
 | **R** | Yes | Yes | S3/S4 classes, tidyverse, data.table |
+| **Swift** | Yes | Yes | Classes, structs, protocols, actors, SwiftUI, async/await |
 | **TOML** | No | Yes | Configuration parsing, nested tables |
 
 ### Parser Features
@@ -74,6 +75,7 @@ CodeConCat uses a multi-tier parser system for maximum reliability and feature c
    - Support for language-specific features and precise source locations
    - Handles nested declarations and complex constructs
    - Located in `codeconcat/parser/language_parsers/tree_sitter_{language}_parser.py`
+   - **New in v0.8.1**: Swift support via tree-sitter-swift grammar
 
 2. **Enhanced Regex Parsers** (Fallback)
    - Pattern-based parsing with state tracking
@@ -81,9 +83,9 @@ CodeConCat uses a multi-tier parser system for maximum reliability and feature c
    - Improved docstring extraction and handling
    - Located in `codeconcat/parser/language_parsers/enhanced_{language}_parser.py`
 
-3. **Legacy Parsers** (Being phased out)
-   - Original regex-based parsers
-   - Limited support for complex language features
+3. **Standard Regex Parsers**
+   - Reliable fallback for languages without tree-sitter support
+   - Swift parser includes comprehensive pattern matching for all language features
    - Located in `codeconcat/parser/language_parsers/{language}_parser.py`
 
 ### Parser Selection
@@ -933,6 +935,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 *Part of the Biostochastics collection of tools for translational science and biomarker discovery*
 
+## Recent Updates
+
+### Version 0.8.1
+- **Swift Language Support**: Full support for Swift parsing with both tree-sitter and regex engines
+  - Tree-sitter parser using [tree-sitter-swift](https://github.com/alex-pinkus/tree-sitter-swift) grammar
+  - Comprehensive regex fallback parser
+  - Support for modern Swift features: actors, async/await, property wrappers, SwiftUI
+  - Documentation comment extraction (/// and /** */)
+- **Enhanced AI Context**: Model-aware code truncation based on context windows
+- **Security Improvements**: Enhanced prompt injection prevention
+
 ## Acknowledgments
 
 CodeConCat is built with these open-source tools:
@@ -941,5 +954,6 @@ CodeConCat is built with these open-source tools:
 - [Rich](https://rich.readthedocs.io/) - Terminal formatting
 - [Poetry](https://python-poetry.org/) - Dependency management
 - [Tree-sitter](https://tree-sitter.github.io/) - Incremental parsing
+- [Tree-sitter Swift](https://github.com/alex-pinkus/tree-sitter-swift) - Swift grammar
 - [FastAPI](https://fastapi.tiangolo.com/) - Web API framework
 - [Pydantic](https://pydantic-docs.helpmanual.io/) - Data validation

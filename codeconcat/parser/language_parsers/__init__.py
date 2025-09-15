@@ -60,6 +60,7 @@ REGEX_PARSER_MAP = {
     "julia": "JuliaParser",
     "config": "TomlParser",
     "toml": "TomlParser",
+    "swift": "SwiftParser",
     # Enhanced parsers (preferred regex-based parsers)
     "python_enhanced": "EnhancedPythonParser",
     "csharp_enhanced": "EnhancedCSharpParser",
@@ -102,6 +103,7 @@ try:
         "rust": "TreeSitterRustParser",
         "julia": "TreeSitterJuliaParser",
         "r": "TreeSitterRParser",
+        "swift": "TreeSitterSwiftParser",
     }
 
     import logging
