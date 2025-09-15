@@ -346,13 +346,15 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
 
     def _find_name_node(self, node: Node) -> Node:
         """Find the name identifier node within a declaration."""
-        # Look for type_identifier or simple_identifier
+        # Check if node has a 'name' field first (most efficient)
+        name_field = node.child_by_field_name("name")
+        if name_field:
+            return name_field
+
+        # Otherwise look for type_identifier or simple_identifier
         for child in node.children:
             if child.type in ["type_identifier", "simple_identifier"]:
                 return child
-            # Check if child is 'name:' field
-            if node.child_by_field_name("name"):
-                return node.child_by_field_name("name")
         return None
 
     def _find_property_name(self, node: Node) -> Node:
@@ -380,32 +382,38 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
         """Extract access modifiers and other modifiers from a declaration."""
         modifiers = set()
 
+        # Cache for decoded modifier text to avoid repeated decoding
+        modifier_types_to_decode = {
+            "visibility_modifier",
+            "mutation_modifier",
+            "property_modifier",
+            "inheritance_modifier",
+        }
+
+        # Simple modifiers that can be added directly by type
+        simple_modifiers = {
+            "public",
+            "private",
+            "internal",
+            "fileprivate",
+            "open",
+            "static",
+            "class",
+            "final",
+            "override",
+        }
+
         # Look for modifier nodes
         for child in node.children:
             if child.type == "modifiers":
                 for modifier in child.children:
-                    if modifier.type in [
-                        "visibility_modifier",
-                        "mutation_modifier",
-                        "property_modifier",
-                        "inheritance_modifier",
-                    ]:
-                        modifiers.add(
-                            byte_content[modifier.start_byte : modifier.end_byte].decode(
-                                "utf-8", errors="replace"
-                            )
-                        )
-            elif child.type in [
-                "public",
-                "private",
-                "internal",
-                "fileprivate",
-                "open",
-                "static",
-                "class",
-                "final",
-                "override",
-            ]:
+                    if modifier.type in modifier_types_to_decode:
+                        # Decode only once per modifier
+                        modifier_text = byte_content[
+                            modifier.start_byte : modifier.end_byte
+                        ].decode("utf-8", errors="replace")
+                        modifiers.add(modifier_text)
+            elif child.type in simple_modifiers:
                 modifiers.add(child.type)
 
         return modifiers
