@@ -16,6 +16,7 @@ class LineMapper:
 
     def __init__(self, content: str):
         """Initialize with content and precompute newline positions."""
+        self.content_length = len(content)
         self.newline_positions = [
             -1
         ]  # Start with -1 for line 1 (position 0 is after imaginary newline at -1)
@@ -23,7 +24,7 @@ class LineMapper:
             if char == "\n":
                 self.newline_positions.append(i)
         # Add the end position for easier computation
-        self.newline_positions.append(len(content))
+        self.newline_positions.append(self.content_length)
 
     def char_index_to_line(self, char_index: int) -> int:
         """Convert a character index to a 1-based line number in O(log N) time.
@@ -33,11 +34,24 @@ class LineMapper:
 
         Returns:
             The 1-based line number
+
+        Raises:
+            ValueError: If char_index is negative or exceeds content length
         """
-        # Binary search to find the rightmost newline position <= char_index
-        # The line number is the index of that newline + 1
-        line_num = bisect.bisect_right(self.newline_positions, char_index) - 1
-        return max(1, line_num + 1)  # Convert to 1-based line number
+        # Validate char_index is within bounds
+        if char_index < 0:
+            raise ValueError(f"Character index cannot be negative: {char_index}")
+        if self.content_length > 0 and char_index > self.content_length:
+            raise ValueError(
+                f"Character index {char_index} exceeds content length {self.content_length}"
+            )
+
+        # Count how many newlines are strictly before char_index
+        # This matches the original logic: content[:char_index].count('\n') + 1
+        # bisect_left finds the insertion point for char_index to maintain sorted order
+        # Since newline_positions starts with -1, the result directly gives us the line number
+        line_num = bisect.bisect_left(self.newline_positions[1:], char_index) + 1
+        return line_num
 
 
 class SwiftParser(ParserInterface):
@@ -366,23 +380,24 @@ class SwiftParser(ParserInterface):
     def _find_block_end(self, content: str, start_pos: int, start_line: int) -> int:
         """Find the end line of a code block starting from a position.
 
-        Simple heuristic: count braces to find matching closing brace.
+        Simple heuristic: count braces to find matching closing brace,
+        properly handling multi-line comments and strings.
         """
         content_after = content[start_pos:]
-        lines_after = content_after.split("\n")
+
+        # Remove all comments and strings from the content to get clean code
+        clean_content = self._remove_all_strings_and_comments(content_after)
+        lines_after = clean_content.split("\n")
 
         brace_count = 0
         found_opening = False
 
         for i, line in enumerate(lines_after):
-            # Count braces, ignoring those in strings/comments
-            clean_line = self._remove_strings_and_comments(line)
-
-            if "{" in clean_line:
+            if "{" in line:
                 found_opening = True
-                brace_count += clean_line.count("{")
-            if "}" in clean_line:
-                brace_count -= clean_line.count("}")
+                brace_count += line.count("{")
+            if "}" in line:
+                brace_count -= line.count("}")
 
             if found_opening and brace_count == 0:
                 return start_line + i
@@ -390,23 +405,48 @@ class SwiftParser(ParserInterface):
         # If no closing brace found, return start_line + 1
         return start_line + 1
 
+    def _remove_all_strings_and_comments(self, content: str) -> str:
+        """Remove all string literals and comments from content for accurate brace counting.
+
+        This handles multi-line block comments properly by processing the entire content
+        at once rather than line by line.
+        """
+        # Remove string literals first to avoid mis-identifying comment markers inside them
+        # Handle double-quoted strings with escape sequences
+        content = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', "", content)
+        # Handle single-quoted strings (characters) with escape sequences
+        content = re.sub(r"'[^'\\]*(?:\\.[^'\\]*)*'", "", content)
+
+        # Remove multi-line string literals (triple quotes)
+        content = re.sub(r'"""[\s\S]*?"""', "", content)
+
+        # Remove block comments (/* ... */) - using DOTALL flag to match across lines
+        content = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
+
+        # Remove single-line comments (// ...) - match from // to end of line
+        content = re.sub(r"//[^\n]*", "", content)
+
+        return content
+
     def _remove_strings_and_comments(self, line: str) -> str:
-        """Remove string literals and comments from a line for brace counting."""
+        """Remove string literals and comments from a single line.
+
+        Note: This method only handles single-line constructs. For proper handling
+        of multi-line block comments, use _remove_all_strings_and_comments on the
+        entire content instead.
+        """
         # Remove string literals first to avoid mis-identifying '//' inside them as comments
         line_without_strings = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', "", line)
         line_without_strings = re.sub(r"'[^'\\]*(?:\\.[^'\\]*)*'", "", line_without_strings)
 
-        # Remove block comments (/* ... */)
-        # This regex handles both single-line and multi-line block comments
-        line_without_strings = re.sub(r"/\*.*?\*/", "", line_without_strings)
+        # Remove single-line block comments (/* ... */ on same line only)
+        line_without_strings = re.sub(r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/", "", line_without_strings)
 
         # Remove single-line comments
         if "//" in line_without_strings:
             line_without_strings = line_without_strings.split("//", 1)[0]
 
-        line = line_without_strings
-
-        return line
+        return line_without_strings
 
     def _extract_docstring(self, lines: List[str], decl_line_idx: int) -> str:
         """Extract documentation comments above a declaration.

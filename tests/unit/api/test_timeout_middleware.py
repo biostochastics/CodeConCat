@@ -170,7 +170,7 @@ class TestTimeoutMiddleware:
                 cleanup_called = True
             return JSONResponse({"data": "test"})
 
-        with patch("codeconcat.api.timeout_middleware.time.time", side_effect=[0, 1.1]):
+        with patch("codeconcat.api.timeout_middleware.time.time", side_effect=[0, 1.1, 1.1]):
             response = await middleware.dispatch(request, mock_call_next)
 
         # Give time for cleanup
