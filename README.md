@@ -75,7 +75,7 @@ CodeConCat uses a multi-tier parser system for maximum reliability and feature c
    - Support for language-specific features and precise source locations
    - Handles nested declarations and complex constructs
    - Located in `codeconcat/parser/language_parsers/tree_sitter_{language}_parser.py`
-   - **New in v0.8.1**: Swift support via tree-sitter-swift grammar
+   - **New in v0.8.2**: Swift support via tree-sitter-swift grammar
 
 2. **Enhanced Regex Parsers** (Fallback)
    - Pattern-based parsing with state tracking
@@ -937,7 +937,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Recent Updates
 
-### Version 0.8.1
+### Version 0.8.2
 - **Swift Language Support**: Full support for Swift parsing with both tree-sitter and regex engines
   - Tree-sitter parser using [tree-sitter-swift](https://github.com/alex-pinkus/tree-sitter-swift) grammar
   - Comprehensive regex fallback parser

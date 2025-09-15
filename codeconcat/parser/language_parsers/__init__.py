@@ -148,5 +148,6 @@ LANGUAGE_EXTENSION_MAP = {
         ".java": "java",
         ".go": "go",
         ".php": "php",
+        ".swift": "swift",
     }.items()
 }

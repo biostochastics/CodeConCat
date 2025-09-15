@@ -1,5 +1,6 @@
 """Swift language parser for CodeConCat."""
 
+import bisect
 import logging
 import re
 from typing import List, Set
@@ -8,6 +9,35 @@ from ...base_types import Declaration, ParseResult, ParserInterface
 from ...errors import LanguageParserError
 
 logger = logging.getLogger(__name__)
+
+
+class LineMapper:
+    """Helper class for efficient line number computation using precomputed newline positions."""
+
+    def __init__(self, content: str):
+        """Initialize with content and precompute newline positions."""
+        self.newline_positions = [
+            -1
+        ]  # Start with -1 for line 1 (position 0 is after imaginary newline at -1)
+        for i, char in enumerate(content):
+            if char == "\n":
+                self.newline_positions.append(i)
+        # Add the end position for easier computation
+        self.newline_positions.append(len(content))
+
+    def char_index_to_line(self, char_index: int) -> int:
+        """Convert a character index to a 1-based line number in O(log N) time.
+
+        Args:
+            char_index: The 0-based character index in the content
+
+        Returns:
+            The 1-based line number
+        """
+        # Binary search to find the rightmost newline position <= char_index
+        # The line number is the index of that newline + 1
+        line_num = bisect.bisect_right(self.newline_positions, char_index) - 1
+        return max(1, line_num + 1)  # Convert to 1-based line number
 
 
 class SwiftParser(ParserInterface):
@@ -100,6 +130,9 @@ class SwiftParser(ParserInterface):
             imports: Set[str] = set()
             lines = content.split("\n")
 
+            # Precompute line number mapping for O(log N) lookups
+            line_mapper = LineMapper(content)
+
             # Extract imports
             for match in self.import_pattern.finditer(content):
                 imports.add(match.group(1))
@@ -112,7 +145,7 @@ class SwiftParser(ParserInterface):
                 name = match.group(1)
                 if name not in found_declarations:
                     found_declarations.add(name)
-                    start_line = content[: match.start()].count("\n") + 1
+                    start_line = line_mapper.char_index_to_line(match.start())
 
                     declarations.append(
                         Declaration(
@@ -132,7 +165,7 @@ class SwiftParser(ParserInterface):
 
                 if name not in found_declarations:
                     found_declarations.add(name)
-                    start_line = content[: match.start()].count("\n") + 1
+                    start_line = line_mapper.char_index_to_line(match.start())
 
                     # Find the end of the declaration (simple heuristic)
                     end_line = self._find_block_end(content, match.start(), start_line)
@@ -156,7 +189,7 @@ class SwiftParser(ParserInterface):
                 name = match.group(1)
                 if name not in found_declarations:
                     found_declarations.add(name)
-                    start_line = content[: match.start()].count("\n") + 1
+                    start_line = line_mapper.char_index_to_line(match.start())
                     end_line = self._find_block_end(content, match.start(), start_line)
                     docstring = self._extract_docstring(lines, start_line - 1)
 
@@ -181,7 +214,7 @@ class SwiftParser(ParserInterface):
                     func_name = func_type
 
                 # Create unique identifier for deduplication
-                start_line = content[: match.start()].count("\n") + 1
+                start_line = line_mapper.char_index_to_line(match.start())
                 func_id = f"{func_name}_{start_line}"
 
                 if func_id not in found_declarations:
@@ -214,7 +247,7 @@ class SwiftParser(ParserInterface):
                 prop_id = f"prop_{prop_name}"
                 if prop_id not in found_declarations:
                     found_declarations.add(prop_id)
-                    start_line = content[: match.start()].count("\n") + 1
+                    start_line = line_mapper.char_index_to_line(match.start())
 
                     declarations.append(
                         Declaration(
@@ -234,7 +267,7 @@ class SwiftParser(ParserInterface):
                 comp_prop_id = f"computed_{prop_name}"
                 if comp_prop_id not in found_declarations:
                     found_declarations.add(comp_prop_id)
-                    start_line = content[: match.start()].count("\n") + 1
+                    start_line = line_mapper.char_index_to_line(match.start())
                     end_line = self._find_block_end(content, match.start(), start_line)
                     docstring = self._extract_docstring(lines, start_line - 1)
 
@@ -251,7 +284,7 @@ class SwiftParser(ParserInterface):
 
             # Extract subscripts
             for match in self.subscript_pattern.finditer(content):
-                start_line = content[: match.start()].count("\n") + 1
+                start_line = line_mapper.char_index_to_line(match.start())
                 sub_id = f"subscript_{start_line}"
 
                 if sub_id not in found_declarations:
@@ -274,7 +307,7 @@ class SwiftParser(ParserInterface):
             # Extract operators
             for match in self.operator_pattern.finditer(content):
                 op_name = match.group(1)
-                start_line = content[: match.start()].count("\n") + 1
+                start_line = line_mapper.char_index_to_line(match.start())
 
                 declarations.append(
                     Declaration(
@@ -292,9 +325,10 @@ class SwiftParser(ParserInterface):
                 kind = match.group(1)
                 name = match.group(2)
 
-                if f"main_{name}" not in found_declarations:
-                    found_declarations.add(f"main_{name}")
-                    start_line = content[: match.start()].count("\n") + 1
+                main_id = f"main_{name}"
+                if main_id not in found_declarations:
+                    found_declarations.add(main_id)
+                    start_line = line_mapper.char_index_to_line(match.start())
                     end_line = self._find_block_end(content, match.start(), start_line)
 
                     declarations.append(
@@ -358,14 +392,19 @@ class SwiftParser(ParserInterface):
 
     def _remove_strings_and_comments(self, line: str) -> str:
         """Remove string literals and comments from a line for brace counting."""
-        # Remove single-line comments
-        if "//" in line:
-            line = line[: line.index("//")]
+        # Remove string literals first to avoid mis-identifying '//' inside them as comments
+        line_without_strings = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', "", line)
+        line_without_strings = re.sub(r"'[^'\\]*(?:\\.[^'\\]*)*'", "", line_without_strings)
 
-        # Remove string literals (simple approach)
-        # This is not perfect but good enough for brace counting
-        line = re.sub(r'"[^"]*"', "", line)
-        line = re.sub(r"'[^']*'", "", line)
+        # Remove block comments (/* ... */)
+        # This regex handles both single-line and multi-line block comments
+        line_without_strings = re.sub(r"/\*.*?\*/", "", line_without_strings)
+
+        # Remove single-line comments
+        if "//" in line_without_strings:
+            line_without_strings = line_without_strings.split("//", 1)[0]
+
+        line = line_without_strings
 
         return line
 
