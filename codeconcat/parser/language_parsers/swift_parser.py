@@ -64,15 +64,13 @@ class SwiftParser(ParserInterface):
 
         # Typealias and associatedtype patterns
         self.typealias_pattern = re.compile(
-            r"^\s*(?:(?:public|private|internal|fileprivate)\s+)*"
-            r"typealias\s+([A-Z]\w*)\s*=",
+            r"^\s*(?:(?:public|private|internal|fileprivate)\s+)*" r"typealias\s+([A-Z]\w*)\s*=",
             re.MULTILINE,
         )
 
         # Subscript patterns
         self.subscript_pattern = re.compile(
-            r"^\s*(?:(?:public|private|internal|fileprivate|static)\s+)*"
-            r"subscript\s*\([^)]*\)",
+            r"^\s*(?:(?:public|private|internal|fileprivate|static)\s+)*" r"subscript\s*\([^)]*\)",
             re.MULTILINE,
         )
 

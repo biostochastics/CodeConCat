@@ -754,6 +754,102 @@ To see the completion script without installing:
 codeconcat --show-completion bash  # or zsh, fish
 ```
 
+### API Key Management
+
+CodeConCat provides secure API key management for AI providers (OpenAI, Anthropic, OpenRouter, Ollama):
+
+#### Setup API Keys
+
+Interactive setup for all providers:
+```bash
+codeconcat keys setup
+```
+
+Set a specific API key:
+```bash
+# Set key interactively (prompts for password-protected storage)
+codeconcat keys set openai
+
+# Set key directly (be careful with shell history)
+codeconcat keys set openai sk-your-api-key-here
+
+# Set without validation (for custom endpoints)
+codeconcat keys set ollama --no-validate
+```
+
+#### List and Test Keys
+
+View configured keys:
+```bash
+# List with preview (shows first/last few characters)
+codeconcat keys list
+
+# Show full keys (use with caution)
+codeconcat keys list --show-values
+```
+
+Test API key validity:
+```bash
+codeconcat keys test openai
+codeconcat keys test anthropic
+```
+
+#### Update and Delete Keys
+
+Replace an existing key:
+```bash
+codeconcat keys set openai  # Will prompt to replace if exists
+```
+
+Delete specific keys:
+```bash
+codeconcat keys delete openai
+codeconcat keys delete anthropic --force  # Skip confirmation
+```
+
+Reset all keys:
+```bash
+codeconcat keys reset  # Prompts for confirmation
+codeconcat keys reset --force  # No confirmation
+```
+
+#### Advanced Key Management
+
+Change master password for encrypted storage:
+```bash
+codeconcat keys change-password
+```
+
+Export keys for backup or migration:
+```bash
+# Export without values (shows configured providers)
+codeconcat keys export
+
+# Export to file with values (DANGEROUS - contains actual keys)
+codeconcat keys export --output keys-backup.json --include-values
+```
+
+#### Storage Methods
+
+Keys are stored using one of these methods:
+- **Encrypted File** (default): Keys encrypted with master password using PBKDF2-HMAC
+- **System Keyring**: Uses OS keyring/keychain (requires `keyring` package)
+- **Environment Variables**: Read-only, uses standard environment variables
+
+Environment variable names:
+- `OPENAI_API_KEY` for OpenAI
+- `ANTHROPIC_API_KEY` for Anthropic
+- `OPENROUTER_API_KEY` for OpenRouter
+- Ollama doesn't require an API key
+
+#### Security Features
+
+- **PBKDF2-HMAC encryption**: 600,000 iterations (OWASP 2023 standard)
+- **Secure file permissions**: 0600 (owner read/write only)
+- **API key format validation**: Provider-specific format checking
+- **Master password protection**: Required for encrypted file storage
+- **Key isolation**: Each provider's key stored separately
+
 ## API Usage
 
 ### REST API

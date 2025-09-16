@@ -10,7 +10,7 @@ from typing import Dict, Optional
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 
 class KeyStorage(Enum):
@@ -68,7 +68,7 @@ class APIKeyManager:
             password = self._get_master_password()
 
         salt = self._get_or_create_salt()
-        kdf = PBKDF2(
+        kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=salt,
@@ -96,7 +96,6 @@ class APIKeyManager:
             "openai": lambda k: k.startswith(("sk-", "sess-")),
             "anthropic": lambda k: k.startswith("sk-ant-"),
             "openrouter": lambda k: k.startswith("sk-or-"),
-            "perplexity": lambda k: k.startswith("pplx-"),
         }
 
         if provider in validations:
@@ -162,7 +161,6 @@ class APIKeyManager:
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
-            "perplexity": "PERPLEXITY_API_KEY",
             "ollama": None,  # Ollama doesn't need API key
         }
 
@@ -170,9 +168,9 @@ class APIKeyManager:
             env_var_name = env_vars[provider]
             if env_var_name:
                 key = os.getenv(env_var_name)
-            if key:
-                self._keys_cache[provider] = key
-                return key
+                if key:
+                    self._keys_cache[provider] = key
+                    return key
 
         # Check encrypted file storage
         if self.storage_method == KeyStorage.ENCRYPTED_FILE:
@@ -357,7 +355,6 @@ class APIKeyManager:
             ("openai", "OPENAI_API_KEY"),
             ("anthropic", "ANTHROPIC_API_KEY"),
             ("openrouter", "OPENROUTER_API_KEY"),
-            ("perplexity", "PERPLEXITY_API_KEY"),
         ]:
             if os.getenv(env_var):
                 providers.append(f"{provider} (env)")
@@ -397,7 +394,6 @@ async def setup_api_keys(interactive: bool = True) -> Dict[str, str]:
         ("openai", "OpenAI", "sk-..."),
         ("anthropic", "Anthropic", "sk-ant-..."),
         ("openrouter", "OpenRouter", "sk-or-..."),
-        ("perplexity", "Perplexity", "pplx-..."),
     ]
 
     for provider_id, provider_name, key_format in providers:
