@@ -57,6 +57,8 @@ click-completion = "^0.5.2"  # For shell completion
 python-dotenv = "^1.0.0"  # For .env file support
 defusedxml = "^0.7.1"  # For safe XML parsing (XXE prevention)
 aiohttp = "^3.9.0"  # For async HTTP requests in AI providers
+cryptography = "^41.0.0"  # For secure API key storage
+keyring = "^24.0.0"  # For system keyring integration (optional)
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.1.0"

@@ -24,9 +24,7 @@ from codeconcat.config.config_builder import ConfigBuilder
 from codeconcat.errors import CodeConcatError
 from codeconcat.main import _write_output_files, run_codeconcat
 from codeconcat.validation.security_reporter import init_reporter
-from codeconcat.validation.unsupported_reporter import (
-    init_reporter as init_unsupported_reporter,
-)
+from codeconcat.validation.unsupported_reporter import init_reporter as init_unsupported_reporter
 
 from ..config import get_state
 from ..utils import console, print_error, print_success, print_warning, show_quote
