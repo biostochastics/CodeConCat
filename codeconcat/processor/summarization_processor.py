@@ -177,13 +177,17 @@ class SummarizationProcessor:
 
         # Generate meta-overview if enabled
         if getattr(self.config, "ai_meta_overview", False):
+            logger.info("Meta-overview is enabled, generating...")
             meta_overview = await self.generate_meta_overview(processed_files)
             if meta_overview and processed_files:
+                logger.info(f"Meta-overview generated successfully: {len(meta_overview)} chars")
                 # Store the meta-overview in the first file's ai_metadata
                 # This will be accessed by the writers
                 if processed_files[0].ai_metadata is None:
                     processed_files[0].ai_metadata = {}
                 processed_files[0].ai_metadata["meta_overview"] = meta_overview
+            else:
+                logger.warning("Meta-overview generation returned None or no files to store in")
 
         return processed_files
 

@@ -1,5 +1,6 @@
 """OpenAI provider implementation for code summarization."""
 
+import logging
 import os
 from typing import Any, Dict, Optional
 
@@ -8,6 +9,8 @@ import aiohttp
 from ..base import AIProvider, AIProviderConfig, SummarizationResult
 from ..cache import SummaryCache
 
+logger = logging.getLogger(__name__)
+
 
 class OpenAIProvider(AIProvider):
     """OpenAI API provider for code summarization."""
@@ -15,16 +18,19 @@ class OpenAIProvider(AIProvider):
     def __init__(self, config: AIProviderConfig):
         """Initialize OpenAI provider."""
         super().__init__(config)
+        logger.info(f"Initializing OpenAI provider with model: {config.model}")
 
         # Set defaults for OpenAI
         if not config.api_key:
             config.api_key = os.getenv("OPENAI_API_KEY")
+            logger.debug(f"API key loaded from env: {bool(config.api_key)}")
 
         if not config.api_base:
             config.api_base = "https://api.openai.com/v1"
 
         if not config.model:
-            config.model = "gpt-4o-nano"  # Updated to 2025 budget model
+            config.model = "gpt-5-nano-2025-08-07"  # Latest budget model
+            logger.debug(f"Using default model: {config.model}")
 
         # Set costs from models_config if not specified
         if config.cost_per_1k_input_tokens == 0:
@@ -44,6 +50,9 @@ class OpenAIProvider(AIProvider):
                     config.cost_per_1k_output_tokens = 0.002
 
         self.cache = SummaryCache() if config.cache_enabled else None
+        logger.info(
+            f"OpenAI provider initialized - Model: {config.model}, Cache: {bool(self.cache)}, API Key: {bool(config.api_key)}"
+        )
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp session."""
@@ -70,13 +79,21 @@ class OpenAIProvider(AIProvider):
         }
 
         url = f"{self.config.api_base}/chat/completions"
+        logger.info(f"Making OpenAI API call to {url} with model {self.config.model}")
+        logger.debug(
+            f"Payload: messages={len(messages)} msgs, max_tokens={max_tokens or self.config.max_tokens}"
+        )
 
         async with session.post(url, json=payload) as response:
             if response.status != 200:
                 error_text = await response.text()
+                logger.error(f"OpenAI API error ({response.status}): {error_text}")
                 raise Exception(f"OpenAI API error ({response.status}): {error_text}")
 
             result = await response.json()
+            logger.info(
+                f"OpenAI API call successful - tokens used: {result.get('usage', {}).get('total_tokens', 'unknown')}"
+            )
             return dict(result) if result else {}
 
     async def summarize_code(
@@ -94,6 +111,7 @@ class OpenAIProvider(AIProvider):
             )
             cached_summary = await self.cache.get(cache_key)
             if cached_summary:
+                logger.info(f"Cache hit for {language} code - returning cached summary")
                 return SummarizationResult(
                     summary=cached_summary,
                     model_used=self.config.model,
@@ -170,6 +188,7 @@ class OpenAIProvider(AIProvider):
             )
             cached_summary = await self.cache.get(cache_key)
             if cached_summary:
+                logger.info(f"Cache hit for {function_name} - returning cached summary")
                 return SummarizationResult(
                     summary=cached_summary,
                     model_used=self.config.model,

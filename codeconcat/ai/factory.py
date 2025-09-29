@@ -155,7 +155,7 @@ def get_provider_info(provider_name: str) -> Dict[str, Any]:
             "name": "OpenAI",
             "models": provider_models
             if provider_models
-            else ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
+            else ["gpt-5-nano-2025-08-07", "gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
             "requires_api_key": True,
             "supports_streaming": True,
             "supports_function_calling": True,
@@ -166,7 +166,12 @@ def get_provider_info(provider_name: str) -> Dict[str, Any]:
             "name": "Anthropic",
             "models": provider_models
             if provider_models
-            else ["claude-3-haiku-20240307", "claude-3-sonnet-20240229", "claude-3-opus-20240229"],
+            else [
+                "claude-3-5-haiku-latest",
+                "claude-3-haiku-20240307",
+                "claude-3-sonnet-20240229",
+                "claude-3-opus-20240229",
+            ],
             "requires_api_key": True,
             "supports_streaming": True,
             "supports_function_calling": False,

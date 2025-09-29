@@ -139,7 +139,7 @@ async def test_meta_overview_generation(test_project_files, mock_ai_provider):
             format="markdown",
             enable_ai_summary=True,
             ai_meta_overview=True,
-            ai_provider="mock",
+            ai_provider="openai",  # Use valid provider name; get_ai_provider is patched
             ai_model="mock-model",
         )
 
@@ -206,7 +206,7 @@ async def test_meta_overview_custom_prompt(test_project_files, mock_ai_provider)
             enable_ai_summary=True,
             ai_meta_overview=True,
             ai_meta_overview_prompt="CUSTOM_TEST: Generate a brief overview",
-            ai_provider="mock",
+            ai_provider="openai",  # Use valid provider name; get_ai_provider is patched
             ai_model="mock-model",
         )
 
@@ -248,7 +248,7 @@ async def test_meta_overview_disabled(test_project_files, mock_ai_provider):
             format="markdown",
             enable_ai_summary=True,
             ai_meta_overview=False,  # Disabled
-            ai_provider="mock",
+            ai_provider="openai",  # Use valid provider name; get_ai_provider is patched
             ai_model="mock-model",
         )
 
@@ -298,7 +298,7 @@ async def test_meta_overview_no_summaries(test_project_files):
             format="markdown",
             enable_ai_summary=True,
             ai_meta_overview=True,
-            ai_provider="mock",
+            ai_provider="openai",  # Use valid provider name; get_ai_provider is patched
             ai_model="mock-model",
         )
 
@@ -341,7 +341,7 @@ def test_meta_overview_in_markdown_output(test_project_files, mock_ai_provider):
                 "enable_ai_summary": True,
                 "ai_meta_overview": True,
                 "ai_meta_overview_position": "top",
-                "ai_provider": "mock",
+                "ai_provider": "openai",  # Use valid provider name; get_ai_provider is patched
                 "ai_model": "mock-model",
                 "verbose": False,
             }

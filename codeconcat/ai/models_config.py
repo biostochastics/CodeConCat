@@ -50,6 +50,20 @@ MODEL_CONFIGS = {
         tokenizer="o200k_base",
         notes="Latest flagship OpenAI model (2025)",
     ),
+    "gpt-5-nano-2025-08-07": ModelConfig(
+        provider="openai",
+        model_id="gpt-5-nano-2025-08-07",
+        display_name="GPT-5 Nano",
+        tier=ModelTier.BUDGET,
+        context_window=128000,
+        max_output=16384,
+        cost_per_1k_input=0.00010,
+        cost_per_1k_output=0.0004,
+        supports_functions=True,
+        supports_vision=True,
+        tokenizer="o200k_base",
+        notes="Latest budget GPT-5 variant (August 2025)",
+    ),
     "gpt-4o-nano": ModelConfig(
         provider="openai",
         model_id="gpt-4o-nano",
@@ -62,7 +76,7 @@ MODEL_CONFIGS = {
         supports_functions=True,
         supports_vision=True,
         tokenizer="o200k_base",
-        notes="Smallest and cheapest GPT-4o variant (2025)",
+        notes="Legacy budget model, use gpt-5-nano-2025-08-07 instead",
     ),
     "gpt-4o-mini": ModelConfig(
         provider="openai",
@@ -106,6 +120,19 @@ MODEL_CONFIGS = {
         notes="Legacy model, consider gpt-4o-nano instead",
     ),
     # Anthropic Models (2025)
+    "claude-3-5-haiku-latest": ModelConfig(
+        provider="anthropic",
+        model_id="claude-3-5-haiku-latest",
+        display_name="Claude 3.5 Haiku (Latest)",
+        tier=ModelTier.BUDGET,
+        context_window=200000,
+        max_output=8192,
+        cost_per_1k_input=0.0008,
+        cost_per_1k_output=0.004,
+        supports_vision=True,
+        tokenizer="claude",
+        notes="Latest Claude 3.5 Haiku - fastest and cheapest",
+    ),
     "claude-haiku-4.1": ModelConfig(
         provider="anthropic",
         model_id="claude-haiku-4.1",
@@ -117,7 +144,7 @@ MODEL_CONFIGS = {
         cost_per_1k_output=0.004,
         supports_vision=True,
         tokenizer="claude",
-        notes="Latest Haiku model - fastest and cheapest (2025)",
+        notes="Legacy alias, use claude-3-5-haiku-latest instead",
     ),
     "claude-sonnet-4.1": ModelConfig(
         provider="anthropic",
@@ -209,8 +236,8 @@ MODEL_CONFIGS = {
         tier=ModelTier.BUDGET,
         context_window=128000,
         max_output=4096,
-        cost_per_1k_input=0.0005,
-        cost_per_1k_output=0.0005,
+        cost_per_1k_input=0.0004,
+        cost_per_1k_output=0.0016,
         tokenizer="gpt2",  # Fallback tokenizer
         notes="Z-AI model, excellent for multilingual (2025)",
     ),
@@ -309,8 +336,8 @@ MODEL_CONFIGS = {
 # Default model selections by use case (2025)
 DEFAULT_MODELS = {
     "budget": [
-        "gpt-4o-nano",  # OpenAI cheapest (2025)
-        "claude-haiku-4.1",  # Anthropic cheapest (2025)
+        "gpt-5-nano-2025-08-07",  # OpenAI latest budget (Aug 2025)
+        "claude-3-5-haiku-latest",  # Anthropic latest Haiku
         "google/gemini-2.5-flash",  # Google cheapest (2025)
         "z-ai/glm-4.5",  # Z-AI multilingual
     ],

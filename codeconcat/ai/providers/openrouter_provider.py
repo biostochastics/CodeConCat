@@ -1,6 +1,7 @@
 """OpenRouter provider implementation for multi-model access."""
 
 import asyncio
+import logging
 import os
 from typing import Any, Dict, Optional
 
@@ -8,6 +9,8 @@ import aiohttp
 
 from ..base import AIProvider, AIProviderConfig, SummarizationResult
 from ..cache import SummaryCache
+
+logger = logging.getLogger(__name__)
 
 
 class OpenRouterProvider(AIProvider):
@@ -25,7 +28,7 @@ class OpenRouterProvider(AIProvider):
             config.api_base = "https://openrouter.ai/api/v1"
 
         if not config.model:
-            config.model = "mistralai/mistral-7b-instruct"  # Free tier model
+            config.model = "z-ai/glm-4.5"  # Multilingual model
 
         # OpenRouter pricing varies by model - user should set these
         if config.cost_per_1k_input_tokens == 0:
