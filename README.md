@@ -102,7 +102,7 @@ CodeConCat provides comprehensive parsing for the following languages:
 
 ## Parser Architecture
 
-CodeConCat uses a multi-tier parser system for maximum reliability and feature coverage:
+CodeConCat uses an intelligent multi-tier parser system with **result merging** for maximum reliability and feature coverage:
 
 ### Parser Types
 
@@ -110,6 +110,7 @@ CodeConCat uses a multi-tier parser system for maximum reliability and feature c
    - Full syntax tree parsing for accurate code structure recognition
    - Support for language-specific features and precise source locations
    - Handles nested declarations and complex constructs
+   - Query result caching for improved performance
    - Located in `codeconcat/parser/language_parsers/tree_sitter_{language}_parser.py`
    - **New in v0.8.2**: Swift support via tree-sitter-swift grammar
 
@@ -117,6 +118,7 @@ CodeConCat uses a multi-tier parser system for maximum reliability and feature c
    - Pattern-based parsing with state tracking
    - Support for edge cases and malformed code
    - Improved docstring extraction and handling
+   - **Shared infrastructure** for reduced duplication
    - Located in `codeconcat/parser/language_parsers/enhanced_{language}_parser.py`
 
 3. **Standard Regex Parsers**
@@ -124,10 +126,39 @@ CodeConCat uses a multi-tier parser system for maximum reliability and feature c
    - Swift parser includes comprehensive pattern matching for all language features
    - Located in `codeconcat/parser/language_parsers/{language}_parser.py`
 
+### Intelligent Result Merging
+
+**New in v0.8.4**: CodeConCat now intelligently merges results from multiple parsers instead of picking a single winner:
+
+- **Maximum Coverage**: Combines declarations from all parsers (tree-sitter + enhanced + standard)
+- **Confidence Scoring**: Weights results by parser quality and completeness
+- **Duplicate Detection**: Eliminates redundant declarations using signature-based matching
+- **Configurable Strategies**:
+  - `confidence` (default): Weight by confidence scores
+  - `union`: Union all detected features
+  - `fast_fail`: First high-confidence wins (legacy behavior)
+  - `best_of_breed`: Pick best parser per feature type
+
+```yaml
+# In .codeconcat.yml
+enable_result_merging: true  # Default: true
+merge_strategy: confidence   # Options: confidence, union, fast_fail, best_of_breed
+```
+
+### Modern Syntax Support
+
+**New in v0.8.4**: Built-in patterns for modern language features:
+
+- **TypeScript 5.0+**: `satisfies` operator, const assertions, type predicates
+- **Python 3.11+**: Pattern matching, walrus operator, union types, PEP 695 type parameters
+- **Go 1.18+**: Generics, type constraints
+- **Rust**: Async functions, const generics, impl Trait
+- **PHP 8.0+**: Named arguments, match expressions, enums, readonly properties
+
 ### Parser Selection
 
 Use the `--parser-engine` flag to choose between:
-- `tree_sitter` (default): High accuracy with automatic fallback
+- `tree_sitter` (default): High accuracy with automatic fallback and result merging
 - `regex`: Force regex-based parsing for compatibility
 
 ## System Architecture
@@ -775,10 +806,10 @@ CodeConCat includes an optional AI summarization module that generates summaries
 
 | Provider | Default Model | Cost/1K tokens (Input/Output) | Notes |
 |----------|--------------|-------------------------------|-------|
-| **OpenAI** | gpt-4o-nano | $0.00010/$0.0004 | Low-cost model |
-| **Anthropic** | claude-3-haiku-20240307 | $0.00025/$0.00125 | Fast processing |
+| **OpenAI** | gpt-5-nano-2025-08-07 | $0.00010/$0.0004 | Latest budget model |
+| **Anthropic** | claude-3-5-haiku-latest | $0.0008/$0.004 | Latest Haiku model |
 | **Google** | gemini-2.0-flash-exp | Free (experimental) | 1M context window |
-| **OpenRouter** | mistral-7b-instruct | Free | Access to 50+ models |
+| **OpenRouter** | z-ai/glm-4.5 | $0.0004/$0.0016 | Multilingual model |
 | **Ollama** | llama3.2 | Free (local) | Runs on local hardware |
 
 ### Available Models (2025)
@@ -789,7 +820,7 @@ CodeConCat includes an optional AI summarization module that generates summaries
 - **Google**: gemini-2.5-pro, gemini-2.5-flash
 
 #### Budget Models
-- **OpenAI**: gpt-4o-nano, gpt-3.5-turbo
+- **OpenAI**: gpt-5-nano-2025-08-07, gpt-4o-nano (legacy), gpt-3.5-turbo
 - **OpenRouter**: z-ai/glm-4.5, qwen/qwq-32b-preview, deepseek-chat
 - **Local**: Any Ollama-compatible model
 
@@ -862,7 +893,7 @@ export OPENROUTER_API_KEY="sk-or-..."
 # In .codeconcat.yml
 enable_ai_summary: true
 ai_provider: openai              # openai, anthropic, google, openrouter, ollama
-ai_model: gpt-4o-nano            # Optional, uses provider defaults
+ai_model: gpt-5-nano-2025-08-07  # Optional, uses provider defaults
 
 # Processing settings
 ai_min_file_lines: 20            # Skip small files
@@ -891,7 +922,7 @@ ai_cache_enabled: true           # Enable result caching
 codeconcat run --enable-ai-summary --ai-provider openrouter --ai-model mistral-7b-instruct
 
 # Use low-cost models
-codeconcat run --enable-ai-summary --ai-provider openai --ai-model gpt-4o-nano
+codeconcat run --enable-ai-summary --ai-provider openai --ai-model gpt-5-nano-2025-08-07
 
 # Limit scope to reduce costs
 codeconcat run --enable-ai-summary --ai-min-file-lines 50 --ai-max-tokens 200
@@ -1424,6 +1455,27 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 *Part of the Biostochastics collection of tools for translational science and biomarker discovery*
 
 ## Recent Updates
+
+### Version 0.8.4
+- **Intelligent Parser Result Merging**: Revolutionary approach to code parsing
+  - Merges results from multiple parsers instead of picking single winner
+  - 4 configurable merge strategies (confidence, union, fast_fail, best_of_breed)
+  - Confidence scoring based on parser quality and completeness
+  - Signature-based duplicate detection
+  - Configurable via `enable_result_merging` and `merge_strategy` settings
+- **Modern Syntax Support**: Built-in patterns for latest language features
+  - TypeScript 5.0+ (satisfies, const assertions, type predicates)
+  - Python 3.11+ (pattern matching, walrus operator, PEP 695)
+  - Go 1.18+ (generics, type constraints)
+  - Rust (async functions, const generics, impl Trait)
+  - PHP 8.0+ (named arguments, match expressions, enums)
+- **Shared Parser Infrastructure**: Eliminated 600+ lines of duplicate code
+  - Unified `CommentExtractor` for all parsers
+  - `ModernPatterns` registry for version-specific features
+  - Utility methods consolidated in `EnhancedBaseParser`
+- **Enhanced ParseResult**: New fields for intelligent merging
+  - `confidence_score`: Parser confidence (0.0-1.0)
+  - `parser_type`: Parser identification (tree-sitter, enhanced, standard)
 
 ### Version 0.8.3
 - **GitHub Direct Processing**: Process repositories directly without --source-url flag

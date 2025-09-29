@@ -1,5 +1,6 @@
 """Anthropic provider implementation for code summarization."""
 
+import logging
 import os
 from typing import Any, Dict, Optional
 
@@ -8,6 +9,8 @@ import aiohttp
 from ..base import AIProvider, AIProviderConfig, SummarizationResult
 from ..cache import SummaryCache
 
+logger = logging.getLogger(__name__)
+
 
 class AnthropicProvider(AIProvider):
     """Anthropic API provider for code summarization."""
@@ -15,16 +18,18 @@ class AnthropicProvider(AIProvider):
     def __init__(self, config: AIProviderConfig):
         """Initialize Anthropic provider."""
         super().__init__(config)
+        logger.info(f"Initializing Anthropic provider with model: {config.model}")
 
         # Set defaults for Anthropic
         if not config.api_key:
             config.api_key = os.getenv("ANTHROPIC_API_KEY")
+            logger.debug(f"API key loaded from env: {bool(config.api_key)}")
 
         if not config.api_base:
             config.api_base = "https://api.anthropic.com/v1"
 
         if not config.model:
-            config.model = "claude-haiku-4.1"  # Updated to 2025 model
+            config.model = "claude-3-5-haiku-latest"  # Latest Haiku model
 
         # Set costs from models_config if not specified
         if config.cost_per_1k_input_tokens == 0:
@@ -47,6 +52,9 @@ class AnthropicProvider(AIProvider):
                     config.cost_per_1k_output_tokens = 0.00125
 
         self.cache = SummaryCache() if config.cache_enabled else None
+        logger.info(
+            f"Anthropic provider initialized - Model: {config.model}, Cache: {bool(self.cache)}, API Key: {bool(config.api_key)}"
+        )
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp session."""

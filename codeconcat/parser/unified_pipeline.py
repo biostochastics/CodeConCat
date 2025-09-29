@@ -30,6 +30,7 @@ from ..errors import (
     ParserError,
     UnsupportedLanguageError,
 )
+from ..parser.shared import MergeStrategy, ResultMerger
 from ..processor.security_processor import SecurityProcessor
 from ..processor.token_counter import get_token_stats
 from ..utils.feature_flags import is_enabled
@@ -490,7 +491,18 @@ class UnifiedPipeline:
         Returns:
             ParseResult or None if all parsers fail
         """
-        parse_result = None
+        # Check if result merging is enabled (default: True for improved results)
+        enable_result_merging = getattr(self.config, "enable_result_merging", True)
+        merge_strategy_name = getattr(self.config, "merge_strategy", "confidence")
+
+        # Convert strategy name to enum
+        strategy_map = {
+            "confidence": MergeStrategy.CONFIDENCE_WEIGHTED,
+            "union": MergeStrategy.FEATURE_UNION,
+            "fast_fail": MergeStrategy.FAST_FAIL,
+            "best_of_breed": MergeStrategy.BEST_OF_BREED,
+        }
+        merge_strategy = strategy_map.get(merge_strategy_name, MergeStrategy.CONFIDENCE_WEIGHTED)
 
         # Define the fallback chain
         fallback_chain = []
@@ -504,6 +516,9 @@ class UnifiedPipeline:
             fallback_chain.append(("enhanced", "Enhanced regex"))
 
         fallback_chain.append(("standard", "Standard regex"))
+
+        # Collect results from all parsers if merging is enabled
+        all_results: List[ParseResult] = []
 
         # Try each parser in the fallback chain
         for parser_type, parser_name in fallback_chain:
@@ -531,10 +546,25 @@ class UnifiedPipeline:
                 else:
                     parse_result = parser.parse(content, file_path)
 
-                if parse_result and not parse_result.error:
-                    logger.debug(f"{parser_name} parsing successful for {file_path}")
-                    parse_result.engine_used = parser_name
-                    break
+                if parse_result:
+                    # Set parser metadata for merging
+                    if not parse_result.parser_type:
+                        parse_result.parser_type = parser_type
+                    if not parse_result.engine_used:
+                        parse_result.engine_used = parser_name
+
+                    if not parse_result.error:
+                        logger.debug(
+                            f"{parser_name} parsing successful for {file_path}: "
+                            f"{len(parse_result.declarations)} declarations"
+                        )
+
+                        if enable_result_merging:
+                            # Collect result for merging
+                            all_results.append(parse_result)
+                        else:
+                            # Legacy behavior: return first successful result
+                            return parse_result
 
             except Exception as e:
                 logger.warning(
@@ -542,7 +572,21 @@ class UnifiedPipeline:
                 )
                 continue
 
-        return parse_result
+        # Merge results if we collected any
+        if all_results:
+            if len(all_results) == 1:
+                return all_results[0]
+
+            logger.info(
+                f"Merging {len(all_results)} parse results for {file_path} "
+                f"using {merge_strategy.value} strategy"
+            )
+            merged_result = ResultMerger.merge_parse_results(
+                all_results, strategy=merge_strategy, language=language
+            )
+            return merged_result
+
+        return None
 
     def _parse_with_error_recovery(
         self, parser_instance: Any, content: str, file_path: str, language: str

@@ -276,3 +276,66 @@ class EnhancedBaseParser(BaseParser):
         """
         # At minimum, the parser should have a language set
         return bool(self.language and self.language != "generic")
+
+    def _count_total_declarations(self, declarations: List) -> int:
+        """Count the total number of declarations including all nested ones.
+
+        Args:
+            declarations: List of Declaration objects
+
+        Returns:
+            Total count including nested declarations
+
+        Complexity: O(n) where n is total number of declarations in tree
+        """
+        total = len(declarations)
+        for decl in declarations:
+            if hasattr(decl, "children") and decl.children:
+                total += self._count_total_declarations(decl.children)
+        return total
+
+    def _calculate_max_nesting_depth(self, declarations: List, current_depth: int = 1) -> int:
+        """Calculate the maximum nesting depth in the declaration tree.
+
+        Args:
+            declarations: List of Declaration objects
+            current_depth: Current recursion depth (default: 1)
+
+        Returns:
+            Maximum nesting depth found
+
+        Complexity: O(n) where n is total number of declarations in tree
+        """
+        if not declarations:
+            return current_depth - 1
+
+        max_depth = current_depth
+        for decl in declarations:
+            if hasattr(decl, "children") and decl.children:
+                child_depth = self._calculate_max_nesting_depth(decl.children, current_depth + 1)
+                max_depth = max(max_depth, child_depth)
+
+        return max_depth
+
+    def _extract_modifiers(self, line: str) -> set[str]:
+        """Extract modifiers from a code line based on language-specific patterns.
+
+        Args:
+            line: The code line to analyze
+
+        Returns:
+            Set of modifier strings found in the line
+
+        Complexity: O(m*k) where m is number of modifiers and k is line length
+        """
+        found_modifiers: set[str] = set()
+        if not self.modifiers:
+            return found_modifiers
+
+        # Check each registered modifier
+        for modifier in self.modifiers:
+            # Use word boundary matching to avoid false positives
+            if f" {modifier} " in f" {line} " or line.strip().startswith(f"{modifier} "):
+                found_modifiers.add(modifier)
+
+        return found_modifiers

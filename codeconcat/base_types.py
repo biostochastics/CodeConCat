@@ -304,6 +304,8 @@ class ParseResult:
         - module_docstring (str | None): Optional. The docstring of the module if available.
         - module_name (str | None): Optional. The name of the module if available.
         - degraded (bool): Indicates whether the parsing was degraded; defaults to False.
+        - confidence_score (float | None): Optional. Confidence score (0.0-1.0) for result merger decisions.
+        - parser_type (str | None): Optional. Parser type used: "tree-sitter", "enhanced", or "standard".
     Processing Logic:
         - Utilizes fields to capture detailed information about the parsing process and result.
         - Extensively accommodates optional fields to enhance flexibility and adaptability.
@@ -330,6 +332,9 @@ class ParseResult:
     module_docstring: str | None = None
     module_name: str | None = None
     degraded: bool = False
+    # New fields for intelligent result merging (Phase 0)
+    confidence_score: float | None = None  # 0.0-1.0 confidence for merger decisions
+    parser_type: str | None = None  # "tree-sitter", "enhanced", "standard"
 
 
 class WritableItem(ABC):
@@ -594,6 +599,21 @@ class CodeConCatConfig(BaseModel):
     use_enhanced_pipeline: bool = Field(
         True,
         description="Use the enhanced parsing pipeline with progressive fallbacks (tree-sitter → enhanced → standard).",
+        validate_default=True,
+    )
+
+    enable_result_merging: bool = Field(
+        True,
+        description="Enable intelligent result merging from multiple parsers instead of single-winner selection. "
+        "Combines declarations from tree-sitter, enhanced, and standard parsers for maximum coverage.",
+        validate_default=True,
+    )
+
+    merge_strategy: str = Field(
+        "confidence",
+        description="Strategy for merging parse results: 'confidence' (weight by confidence), "
+        "'union' (combine all features), 'fast_fail' (first high-confidence wins), "
+        "'best_of_breed' (pick best parser per feature type).",
         validate_default=True,
     )
     # --- End added fields ---
