@@ -192,20 +192,18 @@ def write_markdown(
         output_parts.append("\n")
 
         # AI Summary section if available
-        # The AI summary is stored in the 'summary' field when AI is enabled
-        # Check if this is an AI-generated summary by seeing if it's NOT the default format
-        if hasattr(item, "summary") and item.summary and config.enable_ai_summary:
-            # Default summaries always start with "Contains" or "No declarations"
-            is_default_summary = (
-                item.summary.startswith("Contains ") or item.summary == "No declarations found"
-            )
-            if not is_default_summary:
-                output_parts.append("#### AI Summary\n")
-                # Format as a blockquote if it's multi-line
-                summary_lines = item.summary.split("\n")
-                for line in summary_lines:
-                    output_parts.append(f"> {line}")
-                output_parts.append("")
+        if hasattr(item, "ai_summary") and item.ai_summary:
+            output_parts.append("#### AI Summary\n")
+            # Format as a blockquote if it's multi-line
+            summary_lines = item.ai_summary.split("\n")
+            for line in summary_lines:
+                output_parts.append(f"> {line}")
+            output_parts.append("")
+        # Regular summary section if no AI summary
+        elif hasattr(item, "summary") and item.summary:
+            output_parts.append("#### Summary\n")
+            output_parts.append(f"> {item.summary}")
+            output_parts.append("")
 
         # File metadata in a table
         if config.include_file_summary:

@@ -397,7 +397,8 @@ class AnnotatedFileData(WritableItem):
     annotated_content: str  # Potentially processed content (e.g., comments removed)
 
     # Optional AI-generated additions
-    summary: str = ""  # AI-generated overall summary
+    summary: str = ""  # Human-readable summary
+    ai_summary: str | None = None  # AI-generated detailed summary
 
     # Structured analysis results (passed from ParsedFileData) - parameters with defaults
     declarations: list[Declaration] = field(default_factory=list)

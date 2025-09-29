@@ -104,6 +104,8 @@ try:
         "julia": "TreeSitterJuliaParser",
         "r": "TreeSitterRParser",
         "swift": "TreeSitterSwiftParser",
+        "bash": "TreeSitterBashParser",
+        "shell": "TreeSitterBashParser",
     }
 
     import logging

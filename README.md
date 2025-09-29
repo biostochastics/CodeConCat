@@ -89,6 +89,7 @@ CodeConCat provides comprehensive parsing for the following languages:
 | **Julia** | Yes | Yes | Multiple dispatch, macros, type annotations |
 | **R** | Yes | Yes | S3/S4 classes, tidyverse, data.table |
 | **Swift** | Yes | Yes | Classes, structs, protocols, actors, SwiftUI, async/await |
+| **Bash/Shell** | Yes | No | Functions, variables, aliases, source imports |
 | **TOML** | No | Yes | Configuration parsing, nested tables |
 
 ### Parser Features
@@ -1098,7 +1099,7 @@ CodeConCat handles file sizes to optimize performance:
 - **100MB hash limit**: Security hashing limited to prevent memory issues
 - **Configurable**: Limits can be adjusted in configuration
 
-The system provides detailed logging when files are skipped due to size constraints.
+The system provides detailed logging when filAes are skipped due to size constraints.
 
 ### Shell Completion
 
