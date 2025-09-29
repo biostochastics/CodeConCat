@@ -276,7 +276,7 @@ class AsyncSemgrepValidator:
             Language name as expected by semgrep, or None if unknown
         """
         # Local import to avoid circular imports
-        from ..parser.file_parser import determine_language
+        from ..parser.unified_pipeline import determine_language
 
         # Map CodeConCat language names to semgrep language identifiers
         language_to_semgrep = {

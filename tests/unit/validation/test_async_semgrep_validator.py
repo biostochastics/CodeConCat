@@ -193,7 +193,7 @@ class TestAsyncSemgrepValidator:
         ), patch("pathlib.Path.exists", return_value=True), patch(
             "builtins.open", mock_open(read_data=results_content)
         ), patch(
-            "codeconcat.parser.file_parser.determine_language",
+            "codeconcat.parser.unified_pipeline.determine_language",
             return_value="python",
         ):
             findings = await validator.scan_file(test_file)
@@ -232,7 +232,7 @@ class TestAsyncSemgrepValidator:
         ), patch("pathlib.Path.exists", return_value=True), patch(
             "builtins.open", mock_open(read_data=results_content)
         ), patch(
-            "codeconcat.parser.file_parser.determine_language",
+            "codeconcat.parser.unified_pipeline.determine_language",
             return_value="python",
         ):
             findings = await validator.scan_file(test_file)
@@ -251,7 +251,7 @@ class TestAsyncSemgrepValidator:
 
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value=None):
+        with patch("codeconcat.parser.unified_pipeline.determine_language", return_value=None):
             findings = await validator.scan_file(test_file)
 
         assert findings == []
@@ -279,7 +279,7 @@ class TestAsyncSemgrepValidator:
         with patch("asyncio.create_subprocess_exec", return_value=mock_process), patch(
             "asyncio.wait_for", new_callable=AsyncMock, side_effect=asyncio.TimeoutError
         ), patch(
-            "codeconcat.parser.file_parser.determine_language", return_value="python"
+            "codeconcat.parser.unified_pipeline.determine_language", return_value="python"
         ), pytest.raises(ValidationError, match="Semgrep scan timed out after 120 seconds"):
             await validator.scan_file(test_file)
 
@@ -306,7 +306,7 @@ class TestAsyncSemgrepValidator:
         with patch("asyncio.create_subprocess_exec", return_value=mock_process), patch(
             "asyncio.wait_for", return_value=(b"", b"Error: Invalid configuration")
         ), patch(
-            "codeconcat.parser.file_parser.determine_language", return_value="python"
+            "codeconcat.parser.unified_pipeline.determine_language", return_value="python"
         ), pytest.raises(ValidationError, match="Semgrep scan failed"):
             await validator.scan_file(test_file)
 
@@ -325,7 +325,7 @@ class TestAsyncSemgrepValidator:
         with patch(
             "asyncio.create_subprocess_exec", side_effect=OSError("Permission denied")
         ), patch(
-            "codeconcat.parser.file_parser.determine_language", return_value="python"
+            "codeconcat.parser.unified_pipeline.determine_language", return_value="python"
         ), pytest.raises(ValidationError, match="Failed to scan file with semgrep"):
             await validator.scan_file(test_file)
 
@@ -354,7 +354,7 @@ class TestAsyncSemgrepValidator:
         with patch("asyncio.create_subprocess_exec", return_value=mock_process), patch(
             "asyncio.wait_for", new_callable=AsyncMock, return_value=(b"", b"")
         ), patch.object(Path, "exists", new=mock_exists), patch(
-            "codeconcat.parser.file_parser.determine_language", return_value="python"
+            "codeconcat.parser.unified_pipeline.determine_language", return_value="python"
         ):
             findings = await validator.scan_file(test_file)
 
@@ -422,7 +422,7 @@ class TestAsyncSemgrepValidator:
         ), patch("pathlib.Path.exists", return_value=True), patch(
             "builtins.open", mock_open(read_data=results_content)
         ), patch(
-            "codeconcat.parser.file_parser.determine_language",
+            "codeconcat.parser.unified_pipeline.determine_language",
             return_value="python",
         ):
             await validator.scan_file(test_file)
@@ -632,7 +632,7 @@ class TestAsyncSemgrepValidator:
         """Test language detection for Python files."""
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value="python"):
+        with patch("codeconcat.parser.unified_pipeline.determine_language", return_value="python"):
             result = validator._detect_language(Path("test.py"))
             assert result == "python"
 
@@ -640,7 +640,9 @@ class TestAsyncSemgrepValidator:
         """Test language detection for JavaScript files."""
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value="javascript"):
+        with patch(
+            "codeconcat.parser.unified_pipeline.determine_language", return_value="javascript"
+        ):
             result = validator._detect_language(Path("test.js"))
             assert result == "js"
 
@@ -648,7 +650,9 @@ class TestAsyncSemgrepValidator:
         """Test language detection for TypeScript files."""
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value="typescript"):
+        with patch(
+            "codeconcat.parser.unified_pipeline.determine_language", return_value="typescript"
+        ):
             result = validator._detect_language(Path("test.ts"))
             assert result == "ts"
 
@@ -656,7 +660,7 @@ class TestAsyncSemgrepValidator:
         """Test language detection for Java files."""
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value="java"):
+        with patch("codeconcat.parser.unified_pipeline.determine_language", return_value="java"):
             result = validator._detect_language(Path("Test.java"))
             assert result == "java"
 
@@ -664,7 +668,7 @@ class TestAsyncSemgrepValidator:
         """Test language detection for Go files."""
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value="go"):
+        with patch("codeconcat.parser.unified_pipeline.determine_language", return_value="go"):
             result = validator._detect_language(Path("main.go"))
             assert result == "go"
 
@@ -672,7 +676,7 @@ class TestAsyncSemgrepValidator:
         """Test language detection for C++ files."""
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value="cpp"):
+        with patch("codeconcat.parser.unified_pipeline.determine_language", return_value="cpp"):
             result = validator._detect_language(Path("test.cpp"))
             assert result == "cpp"
 
@@ -680,7 +684,7 @@ class TestAsyncSemgrepValidator:
         """Test language detection for C# files."""
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value="csharp"):
+        with patch("codeconcat.parser.unified_pipeline.determine_language", return_value="csharp"):
             result = validator._detect_language(Path("Test.cs"))
             assert result == "csharp"
 
@@ -688,7 +692,7 @@ class TestAsyncSemgrepValidator:
         """Test language detection for unsupported languages."""
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value="fortran"):
+        with patch("codeconcat.parser.unified_pipeline.determine_language", return_value="fortran"):
             result = validator._detect_language(Path("test.f90"))
             assert result is None
 
@@ -696,7 +700,7 @@ class TestAsyncSemgrepValidator:
         """Test language detection for unknown files."""
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value=None):
+        with patch("codeconcat.parser.unified_pipeline.determine_language", return_value=None):
             result = validator._detect_language(Path("test.unknown"))
             assert result is None
 
@@ -722,7 +726,8 @@ class TestAsyncSemgrepValidator:
 
         for codeconcat_lang, semgrep_lang in mappings.items():
             with patch(
-                "codeconcat.parser.file_parser.determine_language", return_value=codeconcat_lang
+                "codeconcat.parser.unified_pipeline.determine_language",
+                return_value=codeconcat_lang,
             ):
                 result = validator._detect_language(Path(f"test.{codeconcat_lang}"))
                 assert result == semgrep_lang, f"Failed for {codeconcat_lang} -> {semgrep_lang}"
@@ -754,7 +759,7 @@ class TestAsyncSemgrepValidator:
         ), patch("pathlib.Path.exists", return_value=True), patch(
             "builtins.open", mock_open(read_data=malformed_json)
         ), patch(
-            "codeconcat.parser.file_parser.determine_language",
+            "codeconcat.parser.unified_pipeline.determine_language",
             return_value="python",
         ), pytest.raises(ValidationError, match="Failed to scan file with semgrep"):
             await validator.scan_file(test_file)
@@ -796,7 +801,7 @@ class TestAsyncSemgrepValidator:
         ), patch("pathlib.Path.exists", return_value=True), patch(
             "builtins.open", mock_open(read_data=results_content)
         ), patch(
-            "codeconcat.parser.file_parser.determine_language",
+            "codeconcat.parser.unified_pipeline.determine_language",
             return_value="python",
         ):
             findings = await validator.scan_file(test_file)
@@ -835,7 +840,7 @@ class TestAsyncSemgrepValidator:
         ), patch("pathlib.Path.exists", return_value=True), patch(
             "builtins.open", mock_open(read_data=results_content)
         ), patch(
-            "codeconcat.parser.file_parser.determine_language",
+            "codeconcat.parser.unified_pipeline.determine_language",
             return_value="python",
         ):
             # Run scans concurrently
@@ -860,7 +865,7 @@ class TestAsyncSemgrepValidator:
 
         validator = AsyncSemgrepValidator()
 
-        with patch("codeconcat.parser.file_parser.determine_language", return_value=None):
+        with patch("codeconcat.parser.unified_pipeline.determine_language", return_value=None):
             await validator.scan_file(str(test_file))
 
         # Verify path validation was called
@@ -896,7 +901,7 @@ class TestAsyncSemgrepValidator:
         with patch("asyncio.create_subprocess_exec", return_value=mock_process), patch(
             "asyncio.wait_for", new_callable=AsyncMock, return_value=(b"", b"")
         ), patch.object(Path, "exists", new=mock_exists), patch(
-            "codeconcat.parser.file_parser.determine_language", return_value="python"
+            "codeconcat.parser.unified_pipeline.determine_language", return_value="python"
         ), patch("tempfile.TemporaryDirectory") as mock_tempdir:
             mock_tempdir.return_value.__enter__.return_value = "/tmp/test_dir"
 
@@ -950,7 +955,7 @@ class TestAsyncSemgrepValidator:
         ), patch("pathlib.Path.exists", return_value=True), patch(
             "builtins.open", mock_open(read_data=results_content)
         ), patch(
-            "codeconcat.parser.file_parser.determine_language",
+            "codeconcat.parser.unified_pipeline.determine_language",
             return_value="python",
         ):
             findings = await validator.scan_file(test_file)

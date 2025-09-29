@@ -95,4 +95,7 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
         security_issues=parsed_data.security_issues,
         summary=summary,
         tags=tags,
+        # Preserve diff data if present
+        diff_content=getattr(parsed_data, "diff_content", None),
+        diff_metadata=getattr(parsed_data, "diff_metadata", None),
     )

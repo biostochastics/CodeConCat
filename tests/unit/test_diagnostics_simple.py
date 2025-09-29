@@ -23,7 +23,7 @@ class TestDiagnostics:
         assert isinstance(successful, list)
         assert isinstance(failed, list)
 
-    @patch("codeconcat.parser.file_parser.get_language_parser")
+    @patch("codeconcat.parser.unified_pipeline.get_language_parser")
     def test_diagnose_parser_basic_success(self, mock_get_parser):
         """Test basic parser diagnosis without file."""
         # Mock a parser
@@ -40,7 +40,7 @@ class TestDiagnostics:
         assert "parsers_found" in results
         assert results["errors"] == []
 
-    @patch("codeconcat.parser.file_parser.get_language_parser")
+    @patch("codeconcat.parser.unified_pipeline.get_language_parser")
     def test_diagnose_parser_no_parser(self, mock_get_parser):
         """Test when no parser is available."""
         mock_get_parser.return_value = None
@@ -51,7 +51,7 @@ class TestDiagnostics:
         assert results["language"] == "unknown"
         assert all(v is None for v in results["parsers_found"].values())
 
-    @patch("codeconcat.parser.file_parser.get_language_parser")
+    @patch("codeconcat.parser.unified_pipeline.get_language_parser")
     def test_diagnose_parser_error(self, mock_get_parser):
         """Test when parser loading fails."""
         mock_get_parser.side_effect = Exception("Parser load failed")
@@ -63,7 +63,7 @@ class TestDiagnostics:
         assert "Parser load failed" in results["errors"][0]
 
     @patch("builtins.open", create=True)
-    @patch("codeconcat.parser.file_parser.get_language_parser")
+    @patch("codeconcat.parser.unified_pipeline.get_language_parser")
     def test_diagnose_parser_with_file(self, mock_get_parser, mock_open):
         """Test parser diagnosis with a test file."""
         # Mock file reading
@@ -86,7 +86,7 @@ class TestDiagnostics:
         assert results["parsers_tested"]["tree_sitter"]["declarations_count"] == 1
 
     @patch("builtins.open", create=True)
-    @patch("codeconcat.parser.file_parser.get_language_parser")
+    @patch("codeconcat.parser.unified_pipeline.get_language_parser")
     def test_diagnose_parser_file_parse_error(self, mock_get_parser, mock_open):
         """Test when file parsing fails."""
         # Mock file reading
@@ -114,7 +114,7 @@ class TestDiagnostics:
         assert isinstance(success, bool)
         assert successful == []
 
-    @patch("codeconcat.parser.file_parser.get_language_parser")
+    @patch("codeconcat.parser.unified_pipeline.get_language_parser")
     def test_diagnose_parser_capabilities_error(self, mock_get_parser):
         """Test when getting capabilities fails."""
         # Mock parser with failing capabilities
@@ -129,7 +129,7 @@ class TestDiagnostics:
         assert len(results["errors"]) > 0
         assert "Capabilities error" in str(results["errors"])
 
-    @patch("codeconcat.parser.file_parser.get_language_parser")
+    @patch("codeconcat.parser.unified_pipeline.get_language_parser")
     def test_diagnose_parser_multiple_types(self, mock_get_parser):
         """Test diagnosing multiple parser types."""
         call_count = 0

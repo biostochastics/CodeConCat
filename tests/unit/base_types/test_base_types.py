@@ -212,13 +212,20 @@ class TestSecurityTypes:
     """Test class for security-related types."""
 
     def test_security_severity_enum(self):
-        """Test SecuritySeverity enum values."""
-        # Check enum values
-        assert SecuritySeverity.CRITICAL.value == "CRITICAL"
-        assert SecuritySeverity.HIGH.value == "HIGH"
-        assert SecuritySeverity.MEDIUM.value == "MEDIUM"
-        assert SecuritySeverity.LOW.value == "LOW"
-        assert SecuritySeverity.INFO.value == "INFO"
+        """Test SecuritySeverity enum values and names."""
+        # Check enum integer values
+        assert SecuritySeverity.CRITICAL.value == 4
+        assert SecuritySeverity.HIGH.value == 3
+        assert SecuritySeverity.MEDIUM.value == 2
+        assert SecuritySeverity.LOW.value == 1
+        assert SecuritySeverity.INFO.value == 0
+
+        # Check enum string names
+        assert SecuritySeverity.CRITICAL.name == "CRITICAL"
+        assert SecuritySeverity.HIGH.name == "HIGH"
+        assert SecuritySeverity.MEDIUM.name == "MEDIUM"
+        assert SecuritySeverity.LOW.name == "LOW"
+        assert SecuritySeverity.INFO.name == "INFO"
 
     def test_security_severity_ordering(self):
         """Test that SecuritySeverity can be compared/ordered."""

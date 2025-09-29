@@ -75,6 +75,11 @@ def get_ai_provider(config: AIProviderConfig) -> AIProvider:
 
         return LlamaCppProvider(config)
 
+    elif config.provider_type == AIProviderType.LOCAL_SERVER:
+        from .providers.local_server_provider import LocalServerProvider
+
+        return LocalServerProvider(config)
+
     else:
         raise ValueError(f"Unsupported provider type: {config.provider_type}")
 
@@ -121,6 +126,9 @@ def list_available_providers() -> List[str]:
     # Check for llama-cpp-python
     if importlib.util.find_spec("llama_cpp") is not None:
         available.append("llamacpp")
+
+    # Local server provider always available (uses standard HTTP)
+    available.append("local_server")
 
     return available
 
@@ -206,6 +214,16 @@ def get_provider_info(provider_name: str) -> Dict[str, Any]:
             "pip_install": "llama-cpp-python",
             "env_var": None,
             "notes": "Requires local model file (GGUF format)",
+        },
+        "local_server": {
+            "name": "OpenAI-Compatible Local Server",
+            "models": ["depends on server configuration"],
+            "requires_api_key": False,
+            "supports_streaming": True,
+            "supports_function_calling": True,
+            "pip_install": None,
+            "env_var": "LOCAL_LLM_API_BASE",
+            "notes": "Supports vLLM, TGI, LocalAI, FastChat, and other OpenAI-compatible servers",
         },
     }
 

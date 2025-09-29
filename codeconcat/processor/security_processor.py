@@ -23,13 +23,14 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ..base_types import CodeConCatConfig, CustomSecurityPattern, SecuritySeverity
+from codeconcat.base_types import SecurityIssue, SecuritySeverity
+
+from ..base_types import CodeConCatConfig, CustomSecurityPattern
 from ..utils.feature_flags import is_enabled
 from ..utils.security import InputSanitizer, PathValidator, RateLimiter, SecureHash
 from .attack_patterns import Severity as AttackSeverity
 from .attack_patterns import scan_content as scan_attack_patterns
 from .external_scanners import run_semgrep_scan
-from .security_types import SecurityIssue
 
 __all__ = ["SecurityProcessor"]
 
@@ -310,13 +311,14 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                             )
 
                     issue = SecurityIssue(
-                        line_number=lineno,
-                        line_content=masked_line_for_issue,  # Use specifically masked line for issue
-                        issue_type=issue_type,
-                        severity=current_severity.value,
+                        rule_id=issue_type,  # Use issue_type as rule_id
                         description=f"Potential {issue_type} detected.",
-                        raw_finding=raw_finding,
                         file_path=str(abs_path),
+                        line_number=lineno,
+                        severity=SecuritySeverity(
+                            current_severity.value
+                        ),  # Convert to SecuritySeverity enum
+                        context=masked_line_for_issue,  # Use as context instead of line_content
                     )
                     issues.append(issue)
 
@@ -355,18 +357,23 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                         line_content = finding.get("snippet", "")
 
                     issue = SecurityIssue(
-                        line_number=finding["line"],
-                        line_content=line_content,
-                        issue_type=finding["name"],
-                        severity=severity.value,
+                        rule_id=finding["name"],  # Use name as rule_id
                         description=finding["message"],
-                        raw_finding=finding.get("snippet", ""),
                         file_path=str(abs_path),
+                        line_number=finding["line"],
+                        severity=SecuritySeverity(
+                            severity.value
+                        ),  # Convert to SecuritySeverity enum
+                        context=line_content,  # Use as context
                     )
 
                     # Check for duplicates
                     if not cls._is_duplicate(
-                        issues, issue.line_number, issue.issue_type, issue.raw_finding, abs_path
+                        issues,
+                        issue.line_number,
+                        issue.rule_id,
+                        finding.get("snippet", ""),
+                        abs_path,
                     ):
                         issues.append(issue)
 
@@ -376,11 +383,9 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
                 abs_path, config, rules=getattr(config, "semgrep_ruleset", "p/ci")
             )
             # Add Semgrep issues, avoiding duplicates if possible (basic check)
-            existing_issue_keys = {
-                (iss.file_path, iss.line_number, iss.issue_type) for iss in issues
-            }
+            existing_issue_keys = {(iss.file_path, iss.line_number, iss.rule_id) for iss in issues}
             for s_issue in semgrep_issues:
-                key = (s_issue.file_path, s_issue.line_number, s_issue.issue_type)
+                key = (s_issue.file_path, s_issue.line_number, s_issue.rule_id)
                 if key not in existing_issue_keys:
                     issues.append(s_issue)
                     existing_issue_keys.add(key)
@@ -604,15 +609,15 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
     def _is_duplicate(
         issues: list[SecurityIssue],
         line_no: int,
-        issue_type: str,
-        raw_finding: str,
+        rule_id: str,
+        context: str,
         file_path: str | Path,
     ) -> bool:
-        """Return *True* when *raw_finding* was already reported for *line_no*."""
+        """Return *True* when same issue was already reported for *line_no*."""
         return any(
             iss.line_number == line_no
-            and iss.issue_type == issue_type
-            and iss.raw_finding == raw_finding
+            and iss.rule_id == rule_id
+            and iss.context == context
             and Path(iss.file_path) == Path(file_path)
             for iss in issues
         )
@@ -659,10 +664,11 @@ class SecurityProcessor:  # pylint: disable=too-many-public-methods
             for issue in file_issues:
                 lines.append("")
                 lines.append(f"Severity : {issue.severity}")
-                lines.append(f"Type     : {issue.issue_type}")
+                lines.append(f"Rule     : {issue.rule_id}")
                 lines.append(f"File     : {issue.file_path}")
-                lines.append(f"Line {issue.line_number}: {issue.line_content.strip()}")
-                lines.append(f"Finding  : {issue.raw_finding}")
+                lines.append(
+                    f"Line {issue.line_number}: {issue.context.strip() if issue.context else ''}"
+                )
                 lines.append(f"Description: {issue.description}")
                 # Add context lines if file is available
                 if file_lines:

@@ -6,7 +6,6 @@ import pytest
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
 from codeconcat.collector.github_collector import (
-    build_git_clone_url,
     collect_git_repo,
     parse_git_url,
 )
@@ -47,20 +46,6 @@ class TestParseGitUrl:
         """Test parsing invalid URL raises ValueError."""
         with pytest.raises(ValueError, match="Invalid Git URL"):
             parse_git_url("not-a-valid-url")
-
-
-class TestBuildGitCloneUrl:
-    """Test Git clone URL building."""
-
-    def test_build_https_url(self):
-        """Test building HTTPS clone URL."""
-        url = build_git_clone_url("octocat/Hello-World", "octocat", "Hello-World")
-        assert url == "https://github.com/octocat/Hello-World.git"
-
-    def test_build_url_with_token(self):
-        """Test building URL with GitHub token."""
-        url = build_git_clone_url("octocat/private-repo", "octocat", "private-repo", "test_token")
-        assert url == "https://test_token@github.com/octocat/private-repo.git"
 
 
 class TestCollectGitRepo:
@@ -161,10 +146,3 @@ class TestEdgeCases:
         """Test that .git extension is removed."""
         owner, repo, ref = parse_git_url("octocat/Hello-World.git")
         assert repo == "Hello-World"  # .git should be removed
-
-    @patch.dict("os.environ", {"GITHUB_TOKEN": ""})
-    def test_build_url_no_token(self):
-        """Test building URL without token."""
-        url = build_git_clone_url("octocat/Hello-World", "octocat", "Hello-World")
-        assert url == "https://github.com/octocat/Hello-World.git"
-        assert "@" not in url

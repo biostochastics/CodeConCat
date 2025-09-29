@@ -51,6 +51,20 @@ def write_json(
         - Security issue tracking
     """
 
+    # Check if we're in diff mode
+    is_diff_mode = any(hasattr(item, "diff_metadata") and item.diff_metadata for item in items)
+
+    # Add diff metadata if in diff mode
+    diff_info = {}
+    if is_diff_mode and items and hasattr(items[0], "diff_metadata") and items[0].diff_metadata:
+        diff_meta = items[0].diff_metadata
+        diff_info = {
+            "mode": "diff",
+            "from_ref": diff_meta.from_ref,
+            "to_ref": diff_meta.to_ref,
+            "changes": _calculate_diff_statistics(items),
+        }
+
     output: Dict[str, Any] = {
         "metadata": {
             "version": "2.0",
@@ -61,6 +75,7 @@ def write_json(
                 "compression_enabled": config.enable_compression,
                 "sorting_enabled": config.sort_files,
             },
+            **diff_info,  # Merge diff info if present
         },
         "statistics": _calculate_statistics(items),
         "repository": {},
@@ -149,6 +164,25 @@ def write_json(
             }
             indexes["with_issues"].append(file_path)
 
+        # Add diff data if available
+        if hasattr(item, "diff_metadata") and item.diff_metadata:
+            file_data["diff"] = {
+                "change_type": item.diff_metadata.change_type,
+                "additions": item.diff_metadata.additions,
+                "deletions": item.diff_metadata.deletions,
+                "binary": item.diff_metadata.binary,
+                "from_ref": item.diff_metadata.from_ref,
+                "to_ref": item.diff_metadata.to_ref,
+            }
+            if item.diff_metadata.old_path:
+                file_data["diff"]["old_path"] = item.diff_metadata.old_path
+            if item.diff_metadata.similarity is not None:
+                file_data["diff"]["similarity"] = item.diff_metadata.similarity
+
+            # Include diff content if present
+            if hasattr(item, "diff_content") and item.diff_content:
+                file_data["diff"]["content"] = item.diff_content
+
         # Add compression data if enabled
         if config.enable_compression and hasattr(config, "_compressed_segments"):
             segments = CompressionHelper.extract_compressed_segments(config, file_path)
@@ -207,6 +241,52 @@ def _calculate_statistics(items: List[Union[AnnotatedFileData, ParsedDocData]]) 
         "languages": list({getattr(i, "language", "unknown") for i in items}),
         "average_file_size": total_size // len(items) if items else 0,
     }
+
+
+def _calculate_diff_statistics(
+    items: List[Union[AnnotatedFileData, ParsedDocData]],
+) -> Dict[str, Any]:
+    """Calculate statistics for diff mode.
+
+    Aggregates change statistics across all items with diff metadata to provide
+    a comprehensive overview of modifications between Git references.
+
+    Args:
+        items: List of items potentially containing diff metadata
+
+    Returns:
+        Dictionary containing aggregated diff statistics including total changes,
+        file categorization by change type, and line-level modifications.
+    """
+    stats = {
+        "total_additions": 0,
+        "total_deletions": 0,
+        "files_added": 0,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "files_renamed": 0,
+        "binary_files": 0,
+    }
+
+    for item in items:
+        if hasattr(item, "diff_metadata") and item.diff_metadata:
+            meta = item.diff_metadata
+            stats["total_additions"] += meta.additions
+            stats["total_deletions"] += meta.deletions
+
+            if meta.binary:
+                stats["binary_files"] += 1
+
+            if meta.change_type == "added":
+                stats["files_added"] += 1
+            elif meta.change_type == "modified":
+                stats["files_modified"] += 1
+            elif meta.change_type == "deleted":
+                stats["files_deleted"] += 1
+            elif meta.change_type == "renamed":
+                stats["files_renamed"] += 1
+
+    return stats
 
 
 def _categorize_files(items: List[Union[AnnotatedFileData, ParsedDocData]]) -> Dict[str, int]:

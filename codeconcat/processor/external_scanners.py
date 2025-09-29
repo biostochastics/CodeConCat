@@ -12,8 +12,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from ..base_types import CodeConCatConfig, SecuritySeverity
-from .security_types import SecurityIssue
+from ..base_types import CodeConCatConfig, SecurityIssue, SecuritySeverity
 
 
 def run_semgrep_scan(
@@ -130,13 +129,12 @@ def run_semgrep_scan(
 
         issues.append(
             SecurityIssue(
-                line_number=finding.get("start", {}).get("line", 0),
-                line_content=line_content,  # Store the line Semgrep provides
-                issue_type=finding.get("check_id", "semgrep"),
-                severity=severity.value,
+                rule_id=finding.get("check_id", "semgrep"),  # Use check_id as rule_id
                 description=description,
-                raw_finding=str(raw_finding).strip(),  # Store matched code or relevant part
                 file_path=finding.get("path", str(path)),  # Use path from Semgrep result
+                line_number=finding.get("start", {}).get("line", 0),
+                severity=severity,  # Already a SecuritySeverity enum
+                context=line_content,  # Store the line content as context
             )
         )
     return issues

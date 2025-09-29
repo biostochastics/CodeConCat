@@ -1018,7 +1018,7 @@ def function():
         # Create mock issue with string-like severity for edge case
         class MockSeverity:
             def __init__(self, value):
-                self.value = value
+                self.name = value  # Use name attribute to match IntEnum behavior
 
         mock_issue = SecurityIssue(
             rule_id="mock_test",

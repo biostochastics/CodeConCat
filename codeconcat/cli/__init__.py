@@ -32,21 +32,31 @@ app = typer.Typer(
     rich_markup_mode="rich",
     pretty_exceptions_enable=True,
     pretty_exceptions_show_locals=False,
+    add_completion=True,  # Explicitly enable completion support
 )
 
 # Global state management - singleton pattern for sharing state across commands
 state = GlobalState()
 
 
+def version_callback(value: bool):
+    """Callback to display version information."""
+    if value:
+        version_text = Text(f"CodeConCat v{__version__}", style="bold cyan")
+        console.print(Panel(version_text, expand=False, border_style="cyan"))
+        raise typer.Exit(0)
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
-    version: bool = typer.Option(
+    version: bool = typer.Option(  # noqa: ARG001
         False,
         "--version",
         "-V",
         help="Show version information and exit",
         is_eager=True,
+        callback=version_callback,
     ),
     verbose: int = typer.Option(
         0,
@@ -93,11 +103,6 @@ def main(
         This callback is invoked for every command execution, setting up the
         global state and logging configuration before delegating to sub-commands.
     """
-    # Handle version flag - uses is_eager=True to process before other options
-    if version:
-        version_text = Text(f"CodeConCat v{__version__}", style="bold cyan")
-        console.print(Panel(version_text, expand=False, border_style="cyan"))
-        raise typer.Exit(0)
 
     # Store global settings in state singleton for access across commands
     state.verbose = verbose
@@ -146,29 +151,32 @@ app.add_typer(keys.app, name="keys", help="Manage API keys for AI providers")
 
 
 # Add a default command that maps to 'run' for backward compatibility
-# This allows 'codeconcat path' to work like 'codeconcat run path'
+# This allows 'codeconcat path' or 'codeconcat url' to work like 'codeconcat run path/url'
 @app.command(hidden=True)
 def default(
     ctx: typer.Context,
-    target: Optional[Path] = typer.Argument(None),
+    target: Optional[str] = typer.Argument(None),
 ):
     """
     Hidden default command for backward compatibility.
 
     This command allows users to run CodeConCat without specifying 'run'
     explicitly, maintaining compatibility with the legacy CLI interface.
+    Also supports direct URL/shorthand usage.
 
     Args:
         ctx: Typer context from parent command
-        target: Optional target path to process
+        target: Optional target path, URL, or GitHub shorthand
 
     Note:
         This is a hidden command that won't appear in help output.
         It forwards all arguments to the run command.
 
     Example:
-        codeconcat /path/to/project  # Legacy style
-        codeconcat run /path/to/project  # New style (equivalent)
+        codeconcat /path/to/project           # Legacy style (local)
+        codeconcat https://github.com/o/r     # GitHub URL
+        codeconcat owner/repo                  # GitHub shorthand
+        codeconcat run /path/to/project       # New style (equivalent)
     """
     # Forward to run command by manipulating context and argv
     run_ctx = ctx.parent
@@ -176,7 +184,7 @@ def default(
         run_ctx.invoked_subcommand = "run"
     if target:
         sys.argv.insert(1, str(target))
-    run.run_command(target or Path.cwd())
+    run.run_command(target)
 
 
 if __name__ == "__main__":

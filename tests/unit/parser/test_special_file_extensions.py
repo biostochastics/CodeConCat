@@ -9,7 +9,7 @@ are correctly identified and not parsed as code.
 
 import pytest
 
-from codeconcat.parser.file_parser import determine_language
+from codeconcat.parser.unified_pipeline import determine_language
 
 
 class TestSpecialFileExtensions:

@@ -56,8 +56,17 @@ def write_text(
 
     output_lines = []
 
-    # Header with box drawing
-    output_lines.append(_create_header("CODECONCAT OUTPUT"))
+    # Check if we're in diff mode
+    is_diff_mode = any(hasattr(item, "diff_metadata") and item.diff_metadata for item in items)
+
+    # Header with box drawing - adjust for diff mode
+    if is_diff_mode and items and hasattr(items[0], "diff_metadata") and items[0].diff_metadata:
+        diff_meta = items[0].diff_metadata
+        header_title = f"DIFF: {diff_meta.from_ref[:7]}...{diff_meta.to_ref[:7]}"
+    else:
+        header_title = "CODECONCAT OUTPUT"
+
+    output_lines.append(_create_header(header_title))
     output_lines.append("")
 
     # Summary section
@@ -65,6 +74,20 @@ def write_text(
     stats = _calculate_statistics(items)
     for key, value in stats.items():
         output_lines.append(f"  {key}: {value}")
+
+    # Add diff-specific statistics if in diff mode
+    if is_diff_mode:
+        diff_stats = _calculate_diff_statistics(items)
+        output_lines.append("")
+        output_lines.append("  Changes:")
+        output_lines.append(f"    Added:    +{diff_stats['total_additions']} lines")
+        output_lines.append(f"    Deleted:  -{diff_stats['total_deletions']} lines")
+        output_lines.append(
+            f"    Files:    {diff_stats['files_added']} added, "
+            f"{diff_stats['files_modified']} modified, "
+            f"{diff_stats['files_deleted']} deleted"
+        )
+
     output_lines.append("")
 
     # Repository structure
@@ -110,6 +133,20 @@ def write_text(
         # File metadata in a compact format
         if config.include_file_summary:
             metadata = _get_file_metadata(item)
+
+            # Add diff information if available
+            if hasattr(item, "diff_metadata") and item.diff_metadata:
+                if not metadata:
+                    metadata = {}
+                diff_meta = item.diff_metadata
+                metadata["Change Type"] = diff_meta.change_type.upper()
+                if diff_meta.additions or diff_meta.deletions:
+                    metadata["Lines Changed"] = f"+{diff_meta.additions} / -{diff_meta.deletions}"
+                if diff_meta.old_path:
+                    metadata["Renamed From"] = diff_meta.old_path
+                if diff_meta.binary:
+                    metadata["Binary File"] = "Yes"
+
             if metadata:
                 output_lines.append("")
                 output_lines.append("  Metadata:")
@@ -117,7 +154,27 @@ def write_text(
                     output_lines.append(f"    {key}: {value}")
                 output_lines.append("")
 
-        # File content with optional line numbers
+        # File content with optional line numbers or diff
+        if hasattr(item, "diff_content") and item.diff_content:
+            # Show diff content instead of regular content
+            output_lines.append("  Diff:")
+            output_lines.append("  " + SUBSEPARATOR_CHAR * (TERM_WIDTH - 4))
+
+            # Split diff content into lines and format
+            for line in item.diff_content.splitlines():
+                if line.startswith("+") and not line.startswith("+++"):
+                    output_lines.append(f"  + {line[1:]}")  # Added line
+                elif line.startswith("-") and not line.startswith("---"):
+                    output_lines.append(f"  - {line[1:]}")  # Deleted line
+                elif line.startswith("@@"):
+                    output_lines.append(f"  {line}")  # Hunk header
+                else:
+                    output_lines.append(f"    {line}")  # Context line
+
+            output_lines.append("")
+            # Skip regular content rendering for diff mode
+            continue
+
         output_lines.append("  Content:")
         output_lines.append("  " + SUBSEPARATOR_CHAR * (TERM_WIDTH - 4))
 
@@ -199,6 +256,50 @@ def _calculate_statistics(items: Sequence[WritableItem]) -> dict:
         "Total Size": _format_size(total_size),
         "Languages": len({getattr(i, "language", "unknown") for i in items}),
     }
+
+
+def _calculate_diff_statistics(items: Sequence[WritableItem]) -> dict:
+    """Calculate statistics for diff mode.
+
+    Aggregates change statistics across all items with diff metadata to provide
+    a comprehensive overview of modifications between Git references.
+
+    Args:
+        items: List of items potentially containing diff metadata
+
+    Returns:
+        Dictionary containing aggregated diff statistics including total changes,
+        file categorization by change type, and line-level modifications.
+    """
+    stats = {
+        "total_additions": 0,
+        "total_deletions": 0,
+        "files_added": 0,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "files_renamed": 0,
+        "binary_files": 0,
+    }
+
+    for item in items:
+        if hasattr(item, "diff_metadata") and item.diff_metadata:
+            meta = item.diff_metadata
+            stats["total_additions"] += meta.additions
+            stats["total_deletions"] += meta.deletions
+
+            if meta.binary:
+                stats["binary_files"] += 1
+
+            if meta.change_type == "added":
+                stats["files_added"] += 1
+            elif meta.change_type == "modified":
+                stats["files_modified"] += 1
+            elif meta.change_type == "deleted":
+                stats["files_deleted"] += 1
+            elif meta.change_type == "renamed":
+                stats["files_renamed"] += 1
+
+    return stats
 
 
 def _get_file_indicator(file_path: str) -> str:

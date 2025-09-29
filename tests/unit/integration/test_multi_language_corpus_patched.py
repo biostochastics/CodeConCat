@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 import pytest
 
 from codeconcat.base_types import CodeConCatConfig, Declaration, ParseResult
-from codeconcat.parser.file_parser import get_language_parser
+from codeconcat.parser.unified_pipeline import get_language_parser
 
 # Configure logging
 logging.basicConfig(

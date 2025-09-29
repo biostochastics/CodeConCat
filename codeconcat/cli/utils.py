@@ -4,8 +4,9 @@ Utility functions for the CLI.
 
 import logging
 import os
+import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import typer
 from rich.console import Console
@@ -188,6 +189,53 @@ def print_file_stats(stats: Dict[str, Any]) -> None:
         table.add_row(formatted_key, formatted_value)
 
     console.print(table)
+
+
+def is_github_url_or_shorthand(target: str) -> Tuple[bool, str]:
+    """
+    Detect if a target string is a GitHub URL or shorthand notation.
+
+    Args:
+        target: Input string to check
+
+    Returns:
+        Tuple of (is_url, cleaned_url) where:
+        - is_url: True if target is a GitHub URL/shorthand
+        - cleaned_url: The URL/shorthand ready for processing
+    """
+    # GitHub shorthand patterns (owner/repo or owner/repo/ref)
+    shorthand_pattern = r"^[a-zA-Z0-9][\w.-]+/[\w.-]+(?:/.*)?$"
+
+    # GitHub URL patterns
+    github_url_patterns = [
+        r"^https?://(?:www\.)?github\.com/[\w.-]+/[\w.-]+",
+        r"^git@github\.com:[\w.-]+/[\w.-]+",
+        r"^github\.com/[\w.-]+/[\w.-]+",
+    ]
+
+    # Check if it's a GitHub shorthand
+    if re.match(shorthand_pattern, target) and not os.path.exists(target):
+        # Looks like owner/repo and not a local path
+        return True, target
+
+    # Check if it's a GitHub URL
+    for pattern in github_url_patterns:
+        if re.match(pattern, target, re.IGNORECASE):
+            return True, target
+
+    # Check for other Git hosting services (GitLab, Bitbucket, etc.)
+    git_url_patterns = [
+        r"^https?://(?:www\.)?gitlab\.com/",
+        r"^https?://(?:www\.)?bitbucket\.org/",
+        r"^git@gitlab\.com:",
+        r"^git@bitbucket\.org:",
+    ]
+
+    for pattern in git_url_patterns:
+        if re.match(pattern, target, re.IGNORECASE):
+            return True, target
+
+    return False, target
 
 
 def validate_path(path: Path, must_exist: bool = True) -> Path:

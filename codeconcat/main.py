@@ -25,19 +25,19 @@ from codeconcat.base_types import (
     ParsedFileData,
     WritableItem,
 )
+from codeconcat.collector.github_collector import collect_git_repo
 from codeconcat.collector.local_collector import collect_local_files
-from codeconcat.collector.remote_collector import collect_git_repo
 from codeconcat.config.config_builder import ConfigBuilder
 from codeconcat.diagnostics import diagnose_parser, verify_tree_sitter_dependencies
 from codeconcat.errors import (
     CodeConcatError,
     ConfigurationError,
     FileProcessingError,
+    ParserError,
     ValidationError,
 )
 from codeconcat.parser.doc_extractor import extract_docs
-from codeconcat.parser.enhanced_pipeline import enhanced_parse_pipeline
-from codeconcat.parser.file_parser import parse_code_files
+from codeconcat.parser.unified_pipeline import parse_code_files
 from codeconcat.processor.compression_processor import CompressionProcessor
 from codeconcat.quotes import get_random_quote
 from codeconcat.reconstruction import reconstruct_from_file
@@ -789,9 +789,64 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         logger.info("Collecting input files...")
         files_to_process: List[ParsedFileData] = []
 
-        if config.source_url:
+        # Check if we're in diff mode
+        diff_mode = (
+            hasattr(config, "diff_from")
+            and config.diff_from
+            and hasattr(config, "diff_to")
+            and config.diff_to
+        )
+
+        logger.info(
+            f"Diff mode check: has diff_from={hasattr(config, 'diff_from')}, diff_from={getattr(config, 'diff_from', None)}, has diff_to={hasattr(config, 'diff_to')}, diff_to={getattr(config, 'diff_to', None)}, diff_mode={diff_mode}"
+        )
+
+        if diff_mode:
+            logger.info("DIFF MODE ACTIVATED - will collect diffs instead of all files")
+
+        if diff_mode:
+            # Validate that both diff refs are provided
+            if not config.diff_from or not config.diff_to:
+                raise ConfigurationError(
+                    "Both --diff-from and --diff-to are required for diff mode"
+                )
+
+            logger.info(f"Collecting diffs between {config.diff_from} and {config.diff_to}")
+
+            # Use DiffCollector for differential outputs
+            from codeconcat.collector.diff_collector import DiffCollector
+
+            # Determine the repository path
+            repo_path = config.target_path if config.target_path else "."
+
+            try:
+                diff_collector = DiffCollector(repo_path, config.diff_from, config.diff_to, config)
+                diff_items = diff_collector.collect_diffs()
+
+                # Convert AnnotatedFileData to ParsedFileData for compatibility
+                # Note: In diff mode, the files are already annotated with diff information
+                files_to_process = []
+                for item in diff_items:
+                    # Create ParsedFileData from AnnotatedFileData
+                    parsed_file = ParsedFileData(
+                        file_path=item.file_path,
+                        language=item.language,
+                        content=item.content,
+                        declarations=item.declarations,
+                        imports=item.imports,
+                        # Store the diff-specific data
+                        diff_content=item.diff_content,
+                        diff_metadata=item.diff_metadata,
+                    )
+                    files_to_process.append(parsed_file)
+
+                logger.info(f"Collected {len(files_to_process)} file diffs")
+            except ValueError as e:
+                raise ConfigurationError(f"Diff collection error: {e}") from e
+
+        elif config.source_url:
             logger.info(f"Collecting files from source URL: {config.source_url}")
-            # Assuming collect_git_repo can handle generic URLs or is specialized for Git
+            # Use the secure async implementation with synchronous wrapper
             files_to_process, temp_dir = collect_git_repo(config.source_url, config)
         elif config.target_path:
             logger.info(f"Collecting files from local path: {config.target_path}")
@@ -836,29 +891,26 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             # This is a more serious error, but we'll continue with a warning
             logger.warning("Some files may have incorrect content types")
 
-        # Parse code files
+        # Parse code files (skip if in diff mode as files are already parsed)
         logger.debug("Starting file parsing.")
         try:
             logger.info(
                 f"[CodeConCat] Found {len(files_to_process)} code files. Starting parsing..."
             )
-            # Check if we should use the enhanced parsing pipeline
-            use_enhanced_pipeline = (
-                hasattr(config, "use_enhanced_pipeline") and config.use_enhanced_pipeline
-            )
 
-            if use_enhanced_pipeline:
-                logger.info("Using enhanced parsing pipeline with progressive fallbacks")
-                # Use the enhanced pipeline with progressive fallbacks
-                parsed_files, errors = enhanced_parse_pipeline(files_to_process, config)
+            # Skip parsing if we're in diff mode (files already processed)
+            if diff_mode:
+                logger.info("Diff mode: skipping additional parsing (files already processed)")
+                parsed_files = files_to_process
+                parser_errors: List[ParserError] = []
             else:
-                # Use the standard parsing pipeline
-                logger.info("Using standard parsing pipeline")
-                parsed_files, errors = parse_code_files(files_to_process, config)
+                # Use the unified parsing pipeline
+                logger.info("Using unified parsing pipeline with progressive fallbacks")
+                parsed_files, parser_errors = parse_code_files(files_to_process, config)
 
-            if errors:
+            if parser_errors:
                 # Log errors encountered during parsing
-                for error in errors:
+                for error in parser_errors:
                     logger.warning(
                         f"Parsing error for {getattr(error, 'file_path', 'unknown')}: {str(error)}"
                     )
@@ -874,6 +926,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             raise FileProcessingError(f"Error parsing files: {str(e)}") from e
 
         # Apply AI summarization if enabled
+        logger.debug(f"[CodeConCat] AI summary enabled: {config.enable_ai_summary}")
         if config.enable_ai_summary:
             try:
                 logger.info("[CodeConCat] Generating AI summaries...")
@@ -885,6 +938,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
                 summarizer = create_summarization_processor(config)
                 if summarizer:
+                    logger.info(
+                        f"[CodeConCat] Summarizer created, processing {len(parsed_files)} files..."
+                    )
                     # Run async summarization
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
@@ -896,11 +952,20 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                         loop.run_until_complete(summarizer.cleanup())
                         loop.close()
 
-                    logger.info(
-                        f"[CodeConCat] AI summaries generated for {len(parsed_files)} files."
+                    # Check if any summaries were actually added
+                    summaries_added = sum(
+                        1 for f in parsed_files if hasattr(f, "ai_summary") and f.ai_summary
                     )
+                    logger.info(
+                        f"[CodeConCat] Processing complete. {summaries_added} of {len(parsed_files)} files have AI summaries."
+                    )
+                else:
+                    logger.warning("[CodeConCat] Summarizer was not created - check configuration")
             except Exception as e:
-                logger.warning(f"Warning: Failed to generate AI summaries: {str(e)}")
+                logger.error(f"Error during AI summarization: {str(e)}")
+                import traceback
+
+                logger.debug(traceback.format_exc())
                 # Continue without summaries - this is not a fatal error
 
         # Extract docs if requested
@@ -913,10 +978,26 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 logger.warning(f"Warning: Failed to extract documentation: {str(e)}")
 
         logger.info("[CodeConCat] Starting annotation of parsed files...")
-        # Annotate files if enabled
+        # Annotate files if enabled (skip in diff mode as files are already annotated)
         annotated_files = []
         try:
-            if not config.disable_annotations:
+            if diff_mode:
+                logger.info("Diff mode: files already annotated, skipping annotation step")
+                # Convert ParsedFileData with diff info to AnnotatedFileData
+                for parsed in parsed_files:
+                    annotated = AnnotatedFileData(
+                        file_path=parsed.file_path,
+                        language=parsed.language or "unknown",
+                        content=parsed.content or "",
+                        annotated_content=parsed.content or "",
+                        summary=f"Diff for {parsed.file_path}",
+                        declarations=parsed.declarations,
+                        imports=parsed.imports,
+                        diff_content=getattr(parsed, "diff_content", None),
+                        diff_metadata=getattr(parsed, "diff_metadata", None),
+                    )
+                    annotated_files.append(annotated)
+            elif not config.disable_annotations:
                 # Wrap annotation loop with track
                 annotation_iterator = track(
                     parsed_files,
@@ -943,9 +1024,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                             annotated_files.append(
                                 AnnotatedFileData(
                                     file_path=file.file_path,
-                                    language=file.language,
-                                    content=file.content,
-                                    annotated_content=file.content,
+                                    language=file.language or "",
+                                    content=file.content or "",
+                                    annotated_content=file.content or "",
                                     summary="",
                                     tags=[],
                                 )
@@ -969,9 +1050,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                     annotated_files.append(
                         AnnotatedFileData(
                             file_path=file.file_path,
-                            language=file.language,
-                            content=file.content,
-                            annotated_content=file.content,
+                            language=file.language or "",
+                            content=file.content or "",
+                            annotated_content=file.content or "",
                             summary="",
                             tags=[],
                         )
@@ -1007,8 +1088,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             config._compressed_segments = {}  # type: ignore[attr-defined]
 
             # Apply compression to each annotated file
-            for _i, item in enumerate(items):
-                if isinstance(item, AnnotatedFileData) and item.content:
+            for _i, writable_item in enumerate(items):
+                if isinstance(writable_item, AnnotatedFileData) and writable_item.content:
+                    item = writable_item  # Type narrowed to AnnotatedFileData
                     # Process the file through the compression processor
                     compressed_segments = compression_processor.process_file(item)  # type: ignore[arg-type]
 
@@ -1077,8 +1159,11 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             medium_compression_files = 0  # 40-70% reduction
             low_compression_files = 0  # <40% reduction
 
-            for item in items:
-                if isinstance(item, AnnotatedFileData) and hasattr(item, "_compression_stats"):
+            for writable_item in items:
+                if isinstance(writable_item, AnnotatedFileData) and hasattr(
+                    writable_item, "_compression_stats"
+                ):
+                    item = writable_item  # Type narrowed to AnnotatedFileData
                     total_files_compressed += 1
                     stats = item._compression_stats
                     total_original_lines += stats["original_lines"]

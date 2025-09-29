@@ -122,4 +122,9 @@ node_modules/
 CLAUDE.md
 GEMINI.md
 
+# ---------------------------
+# MCP Configuration
+# ---------------------------
+.mcp.json
+
 # End of .gitignore

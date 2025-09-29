@@ -119,7 +119,7 @@ def diagnose_parser(language: str, file_path: Optional[str] = None) -> Tuple[boo
         - Dictionary of diagnostic results and information
     """
     from codeconcat.base_types import CodeConCatConfig
-    from codeconcat.parser.file_parser import get_language_parser
+    from codeconcat.parser.unified_pipeline import get_language_parser
 
     results: Dict[str, Any] = {
         "language": language,

@@ -156,7 +156,7 @@ class TestSemgrepValidator:
     def test_detect_language(self, tmp_path):
         """Test language detection for semgrep."""
         with patch(
-            "codeconcat.parser.file_parser.determine_language",
+            "codeconcat.parser.unified_pipeline.determine_language",
             side_effect=lambda x: {
                 "test.py": "python",
                 "test.js": "javascript",
