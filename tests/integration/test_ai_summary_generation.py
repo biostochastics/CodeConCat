@@ -334,7 +334,8 @@ class TestEndToEndAISummaryGeneration:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create test files
             test_file = Path(tmpdir) / "test.py"
-            test_file.write_text('''def main():
+            test_file.write_text(
+                '''def main():
     """Main entry point."""
     print("Hello, world!")
     return 0
@@ -342,7 +343,8 @@ class TestEndToEndAISummaryGeneration:
 def helper():
     """Helper function."""
     return 42
-''')
+'''
+            )
 
             # Mock file collection
             mock_collect.return_value = [str(test_file)]

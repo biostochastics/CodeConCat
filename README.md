@@ -812,6 +812,29 @@ codeconcat run --ai-summary --ai-provider ollama --ai-model llama3.2
 
 **Note**: The `--ai-summary` flag enables AI summarization. API keys can be provided via environment variables or the `--ai-api-key` option.
 
+### AI Meta-Overview (NEW)
+
+Generate a comprehensive meta-overview that synthesizes all individual file summaries into a high-level architectural understanding:
+
+```bash
+# Enable meta-overview with default prompt
+codeconcat run --ai-summary --ai-meta-overview --ai-provider openai
+
+# Use custom prompt for meta-overview
+codeconcat run --ai-summary --ai-meta-overview \
+  --ai-meta-prompt "Focus on security architecture and data flow patterns" \
+  --ai-provider anthropic
+```
+
+The meta-overview feature:
+- **Synthesizes all file summaries** into a cohesive project overview
+- **Identifies key components** and their relationships
+- **Highlights patterns**, design decisions, and technologies used
+- **Provides onboarding insights** for new developers
+- **Supports custom prompts** for focused analysis
+
+The meta-overview appears at the top of the output by default, providing immediate context before diving into file details.
+
 ### API Key Setup
 
 #### Interactive Setup (Recommended)

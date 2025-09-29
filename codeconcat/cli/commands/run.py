@@ -370,6 +370,22 @@ def run_command(
             rich_help_panel="AI Summarization Options",
         ),
     ] = False,
+    ai_meta_overview: Annotated[
+        bool,
+        typer.Option(
+            "--ai-meta-overview/--no-ai-meta-overview",
+            help="Generate meta-overview from all file summaries",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = False,
+    ai_meta_overview_prompt: Annotated[
+        Optional[str],
+        typer.Option(
+            "--ai-meta-prompt",
+            help="Custom prompt for meta-overview generation",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = None,
     # Local LLM Performance Options (llama.cpp)
     llama_gpu_layers: Annotated[
         Optional[int],
@@ -614,6 +630,8 @@ def run_command(
                 "ai_model": ai_model or "",
                 "ai_api_key": ai_api_key or "",
                 "ai_summarize_functions": ai_summarize_functions,
+                "ai_meta_overview": ai_meta_overview,
+                "ai_meta_overview_prompt": ai_meta_overview_prompt or "",
                 "llama_gpu_layers": llama_gpu_layers,
                 "llama_context_size": llama_context_size,
                 "llama_threads": llama_threads,

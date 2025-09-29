@@ -102,6 +102,19 @@ def write_markdown(
 
     output_parts.append("")
 
+    # Add meta-overview if present and position is "top"
+    meta_overview = None
+    if items and hasattr(items[0], "ai_metadata") and items[0].ai_metadata:
+        meta_overview = items[0].ai_metadata.get("meta_overview")
+
+    if meta_overview and getattr(config, "ai_meta_overview_position", "top") == "top":
+        output_parts.append("## AI Meta-Overview\n")
+        output_parts.append(
+            "> *This comprehensive overview was generated based on all file summaries in the codebase*\n"
+        )
+        output_parts.append(meta_overview)
+        output_parts.append("\n---\n")
+
     # Table of Contents with anchor links
     output_parts.append("## Table of Contents\n")
     output_parts.append("- [Project Overview](#project-overview)")
@@ -277,6 +290,15 @@ def write_markdown(
             output_parts.append("```\n")
 
         output_parts.append("---\n")
+
+    # Add meta-overview at bottom if configured
+    if meta_overview and getattr(config, "ai_meta_overview_position", "top") == "bottom":
+        output_parts.append("\n---\n")
+        output_parts.append("## AI Meta-Overview\n")
+        output_parts.append(
+            "> *This comprehensive overview was generated based on all file summaries in the codebase*\n"
+        )
+        output_parts.append(meta_overview)
 
     # Footer with generation info
     output_parts.append("\n---\n")

@@ -42,7 +42,7 @@ DANGEROUS_PATTERNS = {
         .*?
         (FROM|INTO|TABLE|DATABASE)\s+
         """,
-        re.VERBOSE,
+        re.VERBOSE | re.IGNORECASE,
     ),
     "path_traversal": re.compile(r"\.\./|\.\\|\x00|/etc/passwd"),
     "template_injection": re.compile(r"\{\{.+?\}\}|\$\{.+?\}|<%= .+? %>"),
@@ -145,7 +145,9 @@ class SecurityValidator:
         except OSError as e:
             raise ValidationError(f"Cannot access file {path}", original_exception=e) from e
 
-        cache_key = f"{path.resolve()}:{algorithm}:{file_size}"
+        # Include mtime in cache key to detect file changes with same size
+        mtime = path.stat().st_mtime_ns  # Use nanosecond precision for better accuracy
+        cache_key = f"{path.resolve()}:{algorithm}:{file_size}:{mtime}"
 
         # Return cached hash if available and cache is enabled
         if use_cache and cache_key in FILE_HASH_CACHE:
@@ -199,7 +201,8 @@ class SecurityValidator:
             compute_file_hash: For computing file hashes
             detect_tampering: For checking if a file has been modified
         """
-        actual_hash = SecurityValidator.compute_file_hash(file_path, algorithm)
+        # Don't use cache for integrity checks to ensure fresh hash computation
+        actual_hash = SecurityValidator.compute_file_hash(file_path, algorithm, use_cache=False)
 
         if actual_hash.lower() != expected_hash.lower():
             raise FileIntegrityError(
@@ -239,10 +242,17 @@ class SecurityValidator:
             if pattern.search(sanitized):
                 logger.warning(f"Potentially dangerous pattern '{name}' detected")
                 if name == "secrets_pattern":
-                    # Redact secrets but keep the structure
-                    sanitized = pattern.sub(
-                        lambda m: m.group().split("=")[0] + '= "[REDACTED]"', sanitized
-                    )
+                    # Redact secrets but keep the structure, preserving the delimiter
+                    def redact_secret(match):
+                        text = match.group()
+                        # Find the delimiter (: or =) and split on it
+                        for delimiter in [":", "="]:
+                            if delimiter in text:
+                                parts = text.split(delimiter, 1)
+                                return parts[0] + delimiter + ' "[REDACTED]"'
+                        return text + ' "[REDACTED]"'  # Fallback if no delimiter found
+
+                    sanitized = pattern.sub(redact_secret, sanitized)
                 else:
                     # For other patterns, add warning comment
                     sanitized = pattern.sub(
@@ -461,43 +471,8 @@ class SecurityValidator:
         try:
             path = Path(file_path)
 
-            # Check extension first
-            suffix = path.suffix.lower()
-
-            # Common text file extensions
-            text_extensions = {
-                ".txt",
-                ".md",
-                ".py",
-                ".js",
-                ".ts",
-                ".html",
-                ".css",
-                ".json",
-                ".xml",
-                ".yaml",
-                ".yml",
-                ".toml",
-                ".ini",
-                ".c",
-                ".cpp",
-                ".h",
-                ".hpp",
-                ".java",
-                ".cs",
-                ".go",
-                ".rb",
-                ".php",
-                ".rs",
-                ".sh",
-                ".bat",
-                ".ps1",
-            }
-
-            if suffix in text_extensions:
-                return False
-
-            # Check content
+            # Always check content first to avoid bypass via renamed files
+            # Read a chunk of the file for content analysis
             with open(path, "rb") as f:
                 chunk = f.read(8192)
 

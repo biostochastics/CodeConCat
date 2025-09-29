@@ -151,7 +151,7 @@ class SummarizationProcessor:
             files: List of parsed files
 
         Returns:
-            List of files with summaries added
+            List of files with summaries added (and optionally meta-overview)
         """
         if not self.ai_provider:
             return files
@@ -175,7 +175,69 @@ class SummarizationProcessor:
         tasks = [process_with_semaphore(f) for f in files]
         processed_files = await asyncio.gather(*tasks)
 
+        # Generate meta-overview if enabled
+        if getattr(self.config, "ai_meta_overview", False):
+            meta_overview = await self.generate_meta_overview(processed_files)
+            if meta_overview and processed_files:
+                # Store the meta-overview in the first file's ai_metadata
+                # This will be accessed by the writers
+                if processed_files[0].ai_metadata is None:
+                    processed_files[0].ai_metadata = {}
+                processed_files[0].ai_metadata["meta_overview"] = meta_overview
+
         return processed_files
+
+    async def generate_meta_overview(self, files: List[ParsedFileData]) -> Optional[str]:
+        """Generate a meta-overview from all file summaries.
+
+        Args:
+            files: List of files with AI summaries
+
+        Returns:
+            Meta-overview string or None if generation fails
+        """
+        if not self.ai_provider:
+            logger.warning("Cannot generate meta-overview: AI provider not initialized")
+            return None
+
+        # Collect all file summaries
+        file_summaries = {}
+        for file_data in files:
+            if hasattr(file_data, "ai_summary") and file_data.ai_summary:
+                file_summaries[file_data.file_path] = file_data.ai_summary
+
+        if not file_summaries:
+            logger.info("No file summaries available for meta-overview generation")
+            return None
+
+        try:
+            logger.info(f"Generating meta-overview from {len(file_summaries)} file summaries...")
+
+            # Get custom prompt and max tokens from config
+            custom_prompt = getattr(self.config, "ai_meta_overview_prompt", None)
+            max_tokens = getattr(self.config, "ai_meta_overview_max_tokens", 1000)
+
+            # Generate the meta-overview
+            result = await self.ai_provider.generate_meta_overview(
+                file_summaries,
+                custom_prompt=custom_prompt,
+                max_tokens=max_tokens,
+            )
+
+            if result and not result.error:
+                logger.info(f"✓ Generated meta-overview: {len(result.summary)} chars")
+                return result.summary
+            elif result and result.error:
+                logger.warning(f"Failed to generate meta-overview: {result.error}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Exception while generating meta-overview: {e}")
+            import traceback
+
+            logger.debug(traceback.format_exc())
+
+        return None
 
     def _should_summarize_file(self, parsed_file: ParsedFileData) -> bool:
         """Determine if a file should be summarized.
