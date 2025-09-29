@@ -115,6 +115,33 @@ def complete_language(incomplete: str) -> List[str]:
     return [lang for lang in languages if lang.startswith(incomplete.lower())]
 
 
+def _get_api_key_for_provider(provider: Optional[str]) -> Optional[str]:
+    """Get API key from environment based on provider type.
+
+    Args:
+        provider: The AI provider name (openai, anthropic, openrouter, etc.)
+
+    Returns:
+        API key from appropriate environment variable, or None
+    """
+    if not provider:
+        return None
+
+    provider_env_map = {
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+        "ollama": None,  # Ollama doesn't need an API key
+        "llamacpp": None,  # llama.cpp doesn't need an API key
+        "local_server": "LOCAL_LLM_API_KEY",
+    }
+
+    env_var = provider_env_map.get(provider.lower())
+    if env_var:
+        return os.getenv(env_var)
+    return None
+
+
 def run_command(
     target: Annotated[
         Optional[str],
@@ -357,8 +384,7 @@ def run_command(
         Optional[str],
         typer.Option(
             "--ai-api-key",
-            help="API key for AI provider (or use env vars)",
-            envvar=["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"],
+            help="API key for AI provider (or set OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)",
             rich_help_panel="AI Summarization Options",
         ),
     ] = None,
@@ -628,7 +654,7 @@ def run_command(
                 "enable_ai_summary": enable_ai_summary,
                 "ai_provider": ai_provider or "",
                 "ai_model": ai_model or "",
-                "ai_api_key": ai_api_key or "",
+                "ai_api_key": ai_api_key or _get_api_key_for_provider(ai_provider) or "",
                 "ai_summarize_functions": ai_summarize_functions,
                 "ai_meta_overview": ai_meta_overview,
                 "ai_meta_overview_prompt": ai_meta_overview_prompt or "",

@@ -87,9 +87,17 @@ class SummarizationProcessor:
 
         try:
             self.ai_provider = get_ai_provider(ai_config)
-            logger.info(f"Successfully initialized {provider_type_str} AI provider")
+            logger.info(
+                f"Successfully initialized {provider_type_str} AI provider with model {model}"
+            )
         except Exception as e:
-            logger.error(f"Failed to initialize AI provider: {e}. Summarization disabled.")
+            logger.error(f"Failed to initialize AI provider '{provider_type_str}': {e}")
+            logger.error(
+                "AI summarization is disabled. Please check your API key and provider configuration."
+            )
+            logger.error(
+                f"Tip: Use --ai-api-key or set {provider_type_str.upper()}_API_KEY environment variable"
+            )
             self.ai_provider = None
 
     async def process_file(self, parsed_file: ParsedFileData) -> ParsedFileData:
@@ -258,12 +266,12 @@ class SummarizationProcessor:
             return False
 
         # Check file size threshold
-        min_lines = getattr(self.config, "ai_min_file_lines", 20)
+        min_lines = getattr(self.config, "ai_min_file_lines", 5)
         content = parsed_file.content
         if content:
             line_count = len(content.splitlines())
             if line_count < min_lines:
-                logger.debug(
+                logger.info(
                     f"Skipping {parsed_file.file_path}: {line_count} lines < {min_lines} minimum"
                 )
                 return False
