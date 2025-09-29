@@ -116,6 +116,55 @@ class AIProvider(ABC):
         """
         pass
 
+    async def generate_meta_overview(
+        self,
+        file_summaries: Dict[str, str],
+        custom_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+    ) -> SummarizationResult:
+        """Generate a meta-overview from multiple file summaries.
+
+        Args:
+            file_summaries: Dictionary mapping file paths to their summaries
+            custom_prompt: Optional custom prompt to override default
+            max_tokens: Maximum tokens for the overview
+
+        Returns:
+            SummarizationResult with the generated meta-overview
+        """
+        # Default implementation using the existing summarize_code method
+        # Individual providers can override for optimized implementations
+
+        # Prepare the combined content
+        combined_content = []
+        for file_path, summary in file_summaries.items():
+            combined_content.append(f"File: {file_path}\nSummary: {summary}\n")
+
+        combined_text = "\n".join(combined_content)
+
+        # Build the prompt
+        if custom_prompt:
+            final_prompt = f"{custom_prompt}\n\n{combined_text}"
+        else:
+            final_prompt = (
+                "Based on the following file summaries from a codebase, provide a comprehensive "
+                "meta-overview that:\n"
+                "1. Identifies the overall purpose and architecture of the system\n"
+                "2. Highlights key components and their relationships\n"
+                "3. Notes important patterns, design decisions, and technologies used\n"
+                "4. Identifies potential areas of concern or improvement\n"
+                "5. Provides a high-level technical summary suitable for onboarding new developers\n\n"
+                f"{combined_text}"
+            )
+
+        # Use the existing summarize_code method with special context
+        return await self.summarize_code(
+            final_prompt,
+            "overview",
+            {"type": "meta_overview", "file_count": len(file_summaries)},
+            max_length=max_tokens,
+        )
+
     @abstractmethod
     async def get_model_info(self) -> Dict[str, Any]:
         """Get information about the current model.

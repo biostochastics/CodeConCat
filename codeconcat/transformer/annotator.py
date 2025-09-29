@@ -59,13 +59,8 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
     if symbols:
         summary_parts.append(f"{len(symbols)} symbols")
 
-    # Use AI summary if available, otherwise generate basic summary
-    if parsed_data.ai_summary:
-        summary = parsed_data.ai_summary
-    else:
-        summary = (
-            f"Contains {', '.join(summary_parts)}" if summary_parts else "No declarations found"
-        )
+    # Generate basic summary
+    summary = f"Contains {', '.join(summary_parts)}" if summary_parts else "No declarations found"
 
     # Generate tags
     tags = []
@@ -94,6 +89,7 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
         token_stats=parsed_data.token_stats,
         security_issues=parsed_data.security_issues,
         summary=summary,
+        ai_summary=parsed_data.ai_summary,  # Transfer AI summary separately
         tags=tags,
         # Preserve diff data if present
         diff_content=getattr(parsed_data, "diff_content", None),

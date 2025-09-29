@@ -124,7 +124,10 @@ def write_xml(
         ET.SubElement(file_meta, "path").text = getattr(item, "file_path", "")
         ET.SubElement(file_meta, "language").text = getattr(item, "language", "unknown")
 
-        # Include summary if available (AI or default)
+        # Include AI summary if available
+        if hasattr(item, "ai_summary") and item.ai_summary:
+            ET.SubElement(file_meta, "ai_summary").text = item.ai_summary
+        # Include regular summary
         if hasattr(item, "summary") and item.summary:
             ET.SubElement(file_meta, "summary").text = item.summary
 

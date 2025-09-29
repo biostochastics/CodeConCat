@@ -329,8 +329,10 @@ class ConfigBuilder:
         # Apply compatibility fixes and special handling
         if "parser_engine" in processed_cli_values:
             parser_engine = processed_cli_values.pop("parser_engine")
-            # Convert new parser_engine to old disable_tree flag for backward compatibility
-            processed_cli_values["disable_tree"] = parser_engine != "tree_sitter"
+            # Only set disable_tree if parser_engine was actually provided (not empty)
+            if parser_engine:  # Skip empty strings from CLI when option is None
+                # Convert new parser_engine to old disable_tree flag for backward compatibility
+                processed_cli_values["disable_tree"] = parser_engine != "tree_sitter"
 
         # Apply CLI args, overriding all previous settings
         for key, value in processed_cli_values.items():

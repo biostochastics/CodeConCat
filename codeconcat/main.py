@@ -991,6 +991,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                         content=parsed.content or "",
                         annotated_content=parsed.content or "",
                         summary=f"Diff for {parsed.file_path}",
+                        ai_summary=getattr(parsed, "ai_summary", None),  # Preserve AI summary
                         declarations=parsed.declarations,
                         imports=parsed.imports,
                         diff_content=getattr(parsed, "diff_content", None),

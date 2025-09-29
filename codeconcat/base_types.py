@@ -397,7 +397,8 @@ class AnnotatedFileData(WritableItem):
     annotated_content: str  # Potentially processed content (e.g., comments removed)
 
     # Optional AI-generated additions
-    summary: str = ""  # AI-generated overall summary
+    summary: str = ""  # Human-readable summary
+    ai_summary: str | None = None  # AI-generated detailed summary
 
     # Structured analysis results (passed from ParsedFileData) - parameters with defaults
     declarations: list[Declaration] = field(default_factory=list)
@@ -817,6 +818,23 @@ class CodeConCatConfig(BaseModel):
     ai_exclude_patterns: list[str] = Field(
         default_factory=lambda: ["*test*", "*spec*", "*mock*"],
         description="File path patterns to exclude from summarization",
+    )
+
+    # Meta-overview configuration
+    ai_meta_overview: bool = Field(
+        False, description="Enable meta-overview generation from all file summaries"
+    )
+    ai_meta_overview_prompt: str | None = Field(
+        None,
+        description="Custom prompt for meta-overview generation. If None, uses default prompt.",
+    )
+    ai_meta_overview_max_tokens: int = Field(
+        1000, description="Maximum tokens for meta-overview generation"
+    )
+    ai_meta_overview_position: str = Field(
+        "top",
+        description="Position of meta-overview in output ('top' or 'bottom')",
+        pattern="^(top|bottom)$",
     )
 
     # ... rest of the code remains the same ...

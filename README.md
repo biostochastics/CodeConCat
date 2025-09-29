@@ -89,6 +89,7 @@ CodeConCat provides comprehensive parsing for the following languages:
 | **Julia** | Yes | Yes | Multiple dispatch, macros, type annotations |
 | **R** | Yes | Yes | S3/S4 classes, tidyverse, data.table |
 | **Swift** | Yes | Yes | Classes, structs, protocols, actors, SwiftUI, async/await |
+| **Bash/Shell** | Yes | No | Functions, variables, aliases, source imports |
 | **TOML** | No | Yes | Configuration parsing, nested tables |
 
 ### Parser Features
@@ -811,6 +812,29 @@ codeconcat run --ai-summary --ai-provider ollama --ai-model llama3.2
 
 **Note**: The `--ai-summary` flag enables AI summarization. API keys can be provided via environment variables or the `--ai-api-key` option.
 
+### AI Meta-Overview (NEW)
+
+Generate a comprehensive meta-overview that synthesizes all individual file summaries into a high-level architectural understanding:
+
+```bash
+# Enable meta-overview with default prompt
+codeconcat run --ai-summary --ai-meta-overview --ai-provider openai
+
+# Use custom prompt for meta-overview
+codeconcat run --ai-summary --ai-meta-overview \
+  --ai-meta-prompt "Focus on security architecture and data flow patterns" \
+  --ai-provider anthropic
+```
+
+The meta-overview feature:
+- **Synthesizes all file summaries** into a cohesive project overview
+- **Identifies key components** and their relationships
+- **Highlights patterns**, design decisions, and technologies used
+- **Provides onboarding insights** for new developers
+- **Supports custom prompts** for focused analysis
+
+The meta-overview appears at the top of the output by default, providing immediate context before diving into file details.
+
 ### API Key Setup
 
 #### Interactive Setup (Recommended)
@@ -1098,7 +1122,7 @@ CodeConCat handles file sizes to optimize performance:
 - **100MB hash limit**: Security hashing limited to prevent memory issues
 - **Configurable**: Limits can be adjusted in configuration
 
-The system provides detailed logging when files are skipped due to size constraints.
+The system provides detailed logging when filAes are skipped due to size constraints.
 
 ### Shell Completion
 

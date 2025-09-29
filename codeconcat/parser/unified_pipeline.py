@@ -54,10 +54,10 @@ ALLOWED_LANGUAGES = {
     "kotlin",
     "scala",
     "r",
-    "julia",
-    "perl",
     "bash",
     "shell",
+    "julia",
+    "perl",
     "powershell",
     "sql",
     "html",
@@ -145,6 +145,8 @@ def _try_tree_sitter_parser(language: str) -> Optional[Any]:
             "swift": "tree_sitter_swift_parser",
             "r": "tree_sitter_r_parser",
             "julia": "tree_sitter_julia_parser",
+            "bash": "tree_sitter_bash_parser",
+            "shell": "tree_sitter_bash_parser",
         }
 
         module_name = parser_map.get(language.lower())
@@ -165,6 +167,8 @@ def _try_tree_sitter_parser(language: str) -> Optional[Any]:
             class_name = "TreeSitterJsTsParser"
         elif language == "c":
             class_name = "TreeSitterCppParser"
+        elif language in ["bash", "shell"]:
+            class_name = "TreeSitterBashParser"
 
         parser_class = getattr(module, class_name, None)
         if parser_class:
@@ -780,6 +784,11 @@ def determine_language(file_path: str) -> Optional[str]:
         ".java": "java",
         ".go": "go",
         ".php": "php",
+        ".sh": "bash",
+        ".bash": "bash",
+        ".zsh": "bash",
+        ".ksh": "bash",
+        ".fish": "bash",
     }
     return language_map.get(ext)
 

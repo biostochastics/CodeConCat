@@ -127,4 +127,12 @@ GEMINI.md
 # ---------------------------
 .mcp.json
 
+# ---------------------------
+# Planning Documents
+# ---------------------------
+PARSER_IMPROVEMENT_PLAN.md
+codeconcat_enhancement_plan.md
+codeconcat_feature_implementation_plan.md
+codeconcat_language_expansion_guide.md
+
 # End of .gitignore
