@@ -7,7 +7,6 @@ from typing import Optional
 
 import typer
 from rich.panel import Panel
-from rich.prompt import Confirm
 from typing_extensions import Annotated
 
 from codeconcat.config.interactive_config import run_interactive_setup
@@ -74,8 +73,8 @@ def init_command(
     # Check if file already exists
     if output_file.exists() and not force:
         if interactive:
-            overwrite = Confirm.ask(
-                f"[yellow]Configuration file {output_file} already exists. Overwrite?[/yellow]",
+            overwrite = typer.confirm(
+                f"Configuration file {output_file} already exists. Overwrite?",
                 default=False,
             )
             if not overwrite:

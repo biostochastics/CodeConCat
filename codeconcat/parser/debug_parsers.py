@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from codeconcat.base_types import CodeConCatConfig, Declaration, ParseResult
 from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
-from codeconcat.parser.file_parser import get_language_parser
+from codeconcat.parser.unified_pipeline import get_language_parser
 
 # No need for external utils, we'll use standard file operations
 

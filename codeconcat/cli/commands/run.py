@@ -5,7 +5,7 @@ Run command - Main processing functionality.
 import os
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import typer
 from rich.panel import Panel
@@ -27,7 +27,14 @@ from codeconcat.validation.security_reporter import init_reporter
 from codeconcat.validation.unsupported_reporter import init_reporter as init_unsupported_reporter
 
 from ..config import get_state
-from ..utils import console, print_error, print_success, print_warning, show_quote
+from ..utils import (
+    console,
+    is_github_url_or_shorthand,
+    print_error,
+    print_success,
+    print_warning,
+    show_quote,
+)
 
 # We don't need a separate Typer app here since run_command is used directly
 # app = typer.Typer()
@@ -66,15 +73,55 @@ class CompressionLevel(str, Enum):
     AGGRESSIVE = "aggressive"
 
 
+def validate_security_threshold(value: str) -> str:
+    """Validate security threshold value."""
+    valid_thresholds = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    if value.upper() not in valid_thresholds:
+        raise typer.BadParameter(
+            f"Invalid threshold. Must be one of: {', '.join(valid_thresholds)}"
+        )
+    return value.upper()
+
+
+def complete_provider(incomplete: str) -> List[str]:
+    """Autocompletion for AI provider names."""
+    providers = ["openai", "anthropic", "openrouter", "ollama", "llamacpp", "local_server"]
+    return [p for p in providers if p.startswith(incomplete.lower())]
+
+
+def complete_language(incomplete: str) -> List[str]:
+    """Autocompletion for programming languages."""
+    languages = [
+        "python",
+        "javascript",
+        "typescript",
+        "java",
+        "go",
+        "rust",
+        "cpp",
+        "c",
+        "csharp",
+        "ruby",
+        "php",
+        "swift",
+        "kotlin",
+        "scala",
+        "haskell",
+        "julia",
+        "r",
+        "matlab",
+        "fortran",
+    ]
+    return [lang for lang in languages if lang.startswith(incomplete.lower())]
+
+
 def run_command(
     target: Annotated[
-        Optional[Path],
+        Optional[str],
         typer.Argument(
-            help="Target directory or file to process",
-            exists=True,
-            resolve_path=True,
+            help="Target directory, file, or GitHub URL/shorthand (e.g., owner/repo)",
         ),
-    ] = Path.cwd(),
+    ] = None,
     # Output options
     output: Annotated[
         Optional[Path],
@@ -131,6 +178,23 @@ def run_command(
             rich_help_panel="Source Options",
         ),
     ] = None,
+    # Diff mode options
+    diff_from: Annotated[
+        Optional[str],
+        typer.Option(
+            "--diff-from",
+            help="Starting Git ref for diff mode (branch, tag, or commit)",
+            rich_help_panel="Diff Mode Options",
+        ),
+    ] = None,
+    diff_to: Annotated[
+        Optional[str],
+        typer.Option(
+            "--diff-to",
+            help="Ending Git ref for diff mode (branch, tag, or commit)",
+            rich_help_panel="Diff Mode Options",
+        ),
+    ] = None,
     # Filtering options
     include_paths: Annotated[
         Optional[List[str]],
@@ -157,6 +221,7 @@ def run_command(
             "-il",
             help="Languages to include (e.g., python, java)",
             rich_help_panel="Filtering Options",
+            autocompletion=complete_language,
         ),
     ] = None,
     exclude_languages: Annotated[
@@ -166,6 +231,7 @@ def run_command(
             "-el",
             help="Languages to exclude",
             rich_help_panel="Filtering Options",
+            autocompletion=complete_language,
         ),
     ] = None,
     use_gitignore: Annotated[
@@ -274,8 +340,9 @@ def run_command(
         Optional[str],
         typer.Option(
             "--ai-provider",
-            help="AI provider (openai, anthropic, openrouter, ollama, llamacpp)",
+            help="AI provider (openai, anthropic, openrouter, ollama, llamacpp, local_server)",
             rich_help_panel="AI Summarization Options",
+            autocompletion=complete_provider,
         ),
     ] = None,
     ai_model: Annotated[
@@ -303,6 +370,39 @@ def run_command(
             rich_help_panel="AI Summarization Options",
         ),
     ] = False,
+    # Local LLM Performance Options (llama.cpp)
+    llama_gpu_layers: Annotated[
+        Optional[int],
+        typer.Option(
+            "--llama-gpu-layers",
+            help="Number of layers to offload to GPU for llama.cpp (0=CPU only)",
+            rich_help_panel="Local LLM Performance",
+        ),
+    ] = None,
+    llama_context_size: Annotated[
+        Optional[int],
+        typer.Option(
+            "--llama-context",
+            help="Context window size for llama.cpp (default: 2048)",
+            rich_help_panel="Local LLM Performance",
+        ),
+    ] = None,
+    llama_threads: Annotated[
+        Optional[int],
+        typer.Option(
+            "--llama-threads",
+            help="Number of CPU threads for llama.cpp",
+            rich_help_panel="Local LLM Performance",
+        ),
+    ] = None,
+    llama_batch_size: Annotated[
+        Optional[int],
+        typer.Option(
+            "--llama-batch",
+            help="Batch size for llama.cpp prompt processing",
+            rich_help_panel="Local LLM Performance",
+        ),
+    ] = None,
     # Security options
     enable_security: Annotated[
         bool,
@@ -318,6 +418,7 @@ def run_command(
             "--security-threshold",
             help="Minimum severity for security findings",
             rich_help_panel="Security Options",
+            callback=validate_security_threshold,
         ),
     ] = "MEDIUM",
     enable_semgrep: Annotated[
@@ -419,12 +520,40 @@ def run_command(
         if not state.quiet:
             show_quote()
 
+        # Detect if target is a URL or local path
+        actual_target: Optional[str] = target or "."
+        actual_source_url = source_url
+
+        # Check if target is a GitHub URL or shorthand
+        if target:
+            is_url, cleaned_target = is_github_url_or_shorthand(target)
+            if is_url:
+                # Target is a URL, use it as source_url
+                actual_source_url = cleaned_target
+                actual_target = None  # No local target when using URL
+            else:
+                # Target is a local path
+                actual_target = target
+                # Validate that local path exists
+                target_path = Path(target)
+                if not target_path.exists():
+                    print_error(f"Target path does not exist: {target}")
+                    raise typer.Exit(1)
+        else:
+            # No target provided, use current directory
+            actual_target = "."
+
         # Show processing header
         if not state.quiet:
+            display_target = (
+                actual_source_url if actual_source_url else (actual_target or "Current directory")
+            )
+            target_type = "GitHub Repository" if actual_source_url else "Local Directory"
             console.print(
                 Panel(
                     "[bold cyan]CodeConCat Processing[/bold cyan]\n\n"
-                    f"Target: [green]{target or 'Current directory'}[/green]\n"
+                    f"Target: [green]{display_target}[/green]\n"
+                    f"Type: [blue]{target_type}[/blue]\n"
                     f"Format: [yellow]{format.value}[/yellow]\n"
                     f"Preset: [yellow]{preset or 'Default'}[/yellow]",
                     title="Processing Configuration",
@@ -445,20 +574,33 @@ def run_command(
                 config_builder.with_yaml_config(str(state.config_path))
 
             # Apply CLI arguments
-            cli_args = {
-                "target_path": str(target) if target else ".",
-                "output": str(output) if output else None,
+            # Important: Only set target_path if we're not using source_url
+            cli_args: Dict[str, Any] = {}
+
+            # Only add target_path if we're processing locally (no source URL)
+            if actual_source_url:
+                # Using GitHub/remote source
+                cli_args["source_url"] = actual_source_url
+            elif actual_target:
+                # Using local path
+                cli_args["target_path"] = str(actual_target)
+
+            # Add other CLI arguments
+            # Convert all values to strings for CLI args (which expects Dict[str, str])
+            cli_args_update = {
+                "output": str(output) if output else "",
                 "format": format.value,
-                "source_url": source_url,
-                "github_token": github_token,
-                "source_ref": source_ref,
-                "include_paths": include_paths,
-                "exclude_paths": exclude_paths,
-                "include_languages": include_languages,
-                "exclude_languages": exclude_languages,
+                "github_token": github_token or "",
+                "source_ref": source_ref or "",
+                "diff_from": diff_from or "",
+                "diff_to": diff_to or "",
+                "include_paths": include_paths if include_paths else [],
+                "exclude_paths": exclude_paths if exclude_paths else [],
+                "include_languages": include_languages if include_languages else [],
+                "exclude_languages": exclude_languages if exclude_languages else [],
                 "use_gitignore": use_gitignore,
                 "use_default_excludes": use_default_excludes,
-                "parser_engine": parser_engine.value if parser_engine else None,
+                "parser_engine": parser_engine.value if parser_engine else "",
                 "max_workers": max_workers,
                 "extract_docs": extract_docs,
                 "merge_docs": merge_docs,
@@ -468,18 +610,23 @@ def run_command(
                 "enable_compression": enable_compression,
                 "compression_level": compression_level.value,
                 "enable_ai_summary": enable_ai_summary,
-                "ai_provider": ai_provider,
-                "ai_model": ai_model,
-                "ai_api_key": ai_api_key,
+                "ai_provider": ai_provider or "",
+                "ai_model": ai_model or "",
+                "ai_api_key": ai_api_key or "",
                 "ai_summarize_functions": ai_summarize_functions,
+                "llama_gpu_layers": llama_gpu_layers,
+                "llama_context_size": llama_context_size,
+                "llama_threads": llama_threads,
+                "llama_batch_size": llama_batch_size,
                 "enable_security_scanning": enable_security,
                 "security_scan_severity_threshold": security_threshold,
                 "enable_semgrep": enable_semgrep,
                 "disable_progress_bar": disable_progress or state.quiet,
-                "verbose": state.verbose > 0,
+                "verbose": state.verbose,
                 "xml_processing_instructions": xml_processing_instructions,
                 "redact_paths": redact_paths,
             }
+            cli_args.update(cli_args_update)
 
             # Remove None values
             cli_args = {k: v for k, v in cli_args.items() if v is not None}
@@ -553,7 +700,8 @@ def run_command(
         )
 
         if not state.quiet:
-            console.print(f"\n[bold cyan]Processing files from:[/bold cyan] {config.target_path}\n")
+            process_source = config.source_url if config.source_url else config.target_path
+            console.print(f"\n[bold cyan]Processing files from:[/bold cyan] {process_source}\n")
 
         with Progress(
             SpinnerColumn(spinner_name="dots", style="cyan"),

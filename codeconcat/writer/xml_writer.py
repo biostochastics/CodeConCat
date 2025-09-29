@@ -26,10 +26,35 @@ def write_xml(
     # Create root with clear semantic name for LLMs
     root = ET.Element("codebase_analysis")
 
+    # Check if we're in diff mode
+    is_diff_mode = any(hasattr(item, "diff_metadata") and item.diff_metadata for item in items)
+
     # Add metadata section for LLM context
     metadata = ET.SubElement(root, "metadata")
     ET.SubElement(metadata, "total_files").text = str(len(items))
-    ET.SubElement(metadata, "analysis_type").text = "full_codebase"
+
+    # Set analysis type based on mode
+    if is_diff_mode:
+        ET.SubElement(metadata, "analysis_type").text = "differential"
+
+        # Add diff-specific metadata
+        if items and hasattr(items[0], "diff_metadata") and items[0].diff_metadata:
+            diff_meta = items[0].diff_metadata
+            diff_info = ET.SubElement(metadata, "diff_info")
+            ET.SubElement(diff_info, "from_ref").text = diff_meta.from_ref
+            ET.SubElement(diff_info, "to_ref").text = diff_meta.to_ref
+
+            # Calculate diff statistics
+            stats = _calculate_diff_statistics(items)
+            diff_stats = ET.SubElement(diff_info, "statistics")
+            ET.SubElement(diff_stats, "additions").text = str(stats["total_additions"])
+            ET.SubElement(diff_stats, "deletions").text = str(stats["total_deletions"])
+            ET.SubElement(diff_stats, "files_added").text = str(stats["files_added"])
+            ET.SubElement(diff_stats, "files_modified").text = str(stats["files_modified"])
+            ET.SubElement(diff_stats, "files_deleted").text = str(stats["files_deleted"])
+            ET.SubElement(diff_stats, "files_renamed").text = str(stats["files_renamed"])
+    else:
+        ET.SubElement(metadata, "analysis_type").text = "full_codebase"
 
     # Navigation section with clear hierarchy
     if config.include_repo_overview:
@@ -99,6 +124,23 @@ def write_xml(
         ET.SubElement(file_meta, "path").text = getattr(item, "file_path", "")
         ET.SubElement(file_meta, "language").text = getattr(item, "language", "unknown")
 
+        # Include summary if available (AI or default)
+        if hasattr(item, "summary") and item.summary:
+            ET.SubElement(file_meta, "summary").text = item.summary
+
+        # Add diff metadata if available
+        if hasattr(item, "diff_metadata") and item.diff_metadata:
+            diff_elem = ET.SubElement(file_meta, "diff")
+            diff_elem.set("change_type", item.diff_metadata.change_type)
+            diff_elem.set("additions", str(item.diff_metadata.additions))
+            diff_elem.set("deletions", str(item.diff_metadata.deletions))
+            diff_elem.set("binary", str(item.diff_metadata.binary).lower())
+
+            if item.diff_metadata.old_path:
+                diff_elem.set("old_path", item.diff_metadata.old_path)
+            if item.diff_metadata.similarity is not None:
+                diff_elem.set("similarity", str(item.diff_metadata.similarity))
+
         # File analysis section
         if config.include_file_summary:
             analysis = ET.SubElement(file_entry, "analysis")
@@ -128,6 +170,11 @@ def write_xml(
                     ).text = issue.description
 
         # File content with CDATA preservation
+        if hasattr(item, "diff_content") and item.diff_content:
+            # For diff mode, include both diff and regular content
+            diff_content_elem = ET.SubElement(file_entry, "diff_content")
+            diff_content_elem.text = item.diff_content
+
         content_elem = ET.SubElement(file_entry, "file_content")
         content_elem.text = getattr(item, "content", "")
 
@@ -167,6 +214,50 @@ def write_xml(
     return xml_str
 
 
+def _calculate_diff_statistics(items: List[WritableItem]) -> dict:
+    """Calculate statistics for diff mode.
+
+    Aggregates change statistics across all items with diff metadata to provide
+    a comprehensive overview of modifications between Git references.
+
+    Args:
+        items: List of items potentially containing diff metadata
+
+    Returns:
+        Dictionary containing aggregated diff statistics including total changes,
+        file categorization by change type, and line-level modifications.
+    """
+    stats = {
+        "total_additions": 0,
+        "total_deletions": 0,
+        "files_added": 0,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "files_renamed": 0,
+        "binary_files": 0,
+    }
+
+    for item in items:
+        if hasattr(item, "diff_metadata") and item.diff_metadata:
+            meta = item.diff_metadata
+            stats["total_additions"] += meta.additions
+            stats["total_deletions"] += meta.deletions
+
+            if meta.binary:
+                stats["binary_files"] += 1
+
+            if meta.change_type == "added":
+                stats["files_added"] += 1
+            elif meta.change_type == "modified":
+                stats["files_modified"] += 1
+            elif meta.change_type == "deleted":
+                stats["files_deleted"] += 1
+            elif meta.change_type == "renamed":
+                stats["files_renamed"] += 1
+
+    return stats
+
+
 def _add_cdata_sections_optimized(xml_str: str) -> str:
     """Add CDATA sections to elements that need content preservation."""
     import re
@@ -175,6 +266,7 @@ def _add_cdata_sections_optimized(xml_str: str) -> str:
     cdata_elements = [
         "project_structure",
         "file_content",
+        "diff_content",
         "processing_instructions",
         "content",
         "segment",

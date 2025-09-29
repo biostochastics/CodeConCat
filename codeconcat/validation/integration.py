@@ -62,35 +62,51 @@ def validate_input_files(
             logger_int.debug(f"[validate_input_files] Original file_path: {file_path}")
             validation_base_dir = Path(config.target_path).resolve() if config.target_path else None
             logger_int.debug(f"[validate_input_files] validation_base_dir: {validation_base_dir}")
-            # Resolve path to handle symlinks
-            resolved_path = Path(file_path).resolve()
-            logger_int.debug(f"[validate_input_files] Resolved path: {resolved_path}")
-            logger_int.debug(f"[validate_input_files] Path exists: {resolved_path.exists()}")
-            if not resolved_path.exists():
-                # Try checking the original path too
-                original_exists = Path(file_path).exists()
-                logger_int.debug(f"[validate_input_files] Original path exists: {original_exists}")
-                raise ValidationError(
-                    f"File does not exist: {file_path} (resolved: {resolved_path})",
-                    field="file_path",
-                )
 
-            # 2. File size validation
-            max_size = getattr(config, "max_file_size", 10 * 1024 * 1024)  # Default 10MB
-            file_size = Path(file_path).stat().st_size
-            if file_size > max_size:
-                raise ValidationError(
-                    f"File size exceeds limit: {file_size} bytes (max {max_size} bytes)",
-                    field="file_size",
-                )
+            # Skip file existence check for diff mode (files might only exist in other branches)
+            is_diff_mode = (
+                hasattr(file_data, "diff_metadata") and file_data.diff_metadata is not None
+            )
+            logger_int.debug(f"[validate_input_files] Diff mode: {is_diff_mode}")
+
+            if not is_diff_mode:
+                # Resolve path to handle symlinks
+                resolved_path = Path(file_path).resolve()
+                logger_int.debug(f"[validate_input_files] Resolved path: {resolved_path}")
+                logger_int.debug(f"[validate_input_files] Path exists: {resolved_path.exists()}")
+                if not resolved_path.exists():
+                    # Try checking the original path too
+                    original_exists = Path(file_path).exists()
+                    logger_int.debug(
+                        f"[validate_input_files] Original path exists: {original_exists}"
+                    )
+                    raise ValidationError(
+                        f"File does not exist: {file_path} (resolved: {resolved_path})",
+                        field="file_path",
+                    )
+
+            # 2. File size validation (skip for diff mode if file doesn't exist)
+            if not is_diff_mode:
+                max_size = getattr(config, "max_file_size", 10 * 1024 * 1024)  # Default 10MB
+                file_size = Path(file_path).stat().st_size
+                if file_size > max_size:
+                    raise ValidationError(
+                        f"File size exceeds limit: {file_size} bytes (max {max_size} bytes)",
+                        field="file_size",
+                    )
 
             # 3. If strict validation is enabled, perform more checks
             if getattr(config, "strict_validation", False) or config.enable_security_scanning:
-                # Check for suspicious content with standard security checks
-                use_semgrep = getattr(config, "enable_semgrep", False)
-                suspicious_patterns = security_validator.check_for_suspicious_content(
-                    file_path, use_semgrep=use_semgrep
-                )
+                # For diff mode, skip security scanning if file doesn't exist on disk
+                # (security scanning is already done during diff collection)
+                if is_diff_mode and not Path(file_path).exists():
+                    suspicious_patterns = []
+                else:
+                    # Check for suspicious content with standard security checks
+                    use_semgrep = getattr(config, "enable_semgrep", False)
+                    suspicious_patterns = security_validator.check_for_suspicious_content(
+                        file_path, use_semgrep=use_semgrep
+                    )
 
                 # Add findings to reporter
                 if suspicious_patterns:

@@ -18,6 +18,7 @@ class AIProviderType(Enum):
     OPENROUTER = "openrouter"
     OLLAMA = "ollama"
     LLAMACPP = "llamacpp"
+    LOCAL_SERVER = "local_server"  # OpenAI-compatible local servers (vLLM, TGI, LocalAI)
 
 
 @dataclass
@@ -227,7 +228,7 @@ class AIProvider(ABC):
     def _create_code_summary_prompt(
         self, code: str, language: str, context: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Create a prompt for code summarization using CO-STAR framework."""
+        """Create a prompt for code summarization using enhanced CO-STAR framework with few-shot examples."""
         file_path = context.get("file_path", "unknown") if context else "unknown"
 
         # Extract additional context if available
@@ -245,36 +246,89 @@ class AIProvider(ABC):
 
         truncation_note = " (Note: Code was truncated due to length)" if was_truncated else ""
 
+        # Language-specific analysis hints
+        language_hints = {
+            "python": "Pay attention to decorators, type hints, async/await patterns, class inheritance, and data science libraries (pandas, numpy, scikit-learn).",
+            "javascript": "Note React/Vue components, promises/async, ES6+ features, and module patterns.",
+            "typescript": "Focus on type definitions, interfaces, generics, and type safety patterns.",
+            "java": "Consider annotations, interfaces, inheritance hierarchies, and design patterns.",
+            "go": "Highlight goroutines, channels, interfaces, and error handling patterns.",
+            "rust": "Note ownership, borrowing, traits, lifetimes, and error handling with Result/Option.",
+            "cpp": "Consider templates, memory management, STL usage, and object-oriented patterns.",
+            "c": "Focus on memory management, pointer usage, and system-level operations.",
+            "r": "Focus on data manipulation (tidyverse/dplyr), statistical analysis, visualization (ggplot2), vectorized operations, and package dependencies. Note S3/S4 classes, functional programming patterns, and data science workflows.",
+            "julia": "Note multiple dispatch, type annotations, metaprogramming, performance optimizations, and scientific computing patterns.",
+            "swift": "Consider optionals, protocols, extensions, value types vs reference types, and iOS/macOS frameworks.",
+            "kotlin": "Focus on null safety, coroutines, extension functions, data classes, and Android patterns.",
+            "scala": "Highlight functional programming, pattern matching, implicits, traits, and actor model.",
+            "ruby": "Note metaprogramming, DSLs, blocks/procs/lambdas, Rails patterns, and dynamic features.",
+            "php": "Consider frameworks (Laravel/Symfony), PSR standards, type declarations, and web patterns.",
+            "csharp": "Focus on LINQ, async/await, properties, events, and .NET ecosystem.",
+            "elixir": "Highlight actor model, pattern matching, OTP, supervisors, and fault tolerance.",
+            "haskell": "Note pure functions, monads, type classes, lazy evaluation, and category theory concepts.",
+            "clojure": "Focus on immutability, LISP syntax, macros, STM, and functional patterns.",
+            "perl": "Consider regular expressions, CPAN modules, references, and text processing.",
+            "lua": "Note metatables, coroutines, table structures, and embedding patterns.",
+            "dart": "Focus on Flutter widgets, async patterns, null safety, and mobile development.",
+            "matlab": "Highlight matrix operations, vectorization, toolboxes, and scientific computing.",
+            "fortran": "Consider numerical computation, array operations, modules, and HPC patterns.",
+            "cobol": "Note COBOL divisions, file handling, business logic, and mainframe patterns.",
+        }
+
+        lang_hint = language_hints.get(
+            language.lower(), "Focus on language-specific idioms and patterns."
+        )
+
+        # Few-shot example for consistency
+        few_shot_example = """
+Example Output Format:
+```
+This module implements a REST API client for interacting with the GitHub API, providing async methods for repository management, issue tracking, and pull request operations. The implementation uses aiohttp for non-blocking HTTP requests and implements automatic retry logic with exponential backoff for resilience.
+
+The core architecture follows a repository pattern with `GitHubClient` as the main entry point, delegating to specialized handlers (`RepoHandler`, `IssueHandler`, `PRHandler`) for different API endpoints. Key features include OAuth2 authentication, rate limit handling via `RateLimiter` class, and comprehensive error handling with custom exception types. The client maintains connection pooling for performance and supports both pagination and webhook event processing.
+
+Dependencies include aiohttp for async HTTP, pydantic for data validation, and tenacity for retry logic. The module integrates with the application's caching layer through the `CacheManager` interface and emits metrics via the `MetricsCollector` for monitoring API usage and performance.
+```"""
+
         prompt = f"""### Role
-You are an expert software engineer specializing in {language} code documentation and analysis.
+You are an expert software architect analyzing {language} code with deep knowledge of design patterns, best practices, and language-specific idioms.
 
 ### Context
 File: {file_path}
 Language: {language}
 Structure: {num_classes} classes, {num_functions} functions
 Key imports: {imports_str}
+Analysis Focus: {lang_hint}
 
 ### Objective
-Analyze and summarize the following {language} code, creating a comprehensive yet concise summary.
+Create a high-quality technical summary that helps developers quickly understand this code's purpose, architecture, and implementation details.
 
 ### Task
-Provide a structured summary that covers:
-1. **Primary Purpose**: What problem does this code solve? (1 sentence)
-2. **Core Components**: Main classes/functions and their responsibilities
-3. **Key Patterns**: Important design patterns, algorithms, or architectural decisions
-4. **Dependencies**: Critical external libraries or modules used
-5. **Technical Highlights**: Notable implementation details or complexity
+Analyze the code and provide:
+1. **Purpose & Functionality**: Core problem solved and main capabilities
+2. **Architecture & Design**: Key components, patterns, and structural decisions
+3. **Implementation Details**: Algorithms, data structures, and technical approaches
+4. **Integration Points**: External dependencies, APIs, and interfaces
+5. **Quality Indicators**: Performance considerations, error handling, testing approach
 
-### Style
-Technical but accessible to intermediate developers. Use precise terminology while maintaining clarity.
+### Output Requirements
+- 3 concise paragraphs (4-5 sentences each)
+- First paragraph: WHAT the code does and WHY it exists
+- Second paragraph: HOW it works (architecture, patterns, key algorithms)
+- Third paragraph: INTEGRATION aspects (dependencies, interfaces, usage context)
+- Use active voice and present tense
+- Include specific class/function names when discussing key components
+- Mention concrete technical details (algorithms used, design patterns, etc.)
 
-### Format
-Provide a 2-3 paragraph summary structured as:
-- First paragraph: Overall purpose and functionality
-- Second paragraph: Key implementation details and design choices
-- Third paragraph (if needed): Important dependencies or integration points{truncation_note}
+### Style Guide
+- Technical precision with clarity
+- Avoid generic statements; be specific
+- Use industry-standard terminology
+- Balance between high-level overview and implementation details{truncation_note}
 
-### Code
+{few_shot_example}
+
+### Code to Analyze
 ```{language}
 {code}
 ```
@@ -290,7 +344,7 @@ Provide a 2-3 paragraph summary structured as:
         language: str,
         context: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Create a prompt for function summarization using structured format."""
+        """Create a prompt for function summarization using enhanced structured format with examples."""
         file_path = context.get("file_path", "unknown") if context else "unknown"
 
         # Escape function name to prevent injection
@@ -321,37 +375,104 @@ Provide a 2-3 paragraph summary structured as:
             "simple" if lines_of_code < 10 else "moderate" if lines_of_code < 30 else "complex"
         )
 
+        # Detect common patterns for better analysis
+        has_async = "async " in function_code or "await " in function_code
+        has_generator = "yield " in function_code
+        has_decorator = function_code.strip().startswith("@")
+
+        pattern_hints = []
+        if has_async:
+            pattern_hints.append("async/await")
+        if has_generator:
+            pattern_hints.append("generator")
+        if has_decorator:
+            pattern_hints.append("decorated")
+
+        pattern_str = f" ({', '.join(pattern_hints)})" if pattern_hints else ""
+
         truncation_note = " (Note: Function was truncated due to length)" if was_truncated else ""
 
+        # Language-specific function analysis focus
+        lang_function_hints = {
+            "python": "Consider decorators, generators, type hints, exception handling, and data science operations (numpy vectorization, pandas operations).",
+            "javascript": "Note callbacks, promises, arrow functions, and closure usage.",
+            "typescript": "Focus on type signatures, generics, and type guards.",
+            "java": "Consider method overloading, exceptions, and annotations.",
+            "go": "Note error returns, defer statements, and goroutine usage.",
+            "rust": "Focus on ownership, Result/Option returns, and trait implementations.",
+            "cpp": "Consider templates, const-correctness, and exception specifications.",
+            "c": "Focus on pointer operations, memory allocation, and return codes.",
+            "r": "Note vectorized operations, apply family functions, tidyverse pipelines (%>%), statistical functions, data frame manipulations, and S3/S4 method dispatch.",
+            "julia": "Consider multiple dispatch signatures, type parameters, macro usage, and performance annotations.",
+            "swift": "Focus on optionals, guard statements, protocol conformance, and throws/rethrows.",
+            "kotlin": "Note suspend functions, inline functions, extension functions, and null safety operators.",
+            "scala": "Consider implicit parameters, partial functions, pattern matching, and for comprehensions.",
+            "ruby": "Focus on blocks, yield statements, method_missing, and metaprogramming.",
+            "php": "Note type declarations, nullable types, variadic functions, and generators.",
+            "csharp": "Consider async/await, LINQ expressions, properties, and extension methods.",
+            "elixir": "Focus on pattern matching, guard clauses, pipe operator, and GenServer callbacks.",
+            "haskell": "Note type signatures, monadic operations, currying, and lazy evaluation.",
+            "clojure": "Consider destructuring, multi-methods, transducers, and macro expansion.",
+            "perl": "Focus on context (scalar/list), references, regular expressions, and special variables.",
+            "lua": "Note varargs, metatables, coroutines, and multiple returns.",
+            "dart": "Consider async/await, named parameters, cascade notation, and null safety.",
+            "matlab": "Focus on matrix operations, function handles, varargin/varargout, and nested functions.",
+            "fortran": "Note pure/elemental functions, intent specifications, and array operations.",
+            "cobol": "Consider PERFORM statements, paragraph structure, and COPY statements.",
+        }
+
+        lang_hint = lang_function_hints.get(
+            language.lower(), "Focus on function contract and implementation."
+        )
+
+        # Few-shot examples for consistency
+        few_shot_examples = """
+Example Summaries:
+
+Simple function:
+"Validates email addresses using regex pattern matching, returning True for valid RFC-compliant addresses and False otherwise, with special handling for internationalized domains."
+
+Complex async function:
+"Orchestrates parallel API calls to fetch user data from multiple services using asyncio.gather, implements circuit breaker pattern for fault tolerance, caches results with TTL expiration, and returns aggregated user profile with fallback to partial data on service failures."
+
+Generator function:
+"Yields Fibonacci sequence values up to specified limit using generator pattern for memory efficiency, supports both iteration count and value threshold termination, with optional memoization for repeated calls."
+"""
+
         prompt = f"""### Role
-You are a senior software engineer documenting {language} code for a technical team.
+You are a senior software engineer creating precise technical documentation for {language} functions.
 
 ### Context
-Function: {function_name}
+Function: {function_name}{pattern_str}
 From file: {file_path}
 Language: {language}
 Complexity: {complexity_hint} (~{lines_of_code} lines)
+Analysis Focus: {lang_hint}
 
 ### Objective
-Create a precise, informative summary of this function's behavior and implementation.
+Create a comprehensive yet concise summary that captures the function's complete behavior, implementation approach, and usage considerations.
 
-### Task
-Analyze the function and provide:
-1. **Purpose**: What problem it solves or functionality it provides
-2. **Signature**: Key parameters and return value with types if evident
-3. **Behavior**: Core logic, including any algorithms or patterns used
-4. **Side Effects**: State mutations, I/O operations, or external interactions
-5. **Error Handling**: How it handles edge cases or errors (if applicable)
+### Analysis Guidelines
+1. **Purpose & Contract**: What problem it solves, expected inputs/outputs
+2. **Implementation Strategy**: Core algorithm, data structures, design patterns
+3. **Behavioral Details**: Edge cases, error handling, state changes
+4. **Performance Characteristics**: Time/space complexity, optimization techniques
+5. **Integration Context**: Dependencies, side effects, concurrency considerations
 
-### Format
-Provide a concise 1-2 sentence summary that captures:
-- Primary functionality and purpose
-- Key technical details (algorithm, pattern, or approach used)
-- Important considerations (side effects, performance, constraints)
+### Output Format
+Write 1-2 sentences (max 50 words) following this structure:
+"[Action verb] [primary function] by/using [implementation approach], [key technical details], [important considerations/constraints]."
 
-Use this structure: "[Action verb] [what it does] by [how it does it], [any important notes]."{truncation_note}
+Key requirements:
+- Use present tense and active voice
+- Include specific technical terms (algorithm names, patterns, etc.)
+- Mention concrete implementation details not obvious from the name
+- Note any side effects, state mutations, or external dependencies
+- Highlight error handling or edge cases if significant{truncation_note}
 
-### Function Code
+{few_shot_examples}
+
+### Function Code to Analyze
 ```{language}
 {function_code}
 ```

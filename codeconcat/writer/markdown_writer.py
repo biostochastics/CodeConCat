@@ -52,10 +52,44 @@ def write_markdown(
 
     output_parts = []
 
+    # Check if we're in diff mode
+    is_diff_mode = any(hasattr(item, "diff_metadata") and item.diff_metadata for item in items)
+
     # Title and metadata
-    output_parts.append("# CodeConCat Analysis Report\n")
+    if is_diff_mode and items and hasattr(items[0], "diff_metadata") and items[0].diff_metadata:
+        diff_meta = items[0].diff_metadata
+        output_parts.append(
+            f"# Differential Analysis: {diff_meta.from_ref[:7]}...{diff_meta.to_ref[:7]}\n"
+        )
+    else:
+        output_parts.append("# CodeConCat Analysis Report\n")
+
     output_parts.append(f"**Generated**: {_get_timestamp()}\n")
     output_parts.append(f"**Total Files**: {len(items)}\n")
+
+    # Add diff statistics if in diff mode
+    if is_diff_mode:
+        total_additions = 0
+        total_deletions = 0
+        files_added = 0
+        files_modified = 0
+        files_deleted = 0
+
+        for item in items:
+            if hasattr(item, "diff_metadata") and item.diff_metadata:
+                total_additions += item.diff_metadata.additions
+                total_deletions += item.diff_metadata.deletions
+                if item.diff_metadata.change_type == "added":
+                    files_added += 1
+                elif item.diff_metadata.change_type == "modified":
+                    files_modified += 1
+                elif item.diff_metadata.change_type == "deleted":
+                    files_deleted += 1
+
+        output_parts.append(f"**Changes**: +{total_additions} / -{total_deletions} lines\n")
+        output_parts.append(
+            f"**Files**: {files_added} added, {files_modified} modified, {files_deleted} deleted\n"
+        )
 
     # Check if AI summarization is enabled
     ai_summaries_count = sum(1 for item in items if hasattr(item, "ai_summary") and item.ai_summary)
@@ -158,10 +192,20 @@ def write_markdown(
         output_parts.append("\n")
 
         # AI Summary section if available
-        if hasattr(item, "ai_summary") and item.ai_summary:
-            output_parts.append("#### AI Summary\n")
-            output_parts.append(f"> {item.ai_summary}\n")
-            output_parts.append("")
+        # The AI summary is stored in the 'summary' field when AI is enabled
+        # Check if this is an AI-generated summary by seeing if it's NOT the default format
+        if hasattr(item, "summary") and item.summary and config.enable_ai_summary:
+            # Default summaries always start with "Contains" or "No declarations"
+            is_default_summary = (
+                item.summary.startswith("Contains ") or item.summary == "No declarations found"
+            )
+            if not is_default_summary:
+                output_parts.append("#### AI Summary\n")
+                # Format as a blockquote if it's multi-line
+                summary_lines = item.summary.split("\n")
+                for line in summary_lines:
+                    output_parts.append(f"> {line}")
+                output_parts.append("")
 
         # File metadata in a table
         if config.include_file_summary:
@@ -203,18 +247,36 @@ def write_markdown(
                     )
                 output_parts.append("\n</details>\n")
 
-        # File content with syntax highlighting
-        output_parts.append("#### Source Code\n")
-        language = getattr(item, "language", "")
-        content = getattr(item, "content", "")
+        # File content with syntax highlighting or diff
+        if hasattr(item, "diff_content") and item.diff_content:
+            # Show diff content
+            output_parts.append("#### Changes\n")
 
-        # Add line numbers if configured
-        if config.show_line_numbers:
-            content = _add_line_numbers(content)
+            # Add change type badge
+            if hasattr(item, "diff_metadata") and item.diff_metadata:
+                change_type = item.diff_metadata.change_type.upper()
+                output_parts.append(f"**Status**: `{change_type}`\n")
+                if item.diff_metadata.old_path:
+                    output_parts.append(f"**Renamed from**: {item.diff_metadata.old_path}\n")
+                output_parts.append("\n")
 
-        output_parts.append(f"```{language}")
-        output_parts.append(content)
-        output_parts.append("```\n")
+            # Render the diff
+            output_parts.append("```diff")
+            output_parts.append(item.diff_content)
+            output_parts.append("```\n")
+        else:
+            # Regular source code rendering
+            output_parts.append("#### Source Code\n")
+            language = getattr(item, "language", "")
+            content = getattr(item, "content", "")
+
+            # Add line numbers if configured
+            if config.show_line_numbers:
+                content = _add_line_numbers(content)
+
+            output_parts.append(f"```{language}")
+            output_parts.append(content)
+            output_parts.append("```\n")
 
         output_parts.append("---\n")
 

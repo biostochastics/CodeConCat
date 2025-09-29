@@ -12,7 +12,7 @@ import threading
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -90,85 +90,25 @@ class ContentSegment:
 # --- Security Related Enums and Types ---
 
 
-class SecuritySeverity(Enum):
+class SecuritySeverity(IntEnum):
     """Enumerate and order security severity levels.
-    Parameters:
-        - None
-    Processing Logic:
-        - Provides a standard order for security severity levels: INFO < LOW < MEDIUM < HIGH < CRITICAL.
-        - Implements comparison methods to enable ordering of SecuritySeverity instances.
-        - If comparison is attempted with a non-SecuritySeverity instance, NotImplemented is returned.
+
+    Uses IntEnum to provide automatic ordering and comparison methods.
+    Severity levels are ordered from lowest (INFO=0) to highest (CRITICAL=4).
+
+    Attributes:
+        INFO: Informational finding (0)
+        LOW: Low severity issue (1)
+        MEDIUM: Medium severity issue (2)
+        HIGH: High severity issue (3)
+        CRITICAL: Critical severity issue (4)
     """
 
-    CRITICAL = "CRITICAL"
-    HIGH = "HIGH"
-    MEDIUM = "MEDIUM"
-    LOW = "LOW"
-    INFO = "INFO"
-
-    # Optional: For ordering or comparison
-    def __lt__(self, other):
-        """Determine if one SecuritySeverity object is less than another based on a predefined order.
-        Parameters:
-            - other (SecuritySeverity): The SecuritySeverity instance to compare against.
-        Returns:
-            - bool: True if the current instance is less than the other instance, False otherwise.
-            - NotImplemented: Returned if the 'other' object is not a SecuritySeverity instance."""
-        if self.__class__ is other.__class__:
-            # Define the order from lowest to highest
-            order = [
-                SecuritySeverity.INFO,
-                SecuritySeverity.LOW,
-                SecuritySeverity.MEDIUM,
-                SecuritySeverity.HIGH,
-                SecuritySeverity.CRITICAL,
-            ]
-            try:
-                return order.index(self) < order.index(other)
-            except ValueError:
-                return (
-                    NotImplemented  # Handle cases where a value might not be in the defined order
-                )
-        return NotImplemented
-
-    def __le__(self, other):
-        """Check if this Declaration is less than or equal to another.
-
-        Args:
-            other: Another Declaration to compare to
-
-        Returns:
-            bool: True if this Declaration is <= other, NotImplemented otherwise
-        """
-        if self.__class__ is other.__class__:
-            return self == other or self < other
-        return NotImplemented
-
-    def __gt__(self, other):
-        """Check if this Declaration is greater than another.
-
-        Args:
-            other: Another Declaration to compare to
-
-        Returns:
-            bool: True if this Declaration is > other, NotImplemented otherwise
-        """
-        if self.__class__ is other.__class__:
-            return not (self <= other)
-        return NotImplemented
-
-    def __ge__(self, other):
-        """Check if this Declaration is greater than or equal to another.
-
-        Args:
-            other: Another Declaration to compare to
-
-        Returns:
-            bool: True if this Declaration is >= other, NotImplemented otherwise
-        """
-        if self.__class__ is other.__class__:
-            return self == other or self > other
-        return NotImplemented
+    INFO = 0
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    CRITICAL = 4
 
 
 @dataclass
@@ -338,10 +278,12 @@ class ParsedFileData:
     parse_result: Any | None = None
     ai_summary: str | None = None  # AI-generated summary
     ai_metadata: dict[str, Any] | None = None  # Metadata about AI generation
+    # Differential output fields
+    diff_content: str | None = None  # Unified diff content
+    diff_metadata: DiffMetadata | None = None  # Metadata about the diff
 
 
 # New ParseResult Dataclass
-@dataclass
 @dataclass
 class ParseResult:
     """
@@ -423,6 +365,24 @@ class WritableItem(ABC):
 
 
 @dataclass
+class DiffMetadata:
+    """Metadata for differential file changes between Git refs.
+
+    Contains information about the nature and scope of changes
+    to a file between two Git references.
+    """
+
+    from_ref: str  # Starting Git ref (branch, tag, or commit SHA)
+    to_ref: str  # Ending Git ref (branch, tag, or commit SHA)
+    change_type: str  # Type of change: 'added', 'modified', 'deleted', 'renamed'
+    additions: int  # Number of lines added
+    deletions: int  # Number of lines deleted
+    binary: bool  # Whether the file is binary
+    old_path: str | None = None  # Original path if renamed
+    similarity: float | None = None  # Similarity percentage for renamed files
+
+
+@dataclass
 class AnnotatedFileData(WritableItem):
     """Data structure for annotated file content, including structured analysis results.
 
@@ -445,6 +405,10 @@ class AnnotatedFileData(WritableItem):
     token_stats: TokenStats | None = None
     security_issues: list[SecurityIssue] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+
+    # Differential output fields
+    diff_content: str | None = None  # Unified diff content
+    diff_metadata: DiffMetadata | None = None  # Metadata about the diff
 
     def render_text_lines(self, config: CodeConCatConfig) -> list[str]:
         """Render the annotated file as plain text lines.
@@ -650,6 +614,15 @@ class CodeConCatConfig(BaseModel):
         None,
         description="Specific branch, tag, or commit SHA to use from the Git repository specified in source_url.",
     )
+    # Diff mode fields
+    diff_from: str | None = Field(
+        None,
+        description="Starting Git ref for diff mode (branch, tag, or commit SHA).",
+    )
+    diff_to: str | None = Field(
+        None,
+        description="Ending Git ref for diff mode (branch, tag, or commit SHA).",
+    )
     # Removed duplicate - using the one below with None
     exclude_languages: list[str] = Field(default_factory=list)
     include_paths: list[str] = Field(
@@ -823,7 +796,7 @@ class CodeConCatConfig(BaseModel):
         False, description="Generate summaries for individual functions/methods"
     )
     ai_min_file_lines: int = Field(
-        20, description="Minimum file size (in lines) to trigger summarization"
+        5, description="Minimum file size (in lines) to trigger summarization"
     )
     ai_min_function_lines: int = Field(
         10, description="Minimum function size (in lines) to trigger summarization"

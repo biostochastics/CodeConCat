@@ -36,10 +36,19 @@ class LlamaCppProvider(AIProvider):
                     "specify model path in config"
                 )
 
-        # Llama.cpp specific settings
-        self.n_ctx = config.extra_params.get("n_ctx", 2048)
-        self.n_threads = config.extra_params.get("n_threads", 4)
-        self.n_gpu_layers = config.extra_params.get("n_gpu_layers", 0)
+        # Llama.cpp specific settings with CLI override support
+        self.n_ctx = config.extra_params.get(
+            "n_ctx", config.extra_params.get("llama_context_size", 2048)
+        )
+        self.n_threads = config.extra_params.get(
+            "n_threads", config.extra_params.get("llama_threads", 4)
+        )
+        self.n_gpu_layers = config.extra_params.get(
+            "n_gpu_layers", config.extra_params.get("llama_gpu_layers", 0)
+        )
+        self.n_batch = config.extra_params.get(
+            "n_batch", config.extra_params.get("llama_batch_size", 512)
+        )
         self.seed = config.extra_params.get("seed", -1)
 
         # Local models have no API costs
@@ -68,6 +77,7 @@ class LlamaCppProvider(AIProvider):
                 n_ctx=self.n_ctx,
                 n_threads=self.n_threads,
                 n_gpu_layers=self.n_gpu_layers,
+                n_batch=self.n_batch,
                 seed=self.seed,
                 verbose=False,
             )
@@ -263,6 +273,7 @@ class LlamaCppProvider(AIProvider):
             "temperature": self.config.temperature,
             "n_threads": self.n_threads,
             "n_gpu_layers": self.n_gpu_layers,
+            "n_batch": self.n_batch,
             "cost_per_1k_input": 0.0,
             "cost_per_1k_output": 0.0,
             "is_local": True,

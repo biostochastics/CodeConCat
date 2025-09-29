@@ -14,21 +14,80 @@ class OllamaProvider(AIProvider):
     """Ollama provider for local model code summarization."""
 
     def __init__(self, config: AIProviderConfig):
-        """Initialize Ollama provider."""
+        """Initialize Ollama provider with auto-discovery."""
         super().__init__(config)
 
         # Set defaults for Ollama
         if not config.api_base:
             config.api_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
 
+        # Auto-discover models if not specified
         if not config.model:
-            config.model = "codellama"  # Good default for code
+            config.model = asyncio.run(self._auto_discover_model()) or "codellama"
 
         # Local models have no cost
         config.cost_per_1k_input_tokens = 0
         config.cost_per_1k_output_tokens = 0
 
         self.cache = SummaryCache() if config.cache_enabled else None
+
+    async def _auto_discover_model(self) -> Optional[str]:
+        """Auto-discover the best available model for code summarization."""
+        try:
+            # Create a temporary session for discovery
+            headers = {"Content-Type": "application/json"}
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with aiohttp.ClientSession(headers=headers, timeout=timeout) as session:
+                url = f"{self.config.api_base}/api/tags"
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        return None
+
+                    data = await response.json()
+                    models = [m["name"] for m in data.get("models", [])]
+
+                    if not models:
+                        return None
+
+                    # Prioritized list of code-specific models
+                    code_models = [
+                        "deepseek-coder-v2",
+                        "deepseek-coder",  # DeepSeek Coder models
+                        "codellama",
+                        "codellama:latest",  # Meta's CodeLlama
+                        "codegemma",
+                        "codegemma:latest",  # Google's CodeGemma
+                        "starcoder2",
+                        "starcoder",  # Hugging Face StarCoder
+                        "wizardcoder",
+                        "wizardlm",  # WizardCoder
+                        "phind-codellama",
+                        "phind",  # Phind's models
+                        "mistral",
+                        "mistral:latest",  # Mistral as fallback
+                        "llama3.2",
+                        "llama3",
+                        "llama2",  # General Llama models
+                    ]
+
+                    # Find the first available code model
+                    for preferred in code_models:
+                        if any(preferred in model.lower() for model in models):
+                            matching = [m for m in models if preferred in m.lower()][0]
+                            import logging
+
+                            logging.info(f"Auto-discovered Ollama model: {matching}")
+                            return str(matching)
+
+                    # Fallback to first available model
+                    import logging
+
+                    logging.info(f"Using first available Ollama model: {models[0]}")
+                    return str(models[0])
+
+        except Exception:
+            # Silent failure, will use default
+            return None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp session."""
@@ -254,23 +313,55 @@ class OllamaProvider(AIProvider):
 
     async def validate_connection(self) -> bool:
         """Validate that the Ollama provider is properly configured."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         try:
             # Check if Ollama server is running
             session = await self._get_session()
             async with session.get(f"{self.config.api_base}/api/tags") as response:
                 if response.status != 200:
+                    logger.warning(f"Ollama server not responding at {self.config.api_base}")
                     return False
 
                 # Check if the specified model exists
                 data = await response.json()
                 models = [m["name"] for m in data.get("models", [])]
 
-                # If no model specified, just check server is up
+                # If no models available
+                if not models:
+                    logger.warning(
+                        "No models found in Ollama. Run 'ollama pull codellama' or similar."
+                    )
+                    return False
+
+                # If no model specified, we've auto-discovered one
                 if not self.config.model:
-                    return len(models) > 0
+                    return True
 
                 # Check if specified model is available
-                return self.config.model in models or f"{self.config.model}:latest" in models
+                model_available = (
+                    self.config.model in models or f"{self.config.model}:latest" in models
+                )
 
-        except Exception:
+                if not model_available:
+                    logger.warning(
+                        f"Model '{self.config.model}' not found in Ollama. "
+                        f"Available models: {', '.join(models[:5])}"
+                        f"{' and more...' if len(models) > 5 else ''}"
+                    )
+                    # Try to suggest pulling the model
+                    logger.info(f"To install the model, run: ollama pull {self.config.model}")
+                    return False
+
+                logger.info(f"Ollama provider validated with model: {self.config.model}")
+                return True
+
+        except aiohttp.ClientError as e:
+            logger.error(f"Cannot connect to Ollama at {self.config.api_base}: {e}")
+            logger.info("Make sure Ollama is running: 'ollama serve' or check https://ollama.ai")
+            return False
+        except Exception as e:
+            logger.error(f"Ollama validation error: {e}")
             return False

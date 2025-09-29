@@ -18,7 +18,7 @@ import pytest
 from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedFileData, TokenStats
 from codeconcat.config.config_builder import ConfigBuilder
 from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
-from codeconcat.parser.file_parser import parse_code_files
+from codeconcat.parser.unified_pipeline import parse_code_files
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()

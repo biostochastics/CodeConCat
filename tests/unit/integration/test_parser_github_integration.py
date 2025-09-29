@@ -16,7 +16,7 @@ import pytest
 
 from codeconcat.base_types import CodeConCatConfig, Declaration, ParsedFileData
 from codeconcat.collector.github_collector import collect_git_repo
-from codeconcat.parser.file_parser import get_language_parser
+from codeconcat.parser.unified_pipeline import get_language_parser
 
 # Set up logging for test debugging
 logging.basicConfig(level=logging.INFO)

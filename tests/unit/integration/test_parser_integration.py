@@ -15,7 +15,7 @@ import pytest
 
 from codeconcat.base_types import CodeConCatConfig, ParseResult, ParserInterface
 from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
-from codeconcat.parser.file_parser import get_language_parser
+from codeconcat.parser.unified_pipeline import get_language_parser
 
 # Enable debug logging for all parsers
 enable_all_parser_debug_logging()

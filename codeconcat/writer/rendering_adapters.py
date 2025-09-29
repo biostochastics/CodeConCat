@@ -356,7 +356,7 @@ class JsonRenderAdapter:
             "rule_id": issue.rule_id,
             "description": issue.description,
             "line_number": issue.line_number,
-            "severity": issue.severity.value,
+            "severity": issue.severity.name,
             "context": issue.context,
         }
 
@@ -502,7 +502,7 @@ class XmlRenderAdapter:
         issue_elem = ET.SubElement(parent, "security_issue")
         issue_elem.set("rule_id", issue.rule_id)
         issue_elem.set("line_number", str(issue.line_number))
-        issue_elem.set("severity", issue.severity.value)
+        issue_elem.set("severity", str(issue.severity.value))
 
         # Add description
         desc_elem = ET.SubElement(issue_elem, "description")
@@ -715,7 +715,7 @@ class TextRenderAdapter:
 
         for issue in sorted_issues:
             result.append(
-                f"[{issue.severity.value}] {issue.rule_id} - Line {issue.line_number}: {issue.description}"
+                f"[{issue.severity.name}] {issue.rule_id} - Line {issue.line_number}: {issue.description}"
             )
 
         return result

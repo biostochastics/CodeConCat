@@ -566,7 +566,7 @@ def generate_file_summary(file_data: ParsedFileData, config: CodeConCatConfig) -
         summary.append("**Security Issues:**")
         for issue in file_data.security_issues:
             severity_val = (
-                issue.severity.value if hasattr(issue.severity, "value") else str(issue.severity)
+                issue.severity.name if hasattr(issue.severity, "name") else str(issue.severity)
             )
             summary.append(f"`{severity_val}` (Line {issue.line_number}): {issue.description}")
 
