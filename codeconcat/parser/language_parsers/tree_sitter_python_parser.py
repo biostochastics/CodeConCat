@@ -6,6 +6,7 @@ from typing import Dict, List
 from tree_sitter import Node
 
 from ...base_types import Declaration
+from ..doc_comment_utils import normalize_whitespace
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
@@ -327,7 +328,10 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         return declarations, sorted_imports
 
     def _clean_docstring(self, docstring_text: str) -> str:
-        """Clean Python docstring by removing quotes and normalizing whitespace."""
+        """Clean Python docstring by removing quotes and normalizing whitespace.
+
+        Uses shared doc_comment_utils for consistent whitespace normalization.
+        """
         # Remove triple quotes or single quotes
         cleaned = docstring_text.strip()
         for quote in ['"""', "'''", '"', "'"]:
@@ -335,22 +339,9 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
                 cleaned = cleaned[len(quote) : -len(quote)]
                 break
 
-        # Normalize whitespace but preserve structure
-        lines = cleaned.split("\n")
-        if lines:
-            # Remove common leading whitespace
-            non_empty_lines = [line for line in lines if line.strip()]
-            if non_empty_lines:
-                # Get indentation levels for non-empty lines after the first
-                indented_lines = [line for line in non_empty_lines[1:] if line.strip()]
-                if indented_lines:
-                    min_indent = min(len(line) - len(line.lstrip()) for line in indented_lines)
-                    if min_indent > 0:
-                        lines = [lines[0]] + [
-                            line[min_indent:] if line.strip() else line for line in lines[1:]
-                        ]
-
-        return "\n".join(lines).strip()
+        # Normalize whitespace using shared utility
+        # Python docstrings should preserve line breaks for readability
+        return normalize_whitespace(cleaned, collapse_newlines=False)
 
     def _find_docstring(self, node: Node, byte_content: bytes) -> str:
         """Attempts to find a docstring within a function/class body node."""
