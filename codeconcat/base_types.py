@@ -404,6 +404,7 @@ class AnnotatedFileData(WritableItem):
     # Optional AI-generated additions
     summary: str = ""  # Human-readable summary
     ai_summary: str | None = None  # AI-generated detailed summary
+    ai_metadata: dict | None = None  # AI metadata including meta-overview, tokens, cost, etc.
 
     # Structured analysis results (passed from ParsedFileData) - parameters with defaults
     declarations: list[Declaration] = field(default_factory=list)
@@ -849,12 +850,29 @@ class CodeConCatConfig(BaseModel):
         description="Custom prompt for meta-overview generation. If None, uses default prompt.",
     )
     ai_meta_overview_max_tokens: int = Field(
-        1000, description="Maximum tokens for meta-overview generation"
+        8000,
+        description="Maximum tokens for meta-overview generation (completion tokens for reasoning models)",
     )
     ai_meta_overview_position: str = Field(
         "top",
         description="Position of meta-overview in output ('top' or 'bottom')",
         pattern="^(top|bottom)$",
+    )
+    ai_meta_overview_model: str | None = Field(
+        None,
+        description="Optional model override for meta-overview generation. If None, uses higher-tier model based on provider.",
+    )
+    ai_meta_overview_use_higher_tier: bool = Field(
+        True,
+        description="Use higher-tier models for meta-overview generation (claude-sonnet-4-5, gpt-5, gemini-2.5-pro)",
+    )
+    ai_save_summaries: bool = Field(
+        False,
+        description="Save individual summaries and meta-overview to separate files on disk",
+    )
+    ai_summaries_dir: str = Field(
+        ".codeconcat/summaries",
+        description="Directory for saving AI summaries (relative to output or absolute path)",
     )
 
     # ... rest of the code remains the same ...

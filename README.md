@@ -25,7 +25,7 @@ CodeConCat is a Python tool that transforms codebases into formats optimized for
 ## Key Features
 
 - **Multi-Language Parsing**: Parsing for 12+ languages using tree-sitter and regex engines
-- **AI Summarization** *(Optional)*: Code summarization using OpenAI, Anthropic, Google, OpenRouter, or local models
+- **AI Summarization** *(Optional)*: Code summarization using OpenAI, Anthropic, OpenRouter, or local models
 - **Differential Outputs**: Generate diffs between Git refs (branches, tags, commits) with AI-powered change summaries
 - **Compression**: Code compression with pattern recognition and two simplified modes
 - **Security Scanning**: Integrated Semgrep support with configurable severity thresholds
@@ -804,24 +804,23 @@ CodeConCat includes an optional AI summarization module that generates summaries
 
 ### Supported Providers
 
-| Provider | Default Model | Cost/1K tokens (Input/Output) | Notes |
-|----------|--------------|-------------------------------|-------|
-| **OpenAI** | gpt-5-nano-2025-08-07 | $0.00010/$0.0004 | Latest budget model |
-| **Anthropic** | claude-3-5-haiku-latest | $0.0008/$0.004 | Latest Haiku model |
-| **Google** | gemini-2.0-flash-exp | Free (experimental) | 1M context window |
-| **OpenRouter** | z-ai/glm-4.5 | $0.0004/$0.0016 | Multilingual model |
-| **Ollama** | llama3.2 | Free (local) | Runs on local hardware |
+| Provider | Default Model (Files) | Default Model (Meta-Overview) | Cost/1K tokens | Notes |
+|----------|----------------------|------------------------------|----------------|-------|
+| **OpenAI** | gpt-5-mini-2025-08-07 | gpt-5-2025-08-07 | $0.00010/$0.0004 | Budget + reasoning models |
+| **Anthropic** | claude-3-5-haiku-20241022 | claude-sonnet-4-5-20250929 | $0.00025/$0.00125 | Fast + extended thinking |
+| **OpenRouter** | deepseek/deepseek-chat-v3.1 | z-ai/glm-4.5 | Varies by model | Access to 100+ models |
+| **Ollama** | llama3.2 | llama3.2 | Free (local) | Runs on local hardware |
 
 ### Available Models (2025)
 
 #### Premium Models
 - **OpenAI**: gpt-5, gpt-4o, gpt-4o-mini
 - **Anthropic**: claude-3-opus, claude-3-sonnet, claude-3-haiku
-- **Google**: gemini-2.5-pro, gemini-2.5-flash
+- **OpenRouter**: anthropic/claude-sonnet-4, openai/gpt-5, google/gemini-2.5-pro
 
 #### Budget Models
-- **OpenAI**: gpt-5-nano-2025-08-07, gpt-4o-nano (legacy), gpt-3.5-turbo
-- **OpenRouter**: z-ai/glm-4.5, qwen/qwq-32b-preview, deepseek-chat
+- **OpenAI**: gpt-5-mini-2025-08-07, gpt-4o-mini, gpt-3.5-turbo
+- **OpenRouter**: deepseek/deepseek-chat-v3.1, qwen/qwq-32b-preview, google/gemini-flash-1.5
 - **Local**: Any Ollama-compatible model
 
 ### Quick Start
@@ -883,7 +882,6 @@ python -m codeconcat.ai.key_manager
 ```bash
 export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
-export GOOGLE_API_KEY="..."
 export OPENROUTER_API_KEY="sk-or-..."
 ```
 

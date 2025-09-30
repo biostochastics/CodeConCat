@@ -23,7 +23,15 @@ class SummarizationProcessor:
         """
         self.config = config
         self.ai_provider: Optional[AIProvider] = None
+        self.summary_writer = None
         self._initialize_provider()
+
+        # Initialize summary writer if file persistence is enabled
+        if getattr(self.config, "ai_save_summaries", False):
+            from ..writer.summary_writer import SummaryWriter
+
+            self.summary_writer = SummaryWriter(self.config)
+            logger.info("Summary writer initialized for file persistence")
 
     def _initialize_provider(self):
         """Initialize the AI provider based on configuration."""
@@ -127,14 +135,25 @@ class SummarizationProcessor:
                     f"✓ Generated summary for {parsed_file.file_path}: {len(file_summary.summary)} chars"
                 )
 
-                # Track costs if available
-                if hasattr(parsed_file, "ai_metadata"):
-                    parsed_file.ai_metadata = {
-                        "tokens_used": file_summary.tokens_used,
-                        "cost_estimate": file_summary.cost_estimate,
-                        "model": file_summary.model_used,
-                        "cached": file_summary.cached,
-                    }
+                # Track costs and metadata
+                metadata = {
+                    "tokens_used": file_summary.tokens_used,
+                    "cost_estimate": file_summary.cost_estimate,
+                    "model": file_summary.model_used,
+                    "cached": file_summary.cached,
+                }
+                parsed_file.ai_metadata = metadata
+
+                # Save individual summary to disk if enabled
+                if self.summary_writer:
+                    try:
+                        saved_path = self.summary_writer.save_individual_summary(
+                            parsed_file, file_summary.summary, metadata
+                        )
+                        if saved_path:
+                            logger.debug(f"Saved summary to {saved_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to save summary to disk: {e}")
             elif file_summary and file_summary.error:
                 logger.warning(
                     f"Failed to generate summary for {parsed_file.file_path}: {file_summary.error}"
@@ -184,8 +203,9 @@ class SummarizationProcessor:
         processed_files = await asyncio.gather(*tasks)
 
         # Generate meta-overview if enabled
-        if getattr(self.config, "ai_meta_overview", False):
-            logger.info("Meta-overview is enabled, generating...")
+        ai_meta_enabled = getattr(self.config, "ai_meta_overview", False)
+        if ai_meta_enabled:
+            logger.info("Generating meta-overview...")
             meta_overview = await self.generate_meta_overview(processed_files)
             if meta_overview and processed_files:
                 logger.info(f"Meta-overview generated successfully: {len(meta_overview)} chars")
@@ -194,13 +214,104 @@ class SummarizationProcessor:
                 if processed_files[0].ai_metadata is None:
                     processed_files[0].ai_metadata = {}
                 processed_files[0].ai_metadata["meta_overview"] = meta_overview
+
+                # Save meta-overview to disk if enabled
+                if self.summary_writer:
+                    try:
+                        # Build tree structure for saving
+                        tree_structure = self._build_tree_structure(processed_files)
+                        context = self._collect_overview_context(processed_files)
+
+                        # Get metadata from AI provider if available
+                        meta_metadata = {
+                            "files_count": len(processed_files),
+                            "languages": context.get("languages", {}),
+                            "total_loc": context.get("total_loc", 0),
+                        }
+
+                        saved_path = self.summary_writer.save_meta_overview(
+                            meta_overview,
+                            len(processed_files),
+                            metadata=meta_metadata,
+                            tree_structure=tree_structure,
+                        )
+                        if saved_path:
+                            logger.info(f"Saved meta-overview to {saved_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to save meta-overview to disk: {e}")
             else:
                 logger.warning("Meta-overview generation returned None or no files to store in")
 
         return processed_files
 
+    def _build_tree_structure(self, files: List[ParsedFileData]) -> str:
+        """Build a tree structure visualization from file paths.
+
+        Args:
+            files: List of parsed files
+
+        Returns:
+            String representation of the directory tree
+        """
+        from pathlib import Path
+
+        # Extract unique directories and files
+        paths = [Path(f.file_path) for f in files]
+
+        # Build tree structure
+        tree_dict: Dict[str, Any] = {}
+        for path in paths:
+            parts = path.parts
+            current = tree_dict
+            for part in parts:
+                if part not in current:
+                    current[part] = {}
+                current = current[part]
+
+        # Render tree
+        def render_tree(node, prefix=""):
+            lines = []
+            items = sorted(node.items())
+            for i, (name, children) in enumerate(items):
+                is_final = i == len(items) - 1
+                connector = "└── " if is_final else "├── "
+                lines.append(f"{prefix}{connector}{name}")
+                if children:
+                    extension = "    " if is_final else "│   "
+                    lines.extend(render_tree(children, prefix + extension))
+            return lines
+
+        tree_lines = render_tree(tree_dict)
+        return "\n".join(tree_lines)
+
+    def _collect_overview_context(self, files: List[ParsedFileData]) -> Dict[str, Any]:
+        """Collect contextual information for meta-overview generation.
+
+        Args:
+            files: List of parsed files
+
+        Returns:
+            Dictionary with context information
+        """
+        from collections import Counter
+
+        # Count languages
+        languages = Counter([f.language for f in files if f.language])
+
+        # Calculate total LOC
+        total_loc = 0
+        for f in files:
+            if f.content:
+                total_loc += len(f.content.splitlines())
+
+        return {
+            "total_files": len(files),
+            "languages": dict(languages),
+            "total_loc": total_loc,
+        }
+
     async def generate_meta_overview(self, files: List[ParsedFileData]) -> Optional[str]:
-        """Generate a meta-overview from all file summaries.
+        """Generate a meta-overview from all file summaries with enhanced context.
 
         Args:
             files: List of files with AI summaries
@@ -225,15 +336,25 @@ class SummarizationProcessor:
         try:
             logger.info(f"Generating meta-overview from {len(file_summaries)} file summaries...")
 
+            # Build tree structure
+            tree_structure = self._build_tree_structure(files)
+            logger.debug(f"Generated tree structure with {len(tree_structure)} characters")
+
+            # Collect context
+            context = self._collect_overview_context(files)
+            logger.debug(f"Context: {context}")
+
             # Get custom prompt and max tokens from config
             custom_prompt = getattr(self.config, "ai_meta_overview_prompt", None)
-            max_tokens = getattr(self.config, "ai_meta_overview_max_tokens", 1000)
+            max_tokens = getattr(self.config, "ai_meta_overview_max_tokens", 2000)
 
-            # Generate the meta-overview
+            # Generate the meta-overview with enhanced context
             result = await self.ai_provider.generate_meta_overview(
                 file_summaries,
                 custom_prompt=custom_prompt,
                 max_tokens=max_tokens,
+                tree_structure=tree_structure,
+                context=context,
             )
 
             if result and not result.error:

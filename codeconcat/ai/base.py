@@ -121,13 +121,17 @@ class AIProvider(ABC):
         file_summaries: Dict[str, str],
         custom_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
+        tree_structure: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> SummarizationResult:
-        """Generate a meta-overview from multiple file summaries.
+        """Generate a meta-overview from multiple file summaries with enhanced context.
 
         Args:
             file_summaries: Dictionary mapping file paths to their summaries
             custom_prompt: Optional custom prompt to override default
             max_tokens: Maximum tokens for the overview
+            tree_structure: Optional tree structure visualization of the codebase
+            context: Optional context dict (languages, file count, total LOC, etc.)
 
         Returns:
             SummarizationResult with the generated meta-overview
@@ -135,34 +139,24 @@ class AIProvider(ABC):
         # Default implementation using the existing summarize_code method
         # Individual providers can override for optimized implementations
 
-        # Prepare the combined content
-        combined_content = []
-        for file_path, summary in file_summaries.items():
-            combined_content.append(f"File: {file_path}\nSummary: {summary}\n")
-
-        combined_text = "\n".join(combined_content)
-
-        # Build the prompt
-        if custom_prompt:
-            final_prompt = f"{custom_prompt}\n\n{combined_text}"
-        else:
-            final_prompt = (
-                "Based on the following file summaries from a codebase, provide a comprehensive "
-                "meta-overview that:\n"
-                "1. Identifies the overall purpose and architecture of the system\n"
-                "2. Highlights key components and their relationships\n"
-                "3. Notes important patterns, design decisions, and technologies used\n"
-                "4. Identifies potential areas of concern or improvement\n"
-                "5. Provides a high-level technical summary suitable for onboarding new developers\n\n"
-                f"{combined_text}"
-            )
+        # Use the enhanced prompt generator
+        final_prompt = self._create_meta_overview_prompt(
+            file_summaries,
+            tree_structure=tree_structure,
+            context=context,
+            custom_prompt=custom_prompt,
+        )
 
         # Use the existing summarize_code method with special context
+        overview_context = {"type": "meta_overview", "file_count": len(file_summaries)}
+        if context:
+            overview_context.update(context)
+
         return await self.summarize_code(
             final_prompt,
             "overview",
-            {"type": "meta_overview", "file_count": len(file_summaries)},
-            max_length=max_tokens,
+            overview_context,
+            max_length=max_tokens or 2000,
         )
 
     @abstractmethod
@@ -186,7 +180,13 @@ class AIProvider(ABC):
     async def close(self):
         """Clean up resources (e.g., close HTTP sessions)."""
         if self._session:
-            await self._session.close()
+            try:
+                await self._session.close()
+                # Give aiohttp time to finish connection cleanup
+                await asyncio.sleep(0.1)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                # Ignore cleanup errors - session is being torn down anyway
+                pass
 
     def _generate_cache_key(self, content: str, **kwargs) -> str:
         """Generate a cache key for the given content and parameters."""
@@ -529,6 +529,162 @@ Key requirements:
 ### Summary"""
 
         return prompt
+
+    def _create_meta_overview_prompt(
+        self,
+        file_summaries: Dict[str, str],
+        tree_structure: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        custom_prompt: Optional[str] = None,
+    ) -> str:
+        """Create an enhanced prompt for meta-overview generation with tree structure.
+
+        Args:
+            file_summaries: Dictionary mapping file paths to their summaries
+            tree_structure: Optional tree structure visualization of the codebase
+            context: Additional context (file count, languages, total LOC, etc.)
+            custom_prompt: Optional custom prompt to use instead of default
+
+        Returns:
+            Formatted prompt string for meta-overview generation
+        """
+        # If custom prompt provided, use it with minimal enhancement
+        if custom_prompt:
+            combined_summaries = "\n\n".join(
+                [f"**{path}**\n{summary}" for path, summary in file_summaries.items()]
+            )
+            return f"{custom_prompt}\n\n### File Summaries\n{combined_summaries}"
+
+        # Extract context information
+        total_files = len(file_summaries)
+        languages = context.get("languages", {}) if context else {}
+        total_loc = context.get("total_loc", 0) if context else 0
+
+        # Build language distribution string
+        lang_dist = ", ".join([f"{lang}: {count} files" for lang, count in languages.items()])
+        if not lang_dist:
+            lang_dist = "mixed"
+
+        # Prepare combined summaries
+        summary_sections = []
+        for file_path, summary in file_summaries.items():
+            # Escape to prevent injection
+            file_path_safe = self._escape_triple_backticks(file_path)
+            summary_safe = self._escape_triple_backticks(summary)
+            summary_sections.append(f"**{file_path_safe}**\n{summary_safe}")
+
+        combined_summaries = "\n\n".join(summary_sections)
+
+        # Create comprehensive prompt
+        prompt_parts = [
+            "### Role",
+            "You are a senior software architect conducting a comprehensive codebase analysis. Your expertise includes system design, architectural patterns, technology assessment, and identifying technical debt and improvement opportunities across large-scale projects.",
+            "",
+            "### Context",
+            f"Project Overview: {total_files} files analyzed",
+            f"Languages: {lang_dist}",
+        ]
+
+        if total_loc > 0:
+            prompt_parts.append(f"Total Lines of Code: ~{total_loc:,}")
+
+        # Add tree structure if provided
+        if tree_structure:
+            prompt_parts.extend(
+                [
+                    "",
+                    "### Directory Structure",
+                    "```",
+                    tree_structure,
+                    "```",
+                ]
+            )
+
+        prompt_parts.extend(
+            [
+                "",
+                "### Objective",
+                "Synthesize the individual file summaries below into a comprehensive, high-level technical overview of the entire codebase. This meta-overview should provide strategic insights that go beyond individual file descriptions, identifying overarching patterns, architectural decisions, and system-wide characteristics.",
+                "",
+                "### Analysis Framework",
+                "Structure your analysis into EXACTLY 7 distinct sections, following this precise format:",
+                "",
+                "**1. System Purpose & Domain**",
+                "Start with: '[System Name] is a [type/category] system that [primary purpose]...'",
+                "- What problem does this system solve?",
+                "- Primary domain or business context",
+                "- Intended users or consumers",
+                "- Core capabilities and scope",
+                "",
+                "**2. Architectural Overview**",
+                "Start with: 'Architecturally, the codebase is [pattern type] organized as [structure]...'",
+                "- Overall architecture pattern (microservices, monolith, layered, event-driven, etc.)",
+                "- Component organization and major subsystems",
+                "- Key architectural boundaries and interfaces",
+                "- Data flow and processing pipelines",
+                "- Module/package structure and relationships",
+                "",
+                "**3. Technical Stack & Dependencies**",
+                "Start with: 'The stack blends [categories of technologies]...'",
+                "- Core technologies, frameworks, and libraries (with specific names and versions)",
+                "- External services or API integrations",
+                "- Notable technology choices or constraints",
+                "- Build tools, package managers, and development workflow",
+                "",
+                "**4. Code Quality & Design Patterns**",
+                "Start with: 'Design patterns are [prevalence] and [adjectives]...'",
+                "- Prevalent design patterns (MVC, repository, factory, observer, etc.) with examples",
+                "- Code structure and maintainability assessment",
+                "- Coding conventions and consistency",
+                "- Overall code quality and engineering practices",
+                "- Testing coverage and strategies",
+                "",
+                "**5. Cross-Cutting Concerns**",
+                "Start with: 'Cross-cutting concerns are [assessment]...'",
+                "- Logging, monitoring, and observability approaches",
+                "- Security measures and authentication mechanisms",
+                "- Error handling and resilience patterns",
+                "- Testing strategies (unit, integration, e2e)",
+                "- Configuration and environment management",
+                "- Performance optimization techniques",
+                "",
+                "**6. Architectural Risks & Technical Debt**",
+                "Start with: 'There are [number/severity] architectural risks and areas of technical debt...'",
+                "- Signs of technical debt or code smells (with specific examples)",
+                "- Scalability concerns and bottlenecks",
+                "- Areas that are over-engineered or under-engineered",
+                "- Security vulnerabilities or risks",
+                "- Maintenance challenges",
+                "- Consistency issues or fragmentation",
+                "",
+                "**7. Strengths & Actionable Recommendations**",
+                "Start with: 'Despite [challenges], the codebase exhibits [positive qualities]...'",
+                "- Strongest aspects of the codebase",
+                "- Notable capabilities or sophisticated implementations",
+                "- Specific opportunities for improvement or refactoring",
+                "- Actionable next steps for maintainers (prioritized list)",
+                "- Quick wins vs strategic improvements",
+                "",
+                "### Output Requirements",
+                "CRITICAL: Your response MUST follow this exact structure:",
+                "- Write EXACTLY 7 numbered sections as specified above",
+                "- Each section: 1 paragraph of 4-6 sentences",
+                "- Start each section with the suggested opening phrase pattern",
+                "- Use precise technical terminology with specific examples (file names, class names, function names)",
+                "- Reference actual components when discussing architecture",
+                "- Balance strategic insights with concrete technical details",
+                "- Use present tense and active voice throughout",
+                "- End with a bulleted list of 3-5 prioritized actionable recommendations",
+                "",
+                "### File Summaries",
+                combined_summaries,
+                "",
+                "### Meta-Overview",
+                "Begin your structured 7-section analysis:",
+            ]
+        )
+
+        return "\n".join(prompt_parts)
 
 
 def with_retry(max_retries: int = 3, delay: float = 1.0):
