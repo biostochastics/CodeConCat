@@ -28,7 +28,7 @@ class OpenRouterProvider(AIProvider):
             config.api_base = "https://openrouter.ai/api/v1"
 
         if not config.model:
-            config.model = "z-ai/glm-4.5"  # Multilingual model
+            config.model = "deepseek/deepseek-chat-v3.1"  # Fast model for individual file summaries
 
         # OpenRouter pricing varies by model - user should set these
         if config.cost_per_1k_input_tokens == 0:
@@ -257,6 +257,111 @@ class OpenRouterProvider(AIProvider):
             return SummarizationResult(
                 summary="", error=str(e), model_used=self.config.model, provider="openrouter"
             )
+
+    async def generate_meta_overview(
+        self,
+        file_summaries: Dict[str, Any],
+        custom_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        tree_structure: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> SummarizationResult:
+        """Generate meta-overview using higher-tier Gemini 2.5 Pro via OpenRouter.
+
+        Args:
+            file_summaries: Dictionary mapping file paths to their summaries
+            custom_prompt: Optional custom prompt
+            max_tokens: Maximum tokens for the overview
+            tree_structure: Optional tree structure visualization
+            context: Optional context dict
+
+        Returns:
+            SummarizationResult with the generated meta-overview
+        """
+        # Check if we should use higher-tier model
+        from ...base_types import CodeConCatConfig
+
+        use_higher_tier = True  # Default to True
+        override_model = None
+
+        if hasattr(self, "config") and isinstance(self.config, CodeConCatConfig):
+            use_higher_tier = getattr(self.config, "ai_meta_overview_use_higher_tier", True)
+            override_model = getattr(self.config, "ai_meta_overview_model", None)
+
+        # Determine which model to use
+        meta_model = override_model or ("z-ai/glm-4.5" if use_higher_tier else self.config.model)
+
+        logger.info(f"Generating meta-overview with model: {meta_model}")
+
+        # Use the enhanced prompt generator
+        final_prompt = self._create_meta_overview_prompt(
+            file_summaries,
+            tree_structure=tree_structure,
+            context=context,
+            custom_prompt=custom_prompt,
+        )
+
+        # Prepare messages
+        system_prompt = (
+            "You are a senior software architect conducting a comprehensive codebase analysis. "
+            "Your expertise includes system design, architectural patterns, technology assessment, "
+            "and identifying technical debt and improvement opportunities across large-scale projects."
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": final_prompt},
+        ]
+
+        # Temporarily override model
+        original_model = self.config.model
+        original_extra_params = self.config.extra_params.copy()
+
+        try:
+            self.config.model = meta_model
+
+            # Add extended thinking parameters for Gemini (if supported)
+            if "gemini" in meta_model.lower():
+                self.config.extra_params = {
+                    **original_extra_params,
+                    # Gemini parameters may differ - adjust as needed
+                    "thinking_time": "extended",
+                }
+                logger.debug("Extended thinking requested for Gemini meta-overview")
+
+            # Make API call with higher max_tokens
+            response = await self._retry_with_backoff(
+                self._make_api_call, messages, max_tokens or 2000
+            )
+
+            # Extract summary and token usage
+            summary = response["choices"][0]["message"]["content"].strip()
+            tokens_used = response.get("usage", {}).get("total_tokens", 0)
+            input_tokens = response.get("usage", {}).get("prompt_tokens", 0)
+            output_tokens = response.get("usage", {}).get("completion_tokens", 0)
+
+            # Calculate cost
+            cost = self._calculate_cost(input_tokens, output_tokens)
+
+            return SummarizationResult(
+                summary=summary,
+                tokens_used=tokens_used,
+                cost_estimate=cost,
+                model_used=meta_model,
+                provider="openrouter",
+                cached=False,
+                metadata={"input_tokens": input_tokens, "output_tokens": output_tokens},
+            )
+
+        except Exception as e:
+            logger.error(f"Meta-overview generation failed: {e}")
+            return SummarizationResult(
+                summary="", error=str(e), model_used=meta_model, provider="openrouter"
+            )
+        finally:
+            # Restore original configuration
+            self.config.model = original_model
+            self.config.extra_params = original_extra_params
 
     async def get_model_info(self) -> Dict[str, Any]:
         """Get information about the current OpenRouter model."""

@@ -71,6 +71,7 @@ dmypy.json
 # ---------------------------
 # CodeConCat Temp & Output
 # ---------------------------
+.codeconcat/
 codeconcat_github_*
 code_concat_output.md
 code_concat_output.*

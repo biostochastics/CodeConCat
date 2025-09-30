@@ -37,8 +37,14 @@ def mock_ai_provider():
             summary=summary, tokens_used=100, model_used="mock-model", provider="mock", cached=False
         )
 
-    # Mock meta-overview generation
-    async def mock_generate_meta_overview(file_summaries, custom_prompt=None, max_tokens=None):  # noqa: ARG001
+    # Mock meta-overview generation with updated signature
+    async def mock_generate_meta_overview(
+        file_summaries,  # noqa: ARG001
+        custom_prompt=None,
+        max_tokens=None,  # noqa: ARG001
+        tree_structure=None,  # noqa: ARG001
+        context=None,  # noqa: ARG001
+    ):
         if custom_prompt and "CUSTOM_TEST" in custom_prompt:
             overview = "CUSTOM META-OVERVIEW: Test project with custom processing logic."
         else:

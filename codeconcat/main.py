@@ -941,6 +941,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                     logger.info(
                         f"[CodeConCat] Summarizer created, processing {len(parsed_files)} files..."
                     )
+                    logger.info(f"[DEBUG MAIN] Config ai_meta_overview: {config.ai_meta_overview}")
                     # Run async summarization
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
@@ -950,6 +951,8 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                         )
                     finally:
                         loop.run_until_complete(summarizer.cleanup())
+                        # Allow aiohttp session cleanup to complete before closing loop
+                        loop.run_until_complete(asyncio.sleep(0.25))
                         loop.close()
 
                     # Check if any summaries were actually added
@@ -992,6 +995,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                         annotated_content=parsed.content or "",
                         summary=f"Diff for {parsed.file_path}",
                         ai_summary=getattr(parsed, "ai_summary", None),  # Preserve AI summary
+                        ai_metadata=getattr(parsed, "ai_metadata", None),  # Preserve AI metadata
                         declarations=parsed.declarations,
                         imports=parsed.imports,
                         diff_content=getattr(parsed, "diff_content", None),

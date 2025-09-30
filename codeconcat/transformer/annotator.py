@@ -90,6 +90,7 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
         security_issues=parsed_data.security_issues,
         summary=summary,
         ai_summary=parsed_data.ai_summary,  # Transfer AI summary separately
+        ai_metadata=getattr(parsed_data, "ai_metadata", None),  # Preserve AI metadata
         tags=tags,
         # Preserve diff data if present
         diff_content=getattr(parsed_data, "diff_content", None),

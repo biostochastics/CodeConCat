@@ -1,7 +1,9 @@
 """OpenAI provider implementation for code summarization."""
 
+import asyncio
 import logging
 import os
+import time
 from typing import Any, Dict, Optional
 
 import aiohttp
@@ -29,7 +31,7 @@ class OpenAIProvider(AIProvider):
             config.api_base = "https://api.openai.com/v1"
 
         if not config.model:
-            config.model = "gpt-5-nano-2025-08-07"  # Latest budget model
+            config.model = "gpt-5-mini-2025-08-07"  # Budget model for individual file summaries
             logger.debug(f"Using default model: {config.model}")
 
         # Set costs from models_config if not specified
@@ -50,8 +52,17 @@ class OpenAIProvider(AIProvider):
                     config.cost_per_1k_output_tokens = 0.002
 
         self.cache = SummaryCache() if config.cache_enabled else None
+
+        # Rate limiting: OpenAI tier-dependent limits
+        # Free tier: 3 RPM, Tier 1: 500 RPM, Tier 2: 5000 RPM
+        # Using Tier 1 with concurrent requests: 500 RPM / 10 concurrent = 50 RPM per slot = 1.2s delay
+        self._rate_limit_delay = 0.3  # seconds between requests (allows ~200 RPM with concurrency)
+        self._last_request_time = 0.0
+        self._rate_limit_lock = asyncio.Lock()
+        self._concurrent_limit = asyncio.Semaphore(10)  # Max 10 concurrent requests
+
         logger.info(
-            f"OpenAI provider initialized - Model: {config.model}, Cache: {bool(self.cache)}, API Key: {bool(config.api_key)}"
+            f"OpenAI provider initialized - Model: {config.model}, Cache: {bool(self.cache)}, API Key: {bool(config.api_key)}, Rate limit: {self._rate_limit_delay}s"
         )
 
     async def _get_session(self) -> aiohttp.ClientSession:
@@ -67,16 +78,42 @@ class OpenAIProvider(AIProvider):
         return self._session
 
     async def _make_api_call(self, messages: list, max_tokens: Optional[int] = None) -> dict:
-        """Make an API call to OpenAI."""
-        session = await self._get_session()
+        """Make an API call to OpenAI with rate limiting and concurrency control."""
+        # Use semaphore to limit concurrent requests
+        async with self._concurrent_limit:
+            # Enforce minimum delay between requests
+            async with self._rate_limit_lock:
+                now = time.time()
+                time_since_last = now - self._last_request_time
+                if time_since_last < self._rate_limit_delay:
+                    wait_time = self._rate_limit_delay - time_since_last
+                    logger.debug(f"Rate limiting: waiting {wait_time:.2f}s")
+                    await asyncio.sleep(wait_time)
+                self._last_request_time = time.time()
 
-        payload = {
-            "model": self.config.model,
-            "messages": messages,
-            "temperature": self.config.temperature,
-            "max_tokens": max_tokens or self.config.max_tokens,
-            **self.config.extra_params,
-        }
+            session = await self._get_session()
+
+        # GPT-5 and o-series models use max_completion_tokens instead of max_tokens
+        # and require temperature=1.0
+        model_lower = self.config.model.lower()
+        is_reasoning_model = any(x in model_lower for x in ["gpt-5", "o1", "o3"])
+
+        if is_reasoning_model:
+            payload = {
+                "model": self.config.model,
+                "messages": messages,
+                "temperature": 1.0,  # Required for reasoning models
+                "max_completion_tokens": max_tokens or self.config.max_tokens,
+                **self.config.extra_params,
+            }
+        else:
+            payload = {
+                "model": self.config.model,
+                "messages": messages,
+                "temperature": self.config.temperature,
+                "max_tokens": max_tokens or self.config.max_tokens,
+                **self.config.extra_params,
+            }
 
         url = f"{self.config.api_base}/chat/completions"
         logger.info(f"Making OpenAI API call to {url} with model {self.config.model}")
@@ -137,8 +174,20 @@ class OpenAIProvider(AIProvider):
         ]
 
         try:
+            # For reasoning models, increase max_tokens significantly as they use tokens for reasoning
+            model_lower = self.config.model.lower()
+            is_reasoning_model = any(x in model_lower for x in ["gpt-5", "o1", "o3"])
+            actual_max_length: Optional[int]
+            if is_reasoning_model and (max_length is None or max_length < 2000):
+                # Reasoning models need more tokens - they use many for reasoning
+                actual_max_length = 2000
+            else:
+                actual_max_length = max_length
+
             # Make API call with retry
-            response = await self._retry_with_backoff(self._make_api_call, messages, max_length)
+            response = await self._retry_with_backoff(
+                self._make_api_call, messages, actual_max_length
+            )
 
             # Extract summary and token usage
             summary = response["choices"][0]["message"]["content"].strip()
@@ -250,6 +299,165 @@ class OpenAIProvider(AIProvider):
             return SummarizationResult(
                 summary="", error=str(e), model_used=self.config.model, provider="openai"
             )
+
+    async def generate_meta_overview(
+        self,
+        file_summaries: Dict[str, Any],
+        custom_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        tree_structure: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> SummarizationResult:
+        """Generate meta-overview using higher-tier GPT-5 with reasoning parameters.
+
+        Args:
+            file_summaries: Dictionary mapping file paths to their summaries
+            custom_prompt: Optional custom prompt
+            max_tokens: Maximum tokens for the overview
+            tree_structure: Optional tree structure visualization
+            context: Optional context dict
+
+        Returns:
+            SummarizationResult with the generated meta-overview
+        """
+        # Check if we should use higher-tier model
+        from ...base_types import CodeConCatConfig
+
+        use_higher_tier = True  # Default to True
+        override_model = None
+
+        if hasattr(self, "config") and isinstance(self.config, CodeConCatConfig):
+            use_higher_tier = getattr(self.config, "ai_meta_overview_use_higher_tier", True)
+            override_model = getattr(self.config, "ai_meta_overview_model", None)
+
+        # Determine which model to use
+        meta_model = override_model or (
+            "gpt-5-2025-08-07" if use_higher_tier else self.config.model
+        )
+
+        logger.info(f"Generating meta-overview with model: {meta_model}")
+
+        # Use the enhanced prompt generator
+        final_prompt = self._create_meta_overview_prompt(
+            file_summaries,
+            tree_structure=tree_structure,
+            context=context,
+            custom_prompt=custom_prompt,
+        )
+
+        # Prepare messages
+        system_prompt = (
+            "You are a senior software architect conducting a comprehensive codebase analysis. "
+            "Your expertise includes system design, architectural patterns, technology assessment, "
+            "and identifying technical debt and improvement opportunities across large-scale projects."
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": final_prompt},
+        ]
+
+        # Temporarily override model and add reasoning parameters
+        original_model = self.config.model
+        original_extra_params = self.config.extra_params.copy()
+
+        try:
+            self.config.model = meta_model
+
+            # Add reasoning parameters for GPT-5 and o-series models
+            # These models require temperature=1.0
+            if (
+                "gpt-5" in meta_model.lower()
+                or "o1" in meta_model.lower()
+                or "o3" in meta_model.lower()
+            ):
+                original_temp = self.config.temperature
+                self.config.temperature = 1.0  # Required for reasoning models
+                self.config.extra_params = {
+                    **original_extra_params,
+                    "reasoning_effort": "high",
+                }
+                logger.debug("High reasoning effort enabled for meta-overview (temperature=1.0)")
+
+            # Make API call with higher max_tokens (default 8000 for meta-overview)
+            # Reasoning models need longer timeout - close existing session and create new one with longer timeout
+            original_timeout = self.config.timeout
+            original_session = self._session
+            if (
+                "gpt-5" in meta_model.lower()
+                or "o1" in meta_model.lower()
+                or "o3" in meta_model.lower()
+            ):
+                self.config.timeout = 300  # 5 minutes for reasoning models
+                # Close existing session to force creation of new one with updated timeout
+                if self._session:
+                    await self._session.close()
+                    self._session = None
+                logger.debug("Increased timeout to 300s for reasoning model")
+
+            try:
+                response = await self._retry_with_backoff(
+                    self._make_api_call, messages, max_tokens or 8000
+                )
+            finally:
+                # Restore original timeout and session
+                self.config.timeout = original_timeout
+                # Close the long-timeout session
+                if (
+                    "gpt-5" in meta_model.lower()
+                    or "o1" in meta_model.lower()
+                    or "o3" in meta_model.lower()
+                ):
+                    if self._session:
+                        await self._session.close()
+                    self._session = original_session
+
+            # Extract summary and token usage
+            # For reasoning models, check if content is in refusal or content field
+            message = response["choices"][0]["message"]
+            message_content = message.get("content") or message.get("refusal", "")
+            summary = message_content.strip() if message_content else ""
+            tokens_used = response["usage"]["total_tokens"]
+            input_tokens = response["usage"]["prompt_tokens"]
+            output_tokens = response["usage"]["completion_tokens"]
+            logger.debug(f"Meta-overview: {len(summary)} chars, {tokens_used} tokens")
+
+            # Calculate cost
+            cost = self._calculate_cost(input_tokens, output_tokens)
+
+            return SummarizationResult(
+                summary=summary,
+                tokens_used=tokens_used,
+                cost_estimate=cost,
+                model_used=meta_model,
+                provider="openai",
+                cached=False,
+                metadata={
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "reasoning_enabled": True,
+                },
+            )
+
+        except Exception as e:
+            logger.error(f"Meta-overview generation failed: {e}")
+            import traceback
+
+            logger.debug(traceback.format_exc())
+            return SummarizationResult(
+                summary="", error=str(e), model_used=meta_model, provider="openai"
+            )
+        finally:
+            # Restore original configuration
+            self.config.model = original_model
+            self.config.extra_params = original_extra_params
+            # Restore temperature if it was changed for reasoning models
+            if (
+                "gpt-5" in meta_model.lower()
+                or "o1" in meta_model.lower()
+                or "o3" in meta_model.lower()
+            ):
+                self.config.temperature = original_temp
 
     async def get_model_info(self) -> Dict[str, Any]:
         """Get information about the current OpenAI model."""

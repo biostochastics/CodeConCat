@@ -412,6 +412,38 @@ def run_command(
             rich_help_panel="AI Summarization Options",
         ),
     ] = None,
+    ai_meta_overview_use_higher_tier: Annotated[
+        bool,
+        typer.Option(
+            "--ai-meta-higher-tier/--no-ai-meta-higher-tier",
+            help="Use higher-tier models for meta-overview (claude-sonnet-4-5, gpt-5, gemini-2.5-pro)",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = True,
+    ai_meta_overview_model: Annotated[
+        Optional[str],
+        typer.Option(
+            "--ai-meta-model",
+            help="Override model for meta-overview generation",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = None,
+    ai_save_summaries: Annotated[
+        bool,
+        typer.Option(
+            "--ai-save-summaries/--no-ai-save-summaries",
+            help="Save individual summaries and meta-overview to separate files",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = False,
+    ai_summaries_dir: Annotated[
+        Optional[str],
+        typer.Option(
+            "--ai-summaries-dir",
+            help="Directory for saving AI summaries (relative to output or absolute)",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = None,
     # Local LLM Performance Options (llama.cpp)
     llama_gpu_layers: Annotated[
         Optional[int],
@@ -658,6 +690,12 @@ def run_command(
                 "ai_summarize_functions": ai_summarize_functions,
                 "ai_meta_overview": ai_meta_overview,
                 "ai_meta_overview_prompt": ai_meta_overview_prompt or "",
+                "ai_meta_overview_use_higher_tier": ai_meta_overview_use_higher_tier,
+                "ai_meta_overview_model": ai_meta_overview_model
+                if ai_meta_overview_model
+                else None,
+                "ai_save_summaries": ai_save_summaries,
+                "ai_summaries_dir": ai_summaries_dir if ai_summaries_dir else None,
                 "llama_gpu_layers": llama_gpu_layers,
                 "llama_context_size": llama_context_size,
                 "llama_threads": llama_threads,
