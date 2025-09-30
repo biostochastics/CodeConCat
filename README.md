@@ -854,6 +854,11 @@ codeconcat run --ai-summary --ai-meta-overview --ai-provider openai
 codeconcat run --ai-summary --ai-meta-overview \
   --ai-meta-prompt "Focus on security architecture and data flow patterns" \
   --ai-provider anthropic
+
+# Save summaries to disk for reuse (NEW)
+codeconcat run --ai-summary --ai-meta-overview --ai-save-summaries \
+  --ai-provider anthropic \
+  --output report.md
 ```
 
 The meta-overview feature:
@@ -862,8 +867,33 @@ The meta-overview feature:
 - **Highlights patterns**, design decisions, and technologies used
 - **Provides onboarding insights** for new developers
 - **Supports custom prompts** for focused analysis
+- **Includes directory tree structure** for spatial context
+- **Saves to disk** when `--ai-save-summaries` is enabled
 
 The meta-overview appears at the top of the output by default, providing immediate context before diving into file details.
+
+### AI Summary Persistence (NEW)
+
+Save AI-generated summaries to disk for caching and reuse:
+
+```bash
+# Enable summary persistence
+codeconcat run --ai-summary --ai-save-summaries --ai-provider openai -o output.md
+
+# Summaries are saved to {output_parent_dir}/.codeconcat/summaries/
+# Structure:
+#   .codeconcat/summaries/
+#   ├── individual/           # Individual file summaries (JSON)
+#   │   ├── {hash1}.json
+#   │   ├── {hash2}.json
+#   │   └── ...
+#   └── meta_overview.json    # Project-wide meta-overview
+```
+
+Summary files include:
+- **Individual summaries**: File path, language, summary text, timestamp, token stats
+- **Meta-overview**: Comprehensive project analysis, files summarized, tree structure
+- **Metadata**: Model used, token counts, cost estimates
 
 ### API Key Setup
 
@@ -892,6 +922,13 @@ export OPENROUTER_API_KEY="sk-or-..."
 enable_ai_summary: true
 ai_provider: openai              # openai, anthropic, google, openrouter, ollama
 ai_model: gpt-5-nano-2025-08-07  # Optional, uses provider defaults
+
+# Meta-overview settings
+ai_meta_overview: false          # Enable meta-overview generation
+ai_meta_prompt: ""               # Custom prompt for meta-overview
+ai_meta_overview_use_higher_tier: true  # Use premium models for meta-overview
+ai_save_summaries: false         # Save summaries to disk
+ai_summaries_dir: ".codeconcat/summaries"  # Directory for saved summaries
 
 # Processing settings
 ai_min_file_lines: 20            # Skip small files
@@ -1455,7 +1492,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Recent Updates
 
 ### Version 0.8.4
-- **Intelligent Parser Result Merging**: Revolutionary approach to code parsing
+- **Intelligent Parser Result Merging**: Advanced approach to code parsing
   - Merges results from multiple parsers instead of picking single winner
   - 4 configurable merge strategies (confidence, union, fast_fail, best_of_breed)
   - Confidence scoring based on parser quality and completeness
