@@ -941,7 +941,6 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                     logger.info(
                         f"[CodeConCat] Summarizer created, processing {len(parsed_files)} files..."
                     )
-                    logger.info(f"[DEBUG MAIN] Config ai_meta_overview: {config.ai_meta_overview}")
                     # Run async summarization
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
@@ -1228,10 +1227,22 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         folder_tree_str = ""
         if hasattr(config, "include_directory_structure") and config.include_directory_structure:
-            # Placeholder for actual tree generation logic
-            # folder_tree_str = generate_folder_tree(items, config) # Assuming 'items' contains file paths
-            folder_tree_str = "[INFO] Directory tree would be displayed here.\n"
-            logger.info("Including directory structure in output.")
+            # Generate the actual directory tree
+            try:
+                # If target_path is a file, use its parent directory for tree generation
+                tree_root = config.target_path
+                if os.path.isfile(config.target_path):
+                    tree_root = os.path.dirname(config.target_path)
+                    logger.debug(f"Target is a file, using parent directory for tree: {tree_root}")
+
+                folder_tree_str = generate_folder_tree(tree_root, config)
+                if folder_tree_str:
+                    logger.info(f"Generated directory tree: {len(folder_tree_str)} characters")
+                else:
+                    logger.warning("Directory tree generation returned empty result")
+            except Exception as e:
+                logger.warning(f"Failed to generate directory tree: {e}")
+                folder_tree_str = ""
         else:
             logger.info("Skipping directory structure in output.")
 

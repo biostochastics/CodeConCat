@@ -348,6 +348,10 @@ class AnthropicProvider(AIProvider):
         original_extra_params = self.config.extra_params.copy()
         original_temp = self.config.temperature  # Initialize to avoid NameError in finally block
 
+        # Temporarily increase timeout for meta-overview generation
+        original_timeout = self.config.timeout
+        original_session = self._session
+
         try:
             self.config.model = meta_model
 
@@ -363,9 +367,15 @@ class AnthropicProvider(AIProvider):
                     **original_extra_params,
                     "thinking": {"type": "enabled", "budget_tokens": thinking_budget},
                 }
+                # Increase timeout to 5 minutes for extended thinking
+                self.config.timeout = 300
+                # Close existing session to force creation of new one with updated timeout
+                if self._session:
+                    await self._session.close()
+                    self._session = None
                 logger.debug(
                     f"Extended thinking enabled for meta-overview (temperature=1.0, "
-                    f"thinking={thinking_budget}, max_tokens={total_max_tokens})"
+                    f"thinking={thinking_budget}, max_tokens={total_max_tokens}, timeout=300s)"
                 )
             else:
                 total_max_tokens = max_tokens or 2000
@@ -376,7 +386,32 @@ class AnthropicProvider(AIProvider):
             )
 
             # Extract summary and token usage
-            summary = response["content"][0]["text"].strip()
+            # For extended thinking, the response structure might be different
+            content_blocks = response.get("content", [])
+            if not content_blocks:
+                logger.error("No content blocks in response")
+                return SummarizationResult(
+                    summary="",
+                    error="No content in API response",
+                    model_used=meta_model,
+                    provider="anthropic",
+                )
+
+            # Find the text content block (skip thinking blocks)
+            summary = None
+            for block in content_blocks:
+                if block.get("type") == "text" and "text" in block:
+                    summary = block["text"].strip()
+                    break
+
+            if not summary:
+                logger.error(f"No text content found in response. Content blocks: {content_blocks}")
+                return SummarizationResult(
+                    summary="",
+                    error="No text content in response",
+                    model_used=meta_model,
+                    provider="anthropic",
+                )
 
             input_tokens = response.get("usage", {}).get("input_tokens", 0)
             output_tokens = response.get("usage", {}).get("output_tokens", 0)
@@ -399,24 +434,13 @@ class AnthropicProvider(AIProvider):
                 },
             )
 
-        except (asyncio.CancelledError, asyncio.TimeoutError):
-            # These can occur during async cleanup but don't affect functionality
-            # Meta-overview was successfully generated before cleanup issues
-            logger.debug("Async cleanup issue (non-fatal) - meta-overview generated successfully")
-            # This exception only occurs after successful return, but mypy needs a return statement
-            return SummarizationResult(
-                summary="",
-                error="Async cleanup error (non-fatal)",
-                model_used=meta_model,
-                provider="anthropic",
-            )
         except Exception as e:
             error_msg = str(e) if e else "Unknown error"
             logger.error(f"Meta-overview generation failed: {error_msg}")
             import traceback
 
             tb = traceback.format_exc()
-            logger.debug(f"Full traceback:\n{tb}")
+            logger.error(f"Full traceback:\n{tb}")
             return SummarizationResult(
                 summary="", error=error_msg, model_used=meta_model, provider="anthropic"
             )
@@ -425,8 +449,13 @@ class AnthropicProvider(AIProvider):
             try:
                 self.config.model = original_model
                 self.config.extra_params = original_extra_params
+                self.config.timeout = original_timeout
                 if "sonnet-4" in meta_model.lower() or "sonnet-5" in meta_model.lower():
                     self.config.temperature = original_temp
+                    # Close the long-timeout session and restore original
+                    if self._session:
+                        await self._session.close()
+                    self._session = original_session
             except Exception:
                 # Ignore any errors during config restoration
                 pass
