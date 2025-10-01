@@ -131,7 +131,13 @@ for lang in "${LANGUAGES_TO_CHECK[@]}"; do
   fi
 
   # Try to load the grammar using tree-sitter-language-pack
-  if python3 -c "
+  # Use venv python if available, otherwise fall back to python3
+  PYTHON_CMD="${VIRTUAL_ENV:-./venv}/bin/python"
+  if [ ! -f "$PYTHON_CMD" ]; then
+    PYTHON_CMD="python3"
+  fi
+
+  if $PYTHON_CMD -c "
 from tree_sitter_language_pack import get_language
 try:
     lang = get_language('$lang')

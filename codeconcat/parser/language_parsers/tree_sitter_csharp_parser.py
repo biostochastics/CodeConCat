@@ -17,7 +17,13 @@ except ImportError:
         stacklevel=2,
     )
 
-from tree_sitter import Node, Query, QueryCursor
+from tree_sitter import Node, Query
+
+# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+try:
+    from tree_sitter import QueryCursor
+except ImportError:
+    QueryCursor = None  # type: ignore[assignment,misc]
 
 from ...base_types import Declaration
 from ..doc_comment_utils import clean_xml_doc_comments, normalize_whitespace

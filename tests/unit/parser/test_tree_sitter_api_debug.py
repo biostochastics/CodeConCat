@@ -10,7 +10,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from tree_sitter import Query, QueryCursor  # noqa: E402
+from tree_sitter import Query  # noqa: E402
+
+# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+try:
+    from tree_sitter import QueryCursor  # noqa: E402
+except ImportError:
+    QueryCursor = None  # type: ignore[assignment,misc]
+
 from tree_sitter_language_pack import get_language, get_parser  # noqa: E402
 
 
