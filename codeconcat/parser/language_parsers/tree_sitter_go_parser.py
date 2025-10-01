@@ -3,9 +3,16 @@
 import logging
 from typing import Dict, List, Set
 
-from tree_sitter import Node
+from tree_sitter import Node, Query
+
+# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+try:
+    from tree_sitter import QueryCursor
+except ImportError:
+    QueryCursor = None  # type: ignore[assignment,misc]
 
 from ...base_types import Declaration
+from ..doc_comment_utils import clean_line_comments, normalize_whitespace
 from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
@@ -104,7 +111,20 @@ class TreeSitterGoParser(BaseTreeSitterParser):
     def _run_queries(
         self, root_node: Node, byte_content: bytes
     ) -> tuple[List[Declaration], List[str]]:
-        """Runs Go-specific queries and extracts declarations and imports."""
+        """Runs Go-specific queries and extracts declarations and imports.
+
+        Performs multi-pass extraction:
+        1. Extract doc comments (// style) and build location map
+        2. Extract imports (full package paths)
+        3. Extract declarations with signatures and doc comments
+
+        Args:
+            root_node: Root node of the parsed tree
+            byte_content: Source code as bytes
+
+        Returns:
+            Tuple of (declarations list, imports list)
+        """
         queries = self.get_queries()
         declarations: List[Declaration] = []
         imports: Set[str] = set()
@@ -114,8 +134,10 @@ class TreeSitterGoParser(BaseTreeSitterParser):
         # --- Pass 1: Extract Doc Comments --- #
         # Go doc comments are consecutive line comments preceding a declaration
         try:
-            doc_query = self.ts_language.query(queries.get("doc_comments", ""))
-            doc_captures = doc_query.captures(root_node)
+            doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
+            doc_cursor = QueryCursor(doc_query)
+            doc_captures = doc_cursor.captures(root_node)
+
             last_comment_line = -2
             current_doc_block: List[str] = []
 
@@ -135,8 +157,12 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                     else:
                         # Start a new block if the previous one wasn't empty
                         if current_doc_block:
+                            # Clean the completed block using shared utilities
+                            cleaned_block = clean_line_comments(
+                                current_doc_block, prefix_pattern=""
+                            )
                             # Map the completed block to its end line
-                            doc_comment_map[last_comment_line] = "\n".join(current_doc_block)
+                            doc_comment_map[last_comment_line] = cleaned_block
                         # Start new block
                         current_doc_block = [comment_text[2:].strip()]
 
@@ -144,7 +170,8 @@ class TreeSitterGoParser(BaseTreeSitterParser):
 
             # Store the last block if it exists
             if current_doc_block:
-                doc_comment_map[last_comment_line] = "\n".join(current_doc_block)
+                cleaned_block = clean_line_comments(current_doc_block, prefix_pattern="")
+                doc_comment_map[last_comment_line] = cleaned_block
 
         except Exception as e:
             logger.warning(f"Failed to execute Go doc_comments query: {e}", exc_info=True)
@@ -155,18 +182,18 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                 continue
 
             try:
-                query = self.ts_language.query(query_str)
-                captures = query.captures(root_node)
-                logger.debug(f"Running Go query '{query_name}', found {len(captures)} captures.")
+                query = Query(self.ts_language, query_str)
 
                 if query_name == "imports":
+                    # Use captures for imports
+                    cursor = QueryCursor(query)
+                    captures = cursor.captures(root_node)
+                    logger.debug(
+                        f"Running Go query '{query_name}', found {len(captures)} captures."
+                    )
+
                     # captures is a dict of {capture_name: [list of nodes]}
-                    # Fixed capture unpacking pattern
-                    for capture in captures.items():
-                        if len(capture) == 2:
-                            capture_name, nodes = capture
-                        else:
-                            continue
+                    for capture_name, nodes in captures.items():
                         if capture_name == "import_path":
                             for node in nodes:
                                 # String nodes include quotes, remove them
@@ -175,16 +202,20 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                                     .decode("utf8", errors="replace")
                                     .strip('"')
                                 )
+                                # Store full import path
                                 imports.add(import_path)
 
                 elif query_name == "declarations":
-                    # Use matches for better structure
-                    matches = query.matches(root_node)
+                    # Use matches for better structure with declarations
+                    cursor = QueryCursor(query)
+                    matches = cursor.matches(root_node)
+
                     for _match_id, captures_dict in matches:
                         declaration_node = None
                         name_node = None
                         kind = None
                         modifiers: set[str] = set()
+                        signature = ""
 
                         # Check for declaration types
                         for decl_type in DECLARATION_CAPTURE_TYPES:
@@ -205,17 +236,23 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                             if name_nodes and len(name_nodes) > 0:
                                 name_node = name_nodes[0]
 
-                        # Add declaration if we have both
+                        # Extract signature for functions and methods
+                        if declaration_node and kind in ["function", "method"]:
+                            signature = self._extract_go_signature(declaration_node, byte_content)
+
+                        # Add declaration if we have both node and name
                         if declaration_node and name_node:
                             name_text = byte_content[
                                 name_node.start_byte : name_node.end_byte
                             ].decode("utf8", errors="replace")
 
-                            # Check for docstring
-                            docstring = doc_comment_map.get(declaration_node.start_point[0] - 1, "")
-
-                            # Use utility function for accurate line numbers
+                            # Find associated doc comment (look for comment on line before declaration)
                             start_line, end_line = get_node_location(declaration_node)
+                            docstring = ""
+                            for check_line in range(start_line - 1, max(0, start_line - 20), -1):
+                                if check_line in doc_comment_map:
+                                    docstring = doc_comment_map[check_line]
+                                    break
 
                             declarations.append(
                                 Declaration(
@@ -224,6 +261,7 @@ class TreeSitterGoParser(BaseTreeSitterParser):
                                     start_line=start_line,
                                     end_line=end_line,
                                     docstring=docstring,
+                                    signature=signature,
                                     modifiers=modifiers,
                                 )
                             )
@@ -231,8 +269,7 @@ class TreeSitterGoParser(BaseTreeSitterParser):
             except Exception as e:
                 logger.warning(f"Failed to execute Go query '{query_name}': {e}", exc_info=True)
 
-        # Declaration processing now happens inline
-
+        # Sort declarations by start line
         declarations.sort(key=lambda d: d.start_line)
         sorted_imports = sorted(imports)
 
@@ -241,4 +278,39 @@ class TreeSitterGoParser(BaseTreeSitterParser):
         )
         return declarations, sorted_imports
 
-    # No specific _clean_doc method needed for Go as comments are line-based
+    def _extract_go_signature(self, func_node: Node, byte_content: bytes) -> str:
+        """Extract function/method signature from function or method declaration node.
+
+        Extracts the complete signature including name, parameters, and return type.
+
+        Args:
+            func_node: Function or method declaration node
+            byte_content: Source code as bytes
+
+        Returns:
+            Function signature string (e.g., "func (r *Receiver) Name(param Type) ReturnType")
+        """
+        try:
+            # Find the function body to determine signature end
+            sig_end_byte = func_node.end_byte
+
+            # Look for the opening brace to determine signature end
+            for child in func_node.children:
+                if child.type == "block":
+                    sig_end_byte = child.start_byte
+                    break
+
+            # Extract signature from start to body
+            signature = (
+                byte_content[func_node.start_byte : sig_end_byte]
+                .decode("utf-8", errors="replace")
+                .strip()
+            )
+
+            # Normalize whitespace
+            signature = normalize_whitespace(signature)
+
+            return signature
+        except Exception as e:
+            logger.debug(f"Failed to extract Go function signature: {e}")
+            return ""

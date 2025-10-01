@@ -1,0 +1,8 @@
+
+rules:
+  - id: js-malicious-execution
+    pattern: |
+      exec(...)
+    message: Potential malicious code execution
+    languages: [javascript]
+    severity: ERROR

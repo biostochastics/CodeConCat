@@ -106,6 +106,12 @@ try:
         "swift": "TreeSitterSwiftParser",
         "bash": "TreeSitterBashParser",
         "shell": "TreeSitterBashParser",
+        "kotlin": "TreeSitterKotlinParser",
+        "dart": "TreeSitterDartParser",
+        "sql": "TreeSitterSqlParser",
+        "hcl": "TreeSitterHclParser",
+        "terraform": "TreeSitterHclParser",
+        "graphql": "TreeSitterGraphqlParser",
     }
 
     import logging
@@ -143,7 +149,7 @@ LANGUAGE_EXTENSION_MAP = {
         ".cxx": "cpp",
         ".cc": "cpp",
         ".hpp": "cpp",
-        ".hxx": "cpp",
+        ".hxx": "hpp",
         ".h": "c",
         ".c": "c",
         ".cs": "csharp",
@@ -151,5 +157,17 @@ LANGUAGE_EXTENSION_MAP = {
         ".go": "go",
         ".php": "php",
         ".swift": "swift",
+        ".kt": "kotlin",
+        ".kts": "kotlin",
+        ".dart": "dart",
+        ".sql": "sql",
+        ".psql": "sql",
+        ".mysql": "sql",
+        ".sqlite": "sql",
+        ".tf": "terraform",
+        ".tfvars": "terraform",
+        ".hcl": "hcl",
+        ".graphql": "graphql",
+        ".gql": "graphql",
     }.items()
 }

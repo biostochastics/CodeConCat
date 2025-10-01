@@ -12,6 +12,8 @@ from ..cache import SummaryCache
 class LocalServerProvider(AIProvider):
     """Provider for OpenAI-compatible local inference servers (vLLM, TGI, LocalAI, etc.)."""
 
+    _session: Optional[aiohttp.ClientSession]
+
     def __init__(self, config: AIProviderConfig):
         """Initialize local server provider."""
         super().__init__(config)
@@ -37,7 +39,7 @@ class LocalServerProvider(AIProvider):
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp session."""
-        if not self._session:
+        if self._session is None:
             headers = {"Content-Type": "application/json"}
             if self.config.api_key:
                 headers["Authorization"] = f"Bearer {self.config.api_key}"
@@ -304,8 +306,8 @@ class LocalServerProvider(AIProvider):
             # If no health endpoints work, try a minimal completion
             messages = [{"role": "user", "content": "Hi"}]
             try:
-                response = await self._make_api_call(messages, max_tokens=1)
-                if response and "choices" in response:
+                result = await self._make_api_call(messages, max_tokens=1)
+                if result and "choices" in result:
                     logger.info(
                         f"Local server validated via completion test at {self.config.api_base}"
                     )

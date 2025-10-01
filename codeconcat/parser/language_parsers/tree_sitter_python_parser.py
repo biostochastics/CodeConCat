@@ -6,6 +6,8 @@ from typing import Dict, List
 from tree_sitter import Node
 
 from ...base_types import Declaration
+from ..doc_comment_utils import normalize_whitespace
+from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
@@ -123,7 +125,10 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         try:
             doc_query = self._get_compiled_query("doc_comments")
             if doc_query:
-                doc_captures = doc_query.captures(root_node)
+                from tree_sitter import QueryCursor
+
+                cursor = QueryCursor(doc_query)
+                doc_captures = cursor.captures(root_node)
                 # doc_captures is a dict: {capture_name: [list of nodes]}
                 for capture_name, nodes in doc_captures.items():
                     if capture_name == "docstring":
@@ -151,7 +156,10 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         try:
             import_query = self._get_compiled_query("imports")
             if import_query:
-                import_captures = import_query.captures(root_node)
+                from tree_sitter import QueryCursor
+
+                cursor = QueryCursor(import_query)
+                import_captures = cursor.captures(root_node)
                 # import_captures is a dict: {capture_name: [list of nodes]}
                 for capture_name, nodes in import_captures.items():
                     if capture_name in ["import_name", "module_name"]:
@@ -169,7 +177,10 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         try:
             decl_query = self._get_compiled_query("declarations")
             if decl_query:
-                matches = decl_query.matches(root_node)
+                from tree_sitter import QueryCursor
+
+                cursor = QueryCursor(decl_query)
+                matches = cursor.matches(root_node)
 
                 # matches is a list of tuples: (match_id, dict of capture_name -> nodes)
                 for _match_id, captures_dict in matches:
@@ -270,8 +281,7 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
                         modifiers.add("const")
 
                     if declaration_node and name:
-                        start_line = declaration_node.start_point[0] + 1
-                        end_line = declaration_node.end_point[0] + 1
+                        start_line, end_line = get_node_location(declaration_node)
 
                         # Extract signature for functions and methods
                         signature = ""
@@ -327,7 +337,10 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         return declarations, sorted_imports
 
     def _clean_docstring(self, docstring_text: str) -> str:
-        """Clean Python docstring by removing quotes and normalizing whitespace."""
+        """Clean Python docstring by removing quotes and normalizing whitespace.
+
+        Uses shared doc_comment_utils for consistent whitespace normalization.
+        """
         # Remove triple quotes or single quotes
         cleaned = docstring_text.strip()
         for quote in ['"""', "'''", '"', "'"]:
@@ -335,22 +348,9 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
                 cleaned = cleaned[len(quote) : -len(quote)]
                 break
 
-        # Normalize whitespace but preserve structure
-        lines = cleaned.split("\n")
-        if lines:
-            # Remove common leading whitespace
-            non_empty_lines = [line for line in lines if line.strip()]
-            if non_empty_lines:
-                # Get indentation levels for non-empty lines after the first
-                indented_lines = [line for line in non_empty_lines[1:] if line.strip()]
-                if indented_lines:
-                    min_indent = min(len(line) - len(line.lstrip()) for line in indented_lines)
-                    if min_indent > 0:
-                        lines = [lines[0]] + [
-                            line[min_indent:] if line.strip() else line for line in lines[1:]
-                        ]
-
-        return "\n".join(lines).strip()
+        # Normalize whitespace using shared utility
+        # Python docstrings should preserve line breaks for readability
+        return normalize_whitespace(cleaned, collapse_newlines=False)
 
     def _find_docstring(self, node: Node, byte_content: bytes) -> str:
         """Attempts to find a docstring within a function/class body node."""

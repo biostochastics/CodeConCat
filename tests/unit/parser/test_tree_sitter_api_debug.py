@@ -1,17 +1,30 @@
 #!/usr/bin/env python3
-"""Debug tree-sitter API to understand capture structure."""
+"""Debug tree-sitter API to understand capture structure.
+
+This test verifies the NEW tree-sitter API (0.24.0+) that uses QueryCursor
+instead of the deprecated query.captures() method.
+"""
 
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from tree_sitter import Query  # noqa: E402
+
+# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+try:
+    from tree_sitter import QueryCursor  # noqa: E402
+except ImportError:
+    QueryCursor = None  # type: ignore[assignment,misc]
+
 from tree_sitter_language_pack import get_language, get_parser  # noqa: E402
 
 
 # Test Python parser API
 def test_capture_api():
-    print("Testing tree-sitter capture API...")
+    """Test the NEW QueryCursor API for tree-sitter queries."""
+    print("Testing tree-sitter NEW QueryCursor API...")
 
     # Get Python language
     language = get_language("python")
@@ -41,11 +54,13 @@ class MyClass:
     ) @class
     """
 
-    query = language.query(query_str)
+    # Use NEW API: Query() constructor instead of language.query()
+    query = Query(language, query_str)
 
-    # Test captures() method
-    print("\n1. Testing captures() method:")
-    captures = query.captures(root)
+    # Test NEW captures() method using QueryCursor
+    print("\n1. Testing NEW QueryCursor.captures() method:")
+    cursor = QueryCursor(query)
+    captures = cursor.captures(root)
     print(f"   Type of captures: {type(captures)}")
     print(f"   Length: {len(captures)}")
 
@@ -65,9 +80,10 @@ class MyClass:
         print(f"   First capture type: {type(first_capture)}")
         print(f"   First capture content: {first_capture}")
 
-    # Test matches() method
-    print("\n2. Testing matches() method:")
-    matches = query.matches(root)
+    # Test NEW matches() method using QueryCursor
+    print("\n2. Testing NEW QueryCursor.matches() method:")
+    cursor2 = QueryCursor(query)
+    matches = cursor2.matches(root)
     print(f"   Type of matches: {type(matches)}")
     print(f"   Length: {len(matches)}")
 
@@ -90,6 +106,8 @@ class MyClass:
             if isinstance(captures_dict, dict):
                 for key, value in captures_dict.items():
                     print(f"      {key}: {type(value)} = {value}")
+
+    print("\n✅ All API tests completed successfully!")
 
 
 if __name__ == "__main__":

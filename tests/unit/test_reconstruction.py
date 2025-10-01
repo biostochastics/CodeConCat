@@ -24,10 +24,10 @@ class TestReconstruction(unittest.TestCase):
 
     def test_markdown_format(self):
         """Test reconstructing from markdown format."""
-        # Create sample markdown content
+        # Create sample markdown content (current format v2.0)
         markdown_content = """# Project Files
 
-## `file1.py`
+### 1. file1.py {#file1-py}
 
 ```python
 def hello():
@@ -36,7 +36,7 @@ def hello():
 # This is a comment
 ```
 
-## `path/to/file2.js`
+### 2. path/to/file2.js {#path-to-file2-js}
 
 ```javascript
 function greet() {
@@ -173,10 +173,10 @@ function greet() {
 
     def test_compressed_content(self):
         """Test handling of compressed content in reconstructed files."""
-        # Create sample markdown with compression placeholders
+        # Create sample markdown with compression placeholders (current format v2.0)
         markdown_content = """# Project Files
 
-## `compressed_file.py`
+### 1. compressed_file.py {#compressed-file-py}
 
 ```python
 def start_function():
@@ -218,16 +218,16 @@ def start_function():
         json_file = self.output_dir / "test.json"
         xml_file = self.output_dir / "test.xml"
 
-        # Create minimal content in each format
+        # Create minimal content in each format (current format v2.0)
         with open(markdown_file, "w") as f:
-            f.write("## `test.txt`\n\n```\nTest content\n```\n")
+            f.write("### 1. test.txt {#test-txt}\n\n```\nTest content\n```\n")
 
         with open(json_file, "w") as f:
-            f.write('{"files":[{"path":"test.txt","content":"Test content"}]}')
+            f.write('{"files":[{"file_path":"test.txt","content":"Test content"}]}')
 
         with open(xml_file, "w") as f:
             f.write(
-                '<codeconcat><file path="test.txt"><content>Test content</content></file></codeconcat>'
+                '<codeconcat><files><file_entry><file_metadata><path>test.txt</path></file_metadata><file_content>Test content</file_content></file_entry></files></codeconcat>'
             )
 
         # Test auto-detection for each format

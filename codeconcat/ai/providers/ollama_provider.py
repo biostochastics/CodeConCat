@@ -13,6 +13,8 @@ from ..cache import SummaryCache
 class OllamaProvider(AIProvider):
     """Ollama provider for local model code summarization."""
 
+    _session: Optional[aiohttp.ClientSession]
+
     def __init__(self, config: AIProviderConfig):
         """Initialize Ollama provider with auto-discovery."""
         super().__init__(config)
@@ -91,7 +93,7 @@ class OllamaProvider(AIProvider):
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp session."""
-        if not self._session:
+        if self._session is None:
             headers = {"Content-Type": "application/json", **self.config.custom_headers}
             timeout = aiohttp.ClientTimeout(total=self.config.timeout)
             self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)

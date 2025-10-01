@@ -1,11 +1,24 @@
 # file: codeconcat/parser/language_parsers/enhanced_rust_parser.py
 
 """
-Enhanced Rust parser for CodeConcat.
+FALLBACK Enhanced Rust parser for CodeConcat (regex-based).
 
-This module provides an improved Rust parser using the EnhancedBaseParser
-with Rust-specific patterns and functionality, including improved handling
-of nested declarations such as functions, closures, and trait implementations.
+This module provides a regex-based Rust parser using the EnhancedBaseParser
+with Rust-specific patterns and functionality. It handles nested declarations
+such as functions, closures, and trait implementations.
+
+**Usage Note:** This parser is a fallback when tree-sitter is unavailable.
+For production use, prefer tree_sitter_rust_parser.py which provides:
+- More accurate AST-based parsing
+- Support for modern Rust features (lifetimes, const generics, GATs)
+- Attribute macro extraction
+- Better error recovery
+
+**Feature Limitations:**
+- Basic pattern matching (no full AST)
+- Limited generic parameter support
+- No lifetime tracking
+- No attribute macro extraction
 """
 
 import logging
@@ -16,6 +29,13 @@ from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
 
 logger = logging.getLogger(__name__)
+
+# Configuration constants for parser safety and performance
+MAX_NESTING_DEPTH = 20  # Maximum depth for recursive declaration parsing
+MAX_PARSE_ITERATIONS = 10000  # Maximum iterations to prevent infinite loops
+MAX_BLOCK_SEARCH_LINES = 1000  # Maximum lines to search for matching braces
+MAX_COMMENT_SEARCH_LINES = 1000  # Maximum lines to search within comments
+MAX_DOCSTRING_LOOKBACK = 20  # Maximum lines to look back for docstrings
 
 
 class EnhancedRustParser(EnhancedBaseParser):
@@ -203,7 +223,7 @@ class EnhancedRustParser(EnhancedBaseParser):
         imports: List[str],
         errors: List[str],
         parent_declaration: Optional[Declaration] = None,
-        max_nesting_depth: int = 20,  # Add max nesting depth to prevent infinite recursion
+        max_nesting_depth: int = MAX_NESTING_DEPTH,
         current_depth: int = 1,  # Track current nesting depth
     ) -> int:
         """
@@ -238,7 +258,7 @@ class EnhancedRustParser(EnhancedBaseParser):
 
         # Initialize line counter for safety
         line_counter = 0
-        max_line_iterations = 10000  # Prevent infinite loops
+        max_line_iterations = MAX_PARSE_ITERATIONS  # Prevent infinite loops
 
         while i <= end and line_counter < max_line_iterations:
             line_counter += 1
@@ -260,7 +280,7 @@ class EnhancedRustParser(EnhancedBaseParser):
             # Skip block comments
             if line.startswith("/*"):
                 comment_counter = 0
-                max_comment_iterations = 1000  # Prevent infinite loops
+                max_comment_iterations = MAX_COMMENT_SEARCH_LINES  # Prevent infinite loops
                 while (
                     i < len(lines)
                     and "*/" not in lines[i]
@@ -472,16 +492,131 @@ class EnhancedRustParser(EnhancedBaseParser):
         # Return the next line index to process after the loop finishes
         return i
 
+    def _find_opening_brace(self, line: str, open_char: str = "{") -> tuple[int, int]:
+        """
+        Find the opening character position in a line.
+
+        Args:
+            line: The line to search.
+            open_char: The opening character to find.
+
+        Returns:
+            Tuple of (column_position, nesting_level). Returns (-1, 0) if not found.
+        """
+        in_raw_string = False
+        for col, char in enumerate(line):
+            # Handle raw strings in Rust (r"...")
+            if char == "r" and col + 1 < len(line) and line[col + 1] == '"':
+                in_raw_string = True
+                continue
+
+            # Found opening character outside of raw string
+            if char == open_char and not in_raw_string:
+                return (col, 1)
+
+        return (-1, 0)
+
+    def _update_string_state(
+        self,
+        char: str,
+        prev_char: str | None,
+        in_string: bool,
+        in_char: bool,
+        in_raw_string: bool,
+        string_delimiter: str | None,
+    ) -> tuple[bool, bool, bool, str | None]:
+        """
+        Update string/char literal tracking state.
+
+        Args:
+            char: Current character.
+            prev_char: Previous character.
+            in_string: Currently in string literal.
+            in_char: Currently in char literal.
+            in_raw_string: Currently in raw string literal.
+            string_delimiter: Current string delimiter.
+
+        Returns:
+            Tuple of (in_string, in_char, in_raw_string, string_delimiter).
+        """
+        # Handle raw strings in Rust (r"...")
+        if char == "r" and not in_string and not in_char:
+            # Note: We can't look ahead here, caller should handle
+            return (in_string, in_char, True, string_delimiter)
+
+        # Exit raw string
+        if in_raw_string and char == '"' and prev_char != "\\":
+            return (in_string, in_char, False, string_delimiter)
+
+        # Handle regular string literals (only if not in raw string)
+        if char == '"' and not in_char and not in_raw_string:
+            escaped = prev_char == "\\" if prev_char else False
+            if not escaped:
+                if not in_string:
+                    return (True, in_char, in_raw_string, '"')
+                elif string_delimiter == '"':
+                    return (False, in_char, in_raw_string, None)
+
+        # Handle character literals (only if not in string or raw string)
+        if char == "'" and not in_string and not in_raw_string:
+            escaped = prev_char == "\\" if prev_char else False
+            if not escaped:
+                return (in_string, not in_char, in_raw_string, string_delimiter)
+
+        return (in_string, in_char, in_raw_string, string_delimiter)
+
+    def _skip_block_comment(
+        self, lines: List[str], start_line: int, start_col: int, max_end_line: int
+    ) -> tuple[int, int]:
+        """
+        Skip over a block comment /* ... */.
+
+        Args:
+            lines: List of code lines.
+            start_line: Line where /* was found.
+            start_col: Column where /* was found.
+            max_end_line: Maximum line to search.
+
+        Returns:
+            Tuple of (line_index, column_index) after the comment.
+        """
+        i = start_line
+        col = start_col + 2  # Skip /*
+        iterations = 0
+
+        while i < max_end_line and iterations < MAX_COMMENT_SEARCH_LINES:
+            iterations += 1
+            line = lines[i] if i < len(lines) else ""
+
+            while col < len(line):
+                if col > 0 and line[col - 1] == "*" and line[col] == "/":
+                    # Found closing */
+                    return (i, col + 1)
+                col += 1
+
+            # Move to next line
+            i += 1
+            col = 0
+
+        # Comment not closed, return safe position
+        if iterations >= MAX_COMMENT_SEARCH_LINES:
+            logger.warning("Possible infinite loop in block comment processing")
+
+        return (i, col)
+
     def _find_block_end_improved(
         self,
         lines: List[str],
         start: int,
         open_char: str = "{",
         close_char: str = "}",
-        max_lines: int = 1000,
+        max_lines: int = MAX_BLOCK_SEARCH_LINES,
     ) -> int:
         """
         Find the matching closing character for a block.
+
+        Uses helper methods to track string/char literals and skip comments,
+        making the code more maintainable and testable.
 
         Args:
             lines: List of code lines.
@@ -498,44 +633,27 @@ class EnhancedRustParser(EnhancedBaseParser):
             logger.warning(f"Invalid start line index {start} for _find_block_end_improved")
             return start
 
-        nesting_level = 0
-        in_string = False
-        in_char = False
-        in_raw_string = False
-        string_delimiter = None
-        col_start = -1
-
-        # Find the opening character on the start line
-        for col, char in enumerate(lines[start]):
-            if char == "r" and col + 1 < len(lines[start]) and lines[start][col + 1] == '"':
-                # Raw string in Rust (r"...")
-                in_raw_string = True
-                col += 1  # Skip the next character (the quote)
-                continue
-
-            if char == open_char and not in_string and not in_char and not in_raw_string:
-                nesting_level = 1
-                col_start = col
-                break
+        # Find the opening character using helper method
+        col_start, nesting_level = self._find_opening_brace(lines[start], open_char)
 
         # If opening character not found, return start line
         if nesting_level == 0 or col_start < 0:
             return start
 
+        # Initialize state for tracking string/char literals
+        in_string = False
+        in_char = False
+        in_raw_string = False
+        string_delimiter = None
+
         # Starting from the position after the opening character
         i = start
-        col = col_start + 1 if i == start else 0
-
-        # Add a safety limit to prevent infinite loops
+        col = col_start + 1
         max_end_line = min(start + max_lines, len(lines))
+        iterations = 0
 
         try:
-            iterations = 0  # Track iterations to prevent infinite loops
-            max_iterations = 10000  # Maximum iterations allowed
-
-            while (
-                i < max_end_line and nesting_level > 0 and iterations < max_iterations
-            ):  # Only continue while nesting level > 0
+            while i < max_end_line and nesting_level > 0 and iterations < MAX_PARSE_ITERATIONS:
                 iterations += 1
                 if i >= len(lines):
                     break
@@ -546,7 +664,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                     char = line[col]
                     prev_char = line[col - 1] if col > 0 else None
 
-                    # Handle raw strings in Rust
+                    # Check for raw string start (need lookahead)
                     if (
                         char == "r"
                         and col + 1 < len(line)
@@ -556,28 +674,16 @@ class EnhancedRustParser(EnhancedBaseParser):
                     ):
                         in_raw_string = True
                         col += 1  # Skip the quote character
-                    elif in_raw_string and char == '"' and prev_char != "\\":
-                        in_raw_string = False
+                        col += 1  # Move past it
+                        continue
 
-                    # Handle regular string literals (only if not in raw string)
-                    elif char == '"' and not in_char and not in_raw_string:
-                        escaped = prev_char == "\\" and col > 0
-                        if not escaped:
-                            if not in_string:
-                                in_string = True
-                                string_delimiter = '"'
-                            elif string_delimiter == '"':
-                                in_string = False
-                                string_delimiter = None
+                    # Update string/char state using helper
+                    in_string, in_char, in_raw_string, string_delimiter = self._update_string_state(
+                        char, prev_char, in_string, in_char, in_raw_string, string_delimiter
+                    )
 
-                    # Handle character literals (only if not in string or raw string)
-                    elif char == "'" and not in_string and not in_raw_string:
-                        escaped = prev_char == "\\" and col > 0
-                        if not escaped:
-                            in_char = not in_char
-
-                    # Skip line comments (only if not in any kind of string/char literal)
-                    elif (
+                    # Skip line comments if not in string/char
+                    if (
                         char == "/"
                         and col + 1 < len(line)
                         and line[col + 1] == "/"
@@ -585,11 +691,10 @@ class EnhancedRustParser(EnhancedBaseParser):
                         and not in_char
                         and not in_raw_string
                     ):
-                        # Found a line comment, skip to the end of this line
-                        break
+                        break  # Skip to end of line
 
-                    # Handle block comments
-                    elif (
+                    # Skip block comments if not in string/char
+                    if (
                         char == "/"
                         and col + 1 < len(line)
                         and line[col + 1] == "*"
@@ -597,81 +702,45 @@ class EnhancedRustParser(EnhancedBaseParser):
                         and not in_char
                         and not in_raw_string
                     ):
-                        # Skip until we find closing */
-                        in_block_comment = True
-                        col += 2  # Skip /*
-                        block_comment_iterations = 0
-                        max_block_comment_iterations = 1000
-
-                        while (
-                            i < max_end_line
-                            and block_comment_iterations < max_block_comment_iterations
-                        ):
-                            block_comment_iterations += 1
-                            while col < len(line):
-                                if col > 0 and line[col - 1] == "*" and line[col] == "/":
-                                    in_block_comment = False
-                                    break
-                                col += 1
-
-                            if not in_block_comment:
-                                break
-
-                            i += 1
-                            if i >= len(lines):
-                                break
-                            line = lines[i]
-                            col = 0
-
-                        # Safety check for block comments
-                        if block_comment_iterations >= max_block_comment_iterations:
-                            logger.warning("Possible infinite loop in block comment processing")
+                        i, col = self._skip_block_comment(lines, i, col, max_end_line)
+                        if i >= max_end_line:
                             return min(start + 20, len(lines) - 1)
+                        line = lines[i] if i < len(lines) else ""
+                        continue
 
-                        if not in_block_comment:
-                            col += 1  # Move past the closing /
-                            continue
-
-                    # Handle nesting, but only if not in a string or character literal
-                    elif not in_string and not in_char and not in_raw_string:
+                    # Track nesting level if not in string/char
+                    if not in_string and not in_char and not in_raw_string:
                         if char == open_char:
                             nesting_level += 1
                             logger.debug(
-                                f"L{i + 1}:{col + 1} Found '{open_char}', nesting level -> {nesting_level}"
+                                f"L{i + 1}:{col + 1} Found '{open_char}', nesting -> {nesting_level}"
                             )
                         elif char == close_char:
                             nesting_level -= 1
                             logger.debug(
-                                f"L{i + 1}:{col + 1} Found '{close_char}', nesting level -> {nesting_level}"
+                                f"L{i + 1}:{col + 1} Found '{close_char}', nesting -> {nesting_level}"
                             )
                             if nesting_level == 0:
-                                logger.debug(
-                                    f"L{i + 1}:{col + 1} Found final '{close_char}', returning line {i + 1}"
-                                )
                                 return i
 
                     col += 1
 
-                # Move to next line after processing all columns
+                # Move to next line
                 i += 1
                 col = 0
 
-            # Check if we hit the max iterations - possible infinite loop
-            if iterations >= max_iterations:
-                logger.warning(
-                    f"Maximum iterations ({max_iterations}) reached in _find_block_end_improved"
-                )
-                return min(start + 30, len(lines) - 1)  # Return a safe value
+            # Check for timeout
+            if iterations >= MAX_PARSE_ITERATIONS:
+                logger.warning("Max iterations reached in _find_block_end_improved")
+                return min(start + 30, len(lines) - 1)
 
         except Exception as e:
             logger.error(f"Error in _find_block_end_improved: {e}")
-            return min(start + 10, len(lines) - 1)  # Return a safe value
+            return min(start + 10, len(lines) - 1)
 
-        # If no matching closing character found after loop finishes, log a warning and return a reasonable end line
-        logger.warning(
-            f"Could not find matching {close_char} for {open_char} at line {start + 1}. Returning a reasonable estimate."
-        )
-        return min(start + 50, len(lines) - 1)  # Return at most 50 lines after start
+        # No matching close found
+        logger.warning(f"Could not find matching {close_char} for {open_char} at line {start + 1}")
+        return min(start + 50, len(lines) - 1)
 
     def _process_imports(self, line: str, imports: List[str]) -> bool:
         """
@@ -729,7 +798,7 @@ class EnhancedRustParser(EnhancedBaseParser):
         doc_lines: list[str] = []
         i = current_line - 1
 
-        while i >= 0 and i >= current_line - 20:  # Look up to 20 lines back
+        while i >= 0 and i >= current_line - MAX_DOCSTRING_LOOKBACK:  # Look back for docstrings
             line = lines[i].strip()
 
             # Skip blank lines between doc comments and declaration
@@ -748,7 +817,7 @@ class EnhancedRustParser(EnhancedBaseParser):
 
         return "\n".join(doc_lines)
 
-    def _extract_modifiers(self, line: str) -> List[str]:
+    def _extract_modifiers(self, line: str) -> set[str]:
         """
         Extract modifiers from a declaration line.
 
@@ -756,14 +825,14 @@ class EnhancedRustParser(EnhancedBaseParser):
             line: Line containing a declaration.
 
         Returns:
-            List of modifiers found in the line.
+            Set of modifiers found in the line.
         """
         # Split line into words and check each word directly instead of using regex
         # This is more efficient for large input
         words = set(re.findall(r"\b\w+\b", line))
 
         # Direct set intersection is much faster than individual regex searches
-        return list(words.intersection(self.modifiers))
+        return words.intersection(self.modifiers)
 
     def get_capabilities(self) -> Dict[str, bool]:
         """Return the capabilities of this parser."""

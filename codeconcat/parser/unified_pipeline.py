@@ -61,6 +61,7 @@ ALLOWED_LANGUAGES = {
     "perl",
     "powershell",
     "sql",
+    "graphql",
     "html",
     "css",
     "xml",
@@ -148,6 +149,10 @@ def _try_tree_sitter_parser(language: str) -> Optional[Any]:
             "julia": "tree_sitter_julia_parser",
             "bash": "tree_sitter_bash_parser",
             "shell": "tree_sitter_bash_parser",
+            "kotlin": "tree_sitter_kotlin_parser",
+            "dart": "tree_sitter_dart_parser",
+            "sql": "tree_sitter_sql_parser",
+            "graphql": "tree_sitter_graphql_parser",
         }
 
         module_name = parser_map.get(language.lower())
@@ -170,6 +175,14 @@ def _try_tree_sitter_parser(language: str) -> Optional[Any]:
             class_name = "TreeSitterCppParser"
         elif language in ["bash", "shell"]:
             class_name = "TreeSitterBashParser"
+        elif language == "kotlin":
+            class_name = "TreeSitterKotlinParser"
+        elif language == "dart":
+            class_name = "TreeSitterDartParser"
+        elif language == "sql":
+            class_name = "TreeSitterSqlParser"
+        elif language == "graphql":
+            class_name = "TreeSitterGraphqlParser"
 
         parser_class = getattr(module, class_name, None)
         if parser_class:
@@ -833,6 +846,13 @@ def determine_language(file_path: str) -> Optional[str]:
         ".zsh": "bash",
         ".ksh": "bash",
         ".fish": "bash",
+        ".kt": "kotlin",
+        ".kts": "kotlin",
+        ".dart": "dart",
+        ".sql": "sql",
+        ".psql": "sql",
+        ".mysql": "sql",
+        ".sqlite": "sql",
     }
     return language_map.get(ext)
 

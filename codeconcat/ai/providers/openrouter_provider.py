@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 class OpenRouterProvider(AIProvider):
     """OpenRouter API provider for multi-model code summarization."""
 
+    _session: Optional[aiohttp.ClientSession]
+
     def __init__(self, config: AIProviderConfig):
         """Initialize OpenRouter provider."""
         super().__init__(config)
@@ -40,7 +42,7 @@ class OpenRouterProvider(AIProvider):
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp session."""
-        if not self._session:
+        if self._session is None:
             headers = {
                 "Authorization": f"Bearer {self.config.api_key}",
                 "HTTP-Referer": "https://github.com/codeconcat",  # Required by OpenRouter

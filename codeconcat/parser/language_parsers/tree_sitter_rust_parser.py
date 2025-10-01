@@ -1,12 +1,33 @@
 # file: codeconcat/parser/language_parsers/tree_sitter_rust_parser.py
 
+"""
+PRIMARY Rust parser using Tree-sitter for accurate AST-based parsing.
+
+This is the recommended parser for Rust code analysis. It provides:
+- Comprehensive support for modern Rust features (2021+ edition)
+- Lifetime parameters, const generics, Generic Associated Types (GATs)
+- Attribute macros (#[derive], #[async_trait], etc.)
+- Where clauses and type parameters
+- Async/unsafe/const function modifiers
+- Doc comment extraction (///, //!, /** */, /*! */)
+
+Note: For projects where tree-sitter is unavailable, use enhanced_rust_parser.py
+as a regex-based fallback with limited feature support.
+"""
+
 import logging
-import re
-from typing import Dict, List, Set
+from typing import Any, Dict, List, Set
 
 from tree_sitter import Node
 
+# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+try:
+    from tree_sitter import QueryCursor
+except ImportError:
+    QueryCursor = None  # type: ignore[assignment,misc]
+
 from ...base_types import Declaration
+from ..doc_comment_utils import clean_block_comments, clean_line_comments
 from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
@@ -31,7 +52,7 @@ RUST_QUERIES = {
         ) @mod_declaration
     """,
     "declarations": """
-        ; Function items with full signature capture
+        ; Function items with full signature capture including generics and where clauses
         (function_item
             (visibility_modifier)? @visibility
             (function_modifiers
@@ -41,36 +62,49 @@ RUST_QUERIES = {
                 "extern"? @extern_modifier
             )? @modifiers
             name: (identifier) @name
+            (type_parameters)? @type_params
             parameters: (parameters) @params
             return_type: (_)? @return_type
+            (where_clause)? @where_clause
             body: (block)? @body
         ) @function
 
-        ; Method definitions within impl blocks
+        ; Impl blocks with generics and where clauses
         (impl_item
+            (type_parameters)? @impl_type_params
             type: (_) @impl_type
+            (where_clause)? @impl_where_clause
             body: (declaration_list)
         ) @impl_block
 
-        ; Struct definitions
+        ; Struct definitions with generics and where clauses
         (struct_item
+            (visibility_modifier)? @visibility
             name: (type_identifier) @name
+            (type_parameters)? @type_params
+            (where_clause)? @where_clause
             body: [
                 (field_declaration_list) @struct_fields
                 (ordered_field_declaration_list) @tuple_fields
             ]?
         ) @struct
 
-        ; Enum definitions
+        ; Enum definitions with generics and where clauses
         (enum_item
+            (visibility_modifier)? @visibility
             name: (type_identifier) @name
+            (type_parameters)? @type_params
+            (where_clause)? @where_clause
             body: (enum_variant_list) @enum_variants
         ) @enum
 
-        ; Trait definitions
+        ; Trait definitions with generics and where clauses
         (trait_item
+            (visibility_modifier)? @visibility
             "unsafe"? @unsafe_trait
             name: (type_identifier) @name
+            (type_parameters)? @type_params
+            (where_clause)? @where_clause
             body: (declaration_list) @trait_body
         ) @trait
 
@@ -121,36 +155,6 @@ RUST_QUERIES = {
     """,
 }
 
-# Patterns to clean Rust doc comments
-RUST_DOC_COMMENT_LINE_PATTERN = re.compile(r"^///?\s?|^//!\s?")
-RUST_DOC_COMMENT_BLOCK_START_PATTERN = re.compile(r"^/\*\*\s?")
-RUST_DOC_COMMENT_BLOCK_LINE_PREFIX_PATTERN = re.compile(r"^\s*\*\s?")
-RUST_DOC_COMMENT_BLOCK_END_PATTERN = re.compile(r"\s*\*/$")
-
-
-def _clean_rust_doc_comment(comment_block: List[str]) -> str:
-    """Cleans a block of Rust doc comment lines."""
-    cleaned_lines: list[str] = []
-    is_block = comment_block[0].startswith("/**") if comment_block else False
-    (
-        comment_block[0].startswith(("//!", "/*!")) if comment_block else False
-    )  # //! applies to parent
-
-    for i, line in enumerate(comment_block):
-        original_line = line  # Keep original for block end check
-        if is_block:
-            if i == 0:
-                line = RUST_DOC_COMMENT_BLOCK_START_PATTERN.sub("", line)
-            line = RUST_DOC_COMMENT_BLOCK_LINE_PREFIX_PATTERN.sub("", line)
-            if original_line.strip().endswith("*/"):
-                line = RUST_DOC_COMMENT_BLOCK_END_PATTERN.sub("", line)
-        else:  # Line comment
-            line = RUST_DOC_COMMENT_LINE_PATTERN.sub("", line)
-
-        cleaned_lines.append(line.strip())
-
-    return "\n".join(filter(None, cleaned_lines))
-
 
 class TreeSitterRustParser(BaseTreeSitterParser):
     """Tree-sitter based parser for the Rust language."""
@@ -170,51 +174,80 @@ class TreeSitterRustParser(BaseTreeSitterParser):
         queries = self.get_queries()
         declarations = []
         imports: Set[str] = set()
-        doc_comment_map = {}  # end_line -> {'text': List[str], 'inner': bool}
+        doc_comment_map: Dict[
+            int, Dict[str, Any]
+        ] = {}  # end_line -> {'text': List[str], 'inner': bool}
 
         # --- Pass 1: Extract Doc Comments --- #
         try:
-            doc_query = self.ts_language.query(queries.get("doc_comments", ""))
-            doc_captures = doc_query.captures(root_node)
+            # FIX 1: Use base class caching with 3-tuple key
+            doc_comments_query_str = queries.get("doc_comments", "")
+            doc_query = self._compile_query_cached(
+                (self.language_name, "doc_comments", doc_comments_query_str)
+            )
+
+            # Skip if query compilation failed
+            if not doc_query:
+                return ([], [])
+
+            # FIX 2: QueryCursor API compatibility for tree-sitter 0.24.0
+            if QueryCursor is not None:
+                cursor = QueryCursor(doc_query)
+                doc_captures = cursor.captures(root_node)
+            else:
+                doc_captures = doc_query.captures(root_node)
+
             last_comment_line = -2
             current_doc_block: List[str] = []
             current_block_inner = False
 
-            # doc_captures is a dict: {capture_name: [list of nodes]}
+            # FIX 4: Deduplicate nodes by position (same node can be captured multiple times)
+            seen_positions = set()
+            all_comment_nodes = []
             for _capture_name, nodes in doc_captures.items():
                 for node in nodes:
-                    comment_text = byte_content[node.start_byte : node.end_byte].decode(
-                        "utf8", errors="replace"
-                    )
-                    current_start_line = node.start_point[0]
-                    current_end_line = node.end_point[0]
-                    is_block = comment_text.startswith("/**")
-                    is_inner = comment_text.startswith(("//!", "/*!"))  # Treat /*! same as //!
+                    pos = (node.start_byte, node.end_byte)
+                    if pos not in seen_positions:
+                        seen_positions.add(pos)
+                        all_comment_nodes.append(node)
 
-                    if is_block:
+            # Sort by start line to ensure proper consecutive block detection
+            all_comment_nodes.sort(key=lambda n: n.start_point[0])
+
+            # Process comments in line order
+            for node in all_comment_nodes:
+                comment_text = byte_content[node.start_byte : node.end_byte].decode(
+                    "utf8", errors="replace"
+                )
+                current_start_line = node.start_point[0]
+                current_end_line = node.end_point[0]
+                is_block = comment_text.startswith("/**")
+                is_inner = comment_text.startswith(("//!", "/*!"))  # Treat /*! same as //!
+
+                if is_block:
+                    if current_doc_block:
+                        doc_comment_map[last_comment_line] = {
+                            "text": current_doc_block,
+                            "inner": current_block_inner,
+                        }
+                    doc_comment_map[current_end_line] = {
+                        "text": comment_text.splitlines(),
+                        "inner": is_inner,
+                    }
+                    current_doc_block = []
+                    last_comment_line = current_end_line
+                else:  # Line comment
+                    if (
+                        current_start_line == last_comment_line + 1
+                        and is_inner == current_block_inner
+                    ):
+                        current_doc_block.append(comment_text)
+                    else:
                         if current_doc_block:
                             doc_comment_map[last_comment_line] = {
                                 "text": current_doc_block,
                                 "inner": current_block_inner,
                             }
-                        doc_comment_map[current_end_line] = {
-                            "text": comment_text.splitlines(),
-                            "inner": is_inner,
-                        }
-                        current_doc_block = []
-                        last_comment_line = current_end_line
-                    else:  # Line comment
-                        if (
-                            current_start_line == last_comment_line + 1
-                            and is_inner == current_block_inner
-                        ):
-                            current_doc_block.append(comment_text)
-                        else:
-                            if current_doc_block:
-                                doc_comment_map[last_comment_line] = {
-                                    "text": current_doc_block,
-                                    "inner": current_block_inner,
-                                }
                         current_doc_block = [comment_text]
                         current_block_inner = is_inner
                     last_comment_line = current_start_line
@@ -235,8 +268,20 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                 continue
 
             try:
-                query = self.ts_language.query(query_str)
-                captures = query.captures(root_node)
+                # FIX 1: Use base class caching with 3-tuple key
+                query = self._compile_query_cached((self.language_name, query_name, query_str))
+
+                # Skip if query compilation failed
+                if not query:
+                    continue
+
+                # FIX 2: QueryCursor API compatibility for tree-sitter 0.24.0
+                if QueryCursor is not None:
+                    cursor = QueryCursor(query)
+                    captures = cursor.captures(root_node)
+                else:
+                    captures = query.captures(root_node)
+
                 logger.debug(f"Running Rust query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
@@ -257,7 +302,12 @@ class TreeSitterRustParser(BaseTreeSitterParser):
 
                 elif query_name == "declarations":
                     # Use matches for better structure
-                    matches = query.matches(root_node)
+                    # FIX 2: QueryCursor API compatibility
+                    if QueryCursor is not None:
+                        cursor = QueryCursor(query)
+                        matches = cursor.matches(root_node)
+                    else:
+                        matches = query.matches(root_node)
                     for _match_id, captures_dict in matches:
                         declaration_node = None
                         name_node = None
@@ -265,17 +315,18 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                         modifiers = set()
 
                         # Check for various declaration types
+                        # FIX 3: Changed "impl" to "impl_block" to match query capture name
                         decl_types = [
                             "function",
                             "struct",
                             "enum",
                             "trait",
-                            "impl",
+                            "impl_block",
                             "module",
                             "constant",
                             "static",
                             "type_alias",
-                            "macro_definition",
+                            "macro",
                             "method",
                             "assoc_type",
                             "assoc_const",
@@ -289,11 +340,17 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                                     kind = decl_type
                                     break
 
-                        # Get the name node
+                        # Get the name node (or impl_type for impl blocks, or macro name)
+                        # FIX 3: Special handling for impl blocks - use impl_type as name
                         if "name" in captures_dict:
                             name_nodes = captures_dict["name"]
                             if name_nodes and len(name_nodes) > 0:
                                 name_node = name_nodes[0]
+                        elif kind == "impl_block" and "impl_type" in captures_dict:
+                            # Impl blocks use the type being implemented as the name
+                            impl_type_nodes = captures_dict["impl_type"]
+                            if impl_type_nodes and len(impl_type_nodes) > 0:
+                                name_node = impl_type_nodes[0]
 
                         # Check for modifiers
                         if "pub_modifier" in captures_dict or "visibility" in captures_dict:
@@ -358,17 +415,24 @@ class TreeSitterRustParser(BaseTreeSitterParser):
         return declarations, sorted_imports
 
     def _clean_rust_docstring(self, docstring_text: str) -> str:
-        """Clean Rust docstring by removing comment markers and normalizing."""
+        """Clean Rust docstring using shared doc_comment_utils.
+
+        Handles both block-style comments (/** */, /*! */) and line-style
+        comments (///, //!) using shared utilities for consistency.
+        """
         if not docstring_text:
             return ""
 
         lines = docstring_text.split("\n")
-        cleaned_lines: list[str] = []
 
-        for line in lines:
-            # Remove Rust doc comment markers
-            cleaned_line = RUST_DOC_COMMENT_LINE_PATTERN.sub("", line).strip()
-            if cleaned_line or cleaned_lines:  # Keep non-empty lines and preserve structure
-                cleaned_lines.append(cleaned_line)
+        # Detect if this is a block comment or line comment
+        first_line = lines[0].strip() if lines else ""
+        is_block = first_line.startswith(("/**", "/*!"))
 
-        return "\n".join(cleaned_lines).strip()
+        if is_block:
+            # FIX 5: Use shared block comment cleaner for /** */ and /*! */
+            return clean_block_comments(lines)
+        else:
+            # FIX 5: Use shared line comment cleaner for /// and //! patterns
+            prefix_pattern = r"^///\s*|^//!\s*"
+            return clean_line_comments(lines, prefix_pattern=prefix_pattern, join_lines=False)

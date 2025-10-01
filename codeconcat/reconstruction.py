@@ -2,6 +2,15 @@
 CodeConCat Reconstruction Tool
 
 Reconstructs original files from CodeConCat output (markdown, XML, or JSON).
+
+Format Support (v2.0):
+    - Markdown: ### N. file.py {#anchor}
+    - XML: <file_entry><file_metadata><path>...</path></file_metadata><file_content>...</file_content></file_entry>
+    - JSON: {"files": [{"file_path": "...", "content": "..."}]}
+
+Security:
+    All file writes are protected against path traversal attacks using validate_safe_path()
+    from codeconcat.utils.path_security.
 """
 
 import json
@@ -10,6 +19,8 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, Optional, cast
+
+from codeconcat.utils.path_security import PathTraversalError, validate_safe_path
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +92,13 @@ class CodeConcatReconstructor:
         }
 
     def _parse_markdown(self, input_path: Path) -> Dict[str, str]:
-        """Parse markdown output and extract files."""
+        """Parse markdown output and extract files.
+
+        Supports current format (v2.0):
+            ### 1. path/to/file.ext {#anchor}
+
+        This parser includes security validation to prevent path traversal attacks.
+        """
         files = {}
 
         with open(input_path, encoding="utf-8") as f:
@@ -89,12 +106,12 @@ class CodeConcatReconstructor:
 
         # Try different markdown header patterns to be robust against variations
         patterns = [
-            # Standard format: ## `path/to/file.ext`
-            r"##\s+(?:File:)?\s*`([^`]+)`",
-            # Alternative format: ## path/to/file.ext
-            r"##\s+(?:File:)?\s*([^\s]+\.[^\s]+)",
-            # H3 format: ### `path/to/file.ext`
-            r"###\s+(?:File:)?\s*`([^`]+)`",
+            # Current format (v2.0): ### 1. path/to/file.ext {#anchor}
+            r"###\s+\d+\.\s+([^\s{]+)(?:\s+\{#[^}]+\})?",
+            # Legacy formats for reference (no longer generated):
+            # r"##\s+(?:File:)?\s*`([^`]+)`",
+            # r"##\s+(?:File:)?\s*([^\s]+\.[^\s]+)",
+            # r"###\s+(?:File:)?\s*`([^`]+)`",
         ]
 
         # Try each pattern until we find one that works
@@ -216,7 +233,19 @@ class CodeConcatReconstructor:
         return files
 
     def _parse_xml(self, input_path: Path) -> Dict[str, str]:
-        """Parse XML output and extract files."""
+        """Parse XML output and extract files.
+
+        Supports current format (v2.0):
+            <file_entry>
+              <file_metadata>
+                <path>file.py</path>
+                <language>python</language>
+              </file_metadata>
+              <file_content>...</file_content>
+            </file_entry>
+
+        This parser includes security validation to prevent path traversal attacks.
+        """
         files = {}
 
         try:
@@ -245,46 +274,64 @@ class CodeConcatReconstructor:
             # Find all file elements using multiple patterns
             file_elements = []
 
-            # Try standard pattern first
-            file_elements = root.findall(".//file")
+            # Try current format first (v2.0): <file_entry> elements
+            file_elements = root.findall(".//file_entry")
 
-            # If no files found, try alternative patterns
+            # If no files found, try legacy patterns
             if not file_elements:
-                # Try files inside a files container
+                # Legacy: files inside a files container
                 file_elements = root.findall(".//files/file")
 
             if not file_elements:
-                # Try any element with a path attribute and content child
+                # Legacy: standard <file> elements
+                file_elements = root.findall(".//file")
+
+            if not file_elements:
+                # Legacy: any element with a path attribute and content child
                 for elem in root.findall(".//*[@path]"):
                     if elem.find("./content") is not None:
                         file_elements.append(elem)
 
             # Process all found file elements
             for file_elem in file_elements:
-                # Try to get path from different attributes
+                # Try to get path - first from nested element (current format)
                 file_path: Optional[str] = None
-                for attr_name in ["path", "name", "filename", "filepath"]:
-                    file_path = file_elem.get(attr_name)
-                    if file_path:
-                        break
+
+                # Current format (v2.0): <file_metadata><path>
+                path_elem = file_elem.find(".//file_metadata/path")
+                if path_elem is not None and path_elem.text:
+                    file_path = path_elem.text
+
+                # Legacy: try attributes if nested element not found
+                if not file_path:
+                    for attr_name in ["path", "name", "filename", "filepath"]:
+                        file_path = file_elem.get(attr_name)
+                        if file_path:
+                            break
 
                 if not file_path:
-                    logger.warning("Found file element without path attribute")
+                    logger.warning("Found file element without path")
                     continue
 
                 # Look for content in different ways
                 content: Optional[str] = None
 
-                # 1. Standard content element
-                content_elem = file_elem.find("./content")
+                # 1. Current format (v2.0): <file_content> element
+                content_elem = file_elem.find(".//file_content")
                 if content_elem is not None and content_elem.text is not None:
                     content = content_elem.text
 
-                # 2. Content as direct text of file element
+                # 2. Legacy: Standard content element
+                if content is None:
+                    content_elem = file_elem.find("./content")
+                    if content_elem is not None and content_elem.text is not None:
+                        content = content_elem.text
+
+                # 3. Legacy: Content as direct text of file element
                 if content is None and file_elem.text and file_elem.text.strip():
                     content = file_elem.text
 
-                # 3. Content in CDATA section
+                # 4. Legacy: Content in CDATA section
                 if content is None:
                     cdata_match = re.search(
                         r"<!\[CDATA\[(.*?)\]\]>",
@@ -294,7 +341,7 @@ class CodeConcatReconstructor:
                     if cdata_match:
                         content = cdata_match.group(1)
 
-                # 4. Content in code element
+                # 5. Legacy: Content in code element
                 if content is None:
                     code_elem = file_elem.find("./code")
                     if code_elem is not None and code_elem.text is not None:
@@ -323,7 +370,13 @@ class CodeConcatReconstructor:
             return files
 
     def _parse_json(self, input_path: Path) -> Dict[str, str]:
-        """Parse JSON output and extract files."""
+        """Parse JSON output and extract files.
+
+        Supports current format (v2.0):
+            {"files": [{"file_path": "...", "content": "..."}]}
+
+        This parser includes security validation to prevent path traversal attacks.
+        """
         files = {}
 
         try:
@@ -358,9 +411,11 @@ class CodeConcatReconstructor:
                 file_array = data["files"]
 
                 for file_data in file_array:
-                    # Different file path keys
+                    # Different file path keys (prioritize current format)
                     file_path: Optional[str] = None
-                    for key in ["path", "filepath", "name", "filename"]:
+                    # Current format (v2.0): "file_path"
+                    # Legacy formats: "path", "filepath", "name", "filename"
+                    for key in ["file_path", "path", "filepath", "name", "filename"]:
                         if key in file_data:
                             file_path = file_data[key]
                             break
@@ -498,7 +553,11 @@ class CodeConcatReconstructor:
         return new_content
 
     def _write_file(self, file_path: str, content: str) -> None:
-        """Write content to a file, creating directories as needed."""
+        """Write content to a file, creating directories as needed.
+
+        Security: This method includes path traversal protection using validate_safe_path()
+        to ensure all file writes remain within the output directory boundary.
+        """
         # Normalize path to handle different path formats
 
         # Special handling for citationSloth paths - extract the relative portion
@@ -513,8 +572,16 @@ class CodeConcatReconstructor:
         # Remove any leading slashes to ensure path is relative
         norm_path = norm_path.lstrip("/")
 
-        # Create full output path
-        output_path = self.output_dir / norm_path
+        # SECURITY: Validate path before any file operations
+        try:
+            validated_path = validate_safe_path(
+                norm_path, base_path=self.output_dir, allow_symlinks=False
+            )
+            output_path = validated_path
+        except (PathTraversalError, ValueError) as e:
+            logger.error(f"Security: Path validation failed for '{file_path}': {e}")
+            self.errors += 1
+            return
 
         # Process the content for proper handling of compressed segments
         processed_content = self._handle_compressed_content(content)

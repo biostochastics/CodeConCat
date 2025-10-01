@@ -3,9 +3,11 @@
 import logging
 from typing import Dict, List, Set
 
-from tree_sitter import Node
+from tree_sitter import Node, Query
 
 from ...base_types import Declaration
+from ..doc_comment_utils import clean_block_comments, clean_jsdoc_tags
+from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
@@ -232,8 +234,12 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
 
         # --- Pass 1: Extract Doc Comments --- #
         try:
-            doc_query = self.ts_language.query(queries.get("doc_comments", ""))
-            doc_captures = doc_query.captures(root_node)
+            # Use modern Query() constructor
+            from tree_sitter import QueryCursor
+
+            doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
+            cursor = QueryCursor(doc_query)
+            doc_captures = cursor.captures(root_node)
             # doc_captures is a dict: {capture_name: [list of nodes]}
             for _capture_name, nodes in doc_captures.items():
                 for node in nodes:
@@ -251,8 +257,12 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 continue
 
             try:
-                query = self.ts_language.query(query_str)
-                captures = query.captures(root_node)
+                # Use modern Query() constructor
+                from tree_sitter import QueryCursor
+
+                query = Query(self.ts_language, query_str)
+                cursor = QueryCursor(query)
+                captures = cursor.captures(root_node)
                 logger.debug(f"Running JS/TS query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
@@ -280,7 +290,7 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 elif query_name == "declarations":
                     logger.debug("Processing declarations query...")
                     # Use matches for better structure with declarations
-                    matches = query.matches(root_node)
+                    matches = cursor.matches(root_node)
                     logger.debug(f"Got {len(matches)} matches")
                     for match_id, captures_dict in matches:
                         logger.debug(
@@ -348,12 +358,13 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                             # Check for docstring
                             docstring = doc_comment_map.get(declaration_node.start_point[0] - 1, "")
 
+                            start_line, end_line = get_node_location(declaration_node)
                             declarations.append(
                                 Declaration(
                                     kind=kind or "unknown",
                                     name=name_text,
-                                    start_line=declaration_node.start_point[0] + 1,
-                                    end_line=declaration_node.end_point[0] + 1,
+                                    start_line=start_line,
+                                    end_line=end_line,
                                     docstring=docstring,
                                     modifiers=modifiers,
                                 )
@@ -373,70 +384,13 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
         return declarations, sorted_imports
 
     def _clean_jsdoc(self, comment_text: str) -> str:
-        """Cleans a JSDoc block comment, removing delimiters and leading asterisks."""
+        """Cleans a JSDoc block comment using shared doc_comment_utils.
+
+        This method now leverages the shared utilities for consistent
+        comment cleaning across all parsers.
+        """
         lines = comment_text.split("\n")
-        cleaned_lines: list[str] = []
-        in_tag = False
-        current_tag = ""
-        current_tag_content: list[str] = []
-
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-
-            # Handle first and last lines specifically
-            if i == 0 and stripped.startswith("/**"):
-                # Remove '/**'
-                cleaned = stripped[3:].strip()
-            elif i == len(lines) - 1 and stripped.endswith("*/"):
-                # Remove '*/'
-                cleaned = stripped[:-2].strip()
-                if cleaned.startswith("*"):
-                    cleaned = cleaned[1:].strip()
-            elif stripped.startswith("*"):
-                # Remove leading '* '
-                cleaned = stripped[1:].strip()
-            else:
-                cleaned = stripped
-
-            # Process JSDoc tags (@param, @returns, @type, etc.)
-            if cleaned and cleaned.startswith("@"):
-                # If we were processing a previous tag, add it to the output
-                if in_tag and current_tag_content:
-                    tag_text = "\n".join(current_tag_content).strip()
-                    if tag_text:
-                        cleaned_lines.append(f"{current_tag}: {tag_text}")
-
-                # Start a new tag
-                parts = cleaned.split(" ", 1)
-                current_tag = parts[0]  # The tag itself (@param, @returns, etc)
-
-                # If there's content on the same line as the tag
-                if len(parts) > 1 and parts[1].strip():
-                    # For @param tags, extract the parameter name
-                    if current_tag == "@param" and "{" not in parts[1]:
-                        param_parts = parts[1].split(" ", 1)
-                        param_name = param_parts[0]
-                        param_desc = param_parts[1] if len(param_parts) > 1 else ""
-                        current_tag_content = [
-                            f"{param_name} - {param_desc}" if param_desc else param_name
-                        ]
-                    else:
-                        current_tag_content = [parts[1].strip()]
-                else:
-                    current_tag_content = []
-                in_tag = True
-            elif in_tag:
-                # Continue with the current tag
-                if cleaned:
-                    current_tag_content.append(cleaned)
-            elif cleaned:
-                # Regular line (not part of a tag)
-                cleaned_lines.append(cleaned)
-
-        # Don't forget the last tag if there was one
-        if in_tag and current_tag_content:
-            tag_text = "\n".join(current_tag_content).strip()
-            if tag_text:
-                cleaned_lines.append(f"{current_tag}: {tag_text}")
-
-        return "\n".join(cleaned_lines)
+        # First, clean the block comment structure (/** */ and leading *)
+        cleaned = clean_block_comments(lines, preserve_structure=True)
+        # Then process JSDoc tags (@param, @returns, etc.)
+        return clean_jsdoc_tags(cleaned)

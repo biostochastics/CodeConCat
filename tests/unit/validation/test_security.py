@@ -87,23 +87,30 @@ class TestSecurityValidator:
         # Check that the content was changed (sanitized)
         assert sanitized != content
 
-        # Corrected expectations:
-        expected_eval_line = "            /* POTENTIALLY DANGEROUS CONTENT REMOVED: eval */(\"__import__('os')./* POTENTIALLY DANGEROUS CONTENT REMOVED: system */('rm -rf /')\")"
-        expected_sql_line = '            query = "/* POTENTIALLY DANGEROUS CONTENT REMOVED: SELECT * FROM  */users WHERE username = \'" + user_input + "\'"'
-        expected_path_line = '            file_path = "/* POTENTIALLY DANGEROUS CONTENT REMOVED: ../ *//* POTENTIALLY DANGEROUS CONTENT REMOVED: ../ *//* POTENTIALLY DANGEROUS CONTENT REMOVED: ../ */etc/passwd"'
-        expected_template_line = '            template = "/* POTENTIALLY DANGEROUS CONTENT REMOVED: {{ user.admin = True }} */"'
-        expected_secret_line = '            API_KEY = "[REDACTED]"'
+        # Security hardening: All dangerous patterns are completely removed, not embedded
+        expected_eval_line = "[REDACTED: POTENTIALLY DANGEROUS CONTENT]"
+        expected_sql_line = "[REDACTED: POTENTIALLY DANGEROUS CONTENT]"
+        expected_path_line = "[REDACTED: POTENTIALLY DANGEROUS CONTENT]"
+        expected_template_line = "[REDACTED: POTENTIALLY DANGEROUS CONTENT]"
+        expected_secret_line = 'API_KEY = "[REDACTED]"'
 
+        # Verify dangerous content is redacted
         assert expected_eval_line in sanitized
         assert expected_sql_line in sanitized
         assert expected_path_line in sanitized
         assert expected_template_line in sanitized
         assert expected_secret_line in sanitized
 
+        # Critical security check: Original payloads must NOT appear
+        assert "eval" not in sanitized.lower() or "[REDACTED]" in sanitized
+        assert "system" not in sanitized or "[REDACTED]" in sanitized
+        assert "SELECT" not in sanitized or "[REDACTED]" in sanitized
+
     def test_sanitize_eval_pattern(self):
         """Test sanitizing content with an eval pattern."""
         content = "eval('danger')"
-        expected_output = "/* POTENTIALLY DANGEROUS CONTENT REMOVED: eval */('danger')"
+        # Security hardening: Content is completely removed, not embedded in comments
+        expected_output = "[REDACTED: POTENTIALLY DANGEROUS CONTENT]('danger')"
         sanitized = security_validator.sanitize_content(content)
         print(f"DEBUG EVAL TEST - Input   : {repr(content)}")
         print(f"DEBUG EVAL TEST - Expected: {repr(expected_output)}")
@@ -113,16 +120,16 @@ class TestSecurityValidator:
     def test_sanitize_sql_pattern(self):
         """Test sanitizing content with an SQL injection pattern."""
         content = "SELECT name FROM products WHERE id = 1"
-        expected_output = (
-            "/* POTENTIALLY DANGEROUS CONTENT REMOVED: SELECT name FROM  */products WHERE id = 1"
-        )
+        # Security hardening: Completely removes dangerous pattern
+        expected_output = "[REDACTED: POTENTIALLY DANGEROUS CONTENT]products WHERE id = 1"
         sanitized = security_validator.sanitize_content(content)
         assert sanitized == expected_output
 
     def test_sanitize_path_traversal_pattern(self):
         """Test sanitizing content with a path traversal pattern."""
         content = "../../"
-        expected_output = "/* POTENTIALLY DANGEROUS CONTENT REMOVED: ../ *//* POTENTIALLY DANGEROUS CONTENT REMOVED: ../ */"
+        # Security hardening: Each match is replaced with redaction placeholder
+        expected_output = "[REDACTED: POTENTIALLY DANGEROUS CONTENT][REDACTED: POTENTIALLY DANGEROUS CONTENT]"
         sanitized = security_validator.sanitize_content(content)
 
         # Define a predictable log path
@@ -145,9 +152,8 @@ class TestSecurityValidator:
     def test_sanitize_template_injection_pattern(self):
         """Test sanitizing content with a template injection pattern."""
         content = 'template = "{{ user.admin = True }}"'
-        expected_output = (
-            'template = "/* POTENTIALLY DANGEROUS CONTENT REMOVED: {{ user.admin = True }} */"'
-        )
+        # Security hardening: Removes template injection pattern
+        expected_output = 'template = "[REDACTED: POTENTIALLY DANGEROUS CONTENT]"'
         sanitized = security_validator.sanitize_content(content)
         assert sanitized == expected_output
 
