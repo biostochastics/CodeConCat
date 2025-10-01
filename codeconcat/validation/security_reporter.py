@@ -38,6 +38,10 @@ class SecurityReporter:
     def is_test_file(self, file_path: Path) -> bool:
         """Check if a file is a test file based on its path.
 
+        Security: This function ONLY identifies test files, not dependencies.
+        Dependency directories (node_modules, venv, etc.) are NOT test files
+        and their findings must be reported in the main security report.
+
         Args:
             file_path: Path to check
 
@@ -54,14 +58,43 @@ class SecurityReporter:
                 "/test/",
                 "/__pycache__/",
                 "/.pytest_cache/",
+                "/fixtures/",
+                "/mocks/",
+                "/stubs/",
+                "/__tests__/",
+                ".test.js",
+                ".spec.js",
+                ".test.ts",
+                ".spec.ts",
+            ]
+        )
+
+    def is_dependency_file(self, file_path: Path) -> bool:
+        """Check if a file is in a dependency directory (supply-chain code).
+
+        These files contain production dependencies and must be scanned
+        for security issues. They should NOT be suppressed from reports.
+
+        Args:
+            file_path: Path to check
+
+        Returns:
+            True if the file is in a dependency directory
+        """
+        path_str = str(file_path).lower()
+        return any(
+            pattern in path_str
+            for pattern in [
                 "/node_modules/",
                 "/venv/",
                 "/.venv/",
                 "/env/",
                 "/.env/",
-                "/fixtures/",
-                "/mocks/",
-                "/stubs/",
+                "/vendor/",
+                "/third_party/",
+                "/packages/",
+                "/.cargo/",
+                "/target/release/",
             ]
         )
 

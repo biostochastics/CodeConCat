@@ -77,11 +77,8 @@ class TestSecurityValidator:
         patterns = {"sql_injection": re.compile(r"SELECT\s+\*\s+FROM\s+users", re.IGNORECASE)}
 
         sanitized = security_validator.sanitize_content(content, patterns)
-        # According to the implementation, it should replace with a warning comment
-        assert (
-            sanitized
-            == "/* POTENTIALLY DANGEROUS CONTENT REMOVED: SELECT * FROM users */ WHERE username = 'admin'"
-        )
+        # Security hardening: Completely removes dangerous pattern
+        assert sanitized == "[REDACTED: POTENTIALLY DANGEROUS CONTENT] WHERE username = 'admin'"
 
         # Test secret pattern handling specifically for the named 'secrets_pattern'
         # This uses the special lambda sub: m.group().split("=")[0] + "= \"[REDACTED]\""

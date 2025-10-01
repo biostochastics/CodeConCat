@@ -1,7 +1,7 @@
 """Tree-sitter based Swift parser for CodeConCat."""
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from tree_sitter import Node
 
@@ -22,8 +22,14 @@ SWIFT_QUERIES = {
         (import_declaration) @import
     """,
     "declarations": """
+        ; Class/struct/enum/actor declarations with names
         (class_declaration
             name: (type_identifier) @name
+        ) @class
+
+        ; Extension declarations (extends existing types)
+        (class_declaration
+            (_)* @extension_children
         ) @class
 
         (protocol_declaration
@@ -141,6 +147,93 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
 
         return imports
 
+    def _extract_doc_comments(self, tree: Node, byte_content: bytes) -> Dict[int, str]:
+        """Extract all doc comments once and build a map for efficient lookup.
+
+        This is a performance optimization - instead of running the doc comment query
+        for each declaration (O(N * M)), we run it once and build a map (O(N + M)).
+
+        Returns:
+            Dict[int, str]: Map of line_number -> doc_comment_text
+        """
+        doc_comment_map: Dict[int, str] = {}  # line_number -> doc_comment_text
+        doc_query = self._get_compiled_query("doc_comments")
+
+        if not doc_query:
+            return doc_comment_map
+
+        try:
+            from tree_sitter import QueryCursor
+
+            cursor = QueryCursor(doc_query)
+            captures = cursor.captures(tree)
+
+            # Track consecutive doc comment blocks
+            current_doc_block: List[str] = []
+            last_comment_end_line = -2
+
+            # Collect all comment nodes and deduplicate
+            seen_positions = set()
+            all_comment_nodes = []
+
+            for capture_name, nodes in captures.items():
+                for node in nodes:
+                    pos = (node.start_byte, node.end_byte)
+                    if pos not in seen_positions:
+                        seen_positions.add(pos)
+                        all_comment_nodes.append(node)
+
+            # Sort by start line for proper consecutive block detection
+            all_comment_nodes.sort(key=lambda n: n.start_point[0])
+
+            # Process comments in line order
+            for comment_node in all_comment_nodes:
+                comment_text = byte_content[comment_node.start_byte : comment_node.end_byte].decode(
+                    "utf-8", errors="replace"
+                )
+
+                comment_start_line = comment_node.start_point[0]
+                comment_end_line = comment_node.end_point[0]
+                is_block = comment_text.startswith("/**")
+
+                if is_block:
+                    # Block comments are standalone - store and reset
+                    if current_doc_block:
+                        doc_comment_map[last_comment_end_line] = "\\n".join(current_doc_block)
+
+                    # Clean and store block comment
+                    block_lines = comment_text.splitlines()
+                    cleaned = clean_block_comments(block_lines)
+                    doc_comment_map[comment_end_line] = cleaned
+                    current_doc_block = []
+                    last_comment_end_line = comment_end_line
+                else:
+                    # Line comment (///) - collect consecutive lines
+                    if comment_start_line == last_comment_end_line + 1:
+                        # Continue current block
+                        current_doc_block.append(comment_text)
+                    else:
+                        # Store previous block if exists
+                        if current_doc_block:
+                            cleaned = clean_line_comments(
+                                current_doc_block, prefix_pattern=r"^///\\s*"
+                            )
+                            doc_comment_map[last_comment_end_line] = cleaned
+                        # Start new block
+                        current_doc_block = [comment_text]
+
+                    last_comment_end_line = comment_start_line
+
+            # Store the last block if it exists
+            if current_doc_block:
+                cleaned = clean_line_comments(current_doc_block, prefix_pattern=r"^///\\s*")
+                doc_comment_map[last_comment_end_line] = cleaned
+
+        except Exception as e:
+            logger.warning(f"Failed to extract Swift doc comments: {e}", exc_info=True)
+
+        return doc_comment_map
+
     def extract_declarations(self, tree: Node, byte_content: bytes) -> List[Declaration]:
         """Extract declarations from Swift code.
 
@@ -155,6 +248,9 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
 
         if not decl_query:
             return declarations
+
+        # Extract all doc comments once for efficient lookup (performance optimization)
+        doc_comment_map = self._extract_doc_comments(tree, byte_content)
 
         try:
             from tree_sitter import QueryCursor
@@ -179,7 +275,25 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                         # We need to check the keyword child to determine the actual kind
                         processed_nodes.add(id(node))
                         actual_kind = self._get_class_declaration_kind(node, byte_content)
+
+                        # Extensions use user_type instead of name field
                         name_node = self._find_name_node(node)
+                        if not name_node and actual_kind == "extension":
+                            # For extensions, find the type_identifier in user_type
+                            user_type = node.child_by_field_name("type")
+                            if not user_type:
+                                # Try finding user_type node manually
+                                for child in node.children:
+                                    if child.type == "user_type":
+                                        user_type = child
+                                        break
+                            if user_type:
+                                # Get type_identifier from user_type
+                                for child in user_type.children:
+                                    if child.type == "type_identifier":
+                                        name_node = child
+                                        break
+
                         if name_node:
                             # Combine modifiers and attributes
                             modifiers = self._extract_modifiers(node, byte_content)
@@ -195,9 +309,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                                     ].decode("utf-8", errors="replace"),
                                     start_line=start_line,
                                     end_line=end_line,
-                                    docstring=self._extract_docstring_for_node(
-                                        node, tree, byte_content
-                                    ),
+                                    docstring=doc_comment_map.get(node.start_point[0] - 1, ""),
                                     modifiers=all_modifiers,
                                 )
                             )
@@ -220,9 +332,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                                     ].decode("utf-8", errors="replace"),
                                     start_line=start_line,
                                     end_line=end_line,
-                                    docstring=self._extract_docstring_for_node(
-                                        node, tree, byte_content
-                                    ),
+                                    docstring=doc_comment_map.get(node.start_point[0] - 1, ""),
                                     modifiers=all_modifiers,
                                 )
                             )
@@ -246,9 +356,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                                     name=func_name,
                                     start_line=start_line,
                                     end_line=end_line,
-                                    docstring=self._extract_docstring_for_node(
-                                        node, tree, byte_content
-                                    ),
+                                    docstring=doc_comment_map.get(node.start_point[0] - 1, ""),
                                     modifiers=all_modifiers,
                                     signature=self._extract_function_signature(node, byte_content),
                                 )
@@ -268,9 +376,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                                 name="init",
                                 start_line=start_line,
                                 end_line=end_line,
-                                docstring=self._extract_docstring_for_node(
-                                    node, tree, byte_content
-                                ),
+                                docstring=doc_comment_map.get(node.start_point[0] - 1, ""),
                                 modifiers=all_modifiers,
                             )
                         )
@@ -294,9 +400,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                                     name=prop_name,
                                     start_line=start_line,
                                     end_line=end_line,
-                                    docstring=self._extract_docstring_for_node(
-                                        node, tree, byte_content
-                                    ),
+                                    docstring=doc_comment_map.get(node.start_point[0] - 1, ""),
                                     modifiers=all_modifiers,
                                 )
                             )
@@ -314,25 +418,23 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                                     ].decode("utf-8", errors="replace"),
                                     start_line=start_line,
                                     end_line=end_line,
-                                    docstring=self._extract_docstring_for_node(
-                                        node, tree, byte_content
-                                    ),
+                                    docstring=doc_comment_map.get(node.start_point[0] - 1, ""),
                                     modifiers=self._extract_attributes(node, byte_content),
                                 )
                             )
 
                     elif capture_name == "enum_case":
                         # Extract individual enum cases from enum_entry nodes
+                        # Note: Multiple cases can be on one line (e.g., case a, b, c)
                         processed_nodes.add(id(node))
-                        # The case name is captured directly as @case_name
-                        # Look for the simple_identifier child
-                        case_name_node = None
+                        # Collect ALL simple_identifier children (for multi-case declarations)
+                        case_name_nodes = []
                         for child in node.children:
                             if child.type == "simple_identifier":
-                                case_name_node = child
-                                break
+                                case_name_nodes.append(child)
 
-                        if case_name_node:
+                        # Create a declaration for each case name found
+                        for case_name_node in case_name_nodes:
                             case_name = byte_content[
                                 case_name_node.start_byte : case_name_node.end_byte
                             ].decode("utf-8", errors="replace")
@@ -343,9 +445,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                                     name=case_name,
                                     start_line=start_line,
                                     end_line=end_line,
-                                    docstring=self._extract_docstring_for_node(
-                                        node, tree, byte_content
-                                    ),
+                                    docstring=doc_comment_map.get(node.start_point[0] - 1, ""),
                                     modifiers=set(),
                                 )
                             )
@@ -363,9 +463,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                                     ].decode("utf-8", errors="replace"),
                                     start_line=start_line,
                                     end_line=end_line,
-                                    docstring=self._extract_docstring_for_node(
-                                        node, tree, byte_content
-                                    ),
+                                    docstring=doc_comment_map.get(node.start_point[0] - 1, ""),
                                     modifiers=self._extract_attributes(node, byte_content),
                                 )
                             )
@@ -375,7 +473,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _find_name_node(self, node: Node) -> Node:
+    def _find_name_node(self, node: Node) -> Optional[Node]:
         """Find the name identifier node within a declaration."""
         # Check if node has a 'name' field first (most efficient)
         name_field = node.child_by_field_name("name")
@@ -388,7 +486,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                 return child
         return None
 
-    def _find_property_name(self, node: Node) -> Node:
+    def _find_property_name(self, node: Node) -> Optional[Node]:
         """Find the property name within a property declaration."""
         # Look for pattern containing the identifier
         pattern = node.child_by_field_name("name")
@@ -402,7 +500,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                 return pattern
         return None
 
-    def _find_child_by_type(self, node: Node, child_type: str) -> Node:
+    def _find_child_by_type(self, node: Node, child_type: str) -> Optional[Node]:
         """Find a child node by type."""
         for child in node.children:
             if child.type == child_type:
@@ -488,7 +586,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
         """
         attributes = set()
 
-        # Look for attribute child nodes
+        # Look for attribute child nodes (can be direct children or inside modifiers node)
         for child in node.children:
             if child.type == "attribute":
                 # Extract full attribute text including arguments
@@ -501,6 +599,18 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                 if attr_text and not attr_text.startswith("@"):
                     attr_text = f"@{attr_text}"
                 attributes.add(attr_text)
+            elif child.type == "modifiers":
+                # Attributes can also be inside the modifiers node
+                for modifier_child in child.children:
+                    if modifier_child.type == "attribute":
+                        attr_text = (
+                            byte_content[modifier_child.start_byte : modifier_child.end_byte]
+                            .decode("utf-8", errors="replace")
+                            .strip()
+                        )
+                        if attr_text and not attr_text.startswith("@"):
+                            attr_text = f"@{attr_text}"
+                        attributes.add(attr_text)
 
         return attributes
 
@@ -539,9 +649,11 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
                 if child_text in ["let", "var"]:
                     modifiers.add(child_text)
 
-        # Check if it's computed (has a body)
-        if node.child_by_field_name("body"):
-            modifiers.add("computed")
+        # Check if it's computed (has a computed_property child node)
+        for child in node.children:
+            if child.type == "computed_property":
+                modifiers.add("computed")
+                break
 
         modifiers.add("property")
         return modifiers

@@ -16,18 +16,23 @@ class TestSetupSemgrep:
     @patch("subprocess.run")
     def test_install_semgrep_success(self, mock_run):
         """Test successful installation of semgrep."""
-        # Mock successful installation
-        mock_process = MagicMock()
-        mock_process.returncode = 0
-        mock_process.stdout = "Successfully installed semgrep"
-        mock_process.stderr = ""
-        mock_run.return_value = mock_process
+        # Mock both pip install and semgrep --version calls
+        mock_pip_result = MagicMock()
+        mock_pip_result.returncode = 0
+        mock_pip_result.stdout = "Successfully installed semgrep-1.52.0"
+        mock_pip_result.stderr = ""
+
+        mock_version_result = MagicMock()
+        mock_version_result.returncode = 0
+        mock_version_result.stdout = "1.52.0"
+        mock_version_result.stderr = ""
+
+        mock_run.side_effect = [mock_pip_result, mock_version_result]
 
         result = install_semgrep()
         assert result is True
-        mock_run.assert_called_once_with(
-            ["pip", "install", "semgrep"], check=True, capture_output=True, text=True
-        )
+        # Verify both calls were made
+        assert mock_run.call_count == 2
 
     @patch("subprocess.run")
     def test_install_semgrep_failure(self, mock_run):
@@ -42,12 +47,20 @@ class TestSetupSemgrep:
     @patch("subprocess.run")
     def test_install_apiiro_ruleset_success(self, mock_run, tmp_path):
         """Test successful installation of Apiiro ruleset."""
-        # Mock successful git clone
-        mock_process = MagicMock()
-        mock_process.returncode = 0
-        mock_process.stdout = "Cloning into..."
-        mock_process.stderr = ""
-        mock_run.return_value = mock_process
+        # Mock all 4 git subprocess calls (clone, fetch, checkout, rev-parse)
+        mock_success = MagicMock()
+        mock_success.returncode = 0
+        mock_success.stdout = ""
+        mock_success.stderr = ""
+
+        mock_revparse_result = MagicMock()
+        mock_revparse_result.returncode = 0
+        # Return the expected commit hash for rev-parse
+        mock_revparse_result.stdout = "c8e8fc2d90e5a3b6d7f1e9c4a2b5d8f3e6c9a1b4"
+        mock_revparse_result.stderr = ""
+
+        # git clone, git fetch, git checkout, git rev-parse
+        mock_run.side_effect = [mock_success, mock_success, mock_success, mock_revparse_result]
 
         # Create mock rule files
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -63,9 +76,8 @@ class TestSetupSemgrep:
             ), patch("shutil.copy"):
                 result = install_apiiro_ruleset(str(tmp_path))
                 assert result == str(tmp_path)
-                mock_run.assert_called_once()
-                assert "git" in mock_run.call_args[0][0][0]
-                assert "clone" in mock_run.call_args[0][0][1]
+                # Verify all 4 git calls were made (clone, fetch, checkout, rev-parse)
+                assert mock_run.call_count == 4
 
     @patch("subprocess.run")
     def test_install_apiiro_ruleset_failure(self, mock_run, tmp_path):

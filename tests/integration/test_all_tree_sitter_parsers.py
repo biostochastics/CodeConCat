@@ -699,6 +699,330 @@ if (require(R6)) {
             "imports": 3,
         },
     },
+    "sql": {
+        "extension": ".sql",
+        "code": """
+-- PostgreSQL SQL test file
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE posts (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    content TEXT,
+    published BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE VIEW active_users AS
+SELECT id, username, email
+FROM users
+WHERE created_at > NOW() - INTERVAL '30 days';
+
+CREATE MATERIALIZED VIEW user_stats AS
+SELECT u.id, u.username, COUNT(p.id) as post_count
+FROM users u
+LEFT JOIN posts p ON u.id = p.user_id
+GROUP BY u.id, u.username;
+
+CREATE FUNCTION calculate_user_score(user_id INT) RETURNS INT AS $$
+BEGIN
+    RETURN (SELECT COUNT(*) FROM posts WHERE posts.user_id = user_id);
+END;
+$$ LANGUAGE plpgsql;
+""",
+        "expected": {
+            "tables": ["users", "posts"],
+            "views": ["active_users", "user_stats"],
+            "procedures": ["calculate_user_score"],
+        },
+    },
+    "graphql": {
+        "extension": ".graphql",
+        "code": """
+# GraphQL Schema test file
+scalar DateTime
+
+enum UserRole {
+  ADMIN
+  USER
+  GUEST
+}
+
+interface Node {
+  id: ID!
+  createdAt: DateTime!
+}
+
+type User implements Node {
+  id: ID!
+  createdAt: DateTime!
+  username: String!
+  email: String!
+  role: UserRole!
+  posts: [Post!]!
+}
+
+type Post implements Node {
+  id: ID!
+  createdAt: DateTime!
+  title: String!
+  content: String!
+  author: User!
+  comments: [Comment!]!
+}
+
+type Comment {
+  id: ID!
+  text: String!
+  author: User!
+  post: Post!
+}
+
+input CreatePostInput {
+  title: String!
+  content: String!
+}
+
+type Query {
+  user(id: ID!): User
+  posts(limit: Int): [Post!]!
+}
+
+type Mutation {
+  createPost(input: CreatePostInput!): Post!
+}
+
+union SearchResult = User | Post | Comment
+
+directive @auth(requires: UserRole = ADMIN) on FIELD_DEFINITION
+""",
+        "expected": {
+            "types": ["User", "Post", "Comment", "Query", "Mutation"],
+            "interfaces": ["Node"],
+            "enums": ["UserRole"],
+            "inputs": ["CreatePostInput"],
+        },
+    },
+    "kotlin": {
+        "extension": ".kt",
+        "code": """
+package com.example.app
+
+import kotlin.collections.List
+import kotlin.collections.Map
+import java.util.Date
+
+data class Person(
+    val name: String,
+    val age: Int,
+    val email: String
+)
+
+sealed class Result<out T> {
+    data class Success<T>(val value: T) : Result<T>()
+    data class Error(val message: String) : Result<Nothing>()
+    object Loading : Result<Nothing>()
+}
+
+interface DataRepository {
+    fun fetchData(): List<Person>
+    fun saveData(person: Person): Boolean
+}
+
+class UserService(private val repository: DataRepository) {
+    private val cache = mutableMapOf<String, Person>()
+
+    fun getUser(id: String): Person? {
+        return cache[id] ?: repository.fetchData().find { it.name == id }
+    }
+
+    fun saveUser(person: Person): Boolean {
+        cache[person.name] = person
+        return repository.saveData(person)
+    }
+
+    companion object {
+        const val MAX_CACHE_SIZE = 100
+
+        fun create(repo: DataRepository): UserService {
+            return UserService(repo)
+        }
+    }
+}
+
+fun processData(data: List<Person>): Map<Int, List<Person>> {
+    return data.groupBy { it.age }
+}
+
+suspend fun fetchRemoteData(url: String): Result<String> {
+    return try {
+        Result.Success("data")
+    } catch (e: Exception) {
+        Result.Error(e.message ?: "Unknown error")
+    }
+}
+
+object AppConfig {
+    const val API_VERSION = "v1"
+    const val BASE_URL = "https://api.example.com"
+
+    fun getEndpoint(path: String): String {
+        return "$BASE_URL/$API_VERSION/$path"
+    }
+}
+
+enum class UserRole {
+    ADMIN, MODERATOR, USER, GUEST
+}
+""",
+        "expected": {
+            "classes": ["Person", "Result", "UserService", "AppConfig"],
+            "functions": [
+                "fetchData",
+                "saveData",
+                "getUser",
+                "saveUser",
+                "create",
+                "processData",
+                "fetchRemoteData",
+                "getEndpoint",
+            ],
+            "interfaces": ["DataRepository"],
+            "enums": ["UserRole"],
+            "imports": 3,
+        },
+    },
+    "dart": {
+        "extension": ".dart",
+        "code": """
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+
+class Person {
+  final String name;
+  final int age;
+  final String? email;
+
+  Person({
+    required this.name,
+    required this.age,
+    this.email,
+  });
+
+  factory Person.fromJson(Map<String, dynamic> json) {
+    return Person(
+      name: json['name'] as String,
+      age: json['age'] as int,
+      email: json['email'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'age': age,
+      'email': email,
+    };
+  }
+}
+
+abstract class DataRepository {
+  Future<List<Person>> fetchData();
+  Future<bool> saveData(Person person);
+}
+
+class UserService extends ChangeNotifier {
+  final DataRepository _repository;
+  final Map<String, Person> _cache = {};
+
+  UserService(this._repository);
+
+  Future<Person?> getUser(String id) async {
+    if (_cache.containsKey(id)) {
+      return _cache[id];
+    }
+
+    final users = await _repository.fetchData();
+    return users.firstWhere(
+      (user) => user.name == id,
+      orElse: () => throw Exception('User not found'),
+    );
+  }
+
+  Future<bool> saveUser(Person person) async {
+    _cache[person.name] = person;
+    notifyListeners();
+    return await _repository.saveData(person);
+  }
+
+  static UserService create(DataRepository repo) {
+    return UserService(repo);
+  }
+}
+
+mixin LoggerMixin {
+  void log(String message) {
+    print('[${DateTime.now()}] $message');
+  }
+}
+
+class DataHandler with LoggerMixin {
+  void processData(String data) {
+    log('Processing: $data');
+  }
+}
+
+enum UserRole {
+  admin,
+  moderator,
+  user,
+  guest;
+
+  bool get isAdmin => this == UserRole.admin;
+}
+
+extension StringExtensions on String {
+  String capitalize() {
+    return '${this[0].toUpperCase()}${substring(1)}';
+  }
+}
+
+Future<List<T>> processItems<T>(List<T> items, Future<T> Function(T) processor) async {
+  final results = <T>[];
+  for (final item in items) {
+    results.add(await processor(item));
+  }
+  return results;
+}
+""",
+        "expected": {
+            "classes": ["Person", "UserService", "DataHandler"],
+            "functions": [
+                "fromJson",
+                "toJson",
+                "fetchData",
+                "saveData",
+                "getUser",
+                "saveUser",
+                "create",
+                "log",
+                "processData",
+                "isAdmin",
+                "capitalize",
+                "processItems",
+            ],
+            "interfaces": ["DataRepository"],
+            "enums": ["UserRole"],
+            "imports": 3,
+        },
+    },
 }
 
 
@@ -780,6 +1104,30 @@ def check_parser(language: str, sample: Dict) -> Tuple[bool, str, Dict]:
             from codeconcat.parser.language_parsers.tree_sitter_r_parser import TreeSitterRParser
 
             parser = TreeSitterRParser()
+        elif language == "sql":
+            from codeconcat.parser.language_parsers.tree_sitter_sql_parser import (
+                TreeSitterSqlParser,
+            )
+
+            parser = TreeSitterSqlParser()
+        elif language == "kotlin":
+            from codeconcat.parser.language_parsers.tree_sitter_kotlin_parser import (
+                TreeSitterKotlinParser,
+            )
+
+            parser = TreeSitterKotlinParser()
+        elif language == "dart":
+            from codeconcat.parser.language_parsers.tree_sitter_dart_parser import (
+                TreeSitterDartParser,
+            )
+
+            parser = TreeSitterDartParser()
+        elif language == "graphql":
+            from codeconcat.parser.language_parsers.tree_sitter_graphql_parser import (
+                TreeSitterGraphqlParser,
+            )
+
+            parser = TreeSitterGraphqlParser()
         else:
             results["errors"].append(f"No parser found for {language}")
             return False, f"No parser for {language}", results
@@ -809,15 +1157,47 @@ def check_parser(language: str, sample: Dict) -> Tuple[bool, str, Dict]:
             found_functions = []
             found_other = {}
 
-            for decl in parse_result.declarations:
-                if decl.kind == "class":
-                    found_classes.append(decl.name)
-                elif decl.kind in ["function", "method"]:
-                    found_functions.append(decl.name)
-                else:
-                    if decl.kind not in found_other:
-                        found_other[decl.kind] = []
-                    found_other[decl.kind].append(decl.name)
+            # Special handling for SQL parser
+            if language == "sql":
+                # SQL parser uses specialized extraction methods
+                byte_content = sample["code"].encode('utf-8')
+                from codeconcat.parser.language_parsers.tree_sitter_sql_parser import (
+                    TreeSitterSqlParser,
+                )
+                sql_parser = parser  # type: TreeSitterSqlParser
+
+                tables = sql_parser.extract_tables(byte_content)
+                views = sql_parser.extract_views(byte_content)
+                procedures = sql_parser.extract_stored_procedures(byte_content)
+
+                found_other['table'] = [t['name'] for t in tables]
+                found_other['view'] = [v['name'] for v in views]
+                found_other['procedure'] = [p['name'] for p in procedures]
+            elif language == "graphql":
+                # GraphQL parser uses specialized extraction methods
+                byte_content = sample["code"].encode('utf-8')
+                from codeconcat.parser.language_parsers.tree_sitter_graphql_parser import (
+                    TreeSitterGraphqlParser,
+                )
+                graphql_parser = parser  # type: TreeSitterGraphqlParser
+
+                types = graphql_parser.extract_type_definitions(byte_content)
+
+                # Categorize types by kind
+                found_other['type'] = [t['name'] for t in types if t['kind'] == 'object_type']
+                found_other['interface'] = [t['name'] for t in types if t['kind'] == 'interface']
+                found_other['enum'] = [t['name'] for t in types if t['kind'] == 'enum']
+                found_other['input'] = [t['name'] for t in types if t['kind'] == 'input']
+            else:
+                for decl in parse_result.declarations:
+                    if decl.kind == "class":
+                        found_classes.append(decl.name)
+                    elif decl.kind in ["function", "method"]:
+                        found_functions.append(decl.name)
+                    else:
+                        if decl.kind not in found_other:
+                            found_other[decl.kind] = []
+                        found_other[decl.kind].append(decl.name)
 
             # Store what was found
             results["found"] = {
@@ -831,15 +1211,68 @@ def check_parser(language: str, sample: Dict) -> Tuple[bool, str, Dict]:
             expected = sample.get("expected", {})
             validation_issues = []
 
-            if "classes" in expected:
-                missing_classes = set(expected["classes"]) - set(found_classes)
-                if missing_classes:
-                    validation_issues.append(f"Missing classes: {missing_classes}")
+            # SQL-specific validation
+            if language == "sql":
+                if "tables" in expected:
+                    found_tables = set(found_other.get('table', []))
+                    expected_tables = set(expected["tables"])
+                    missing_tables = expected_tables - found_tables
+                    if missing_tables:
+                        validation_issues.append(f"Missing tables: {missing_tables}")
 
-            if "functions" in expected:
-                missing_funcs = set(expected["functions"]) - set(found_functions)
-                if missing_funcs and len(missing_funcs) > len(expected["functions"]) * 0.5:
-                    validation_issues.append(f"Missing many functions: {missing_funcs}")
+                if "views" in expected:
+                    found_views = set(found_other.get('view', []))
+                    expected_views = set(expected["views"])
+                    missing_views = expected_views - found_views
+                    if missing_views:
+                        validation_issues.append(f"Missing views: {missing_views}")
+
+                if "procedures" in expected:
+                    found_procs = set(found_other.get('procedure', []))
+                    expected_procs = set(expected["procedures"])
+                    missing_procs = expected_procs - found_procs
+                    if missing_procs:
+                        validation_issues.append(f"Missing procedures: {missing_procs}")
+            elif language == "graphql":
+                # GraphQL-specific validation
+                if "types" in expected:
+                    found_types = set(found_other.get('type', []))
+                    expected_types = set(expected["types"])
+                    missing_types = expected_types - found_types
+                    if missing_types:
+                        validation_issues.append(f"Missing types: {missing_types}")
+
+                if "interfaces" in expected:
+                    found_interfaces = set(found_other.get('interface', []))
+                    expected_interfaces = set(expected["interfaces"])
+                    missing_interfaces = expected_interfaces - found_interfaces
+                    if missing_interfaces:
+                        validation_issues.append(f"Missing interfaces: {missing_interfaces}")
+
+                if "enums" in expected:
+                    found_enums = set(found_other.get('enum', []))
+                    expected_enums = set(expected["enums"])
+                    missing_enums = expected_enums - found_enums
+                    if missing_enums:
+                        validation_issues.append(f"Missing enums: {missing_enums}")
+
+                if "inputs" in expected:
+                    found_inputs = set(found_other.get('input', []))
+                    expected_inputs = set(expected["inputs"])
+                    missing_inputs = expected_inputs - found_inputs
+                    if missing_inputs:
+                        validation_issues.append(f"Missing inputs: {missing_inputs}")
+            else:
+                # Standard validation for other languages
+                if "classes" in expected:
+                    missing_classes = set(expected["classes"]) - set(found_classes)
+                    if missing_classes:
+                        validation_issues.append(f"Missing classes: {missing_classes}")
+
+                if "functions" in expected:
+                    missing_funcs = set(expected["functions"]) - set(found_functions)
+                    if missing_funcs and len(missing_funcs) > len(expected["functions"]) * 0.5:
+                        validation_issues.append(f"Missing many functions: {missing_funcs}")
 
             if validation_issues:
                 results["validation_issues"] = validation_issues
@@ -986,5 +1419,5 @@ def test_all_tree_sitter_parsers_comprehensive():
     print(f"\nDetailed results saved to: {output_file}")
 
 
-# if __name__ == "__main__":
-#     test_all_tree_sitter_parsers_comprehensive()
+if __name__ == "__main__":
+    test_all_tree_sitter_parsers_comprehensive()

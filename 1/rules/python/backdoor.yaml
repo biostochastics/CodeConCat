@@ -1,0 +1,8 @@
+
+rules:
+  - id: python-backdoor-detection
+    pattern: |
+      eval(...)
+    message: Potential backdoor using eval
+    languages: [python]
+    severity: ERROR

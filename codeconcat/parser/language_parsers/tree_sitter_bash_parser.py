@@ -1,12 +1,12 @@
 """Tree-sitter based parser for Bash/Shell scripts."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from tree_sitter import Node, Parser
-from tree_sitter_language_pack import get_language
+from tree_sitter import Node
 
 from ...base_types import Declaration
+from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
@@ -17,11 +17,8 @@ class TreeSitterBashParser(BaseTreeSitterParser):
 
     def __init__(self) -> None:
         """Initialize the Bash parser."""
-        # Use tree-sitter-language-pack to get the bash language
-        self.language_name = "bash"
-        self.ts_language = get_language("bash")
-        self.parser = Parser(self.ts_language)
-        self._query_cache: Dict[tuple, Optional[Any]] = {}
+        # Use BaseTreeSitterParser's initialization for consistency
+        super().__init__(language_name="bash")
 
     def get_queries(self) -> Dict[str, str]:
         """Get the tree-sitter queries for Bash.
@@ -105,12 +102,13 @@ class TreeSitterBashParser(BaseTreeSitterParser):
                     func_name = byte_content[child.start_byte : child.end_byte].decode(
                         "utf8", errors="replace"
                     )
+                    start_line, end_line = get_node_location(node)
                     declarations.append(
                         Declaration(
                             kind="function",
                             name=func_name,
-                            start_line=node.start_point[0] + 1,
-                            end_line=node.end_point[0] + 1,
+                            start_line=start_line,
+                            end_line=end_line,
                         )
                     )
                     break
@@ -128,12 +126,13 @@ class TreeSitterBashParser(BaseTreeSitterParser):
                     var_name = byte_content[child.start_byte : child.end_byte].decode(
                         "utf8", errors="replace"
                     )
+                    start_line, end_line = get_node_location(node)
                     declarations.append(
                         Declaration(
                             kind="variable",
                             name=var_name,
-                            start_line=node.start_point[0] + 1,
-                            end_line=node.end_point[0] + 1,
+                            start_line=start_line,
+                            end_line=end_line,
                         )
                     )
                     break
@@ -205,12 +204,13 @@ class TreeSitterBashParser(BaseTreeSitterParser):
                     # Try to parse alias name from definition (format: name=value)
                     if "=" in alias_def:
                         alias_name = alias_def.split("=")[0].strip()
+                        start_line, end_line = get_node_location(node)
                         declarations.append(
                             Declaration(
                                 kind="alias",
                                 name=alias_name,
-                                start_line=node.start_point[0] + 1,
-                                end_line=node.end_point[0] + 1,
+                                start_line=start_line,
+                                end_line=end_line,
                             )
                         )
                     break

@@ -3,10 +3,11 @@
 import logging
 from typing import Dict, List, Set
 
-from tree_sitter import Node
+from tree_sitter import Node, Query
 
 from ...base_types import Declaration
 from ..doc_comment_utils import clean_block_comments, clean_jsdoc_tags
+from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
@@ -233,8 +234,12 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
 
         # --- Pass 1: Extract Doc Comments --- #
         try:
-            doc_query = self.ts_language.query(queries.get("doc_comments", ""))
-            doc_captures = doc_query.captures(root_node)
+            # Use modern Query() constructor
+            from tree_sitter import QueryCursor
+
+            doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
+            cursor = QueryCursor(doc_query)
+            doc_captures = cursor.captures(root_node)
             # doc_captures is a dict: {capture_name: [list of nodes]}
             for _capture_name, nodes in doc_captures.items():
                 for node in nodes:
@@ -252,8 +257,12 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 continue
 
             try:
-                query = self.ts_language.query(query_str)
-                captures = query.captures(root_node)
+                # Use modern Query() constructor
+                from tree_sitter import QueryCursor
+
+                query = Query(self.ts_language, query_str)
+                cursor = QueryCursor(query)
+                captures = cursor.captures(root_node)
                 logger.debug(f"Running JS/TS query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
@@ -281,7 +290,7 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 elif query_name == "declarations":
                     logger.debug("Processing declarations query...")
                     # Use matches for better structure with declarations
-                    matches = query.matches(root_node)
+                    matches = cursor.matches(root_node)
                     logger.debug(f"Got {len(matches)} matches")
                     for match_id, captures_dict in matches:
                         logger.debug(
@@ -349,12 +358,13 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                             # Check for docstring
                             docstring = doc_comment_map.get(declaration_node.start_point[0] - 1, "")
 
+                            start_line, end_line = get_node_location(declaration_node)
                             declarations.append(
                                 Declaration(
                                     kind=kind or "unknown",
                                     name=name_text,
-                                    start_line=declaration_node.start_point[0] + 1,
-                                    end_line=declaration_node.end_point[0] + 1,
+                                    start_line=start_line,
+                                    end_line=end_line,
                                     docstring=docstring,
                                     modifiers=modifiers,
                                 )

@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 class AnthropicProvider(AIProvider):
     """Anthropic API provider for code summarization."""
 
+    _session: Optional[aiohttp.ClientSession]
+
     def __init__(self, config: AIProviderConfig):
         """Initialize Anthropic provider."""
         super().__init__(config)
@@ -71,13 +73,13 @@ class AnthropicProvider(AIProvider):
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp session."""
-        if not self._session:
-            headers = {
-                "x-api-key": self.config.api_key,
+        if self._session is None:
+            headers: Dict[str, str] = {
+                "x-api-key": self.config.api_key or "",
                 "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json",
-                **(self.config.custom_headers or {}),
             }
+            headers.update(self.config.custom_headers or {})
             timeout = aiohttp.ClientTimeout(total=self.config.timeout)
             self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
         return self._session

@@ -1,12 +1,13 @@
 # file: codeconcat/parser/language_parsers/tree_sitter_php_parser.py
 
 import logging
-import re
 from typing import Dict, List, Set
 
-from tree_sitter import Node
+from tree_sitter import Node, Query, QueryCursor
 
 from ...base_types import Declaration
+from ..doc_comment_utils import clean_block_comments, normalize_whitespace
+from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
@@ -160,27 +161,18 @@ PHP_QUERIES = {
     """,
 }
 
+
 # Patterns to clean PHPDoc comments
-PHP_DOC_COMMENT_START_PATTERN = re.compile(r"^/\*\*\s?")
-PHP_DOC_COMMENT_LINE_PREFIX_PATTERN = re.compile(r"^\s*\*\s?")
-PHP_DOC_COMMENT_END_PATTERN = re.compile(r"\s*\*/$")
-
-
 def _clean_php_doc_comment(comment_block: List[str]) -> str:
-    """Cleans a block of PHPDoc comment lines."""
-    cleaned_lines: list[str] = []
-    for i, line in enumerate(comment_block):
-        original_line = line  # Keep original for block end check
-        if i == 0:
-            line = PHP_DOC_COMMENT_START_PATTERN.sub("", line)
-        line = PHP_DOC_COMMENT_LINE_PREFIX_PATTERN.sub("", line)
-        # Check original line for block comment end marker
-        if original_line.strip().endswith("*/"):
-            line = PHP_DOC_COMMENT_END_PATTERN.sub("", line)
+    """Cleans a block of PHPDoc comment lines using shared doc_comment_utils.
 
-        cleaned_lines.append(line.strip())
-    # Join lines, filtering empty ones
-    return "\n".join(filter(None, cleaned_lines))
+    PHPDoc uses the same /** */ format as Javadoc and JSDoc, so we can
+    use the shared block comment cleaner.
+    """
+    if not comment_block:
+        return ""
+    # Use shared block comment cleaner for /** */ style
+    return clean_block_comments(comment_block)
 
 
 class TreeSitterPhpParser(BaseTreeSitterParser):
@@ -206,8 +198,10 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
 
         # --- Pass 1: Extract Doc Comments --- #
         try:
-            doc_query = self.ts_language.query(queries.get("doc_comments", ""))
-            doc_captures = doc_query.captures(root_node)
+            # Use modern Query() constructor and QueryCursor
+            doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
+            doc_cursor = QueryCursor(doc_query)
+            doc_captures = doc_cursor.captures(root_node)
 
             # doc_captures is a dict: {capture_name: [list of nodes]}
             for _capture_name, nodes in doc_captures.items():
@@ -229,18 +223,19 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                 continue
 
             try:
-                query = self.ts_language.query(query_str)
-                captures = query.captures(root_node)
-                logger.debug(f"Running PHP query '{query_name}', found {len(captures)} captures.")
+                # Use modern Query() constructor and QueryCursor
+                query = Query(self.ts_language, query_str)
 
                 if query_name == "imports":
+                    # Use captures for imports
+                    cursor = QueryCursor(query)
+                    captures = cursor.captures(root_node)
+                    logger.debug(
+                        f"Running PHP query '{query_name}', found {len(captures)} captures."
+                    )
+
                     # captures is a dict of {capture_name: [list of nodes]}
-                    # Fixed capture unpacking pattern
-                    for capture in captures.items():
-                        if len(capture) == 2:
-                            capture_name, nodes = capture
-                        else:
-                            continue
+                    for capture_name, nodes in captures.items():
                         if capture_name in [
                             "import_path",
                             "function_import_path",
@@ -257,13 +252,15 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                                 imports.add(import_path)
 
                 elif query_name == "declarations":
-                    # Use matches for better structure
-                    matches = query.matches(root_node)
+                    # Use matches for better structure with declarations
+                    cursor = QueryCursor(query)
+                    matches = cursor.matches(root_node)
                     for _match_id, captures_dict in matches:
                         declaration_node = None
                         name_node = None
                         kind = None
                         modifiers = set()
+                        signature = ""
 
                         # Check for various declaration types
                         decl_types = [
@@ -301,6 +298,10 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                                 ].decode("utf8", errors="replace")
                                 modifiers.add(modifier_text)
 
+                        # Extract signature for functions and methods
+                        if declaration_node and kind in ["function", "method"]:
+                            signature = self._extract_php_signature(declaration_node, byte_content)
+
                         # Add declaration if we have both node and name
                         if declaration_node and name_node:
                             name_text = byte_content[
@@ -325,13 +326,15 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                                 _clean_php_doc_comment(docstring_lines) if docstring_lines else ""
                             )
 
+                            start_line, end_line = get_node_location(declaration_node)
                             declarations.append(
                                 Declaration(
                                     kind=kind or "unknown",
                                     name=full_name,
-                                    start_line=declaration_node.start_point[0] + 1,
-                                    end_line=declaration_node.end_point[0] + 1,
+                                    start_line=start_line,
+                                    end_line=end_line,
                                     docstring=docstring,
+                                    signature=signature,
                                     modifiers=modifiers,
                                 )
                             )
@@ -348,3 +351,41 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
             f"Tree-sitter PHP extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
         )
         return declarations, sorted_imports
+
+    def _extract_php_signature(self, func_node: Node, byte_content: bytes) -> str:
+        """Extract function/method signature from function or method declaration node.
+
+        Extracts the complete signature including name, parameters, return type,
+        and modifiers.
+
+        Args:
+            func_node: Function or method declaration node
+            byte_content: Source code as bytes
+
+        Returns:
+            Function signature string (e.g., "public function getName(int $id): ?string")
+        """
+        try:
+            # Find the function body to determine signature end
+            sig_end_byte = func_node.end_byte
+
+            # Look for the opening brace or semicolon (for abstract methods)
+            for child in func_node.children:
+                if child.type in ["compound_statement", ";"]:
+                    sig_end_byte = child.start_byte
+                    break
+
+            # Extract signature from start to body
+            signature = (
+                byte_content[func_node.start_byte : sig_end_byte]
+                .decode("utf-8", errors="replace")
+                .strip()
+            )
+
+            # Normalize whitespace
+            signature = normalize_whitespace(signature)
+
+            return signature
+        except Exception as e:
+            logger.debug(f"Failed to extract PHP function signature: {e}")
+            return ""

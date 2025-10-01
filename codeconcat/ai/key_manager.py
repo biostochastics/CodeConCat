@@ -25,6 +25,8 @@ class KeyStorage(Enum):
 class APIKeyManager:
     """Manages API keys securely for AI providers."""
 
+    _fernet: Optional[Fernet]
+
     def __init__(self, storage_method: KeyStorage = KeyStorage.ENCRYPTED_FILE):
         """Initialize the key manager.
 
@@ -61,7 +63,7 @@ class APIKeyManager:
 
     def _get_fernet(self, password: Optional[str] = None) -> Fernet:
         """Get Fernet instance for encryption/decryption."""
-        if self._fernet:
+        if self._fernet is not None:
             return self._fernet
 
         if not password:

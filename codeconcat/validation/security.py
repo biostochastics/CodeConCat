@@ -16,12 +16,13 @@ import hashlib
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 from cachetools import TTLCache  # type: ignore[import-untyped]
 
 from ..errors import FileIntegrityError, ValidationError
 from ..processor.attack_patterns import scan_content as scan_attack_patterns
+from ..utils.path_security import PathTraversalError, validate_safe_path
 from .semgrep_validator import semgrep_validator
 
 logger = logging.getLogger(__name__)
@@ -240,24 +241,23 @@ class SecurityValidator:
         sanitized = content
         for name, pattern in patterns.items():
             if pattern.search(sanitized):
-                logger.warning(f"Potentially dangerous pattern '{name}' detected")
+                logger.warning(f"Potentially dangerous pattern '{name}' detected and removed")
                 if name == "secrets_pattern":
-                    # Redact secrets but keep the structure, preserving the delimiter
+                    # Security: Completely remove secrets - never expose them
                     def redact_secret(match):
                         text = match.group()
-                        # Find the delimiter (: or =) and split on it
+                        # Find the delimiter and reconstruct with placeholder
                         for delimiter in [":", "="]:
                             if delimiter in text:
                                 parts = text.split(delimiter, 1)
                                 return parts[0] + delimiter + ' "[REDACTED]"'
-                        return text + ' "[REDACTED]"'  # Fallback if no delimiter found
+                        return "[REDACTED]"
 
                     sanitized = pattern.sub(redact_secret, sanitized)
                 else:
-                    # For other patterns, add warning comment
-                    sanitized = pattern.sub(
-                        r"/* POTENTIALLY DANGEROUS CONTENT REMOVED: \g<0> */", sanitized
-                    )
+                    # Security: Completely remove dangerous patterns
+                    # NEVER embed the original content - it defeats the purpose
+                    sanitized = pattern.sub("[REDACTED: POTENTIALLY DANGEROUS CONTENT]", sanitized)
 
         return sanitized
 
@@ -531,14 +531,33 @@ class SecurityValidator:
                 raise ValidationError(f"Not a directory: {directory}")
 
             if recursive:
-                files = [p for p in base_path.glob("**/*") if p.is_file()]
+                # Security: Don't follow symlinks to prevent escape
+                files = [
+                    p
+                    for p in base_path.glob("**/*")
+                    if p.is_file()
+                    and not p.is_symlink()
+                    and validate_safe_path(p, base_path=base_path, allow_symlinks=False)
+                ]
             else:
-                files = [p for p in base_path.iterdir() if p.is_file()]
+                files = [
+                    p
+                    for p in base_path.iterdir()
+                    if p.is_file()
+                    and not p.is_symlink()
+                    and validate_safe_path(p, base_path=base_path, allow_symlinks=False)
+                ]
 
             for file_path in files:
-                rel_path = file_path.relative_to(base_path).as_posix()
-                hash_value = SecurityValidator.compute_file_hash(file_path)
-                manifest[rel_path] = hash_value
+                try:
+                    rel_path = file_path.relative_to(base_path).as_posix()
+                    hash_value = SecurityValidator.compute_file_hash(file_path)
+                    manifest[rel_path] = hash_value
+                except (PathTraversalError, ValueError) as e:
+                    logger.warning(
+                        f"Skipping file due to path validation failure: {file_path} - {e}"
+                    )
+                    continue
 
             return manifest
 
@@ -587,21 +606,38 @@ class SecurityValidator:
         """
         base_path = Path(directory).resolve()
         results = {}
+        manifest_files: Set[Path] = set()
 
+        # Validate manifest entries and compute hashes
         for rel_path, expected_hash in manifest.items():
-            file_path = base_path / rel_path
             result = {
                 "verified": False,
                 "expected_hash": expected_hash,
                 "actual_hash": "",
                 "reason": "",
+                "unexpected": False,
             }
 
             try:
-                if not file_path.exists():
+                # Security: Validate path to prevent traversal
+                # This blocks patterns like "../etc/passwd"
+                try:
+                    validated_path = validate_safe_path(
+                        rel_path, base_path=base_path, allow_symlinks=False
+                    )
+                    manifest_files.add(validated_path)
+                except PathTraversalError as e:
+                    result["reason"] = f"Path traversal detected: {e}"
+                    results[rel_path] = result
+                    logger.warning(f"Blocked path traversal attempt in manifest: {rel_path}")
+                    continue
+
+                if not validated_path.exists():
                     result["reason"] = "File not found"
                 else:
-                    actual_hash = SecurityValidator.compute_file_hash(file_path, use_cache=False)
+                    actual_hash = SecurityValidator.compute_file_hash(
+                        validated_path, use_cache=False
+                    )
                     result["actual_hash"] = actual_hash
 
                     if actual_hash.lower() == expected_hash.lower():
@@ -613,6 +649,25 @@ class SecurityValidator:
                 result["reason"] = f"Error: {str(e)}"
 
             results[rel_path] = result
+
+        # Bidirectional verification: Detect unexpected files not in manifest
+        # This catches supply-chain attacks where new files are added
+        try:
+            for file_path in base_path.glob("**/*"):
+                if file_path.is_file() and file_path not in manifest_files:
+                    rel_path_str = file_path.relative_to(base_path).as_posix()
+                    results[rel_path_str] = {
+                        "verified": False,
+                        "expected_hash": "",
+                        "actual_hash": SecurityValidator.compute_file_hash(
+                            file_path, use_cache=False
+                        ),
+                        "reason": "File not in manifest (unexpected file)",
+                        "unexpected": True,
+                    }
+                    logger.warning(f"Unexpected file detected: {rel_path_str}")
+        except Exception as e:
+            logger.error(f"Error during bidirectional verification: {e}")
 
         return results  # type: ignore[return-value]
 

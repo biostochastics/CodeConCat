@@ -7,7 +7,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
-from typing import Any, ClassVar, Dict, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
+
+if TYPE_CHECKING:
+    import aiohttp
 
 
 class AIProviderType(Enum):
@@ -68,6 +71,8 @@ class AIProvider(ABC):
     SYSTEM_PROMPT_FUNCTION_SUMMARY: ClassVar[str] = (
         """You are a senior software engineer specializing in code documentation. Your expertise includes identifying function contracts, understanding complex algorithms, and explaining code behavior concisely. Create summaries that are technically precise yet accessible, highlighting the 'what', 'how', and 'why' of each function."""
     )
+
+    _session: Optional["aiohttp.ClientSession"]
 
     def __init__(self, config: AIProviderConfig):
         """Initialize the AI provider with configuration."""

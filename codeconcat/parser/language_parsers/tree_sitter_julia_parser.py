@@ -1,12 +1,13 @@
 # file: codeconcat/parser/language_parsers/tree_sitter_julia_parser.py
 
 import logging
-import re
 from typing import Dict, List, Set
 
-from tree_sitter import Node
+from tree_sitter import Node, Query, QueryCursor
 
 from ...base_types import Declaration
+from ..doc_comment_utils import clean_block_comments, clean_line_comments, normalize_whitespace
+from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
@@ -28,28 +29,31 @@ JULIA_QUERIES = {
         ) @import_selected
 
         ; Module statements
-        (module_statement
+        (module_definition
           (identifier) @import_path
-        ) @module_statement
+        ) @module_definition
     """,
     "declarations": """
         ; Module definitions
         (module_definition
-            name: (identifier) @name
+            (identifier) @name
         ) @module
 
-        ; Function definitions with simple identifier
-        (function_definition
-            (signature (identifier) @name)
-            body: (block_expression) @body
-        ) @function
-
-        ; Function definitions with call expression
+        ; Function definitions with call expression (non-parametric)
         (function_definition
             (signature (call_expression
                 (identifier) @name
             ))
-        ) @function_call
+        ) @function
+
+        ; Parametric functions (with where expression wrapping call_expression)
+        (function_definition
+            (signature (where_expression
+                (call_expression
+                    (identifier) @param_func_name
+                )
+            ))
+        ) @parametric_function
 
         ; Macro definitions
         (macro_definition
@@ -58,15 +62,35 @@ JULIA_QUERIES = {
             ))
         ) @macro
 
-        ; Struct definitions
+        ; Struct definitions (non-parametric with simple identifier)
         (struct_definition
-            name: (identifier) @name
+            (type_head (identifier) @name)
         ) @struct
 
-        ; Abstract type definitions
+        ; Parametric struct definitions (with type parameters)
+        (struct_definition
+            (type_head (parametrized_type_expression
+                (identifier) @param_struct_name
+            ))
+        ) @parametric_struct
+
+        ; Abstract type definitions (non-parametric)
         (abstract_definition
-            name: (identifier) @name
+            (type_head (identifier) @name)
         ) @abstract_type
+
+        ; Parametric abstract type definitions
+        (abstract_definition
+            (type_head (parametrized_type_expression
+                (identifier) @param_abstract_name
+            ))
+        ) @parametric_abstract
+
+        ; Short-form parametric functions (assignment style)
+        (assignment
+            (call_expression) @func_call
+            (where_expression) @where_constraints
+        ) @parametric_func_short
     """,
     # Capture Julia docstrings (triple-quoted strings before declarations) and line_comments
     "doc_line_comments": """
@@ -78,35 +102,37 @@ JULIA_QUERIES = {
     """,
 }
 
+
 # Patterns to clean Julia line_comments
-JULIA_LINE_COMMENT_PATTERN = re.compile(r"^#\s?")
-JULIA_BLOCK_COMMENT_START_PATTERN = re.compile(r"^#=\s?")
-JULIA_BLOCK_COMMENT_END_PATTERN = re.compile(r"\s*=#$")
-
-
 def _clean_julia_doc_line_comment(line_comment_block_expression: List[str]) -> str:
-    """Cleans a block_expression of Julia line_comment lines."""
-    cleaned_lines: list[str] = []
-    is_block_expression = (
-        line_comment_block_expression[0].startswith("#=")
-        if line_comment_block_expression
-        else False
-    )
+    """Cleans Julia doc comments using shared doc_comment_utils.
 
-    for i, line in enumerate(line_comment_block_expression):
-        original_line = line  # Keep original for block_expression end check
-        if is_block_expression:
-            if i == 0:
-                line = JULIA_BLOCK_COMMENT_START_PATTERN.sub("", line)
-            # No standard line prefix like '*' for block_expression line_comments
-            if original_line.strip().endswith("=#"):
-                line = JULIA_BLOCK_COMMENT_END_PATTERN.sub("", line)
-        else:  # Line line_comment
-            line = JULIA_LINE_COMMENT_PATTERN.sub("", line)
+    Handles both block comments (#= =#) and line comments (#) consistently
+    with other parsers.
+    """
+    if not line_comment_block_expression:
+        return ""
 
-        cleaned_lines.append(line.strip())
+    # Detect if this is a block comment or line comment
+    first_line = line_comment_block_expression[0].strip()
+    is_block_expression = first_line.startswith("#=")
 
-    return "\n".join(filter(None, cleaned_lines))
+    if is_block_expression:
+        # Use shared block comment cleaner for #= =# style
+        # Julia block comments use #= =# instead of /* */
+        start_pattern = r"^#="
+        end_pattern = r"=#$"
+        line_pattern = r"^"  # No standard line prefix in Julia block comments
+        return clean_block_comments(
+            line_comment_block_expression,
+            start_pattern=start_pattern,
+            line_pattern=line_pattern,
+            end_pattern=end_pattern,
+        )
+    else:
+        # Use shared line comment cleaner for # style
+        prefix_pattern = r"^#\s*"
+        return clean_line_comments(line_comment_block_expression, prefix_pattern=prefix_pattern)
 
 
 class TreeSitterJuliaParser(BaseTreeSitterParser):
@@ -131,8 +157,10 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
 
         # --- Pass 1: Extract Comments (potential docstrings) --- #
         try:
-            doc_query = self.ts_language.query(queries.get("doc_line_comments", ""))
-            doc_captures = doc_query.captures(root_node)
+            # Use modern Query() constructor and QueryCursor
+            doc_query = Query(self.ts_language, queries.get("doc_line_comments", ""))
+            doc_cursor = QueryCursor(doc_query)
+            doc_captures = doc_cursor.captures(root_node)
             last_line_comment_line = -2
             current_doc_block_expression: List[str] = []
 
@@ -178,18 +206,19 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
                 continue
 
             try:
-                query = self.ts_language.query(query_str)
-                captures = query.captures(root_node)
-                logger.debug(f"Running Julia query '{query_name}', found {len(captures)} captures.")
+                # Use modern Query() constructor and QueryCursor
+                query = Query(self.ts_language, query_str)
 
                 if query_name == "imports":
+                    # Use captures for imports
+                    cursor = QueryCursor(query)
+                    captures = cursor.captures(root_node)
+                    logger.debug(
+                        f"Running Julia query '{query_name}', found {len(captures)} captures."
+                    )
+
                     # captures is a dict: {capture_name: [list of nodes]}
-                    # Fixed capture unpacking pattern
-                    for capture in captures.items():
-                        if len(capture) == 2:
-                            capture_name, nodes = capture
-                        else:
-                            continue
+                    for capture_name, nodes in captures.items():
                         if capture_name in ["import_path", "imported_symbol"]:
                             for node in nodes:
                                 import_path = byte_content[node.start_byte : node.end_byte].decode(
@@ -202,13 +231,15 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
                                 imports.add(import_path)
 
                 elif query_name == "declarations":
-                    # Use matches for better structure
-                    matches = query.matches(root_node)
+                    # Use matches for better structure with declarations
+                    cursor = QueryCursor(query)
+                    matches = cursor.matches(root_node)
                     for _match_id, captures_dict in matches:
                         declaration_node = None
                         name_node = None
                         kind = None
                         modifiers: set[str] = set()
+                        signature = ""
 
                         # Check for various declaration types
                         decl_types = ["module", "function", "macro", "struct", "abstract_type"]
@@ -221,11 +252,64 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
                                     kind = decl_type
                                     break
 
+                        # Check for parametric struct types
+                        if "parametric_struct" in captures_dict:
+                            param_nodes = captures_dict["parametric_struct"]
+                            if param_nodes and len(param_nodes) > 0:
+                                declaration_node = param_nodes[0]
+                                kind = "struct"
+                                modifiers.add("parametric")
+
+                        # Check for parametric abstract types
+                        if "parametric_abstract" in captures_dict:
+                            param_nodes = captures_dict["parametric_abstract"]
+                            if param_nodes and len(param_nodes) > 0:
+                                declaration_node = param_nodes[0]
+                                kind = "abstract_type"
+                                modifiers.add("parametric")
+
+                        # Check for parametric functions
+                        if (
+                            "parametric_function" in captures_dict
+                            or "parametric_func_short" in captures_dict
+                        ):
+                            param_func_key = (
+                                "parametric_function"
+                                if "parametric_function" in captures_dict
+                                else "parametric_func_short"
+                            )
+                            param_nodes = captures_dict[param_func_key]
+                            if param_nodes and len(param_nodes) > 0:
+                                declaration_node = param_nodes[0]
+                                if (
+                                    kind != "function"
+                                ):  # Don't override if already detected as function
+                                    kind = "function"
+                                modifiers.add("parametric")
+
                         # Get the name node
                         if "name" in captures_dict:
                             name_nodes = captures_dict["name"]
                             if name_nodes and len(name_nodes) > 0:
                                 name_node = name_nodes[0]
+                        elif "param_struct_name" in captures_dict:
+                            name_nodes = captures_dict["param_struct_name"]
+                            if name_nodes and len(name_nodes) > 0:
+                                name_node = name_nodes[0]
+                        elif "param_abstract_name" in captures_dict:
+                            name_nodes = captures_dict["param_abstract_name"]
+                            if name_nodes and len(name_nodes) > 0:
+                                name_node = name_nodes[0]
+                        elif "param_func_name" in captures_dict:
+                            name_nodes = captures_dict["param_func_name"]
+                            if name_nodes and len(name_nodes) > 0:
+                                name_node = name_nodes[0]
+
+                        # Extract signature for functions and macros
+                        if declaration_node and kind in ["function", "macro"]:
+                            signature = self._extract_julia_signature(
+                                declaration_node, byte_content
+                            )
 
                         # Add declaration if we have both node and name
                         if declaration_node and name_node:
@@ -246,13 +330,15 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
                             else:
                                 docstring = ""
 
+                            start_line, end_line = get_node_location(declaration_node)
                             declarations.append(
                                 Declaration(
                                     kind=kind or "unknown",
                                     name=name_text,
-                                    start_line=declaration_node.start_point[0] + 1,
-                                    end_line=declaration_node.end_point[0] + 1,
+                                    start_line=start_line,
+                                    end_line=end_line,
                                     docstring=docstring,
+                                    signature=signature,
                                     modifiers=modifiers,
                                 )
                             )
@@ -269,3 +355,40 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
             f"Tree-sitter Julia extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
         )
         return declarations, sorted_imports
+
+    def _extract_julia_signature(self, func_node: Node, byte_content: bytes) -> str:
+        """Extract function/macro signature from function or macro definition node.
+
+        Extracts the complete signature including name, parameters, and type annotations.
+
+        Args:
+            func_node: Function or macro definition node
+            byte_content: Source code as bytes
+
+        Returns:
+            Function signature string (e.g., "function calculate(x::Float64, y::Float64)::Float64")
+        """
+        try:
+            # Find the function body to determine signature end
+            sig_end_byte = func_node.end_byte
+
+            # Look for the body block to determine signature end
+            for child in func_node.children:
+                if child.type in ["block_expression", "block"]:
+                    sig_end_byte = child.start_byte
+                    break
+
+            # Extract signature from start to body
+            signature = (
+                byte_content[func_node.start_byte : sig_end_byte]
+                .decode("utf-8", errors="replace")
+                .strip()
+            )
+
+            # Normalize whitespace
+            signature = normalize_whitespace(signature)
+
+            return signature
+        except Exception as e:
+            logger.debug(f"Failed to extract Julia function signature: {e}")
+            return ""

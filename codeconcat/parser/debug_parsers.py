@@ -192,33 +192,15 @@ def compare_parsers_for_file(file_path: str) -> ParserComparisonResult:
         logger.error(f"Error reading file {file_path}: {e}")
         return result
 
-    # Create a minimal config for testing with required fields
-    config = CodeConCatConfig(
-        parser_engine="tree_sitter",
-        fallback_to_regex=True,
-        use_enhanced_parsers=False,
-        use_enhanced_pipeline=False,
-        target_path=".",
-        source_url=None,
-        github_token=None,
-        source_ref=None,
-        use_gitignore=False,
-        use_default_excludes=False,
-        include_languages=None,
-        enable_semgrep=False,
-        semgrep_languages=None,
-        install_semgrep=False,
-        strict_security=False,
-        enable_external_semgrep=False,
-        semgrep_ruleset=None,
-        xml_processing_instructions=False,
-        mask_output_content=False,
-        enable_compression=False,
-        compression_level="standard",
-        compression_placeholder="[Code compressed for brevity]",
-        compression_keep_threshold=50,
-        analysis_prompt=None,
-    )
+    # Create a minimal config for testing
+    # Use default config and override only the fields we need for testing
+    # Note: CodeConCatConfig is a Pydantic model with all fields having defaults
+    # mypy doesn't recognize this without the Pydantic plugin, hence the type: ignore
+    config = CodeConCatConfig()  # type: ignore[call-arg]
+    config.parser_engine = "tree_sitter"
+    config.fallback_to_regex = True
+    config.use_enhanced_parsers = False
+    config.use_enhanced_pipeline = False
 
     # Parse with basic regex parser
     try:

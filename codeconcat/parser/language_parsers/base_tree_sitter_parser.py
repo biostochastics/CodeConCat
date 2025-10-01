@@ -20,6 +20,12 @@ try:
     # Try to import both packages in a single block to reduce filesystem operations
     from tree_sitter import Language, Node, Parser, Query, Tree
 
+    # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+    try:
+        from tree_sitter import QueryCursor
+    except ImportError:
+        QueryCursor = None  # type: ignore[assignment,misc]
+
     # Prefer the modern tree_sitter_language_pack backend; fall back to legacy tree_sitter_languages
     try:
         from tree_sitter_language_pack import get_language, get_parser
@@ -27,7 +33,10 @@ try:
         TREE_SITTER_BACKEND = "tree_sitter_language_pack"
     except ImportError:
         # Fallback to alternative name if first import fails
-        from tree_sitter_languages import get_language, get_parser
+        from tree_sitter_languages import (  # type: ignore[no-redef, assignment]
+            get_language,
+            get_parser,
+        )
 
         TREE_SITTER_BACKEND = "tree_sitter_languages"
 
@@ -52,6 +61,9 @@ except ImportError:
         pass
 
     class Query:  # type: ignore[no-redef]
+        pass
+
+    class QueryCursor:  # type: ignore[no-redef]
         pass
 
     # Try to determine which package is missing for more helpful error messages
@@ -142,7 +154,8 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             )
 
         try:
-            compiled_query = self.ts_language.query(query_str)
+            # Use modern Query() constructor instead of deprecated query() method
+            compiled_query = Query(self.ts_language, query_str)
             logger.debug(f"Compiled Tree-sitter query '{query_name}' for {language_name}")
             # Cache the result
             self._query_cache[cache_key] = compiled_query
@@ -182,6 +195,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
 
         Uses tree-sitter-language-pack if available, which provides a simple and reliable
         way to load language grammars across different Python versions and platforms.
+        Falls back to standalone tree-sitter-<language> packages if not found in the pack.
 
         Returns:
             Language: The loaded Tree-sitter language object
@@ -189,26 +203,49 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         Raises:
             LanguageParserError: If the language cannot be loaded
         """
-        # Use any available backend (prefer language_pack if present)
+        # Try primary backend first (language_pack or languages)
         if TREE_SITTER_LANGUAGE_PACK_AVAILABLE or TREE_SITTER_LANGUAGES_AVAILABLE:
             try:
                 # get_language returns a tree_sitter.Language object directly
-                language = get_language(self.language_name)
+                language = get_language(self.language_name)  # type: ignore[arg-type]
                 logger.debug(
                     f"Successfully loaded Tree-sitter language for '{self.language_name}' via {TREE_SITTER_BACKEND or 'tree-sitter backend'}"
                 )
                 return language  # type: ignore
             except (ImportError, KeyError, ValueError) as e:
-                # ImportError: Package not installed
-                # KeyError: Language not found in pack
-                # ValueError: Invalid language name
-                logger.error(
-                    f"Failed to load '{self.language_name}' with {TREE_SITTER_BACKEND or 'tree-sitter backend'}: {e}"
+                # Language not found in pack - try standalone package
+                logger.debug(
+                    f"'{self.language_name}' not found in {TREE_SITTER_BACKEND}, trying standalone package"
                 )
-                raise LanguageParserError(
-                    f"Could not load Tree-sitter language for {self.language_name} using {TREE_SITTER_BACKEND or 'tree-sitter backend'}. "
-                    f"Error: {e}. Ensure the backend is installed and the language name is correct."
-                ) from e
+
+                # Try standalone tree-sitter-<language> package
+                try:
+                    import importlib
+
+                    # Import tree_sitter_<language>.language() function
+                    module_name = f"tree_sitter_{self.language_name}"
+                    module = importlib.import_module(module_name)
+                    language_fn = getattr(module, "language", None)
+
+                    if language_fn and callable(language_fn):
+                        language = language_fn()
+                        logger.debug(
+                            f"Successfully loaded Tree-sitter language for '{self.language_name}' via standalone package {module_name}"
+                        )
+                        return language  # type: ignore
+                    else:
+                        raise AttributeError(
+                            f"Module {module_name} has no callable 'language' function"
+                        )
+                except (ImportError, AttributeError) as standalone_error:
+                    logger.error(
+                        f"Failed to load '{self.language_name}' from both {TREE_SITTER_BACKEND} and standalone package: {standalone_error}"
+                    )
+                    raise LanguageParserError(
+                        f"Could not load Tree-sitter language for {self.language_name}. "
+                        f"Tried {TREE_SITTER_BACKEND} (not found) and standalone package tree-sitter-{self.language_name} (failed). "
+                        f"Install with: pip install tree-sitter-{self.language_name}"
+                    ) from e
             except Exception as e:
                 # Any other unexpected error
                 logger.error(
@@ -245,7 +282,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         try:
             # Use the backend's pre-configured parser if available
             if TREE_SITTER_LANGUAGE_PACK_AVAILABLE or TREE_SITTER_LANGUAGES_AVAILABLE:
-                parser = get_parser(self.language_name)
+                parser = get_parser(self.language_name)  # type: ignore[arg-type]
                 logger.debug(
                     f"Created parser for {self.language_name} via {TREE_SITTER_BACKEND or 'tree-sitter backend'}"
                 )
@@ -466,7 +503,17 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                 continue
 
             try:
-                captures = query.captures(root_node)
+                # Query API changed in tree-sitter 0.24.0
+                # Old API: QueryCursor(query).captures(node)
+                # New API: query.captures(node)
+                if QueryCursor is not None:
+                    # Use legacy QueryCursor API for older tree-sitter versions
+                    cursor = QueryCursor(query)
+                    captures = cursor.captures(root_node)
+                else:
+                    # Use modern API (tree-sitter 0.24.0+)
+                    captures = query.captures(root_node)
+
                 logger.debug(f"Running query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
@@ -482,8 +529,11 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                                 imports.append(" ".join(import_text.split()))
 
                 elif query_name == "declarations":
-                    # Use query.matches for better structure
-                    matches = query.matches(root_node)
+                    # Use matches for better structure
+                    if QueryCursor is not None:
+                        matches = cursor.matches(root_node)  # type: ignore[possibly-undefined]
+                    else:
+                        matches = query.matches(root_node)
                     logger.debug(f"Processing {len(matches)} matches for declarations.")
                     for match_id, captures_in_match in matches:
                         declaration_node = None
@@ -491,25 +541,33 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                         kind = None
 
                         # Determine the kind and main node based on the @capture name
-                        # The capture names (@function, @class) must match the query
+                        # The capture names (@function, @class, @object, @property, etc.) must match the query
                         # Each capture value is a list of nodes, even if there's only one
-                        if "function" in captures_in_match:
-                            func_nodes = captures_in_match["function"]
-                            if func_nodes and len(func_nodes) > 0:
-                                declaration_node = func_nodes[0]
-                                kind = "function"
-                            name_nodes = captures_in_match.get("name", [])
-                            if name_nodes and len(name_nodes) > 0:
-                                name_node = name_nodes[0]
-                        elif "class" in captures_in_match:
-                            class_nodes = captures_in_match["class"]
-                            if class_nodes and len(class_nodes) > 0:
-                                declaration_node = class_nodes[0]
-                                kind = "class"
-                            name_nodes = captures_in_match.get("name", [])
-                            if name_nodes and len(name_nodes) > 0:
-                                name_node = name_nodes[0]
-                        # Add elif for async_function, lambda_function etc. if defined in query
+
+                        # Try all common declaration types
+                        declaration_types = [
+                            "function",
+                            "class",
+                            "object",
+                            "property",
+                            "interface",
+                            "enum",
+                            "struct",
+                            "trait",
+                            "protocol",
+                            "module",
+                        ]
+
+                        for decl_type in declaration_types:
+                            if decl_type in captures_in_match:
+                                decl_nodes = captures_in_match[decl_type]
+                                if decl_nodes and len(decl_nodes) > 0:
+                                    declaration_node = decl_nodes[0]
+                                    kind = decl_type
+                                name_nodes = captures_in_match.get("name", [])
+                                if name_nodes and len(name_nodes) > 0:
+                                    name_node = name_nodes[0]
+                                break
 
                         if declaration_node and name_node and kind:
                             decl_name = byte_content[

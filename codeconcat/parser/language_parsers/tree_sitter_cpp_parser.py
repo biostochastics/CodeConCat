@@ -4,9 +4,10 @@ import logging
 import re
 from typing import Dict, List, Set
 
-from tree_sitter import Node
+from tree_sitter import Node, Query, QueryCursor
 
 from ...base_types import Declaration
+from ..doc_comment_utils import clean_block_comments, clean_line_comments, normalize_whitespace
 from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
@@ -42,10 +43,61 @@ CPP_QUERIES = {
             name: (type_identifier) @name
         ) @enum
 
+        ; Constructor definitions and declarations
+        (function_definition
+            declarator: (function_declarator
+                declarator: (field_identifier) @name
+            )
+        ) @constructor (#match? @name "^[A-Z]")
+
+        ; Constructor declarations (inside class body)
+        (declaration
+            (function_declarator
+                (identifier) @name
+            )
+        ) @constructor (#match? @name "^[A-Z]")
+
+        ; Destructor definitions and declarations
+        (function_definition
+            declarator: (function_declarator
+                declarator: (destructor_name) @name
+            )
+        ) @destructor
+
+        ; Destructor declarations (inside class body)
+        (declaration
+            (function_declarator
+                (destructor_name) @name
+            )
+        ) @destructor
+
+        ; Operator overload definitions and declarations
+        (function_definition
+            declarator: (function_declarator
+                declarator: (operator_name) @name
+            )
+        ) @operator
+
+        ; Operator declarations (inside class body)
+        (field_declaration
+            (function_declarator
+                (operator_name) @name
+            )
+        ) @operator
+
         ; Function definitions
         (function_definition
             declarator: (function_declarator
                 declarator: (identifier) @name
+            )
+        ) @function
+
+        ; Function declarations (method prototypes in classes) - not constructors/destructors
+        (field_declaration
+            (function_declarator
+                (field_identifier) @name
+                (#not-match? @name "^[A-Z]")  ; Exclude constructors (capitalized names)
+                (#not-match? @name "^~")      ; Exclude destructors
             )
         ) @function
 
@@ -84,31 +136,55 @@ CPP_QUERIES = {
     """,
 }
 
-# Patterns to clean Doxygen comments
-DOC_COMMENT_START_PATTERN = re.compile(r"^(/\*\*<?|/\*!<?|///<?|//!?)\s?")
-# Additional patterns for matching Doxygen comment formats
-DOC_COMMENT_LINE_PREFIX_PATTERN = re.compile(r"^\s*\*\s?")
-DOC_COMMENT_END_PATTERN = re.compile(r"\s*\*/$")
-
 
 def _clean_cpp_doc_comment(comment_block: List[str]) -> str:
-    """Cleans a block of Doxygen comment lines."""
-    cleaned_lines: list[str] = []
-    is_block = comment_block[0].startswith(("/**", "/*!")) if comment_block else False
+    """Cleans a block of Doxygen comment lines using shared doc_comment_utils.
 
-    for i, line in enumerate(comment_block):
-        original_line = line  # Keep original for block end check
-        if i == 0:
-            line = DOC_COMMENT_START_PATTERN.sub("", line)
-        if is_block:
-            line = DOC_COMMENT_LINE_PREFIX_PATTERN.sub("", line)
-        # Check original line for block comment end marker
-        if is_block and original_line.endswith("*/"):
-            line = DOC_COMMENT_END_PATTERN.sub("", line)
+    Handles both block-style comments (/** */, /*! */) and line-style comments
+    (///, //!) consistently with other parsers.
+    """
+    if not comment_block:
+        return ""
 
-        cleaned_lines.append(line.strip())
-    # Join lines, filtering empty ones that might result from cleaning
-    return "\n".join(filter(None, cleaned_lines))
+    # Detect if this is a block comment or line comment
+    first_line = comment_block[0].strip()
+    is_block = first_line.startswith(("/**", "/*!"))
+
+    if is_block:
+        # Use shared block comment cleaner for /** */ and /*! */
+        # Support both standard /** and Doxygen /*!
+        start_pattern = r"^/\*[*!]"
+        cleaned = clean_block_comments(comment_block, start_pattern=start_pattern)
+    else:
+        # Use shared line comment cleaner for /// and //!
+        # Match both /// and //! styles
+        prefix_pattern = r"^///?\s*|^//!\s*"
+        cleaned = clean_line_comments(comment_block, prefix_pattern=prefix_pattern)
+
+    # Remove common Doxygen tags (@brief, @author, @param, @return, etc.)
+    # These tags are metadata and not part of the actual documentation content
+    doxygen_tags = [
+        r"@brief\s+",
+        r"@details\s+",
+        r"@author\s+",
+        r"@version\s+",
+        r"@date\s+",
+        r"@tparam\s+\w+\s+",
+        r"@param\s+\w+\s+",
+        r"@return\s+",
+        r"@returns\s+",
+        r"@throws?\s+",
+        r"@exception\s+",
+        r"@see\s+",
+        r"@note\s+",
+        r"@warning\s+",
+        r"@deprecated\s+",
+    ]
+
+    for tag_pattern in doxygen_tags:
+        cleaned = re.sub(tag_pattern, "", cleaned, flags=re.IGNORECASE)
+
+    return cleaned.strip()
 
 
 class TreeSitterCppParser(BaseTreeSitterParser):
@@ -130,20 +206,14 @@ class TreeSitterCppParser(BaseTreeSitterParser):
         queries = self.get_queries()
         declarations = []
         imports: Set[str] = set()
-        declaration_map: dict[int, dict] = {}  # node_id -> declaration info
         doc_comment_map = {}  # end_line -> raw comment_text (list of lines)
-        node_parent_map = {
-            child.id: root_node.id for child in root_node.children
-        }  # Precompute parent IDs
-        for child in root_node.children:
-            for grandchild in child.children:
-                node_parent_map[grandchild.id] = child.id
-                # Add more levels if needed, or make recursive
 
         # --- Pass 1: Extract Doc Comments --- #
         try:
-            doc_query = self.ts_language.query(queries.get("doc_comments", ""))
-            doc_captures = doc_query.captures(root_node)
+            # Use modern Query() constructor and QueryCursor
+            doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
+            doc_cursor = QueryCursor(doc_query)
+            doc_captures = doc_cursor.captures(root_node)
             last_comment_line = -2
             current_doc_block: List[str] = []
 
@@ -196,18 +266,19 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                 continue
 
             try:
-                query = self.ts_language.query(query_str)
-                captures = query.captures(root_node)
-                logger.debug(f"Running C++ query '{query_name}', found {len(captures)} captures.")
+                # Use modern Query() constructor and QueryCursor
+                query = Query(self.ts_language, query_str)
 
                 if query_name == "imports":
+                    # Use captures for imports
+                    cursor = QueryCursor(query)
+                    captures = cursor.captures(root_node)
+                    logger.debug(
+                        f"Running C++ query '{query_name}', found {len(captures)} captures."
+                    )
+
                     # captures is a dict: {capture_name: [list of nodes]}
-                    # Fixed capture unpacking pattern
-                    for capture in captures.items():
-                        if len(capture) == 2:
-                            capture_name, nodes = capture
-                        else:
-                            continue
+                    for capture_name, nodes in captures.items():
                         if capture_name == "import_path":
                             for node in nodes:
                                 # Includes <...> or "..."
@@ -219,16 +290,28 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                                 imports.add(import_path)
 
                 elif query_name == "declarations":
-                    # Use matches for better structure
-                    matches = query.matches(root_node)
+                    # Use matches for better structure with declarations
+                    cursor = QueryCursor(query)
+                    matches = cursor.matches(root_node)
                     for _match_id, captures_dict in matches:
                         declaration_node = None
                         name_node = None
                         kind = None
                         modifiers: set[str] = set()
+                        signature = ""
 
                         # Check for various declaration types
-                        decl_types = ["class", "struct", "union", "enum", "function", "namespace"]
+                        decl_types = [
+                            "constructor",
+                            "destructor",
+                            "operator",
+                            "class",
+                            "struct",
+                            "union",
+                            "enum",
+                            "function",
+                            "namespace",
+                        ]
 
                         for decl_type in decl_types:
                             if decl_type in captures_dict:
@@ -244,6 +327,27 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                             if name_nodes and len(name_nodes) > 0:
                                 name_node = name_nodes[0]
 
+                        # Extract modifiers from the declaration node
+                        if declaration_node:
+                            modifiers = self._extract_cpp_modifiers(declaration_node, byte_content)
+
+                            # For class members, also look for access specifier in parent context
+                            if kind in ["constructor", "destructor", "operator"]:
+                                access_modifier = self._find_access_specifier(
+                                    declaration_node, byte_content
+                                )
+                                if access_modifier:
+                                    modifiers.add(access_modifier)
+
+                        # Extract signature for functions, constructors, destructors, and operators
+                        if declaration_node and kind in [
+                            "function",
+                            "constructor",
+                            "destructor",
+                            "operator",
+                        ]:
+                            signature = self._extract_cpp_signature(declaration_node, byte_content)
+
                         # Add declaration if we have both node and name
                         if declaration_node and name_node:
                             name_text = byte_content[
@@ -251,9 +355,16 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                             ].decode("utf8", errors="replace")
 
                             # Check for docstring
-                            raw_doc_block = doc_comment_map.get(
-                                declaration_node.start_point[0] - 1, []
-                            )
+                            # For template classes/functions, the doc comment may be several lines before
+                            # the actual declaration (before the template<> line)
+                            raw_doc_block = []
+                            for lookback in range(1, 4):  # Look back up to 3 lines
+                                raw_doc_block = doc_comment_map.get(
+                                    declaration_node.start_point[0] - lookback, []
+                                )
+                                if raw_doc_block:
+                                    break
+
                             docstring = (
                                 _clean_cpp_doc_comment(raw_doc_block) if raw_doc_block else ""
                             )
@@ -268,6 +379,7 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                                     start_line=start_line,
                                     end_line=end_line,
                                     docstring=docstring,
+                                    signature=signature,
                                     modifiers=modifiers,
                                 )
                             )
@@ -275,23 +387,7 @@ class TreeSitterCppParser(BaseTreeSitterParser):
             except Exception as e:
                 logger.warning(f"Failed to execute C++ query '{query_name}': {e}", exc_info=True)
 
-        # --- Pass 3: Process declarations and associate docstrings --- #
-        for decl_info in declaration_map.values():
-            if decl_info.get("name") and decl_info["name"] != "<unknown>":
-                # Check for doc comments ending on the line before the declaration
-                raw_doc_block = doc_comment_map.get(decl_info["start_line"] - 1, [])
-                cleaned_docstring = _clean_cpp_doc_comment(raw_doc_block) if raw_doc_block else ""
-
-                declarations.append(
-                    Declaration(
-                        kind=decl_info["kind"],
-                        name=decl_info["name"],
-                        start_line=decl_info["start_line"],
-                        end_line=decl_info["end_line"],
-                        docstring=cleaned_docstring,
-                        modifiers=decl_info["modifiers"],
-                    )
-                )
+        # Declaration processing now happens inline during Pass 2
 
         declarations.sort(key=lambda d: d.start_line)
         sorted_imports = sorted(imports)
@@ -300,3 +396,159 @@ class TreeSitterCppParser(BaseTreeSitterParser):
             f"Tree-sitter C++ extracted {len(declarations)} declarations and {len(sorted_imports)} imports."
         )
         return declarations, sorted_imports
+
+    def _find_access_specifier(self, declaration_node: Node, byte_content: bytes) -> str:
+        """Find the active access specifier for a class member.
+
+        In C++, access specifiers (public:, private:, protected:) apply to all
+        subsequent members until the next access specifier. This method traverses
+        backwards through the class body to find the active access specifier.
+
+        Args:
+            declaration_node: Declaration node inside a class
+            byte_content: Source code as bytes
+
+        Returns:
+            Access specifier string ("public", "private", or "protected"), or empty string
+        """
+        try:
+            # Navigate up to find the field_declaration_list (class body)
+            parent = declaration_node.parent
+            while parent and parent.type != "field_declaration_list":
+                parent = parent.parent
+
+            if not parent:
+                return ""
+
+            # Find the index of our declaration in the parent's children
+            decl_index = -1
+            for i, child in enumerate(parent.children):
+                if child == declaration_node:
+                    decl_index = i
+                    break
+
+            if decl_index == -1:
+                return ""
+
+            # Traverse backwards to find the most recent access_specifier
+            for i in range(decl_index - 1, -1, -1):
+                child = parent.children[i]
+                if child.type == "access_specifier":
+                    # Extract the access specifier text (public, private, protected)
+                    access_text = (
+                        byte_content[child.start_byte : child.end_byte]
+                        .decode("utf-8", errors="replace")
+                        .strip()
+                    )
+                    # Remove the trailing colon if present
+                    return access_text.rstrip(":")
+
+            # Default is private for classes, public for structs
+            # We don't have enough context here, so return empty
+            return ""
+
+        except Exception as e:
+            logger.debug(f"Failed to find access specifier: {e}")
+            return ""
+
+    def _extract_cpp_modifiers(self, declaration_node: Node, byte_content: bytes) -> set[str]:
+        """Extract modifiers from C++ declaration node.
+
+        Extracts access specifiers (public, private, protected), storage class specifiers
+        (static, extern, inline, virtual, const, etc.) from the declaration.
+
+        Args:
+            declaration_node: Declaration node from tree-sitter
+            byte_content: Source code as bytes
+
+        Returns:
+            Set of modifier strings (e.g., {"public", "static", "const"})
+        """
+        modifiers: set[str] = set()
+
+        try:
+            # Common C++ modifiers to look for
+            modifier_types = [
+                "storage_class_specifier",  # static, extern, inline
+                "type_qualifier",  # const, volatile
+                "virtual_specifier",  # virtual, override, final
+                "access_specifier",  # public, private, protected (in class context)
+            ]
+
+            def extract_from_node(node: Node) -> None:
+                """Recursively extract modifiers from node and its children."""
+                if node.type in modifier_types:
+                    modifier_text = (
+                        byte_content[node.start_byte : node.end_byte]
+                        .decode("utf-8", errors="replace")
+                        .strip()
+                    )
+                    if modifier_text and modifier_text not in [":", ";"]:
+                        modifiers.add(modifier_text)
+
+                # Also check for inline keywords in text
+                if node.type in ["inline", "virtual", "static", "extern", "const", "volatile"]:
+                    modifiers.add(node.type)
+
+                # Recursively check children
+                for child in node.children:
+                    extract_from_node(child)
+
+            # Extract from the declaration node
+            extract_from_node(declaration_node)
+
+            # For functions with trailing const/noexcept, check the function declarator
+            for child in declaration_node.children:
+                if child.type == "function_declarator":
+                    for sub_child in child.children:
+                        if sub_child.type == "type_qualifier":
+                            qualifier = (
+                                byte_content[sub_child.start_byte : sub_child.end_byte]
+                                .decode("utf-8", errors="replace")
+                                .strip()
+                            )
+                            if qualifier:
+                                modifiers.add(qualifier)
+
+        except Exception as e:
+            logger.debug(f"Failed to extract C++ modifiers: {e}")
+
+        return modifiers
+
+    def _extract_cpp_signature(self, func_node: Node, byte_content: bytes) -> str:
+        """Extract function signature from function definition node.
+
+        Extracts the complete signature including return type, name, parameters,
+        and qualifiers (const, noexcept, etc.).
+
+        Args:
+            func_node: Function definition node
+            byte_content: Source code as bytes
+
+        Returns:
+            Function signature string (e.g., "int calculate(double x, double y) const")
+        """
+        try:
+            # Find the function body to determine signature end
+            sig_end_byte = func_node.end_byte
+
+            # Look for the opening brace or semicolon to determine signature end
+            for child in func_node.children:
+                if child.type in ["compound_statement", ";"]:
+                    sig_end_byte = child.start_byte
+                    break
+
+            # Extract signature from start to body
+            signature = (
+                byte_content[func_node.start_byte : sig_end_byte]
+                .decode("utf-8", errors="replace")
+                .strip()
+            )
+
+            # Normalize whitespace
+            signature = normalize_whitespace(signature)
+
+            return signature
+        except Exception as e:
+            logger.debug(f"Failed to extract C++ function signature: {e}")
+            return ""
