@@ -131,9 +131,10 @@ for lang in "${LANGUAGES_TO_CHECK[@]}"; do
   fi
 
   # Try to load the grammar using tree-sitter-language-pack
-  # Use venv python if available, otherwise fall back to python3
-  PYTHON_CMD="${VIRTUAL_ENV:-./venv}/bin/python"
-  if [ ! -f "$PYTHON_CMD" ]; then
+  # Use python from activated environment (works in both local and CI)
+  if command -v python &> /dev/null; then
+    PYTHON_CMD="python"
+  else
     PYTHON_CMD="python3"
   fi
 
