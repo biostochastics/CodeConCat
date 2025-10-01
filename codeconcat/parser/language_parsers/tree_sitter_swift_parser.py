@@ -3,7 +3,13 @@
 import logging
 from typing import Dict, List, Optional
 
-from tree_sitter import Node
+from tree_sitter import Node, Query
+
+# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+try:
+    from tree_sitter import QueryCursor
+except ImportError:
+    QueryCursor = None  # type: ignore[assignment,misc]
 
 from ...base_types import Declaration
 from ..doc_comment_utils import clean_block_comments, clean_line_comments, normalize_whitespace
@@ -120,8 +126,6 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
             return imports
 
         try:
-            from tree_sitter import QueryCursor
-
             cursor = QueryCursor(import_query)
             captures = cursor.captures(tree)
 
@@ -163,8 +167,6 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
             return doc_comment_map
 
         try:
-            from tree_sitter import QueryCursor
-
             cursor = QueryCursor(doc_query)
             captures = cursor.captures(tree)
 
@@ -253,8 +255,6 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
         doc_comment_map = self._extract_doc_comments(tree, byte_content)
 
         try:
-            from tree_sitter import QueryCursor
-
             cursor = QueryCursor(decl_query)
             captures = cursor.captures(tree)
 
@@ -738,8 +738,6 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
             return ""
 
         try:
-            from tree_sitter import QueryCursor
-
             cursor = QueryCursor(doc_query)
             captures = cursor.captures(tree)
 
