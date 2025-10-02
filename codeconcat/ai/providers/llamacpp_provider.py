@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -15,6 +16,12 @@ class LlamaCppProvider(AIProvider):
     def __init__(self, config: AIProviderConfig):
         """Initialize Llama.cpp provider."""
         super().__init__(config)
+        warnings.warn(
+            "LlamaCppProvider is deprecated and will be removed in a future release. "
+            "Use the LocalServerProvider with the 'llamacpp_server' preset instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
         # Set defaults for Llama.cpp
         if not config.model:

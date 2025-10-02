@@ -5,6 +5,32 @@ All notable changes to CodeConCat will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Solidity Smart Contract Parser**: Full support for Ethereum/blockchain smart contracts
+  - Comprehensive parsing of contracts, interfaces, libraries, and inheritance
+  - Functions, modifiers, events, and state variable extraction
+  - Struct, enum, and custom error definitions (Solidity 0.8.4+)
+  - Constructor, fallback, and receive function support
+  - Import statement parsing
+  - **Security Pattern Detection**: Syntactic flagging for manual review
+    - `selfdestruct` and deprecated `suicide` usage detection
+    - `delegatecall` pattern identification
+    - Assembly block detection
+    - External call tracking (potential reentrancy points)
+  - Full test coverage with unit and integration tests
+  - Performance optimized (<70ms for 10KB files)
+  - Based on JoranHonig/tree-sitter-solidity grammar
+
+### Changed
+- Updated language support count from 15+ to 20+ languages in documentation
+- Added Solidity examples in Advanced Workflows section
+- **AI Model Updates**: Improved default model selection for better performance
+  - OpenRouter: Changed default model from `deepseek/deepseek-chat-v3.1` to `qwen/qwen3-coder` (specialized for code)
+  - OpenRouter: Updated meta-overview model from `z-ai/glm-4.5` to `z-ai/glm-4.6` (latest version)
+  - Fixed incorrect model references in documentation (`gpt-5-nano` → `gpt-5-mini`)
+
 ## [0.8.5] - 2025-01-30
 
 ### Fixed

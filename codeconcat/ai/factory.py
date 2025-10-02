@@ -75,7 +75,12 @@ def get_ai_provider(config: AIProviderConfig) -> AIProvider:
 
         return LlamaCppProvider(config)
 
-    elif config.provider_type == AIProviderType.LOCAL_SERVER:
+    elif config.provider_type in {
+        AIProviderType.LOCAL_SERVER,
+        AIProviderType.VLLM,
+        AIProviderType.LMSTUDIO,
+        AIProviderType.LLAMACPP_SERVER,
+    }:
         from .providers.local_server_provider import LocalServerProvider
 
         return LocalServerProvider(config)
@@ -127,8 +132,8 @@ def list_available_providers() -> List[str]:
     if importlib.util.find_spec("llama_cpp") is not None:
         available.append("llamacpp")
 
-    # Local server provider always available (uses standard HTTP)
-    available.append("local_server")
+    # Local server presets are always available (uses standard HTTP)
+    available.extend(["local_server", "vllm", "lmstudio", "llamacpp_server"])
 
     return available
 
@@ -218,7 +223,7 @@ def get_provider_info(provider_name: str) -> Dict[str, Any]:
             "supports_function_calling": False,
             "pip_install": "llama-cpp-python",
             "env_var": None,
-            "notes": "Requires local model file (GGUF format)",
+            "notes": "Deprecated direct integration. Use 'llamacpp_server' preset instead.",
         },
         "local_server": {
             "name": "OpenAI-Compatible Local Server",
@@ -227,8 +232,38 @@ def get_provider_info(provider_name: str) -> Dict[str, Any]:
             "supports_streaming": True,
             "supports_function_calling": True,
             "pip_install": None,
-            "env_var": "LOCAL_LLM_API_BASE",
-            "notes": "Supports vLLM, TGI, LocalAI, FastChat, and other OpenAI-compatible servers",
+            "env_var": "LOCAL_LLM_API_KEY",
+            "notes": "Supports vLLM, LM Studio, llama.cpp server, and other OpenAI-compatible runtimes",
+        },
+        "vllm": {
+            "name": "vLLM Server",
+            "models": ["auto-discovered from server"],
+            "requires_api_key": False,
+            "supports_streaming": True,
+            "supports_function_calling": True,
+            "pip_install": None,
+            "env_var": "VLLM_API_KEY",
+            "notes": "Defaults to http://localhost:8000; uses LocalServerProvider",
+        },
+        "lmstudio": {
+            "name": "LM Studio",
+            "models": ["auto-discovered from server"],
+            "requires_api_key": False,
+            "supports_streaming": True,
+            "supports_function_calling": True,
+            "pip_install": None,
+            "env_var": "LMSTUDIO_API_KEY",
+            "notes": "Defaults to http://localhost:1234; uses LocalServerProvider",
+        },
+        "llamacpp_server": {
+            "name": "llama.cpp Server",
+            "models": ["auto-discovered from server"],
+            "requires_api_key": False,
+            "supports_streaming": True,
+            "supports_function_calling": True,
+            "pip_install": None,
+            "env_var": "LLAMACPP_SERVER_API_KEY",
+            "notes": "Defaults to http://localhost:8080; uses LocalServerProvider",
         },
     }
 

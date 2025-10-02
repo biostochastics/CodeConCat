@@ -17,6 +17,7 @@ from rich.text import Text
 from codeconcat.version import __version__
 
 from .commands import api, diagnose, init, keys, reconstruct, run
+from .commands import config as config_commands
 from .config import GlobalState
 from .utils import setup_logging
 
@@ -148,6 +149,7 @@ app.command(name="reconstruct")(
 app.add_typer(api.app, name="api", help="Start the CodeConCat API server")
 app.add_typer(diagnose.app, name="diagnose", help="Diagnostic and verification tools")
 app.add_typer(keys.app, name="keys", help="Manage API keys for AI providers")
+app.add_typer(config_commands.app, name="config", help="Configure CodeConCat presets")
 
 
 # Add a default command that maps to 'run' for backward compatibility

@@ -54,6 +54,10 @@ class SummarizationProcessor:
             "openrouter": AIProviderType.OPENROUTER,
             "ollama": AIProviderType.OLLAMA,
             "llamacpp": AIProviderType.LLAMACPP,
+            "local_server": AIProviderType.LOCAL_SERVER,
+            "vllm": AIProviderType.VLLM,
+            "lmstudio": AIProviderType.LMSTUDIO,
+            "llamacpp_server": AIProviderType.LLAMACPP_SERVER,
         }
 
         provider_type = provider_map.get(provider_type_str.lower())
@@ -63,6 +67,9 @@ class SummarizationProcessor:
 
         # Build extra params for llama.cpp performance tuning
         extra_params = {}
+        api_base = getattr(self.config, "ai_api_base", None)
+        if api_base and isinstance(api_base, str) and not api_base.strip():
+            api_base = None
         if provider_type == AIProviderType.LLAMACPP:
             if (
                 hasattr(self.config, "llama_gpu_layers")
@@ -82,6 +89,19 @@ class SummarizationProcessor:
             ):
                 extra_params["llama_batch_size"] = self.config.llama_batch_size
 
+        local_server_defaults = {
+            AIProviderType.LOCAL_SERVER: ("local server", None),
+            AIProviderType.VLLM: ("vLLM", "http://localhost:8000"),
+            AIProviderType.LMSTUDIO: ("LM Studio", "http://localhost:1234"),
+            AIProviderType.LLAMACPP_SERVER: ("llama.cpp server", "http://localhost:8080"),
+        }
+
+        if provider_type in local_server_defaults:
+            server_label, default_base = local_server_defaults[provider_type]
+            extra_params["server_kind"] = server_label
+            if not api_base and default_base:
+                api_base = default_base
+
         # Create provider config
         ai_config = AIProviderConfig(
             provider_type=provider_type,
@@ -90,6 +110,7 @@ class SummarizationProcessor:
             temperature=getattr(self.config, "ai_temperature", 0.3),
             max_tokens=getattr(self.config, "ai_max_tokens", 500),
             cache_enabled=getattr(self.config, "ai_cache_enabled", True),
+            api_base=api_base,
             extra_params=extra_params,
         )
 

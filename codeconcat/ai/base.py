@@ -21,7 +21,10 @@ class AIProviderType(Enum):
     OPENROUTER = "openrouter"
     OLLAMA = "ollama"
     LLAMACPP = "llamacpp"
-    LOCAL_SERVER = "local_server"  # OpenAI-compatible local servers (vLLM, TGI, LocalAI)
+    LOCAL_SERVER = "local_server"  # Generic OpenAI-compatible local servers
+    VLLM = "vllm"
+    LMSTUDIO = "lmstudio"
+    LLAMACPP_SERVER = "llamacpp_server"
 
 
 @dataclass
@@ -34,7 +37,7 @@ class AIProviderConfig:
     model: str = ""
     temperature: float = 0.3
     max_tokens: int = 500
-    timeout: int = 30
+    timeout: int = 600  # 10 minutes - increased for AI model processing
     max_retries: int = 3
     retry_delay: float = 1.0
     cache_enabled: bool = True
@@ -64,13 +67,13 @@ class AIProvider(ABC):
 
     # Centralized system prompts for consistency across all providers
     # Using ClassVar to ensure these are class-level constants
-    SYSTEM_PROMPT_CODE_SUMMARY: ClassVar[str] = (
-        """You are an expert software architect and technical documentation specialist with deep knowledge of software design patterns, algorithms, and best practices across multiple programming languages. Your role is to analyze code and produce high-quality, actionable summaries that help developers quickly understand codebases. Focus on clarity, technical accuracy, and practical insights."""
-    )
+    SYSTEM_PROMPT_CODE_SUMMARY: ClassVar[
+        str
+    ] = """You are an expert software architect and technical documentation specialist with deep knowledge of software design patterns, algorithms, and best practices across multiple programming languages. Your role is to analyze code and produce high-quality, actionable summaries that help developers quickly understand codebases. Focus on clarity, technical accuracy, and practical insights."""
 
-    SYSTEM_PROMPT_FUNCTION_SUMMARY: ClassVar[str] = (
-        """You are a senior software engineer specializing in code documentation. Your expertise includes identifying function contracts, understanding complex algorithms, and explaining code behavior concisely. Create summaries that are technically precise yet accessible, highlighting the 'what', 'how', and 'why' of each function."""
-    )
+    SYSTEM_PROMPT_FUNCTION_SUMMARY: ClassVar[
+        str
+    ] = """You are a senior software engineer specializing in code documentation. Your expertise includes identifying function contracts, understanding complex algorithms, and explaining code behavior concisely. Create summaries that are technically precise yet accessible, highlighting the 'what', 'how', and 'why' of each function."""
 
     _session: Optional["aiohttp.ClientSession"]
 

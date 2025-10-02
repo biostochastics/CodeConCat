@@ -182,9 +182,9 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
 
                     if is_block_expression:
                         if current_doc_block_expression:
-                            doc_line_comment_map[last_line_comment_line] = (
-                                current_doc_block_expression
-                            )
+                            doc_line_comment_map[
+                                last_line_comment_line
+                            ] = current_doc_block_expression
                         doc_line_comment_map[current_end_line] = line_comment_text.splitlines()
                         current_doc_block_expression = []
                         last_line_comment_line = current_end_line
@@ -193,9 +193,9 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
                             current_doc_block_expression.append(line_comment_text)
                         else:
                             if current_doc_block_expression:
-                                doc_line_comment_map[last_line_comment_line] = (
-                                    current_doc_block_expression
-                                )
+                                doc_line_comment_map[
+                                    last_line_comment_line
+                                ] = current_doc_block_expression
                             current_doc_block_expression = [line_comment_text]
                         last_line_comment_line = current_start_line
 

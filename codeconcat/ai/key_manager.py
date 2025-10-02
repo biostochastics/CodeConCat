@@ -164,6 +164,10 @@ class APIKeyManager:
             "anthropic": "ANTHROPIC_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
             "ollama": None,  # Ollama doesn't need API key
+            "local_server": "LOCAL_LLM_API_KEY",
+            "vllm": "VLLM_API_KEY",
+            "lmstudio": "LMSTUDIO_API_KEY",
+            "llamacpp_server": "LLAMACPP_SERVER_API_KEY",
         }
 
         if provider in env_vars and env_vars[provider]:

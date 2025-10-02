@@ -84,9 +84,9 @@ class AsyncSemgrepValidator:
         # Run semgrep asynchronously
         with tempfile.TemporaryDirectory() as temp_dir:
             # Prepare command - ensure semgrep_path is not None
-            assert self.semgrep_path is not None, (
-                "semgrep_path should not be None after is_available() check"
-            )
+            assert (
+                self.semgrep_path is not None
+            ), "semgrep_path should not be None after is_available() check"
             cmd = [
                 self.semgrep_path,
                 "--config",
@@ -187,9 +187,9 @@ class AsyncSemgrepValidator:
         # Run semgrep on the directory asynchronously
         with tempfile.TemporaryDirectory() as temp_dir:
             # Prepare command - ensure semgrep_path is not None
-            assert self.semgrep_path is not None, (
-                "semgrep_path should not be None after is_available() check"
-            )
+            assert (
+                self.semgrep_path is not None
+            ), "semgrep_path should not be None after is_available() check"
             cmd = [
                 self.semgrep_path,
                 "--config",

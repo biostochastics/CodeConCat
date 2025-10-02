@@ -85,7 +85,17 @@ def validate_security_threshold(value: str) -> str:
 
 def complete_provider(incomplete: str) -> List[str]:
     """Autocompletion for AI provider names."""
-    providers = ["openai", "anthropic", "openrouter", "ollama", "llamacpp", "local_server"]
+    providers = [
+        "openai",
+        "anthropic",
+        "openrouter",
+        "ollama",
+        "llamacpp",
+        "local_server",
+        "vllm",
+        "lmstudio",
+        "llamacpp_server",
+    ]
     return [p for p in providers if p.startswith(incomplete.lower())]
 
 
@@ -134,6 +144,9 @@ def _get_api_key_for_provider(provider: Optional[str]) -> Optional[str]:
         "ollama": None,  # Ollama doesn't need an API key
         "llamacpp": None,  # llama.cpp doesn't need an API key
         "local_server": "LOCAL_LLM_API_KEY",
+        "vllm": "VLLM_API_KEY",
+        "lmstudio": "LMSTUDIO_API_KEY",
+        "llamacpp_server": "LLAMACPP_SERVER_API_KEY",
     }
 
     env_var = provider_env_map.get(provider.lower())
@@ -367,7 +380,10 @@ def run_command(
         Optional[str],
         typer.Option(
             "--ai-provider",
-            help="AI provider (openai, anthropic, openrouter, ollama, llamacpp, local_server)",
+            help=(
+                "AI provider (openai, anthropic, openrouter, ollama, local_server, vllm, "
+                "lmstudio, llamacpp_server, llamacpp [deprecated])"
+            ),
             rich_help_panel="AI Summarization Options",
             autocompletion=complete_provider,
         ),
@@ -385,6 +401,14 @@ def run_command(
         typer.Option(
             "--ai-api-key",
             help="API key for AI provider (or set OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)",
+            rich_help_panel="AI Summarization Options",
+        ),
+    ] = None,
+    ai_api_base: Annotated[
+        Optional[str],
+        typer.Option(
+            "--ai-api-base",
+            help="Override the API base URL for the selected AI provider",
             rich_help_panel="AI Summarization Options",
         ),
     ] = None,
@@ -687,6 +711,7 @@ def run_command(
                 "ai_provider": ai_provider or "",
                 "ai_model": ai_model or "",
                 "ai_api_key": ai_api_key or _get_api_key_for_provider(ai_provider) or "",
+                "ai_api_base": ai_api_base if ai_api_base else None,
                 "ai_summarize_functions": ai_summarize_functions,
                 "ai_meta_overview": ai_meta_overview,
                 "ai_meta_overview_prompt": ai_meta_overview_prompt or "",

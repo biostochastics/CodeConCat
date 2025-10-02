@@ -112,6 +112,8 @@ try:
         "hcl": "TreeSitterHclParser",
         "terraform": "TreeSitterHclParser",
         "graphql": "TreeSitterGraphqlParser",
+        "ruby": "TreeSitterRubyParser",
+        "solidity": "TreeSitterSolidityParser",
     }
 
     import logging
@@ -169,5 +171,9 @@ LANGUAGE_EXTENSION_MAP = {
         ".hcl": "hcl",
         ".graphql": "graphql",
         ".gql": "graphql",
+        ".rb": "ruby",
+        ".rake": "ruby",
+        ".gemspec": "ruby",
+        ".sol": "solidity",
     }.items()
 }

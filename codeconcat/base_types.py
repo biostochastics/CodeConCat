@@ -798,10 +798,18 @@ class CodeConCatConfig(BaseModel):
         False, description="Enable AI-powered code summarization (requires API key)."
     )
     ai_provider: str = Field(
-        "openai", description="AI provider to use: openai, anthropic, openrouter, ollama, llamacpp"
+        "openai",
+        description=(
+            "AI provider to use: openai, anthropic, openrouter, ollama, local_server, "
+            "vllm, lmstudio, llamacpp_server, llamacpp (deprecated)"
+        ),
     )
     ai_api_key: str | None = Field(
         None, description="API key for the AI provider (can also use environment variables)"
+    )
+    ai_api_base: str | None = Field(
+        None,
+        description="Override API base URL for the selected AI provider (useful for local servers)",
     )
     ai_model: str | None = Field(
         None,
@@ -871,7 +879,7 @@ class CodeConCatConfig(BaseModel):
         description="Save individual summaries and meta-overview to separate files on disk",
     )
     ai_summaries_dir: str = Field(
-        ".codeconcat/summaries",
+        "codeconcat_summaries",
         description="Directory for saving AI summaries (relative to output or absolute path)",
     )
 
