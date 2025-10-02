@@ -737,7 +737,7 @@ Save AI-generated summaries for caching and reuse:
 ```bash
 codeconcat run --ai-summary --ai-save-summaries --ai-provider openai
 
-# Summaries saved to {output_dir}/.codeconcat/summaries/
+# Summaries saved to {output_dir}/codeconcat_summaries/
 # ├── individual/      # Per-file summaries (JSON)
 # └── meta_overview.json  # Project-wide overview
 ```
@@ -830,7 +830,7 @@ ai_meta_overview: false
 ai_meta_prompt: ""  # Custom prompt
 ai_meta_overview_use_higher_tier: true  # Use premium models
 ai_save_summaries: false
-ai_summaries_dir: ".codeconcat/summaries"
+ai_summaries_dir: "codeconcat_summaries"
 
 # Processing limits
 ai_min_file_lines: 20
@@ -840,7 +840,10 @@ ai_max_functions_per_file: 10
 # Performance
 ai_max_concurrent: 5
 ai_cache_enabled: true
+ai_timeout: 600  # 10 minutes (default) for AI operations
 ```
+
+> **Note:** AI summaries are saved in the `codeconcat_summaries/` directory adjacent to your output file. The default timeout of 10 minutes accommodates both cloud and local AI models for comprehensive analysis.
 
 #### Cost Optimization
 
