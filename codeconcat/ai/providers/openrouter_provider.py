@@ -30,7 +30,7 @@ class OpenRouterProvider(AIProvider):
             config.api_base = "https://openrouter.ai/api/v1"
 
         if not config.model:
-            config.model = "deepseek/deepseek-chat-v3.1"  # Fast model for individual file summaries
+            config.model = "qwen/qwen3-coder"  # Coder-optimized model for individual file summaries
 
         # OpenRouter pricing varies by model - user should set these
         if config.cost_per_1k_input_tokens == 0:
@@ -291,7 +291,7 @@ class OpenRouterProvider(AIProvider):
             override_model = getattr(self.config, "ai_meta_overview_model", None)
 
         # Determine which model to use
-        meta_model = override_model or ("z-ai/glm-4.5" if use_higher_tier else self.config.model)
+        meta_model = override_model or ("z-ai/glm-4.6" if use_higher_tier else self.config.model)
 
         logger.info(f"Generating meta-overview with model: {meta_model}")
 

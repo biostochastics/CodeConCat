@@ -5,6 +5,12 @@ from typing import Dict, List
 
 from tree_sitter import Node
 
+# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+try:
+    from tree_sitter import QueryCursor
+except ImportError:
+    QueryCursor = None  # type: ignore[assignment,misc]
+
 from ...base_types import Declaration
 from ..doc_comment_utils import normalize_whitespace
 from ..utils import get_node_location
@@ -125,8 +131,6 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         try:
             doc_query = self._get_compiled_query("doc_comments")
             if doc_query:
-                from tree_sitter import QueryCursor
-
                 cursor = QueryCursor(doc_query)
                 doc_captures = cursor.captures(root_node)
                 # doc_captures is a dict: {capture_name: [list of nodes]}
@@ -156,8 +160,6 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         try:
             import_query = self._get_compiled_query("imports")
             if import_query:
-                from tree_sitter import QueryCursor
-
                 cursor = QueryCursor(import_query)
                 import_captures = cursor.captures(root_node)
                 # import_captures is a dict: {capture_name: [list of nodes]}
@@ -177,8 +179,6 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         try:
             decl_query = self._get_compiled_query("declarations")
             if decl_query:
-                from tree_sitter import QueryCursor
-
                 cursor = QueryCursor(decl_query)
                 matches = cursor.matches(root_node)
 

@@ -213,6 +213,7 @@ exclude = [
     "tests/",
     "build/",
     "dist/",
+    "scripts/",
 ]
 
 [tool.pytest.ini_options]

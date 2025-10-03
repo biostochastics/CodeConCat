@@ -5,6 +5,12 @@ from typing import Dict, List, Set
 
 from tree_sitter import Node, Query
 
+# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+try:
+    from tree_sitter import QueryCursor
+except ImportError:
+    QueryCursor = None  # type: ignore[assignment,misc]
+
 from ...base_types import Declaration
 from ..doc_comment_utils import clean_block_comments, clean_jsdoc_tags
 from ..utils import get_node_location
@@ -235,8 +241,6 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
         # --- Pass 1: Extract Doc Comments --- #
         try:
             # Use modern Query() constructor
-            from tree_sitter import QueryCursor
-
             doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
             cursor = QueryCursor(doc_query)
             doc_captures = cursor.captures(root_node)
@@ -258,8 +262,6 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
 
             try:
                 # Use modern Query() constructor
-                from tree_sitter import QueryCursor
-
                 query = Query(self.ts_language, query_str)
                 cursor = QueryCursor(query)
                 captures = cursor.captures(root_node)

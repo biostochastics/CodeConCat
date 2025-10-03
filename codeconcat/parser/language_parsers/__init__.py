@@ -112,6 +112,10 @@ try:
         "hcl": "TreeSitterHclParser",
         "terraform": "TreeSitterHclParser",
         "graphql": "TreeSitterGraphqlParser",
+        "ruby": "TreeSitterRubyParser",
+        "solidity": "TreeSitterSolidityParser",
+        "wat": "TreeSitterWatParser",
+        "wasm": "TreeSitterWatParser",
     }
 
     import logging
@@ -169,5 +173,12 @@ LANGUAGE_EXTENSION_MAP = {
         ".hcl": "hcl",
         ".graphql": "graphql",
         ".gql": "graphql",
+        ".rb": "ruby",
+        ".rake": "ruby",
+        ".gemspec": "ruby",
+        ".sol": "solidity",
+        ".wat": "wat",
+        ".wast": "wat",
+        ".wasm": "wasm",
     }.items()
 }

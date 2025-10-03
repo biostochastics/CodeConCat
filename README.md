@@ -27,10 +27,10 @@
 
 ## What is CodeConCat?
 
-CodeConCat is a Python tool that transforms codebases into formats optimized for AI consumption and analysis. It automatically processes your code to extract functions, classes, imports, and documentation across 15+ programming languages, providing structured output that makes code analysis intuitive and efficient.
+CodeConCat is a Python tool that transforms codebases into formats optimized for AI consumption and analysis. It automatically processes your code to extract functions, classes, imports, and documentation across 20+ programming languages, providing structured output that makes code analysis intuitive and efficient.
 
 **Why CodeConCat?**
-- **Multi-Language Intelligence**: Parse 15+ languages
+- **Multi-Language Intelligence**: Parse 20+ languages including smart contracts
 - **AI-Optimized Output**: Optional compression and AI summarization
 - **Production-Grade Security**: Path traversal protection, XXE prevention, Semgrep integration
 - **High Performance**: Process 100+ files in under 5 seconds with parallel execution
@@ -111,7 +111,7 @@ codeconcat run --security --semgrep --compress --output secure-report.json
 
 ## Core Features
 
-- **Multi-Language Parsing** - 15+ languages using tree-sitter and regex engines with intelligent result merging
+- **Multi-Language Parsing** - 20+ languages using tree-sitter and regex engines with intelligent result merging
 - **AI Summarization** *(Optional)* - Code summaries via OpenAI, Anthropic, OpenRouter, or local models (Ollama, llama.cpp)
 - **Differential Outputs** - Generate diffs between Git refs with AI-powered change summaries
 - **Code Compression** - Pattern recognition reduces token usage by 35-40% with configurable levels
@@ -126,7 +126,7 @@ codeconcat run --security --semgrep --compress --output secure-report.json
 
 ## Language Support
 
-CodeConCat provides comprehensive parsing for 15+ programming languages with industry-validated accuracy:
+CodeConCat provides comprehensive parsing for 25+ programming languages with industry-validated accuracy:
 
 | Language | Parser Type | Key Features | Documentation |
 |----------|-------------|--------------|---------------|
@@ -142,12 +142,23 @@ CodeConCat provides comprehensive parsing for 15+ programming languages with ind
 | **R** | Tree-sitter + Enhanced Regex | S3/S4 OOP, functions, tidyverse patterns | ✓ Roxygen |
 | **Swift** | Tree-sitter + Enhanced Regex | Property wrappers, actors, async/await | ✓ SwiftDoc |
 | **Kotlin** | Tree-sitter | Extension functions, suspend functions, sealed classes | ✓ KDoc |
+| **Solidity** | Tree-sitter | Smart contracts, inheritance, modifiers, events, security patterns | ✓ NatSpec |
+| **Crystal** | Tree-sitter | Type annotations, union types, C bindings, macros | ✓ Comments |
 | **Dart** | Tree-sitter | Null safety, Flutter patterns, mixins | ✓ Dartdoc |
+| **Elixir** | Tree-sitter | GenServer, LiveView, pattern matching, pipe operators, macros | ✓ @doc/@moduledoc |
+| **Zig** | Tree-sitter | Comptime blocks, async/await (suspend/resume), error unions, inline for, struct methods | ✓ /// comments |
 | **SQL** | Tree-sitter | Multi-dialect (PostgreSQL, MySQL, SQLite), CTEs | ✓ Comments |
 | **HCL/Terraform** | Tree-sitter | Resources, modules, providers, variables | ✓ Comments |
 | **GraphQL** | Tree-sitter | Schema definitions, operations, directives | ✓ Descriptions |
+| **GLSL** | Tree-sitter | Vertex/fragment/compute shaders, uniforms, samplers, textures, in/out variables, layout qualifiers | ✓ Comments |
+| **HLSL** | Tree-sitter | Compute/vertex/pixel shaders, cbuffer/tbuffer, RWTextures, structured buffers, typedefs, semantics | ✓ Comments |
 | **Bash/Shell** | Tree-sitter | Functions, variables, source imports | ✓ Comments |
 | **TOML** | Enhanced Regex | Configuration parsing, nested tables | ✓ Comments |
+| **WAT (WebAssembly Text)** | Tree-sitter | Modules, functions, imports/exports, memory, types | ✓ Comments |
+
+**Crystal Support:** CodeConCat provides comprehensive parsing for Crystal using a dynamically-compiled tree-sitter grammar from [crystal-lang-tools/tree-sitter-crystal](https://github.com/crystal-lang-tools/tree-sitter-crystal). The grammar is automatically downloaded and compiled on first use, with configurable cache directory via `CODECONCAT_CACHE_DIR` environment variable. The parser extracts classes, modules, structs, methods, macros, type aliases, and C library bindings (lib blocks). It tracks Crystal-specific features including type annotations, union types, nilable types, and generic type parameters. All security features include file locking to prevent race conditions, atomic file operations to prevent TOCTOU vulnerabilities, and automatic caching for improved performance.
+
+**WebAssembly Support:** CodeConCat provides comprehensive parsing for WebAssembly Text (WAT) format using a dynamically-compiled tree-sitter grammar from [wasm-lsp/tree-sitter-wasm](https://github.com/wasm-lsp/tree-sitter-wasm). The grammar is automatically downloaded and compiled on first use, with configurable cache directory via `CODECONCAT_CACHE_DIR` environment variable. The parser extracts module structure, function signatures with parameter/result types, import/export statements, type definitions, and global/table declarations. All security features include file locking to prevent race conditions, commit hash pinning for reproducible builds, and atomic file operations to prevent TOCTOU vulnerabilities.
 
 ### Parser Architecture
 
@@ -288,6 +299,34 @@ codeconcat run --compress --compression-level medium --output compressed.md
 codeconcat run --compress --compression-level aggressive --output minimal.json
 ```
 
+**Smart Contract Analysis (Solidity)**
+
+Analyze Ethereum/blockchain smart contracts with security pattern detection:
+
+```bash
+# Process Solidity contracts with security pattern flagging
+codeconcat run contracts/ --include-language solidity --output contracts-analysis.md
+
+# Combine with security scanning for comprehensive analysis
+codeconcat run \
+    --include-language solidity \
+    --security \
+    --output smart-contract-audit.md
+
+# Process DeFi protocol with AI summarization
+codeconcat run defi-protocol/ \
+    --include-language solidity javascript \
+    --ai-summary \
+    --ai-provider anthropic \
+    --output protocol-analysis.md
+```
+
+The Solidity parser automatically flags security-relevant patterns including:
+- `selfdestruct` and `delegatecall` usage
+- Assembly blocks requiring manual review
+- External calls (potential reentrancy points)
+- Inheritance hierarchies and modifier chains
+
 **Security Scanning**
 
 Scan code for security issues and sensitive data:
@@ -385,7 +424,8 @@ security_scan_severity_threshold: MEDIUM  # Options: LOW, MEDIUM, HIGH, CRITICAL
 
 # AI Features (optional)
 enable_ai_summary: false
-ai_provider: anthropic           # Options: openai, anthropic, openrouter, ollama
+ai_provider: anthropic           # Options: openai, anthropic, openrouter, ollama,
+                                 #          local_server, vllm, lmstudio, llamacpp_server (llamacpp deprecated)
 ai_model: ""                     # Optional, uses provider defaults
 ai_meta_overview: false          # Generate project-wide overview
 ai_save_summaries: false         # Save summaries to disk for caching
@@ -418,6 +458,10 @@ export GITHUB_TOKEN=your_token_here
 export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-ant-...
 export OPENROUTER_API_KEY=sk-or-...
+export LOCAL_LLM_API_KEY=""       # Optional: generic OpenAI-compatible local servers
+export VLLM_API_KEY=""            # Optional: vLLM preset
+export LMSTUDIO_API_KEY=""        # Optional: LM Studio preset
+export LLAMACPP_SERVER_API_KEY="" # Optional: llama.cpp server preset
 
 # API Server Configuration
 export CODECONCAT_HOST=127.0.0.1
@@ -506,11 +550,12 @@ Process files and generate AI-optimized output.
 | Option | Description |
 |--------|-------------|
 | `--ai-summary` | Enable AI summarization |
-| `--ai-provider` | Provider: `openai`, `anthropic`, `openrouter`, `ollama` |
+| `--ai-provider` | Provider: `openai`, `anthropic`, `openrouter`, `ollama`, `local_server`, `vllm`, `lmstudio`, `llamacpp_server`, `llamacpp` (deprecated) |
 | `--ai-model` | Specific model (uses provider defaults if omitted) |
 | `--ai-meta-overview` | Generate project-wide meta-overview |
 | `--ai-save-summaries` | Save summaries to disk for caching |
 | `--ai-api-key` | API key (alternative to environment variable) |
+| `--ai-api-base` | Override the API base URL for local servers |
 
 </details>
 
@@ -536,6 +581,22 @@ Initialize configuration interactively.
 | `--interactive` / `--no-interactive` | | Use interactive wizard (default: true) |
 | `--force` | `-f` | Overwrite existing configuration |
 | `--preset` | `-p` | Use preset: `lean`, `medium`, `full` |
+
+### `codeconcat config local-llm`
+
+Interactive wizard for configuring local OpenAI-compatible servers (vLLM,
+LM Studio, llama.cpp server, or generic runtimes).
+
+**Usage:** `codeconcat config local-llm`
+
+| Step | What happens |
+|------|---------------|
+| Preset selection | Choose vLLM, LM Studio, llama.cpp server, or generic |
+| Auto-detect | Probes common ports and health endpoints |
+| Model discovery | Lists models from `/v1/models` or `/models` |
+| Config update | Writes `enable_ai_summary`, `ai_provider`, `ai_api_base`, `ai_model`, and `ai_api_key` |
+
+Refer to [`docs/LOCAL_MODELS.md`](docs/LOCAL_MODELS.md) for a detailed guide.
 
 ### `codeconcat validate`
 
@@ -633,12 +694,12 @@ Generate intelligent code summaries to enhance understanding and reduce context 
 
 #### Supported Providers
 
-| Provider | Default Model (Files) | Default Model (Meta) | Cost/1K tokens | Notes |
-|----------|----------------------|---------------------|----------------|-------|
-| **OpenAI** | gpt-5-mini-2025-08-07 | gpt-5-2025-08-07 | $0.0001/$0.0004 | Budget + reasoning |
-| **Anthropic** | claude-3-5-haiku-20241022 | claude-sonnet-4-5-20250929 | $0.00025/$0.00125 | Fast + thinking |
-| **OpenRouter** | deepseek/deepseek-chat-v3.1 | z-ai/glm-4.5 | Varies | 100+ models |
-| **Ollama** | llama3.2 | llama3.2 | Free (local) | Local hardware |
+| Provider | Default Model (Files) | Default Model (Meta) | Notes |
+|----------|----------------------|---------------------|-------|
+| **OpenAI** | gpt-5-mini-2025-08-07 | gpt-5-2025-08-07 | Fast with reasoning capabilities |
+| **Anthropic** | claude-3-5-haiku-20241022 | claude-sonnet-4-5-20250929 | Fast with extended thinking |
+| **OpenRouter** | qwen/qwen3-coder | z-ai/glm-4.6 | Access to 100+ models |
+| **Ollama** | llama3.2 | llama3.2 | Local, private, no API needed |
 
 #### Quick Start
 
@@ -686,7 +747,7 @@ Save AI-generated summaries for caching and reuse:
 ```bash
 codeconcat run --ai-summary --ai-save-summaries --ai-provider openai
 
-# Summaries saved to {output_dir}/.codeconcat/summaries/
+# Summaries saved to {output_dir}/codeconcat_summaries/
 # ├── individual/      # Per-file summaries (JSON)
 # └── meta_overview.json  # Project-wide overview
 ```
@@ -714,6 +775,10 @@ codeconcat keys setup
 export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENROUTER_API_KEY="sk-or-..."
+export LOCAL_LLM_API_KEY=""       # Optional
+export VLLM_API_KEY=""            # Optional
+export LMSTUDIO_API_KEY=""        # Optional
+export LLAMACPP_SERVER_API_KEY="" # Optional
 # Ollama doesn't require an API key
 ```
 
@@ -721,7 +786,11 @@ export OPENROUTER_API_KEY="sk-or-..."
 
 #### Local LLM Support
 
-Run AI summaries completely locally with Ollama or llama.cpp:
+- Run `codeconcat config local-llm` to configure vLLM, LM Studio, llama.cpp
+  server, or any OpenAI-compatible runtime. The wizard probes common ports,
+  auto-discovers models, and writes updated fields to `.codeconcat.yml`.
+- See [`docs/LOCAL_MODELS.md`](docs/LOCAL_MODELS.md) for a full integration
+  guide and troubleshooting tips.
 
 **Ollama (Easiest)**
 ```bash
@@ -729,25 +798,30 @@ Run AI summaries completely locally with Ollama or llama.cpp:
 ollama serve
 ollama pull codellama  # or deepseek-coder, mistral, etc.
 
-# Use with codeconcat (auto-discovers best model)
+# Use with CodeConCat (auto-discovers best model)
 codeconcat run --ai-summary --ai-provider ollama
 
 # Or specify model explicitly
 codeconcat run --ai-summary --ai-provider ollama --ai-model deepseek-coder
 ```
 
-**Llama.cpp (Maximum Control)**
+**OpenAI-compatible servers (vLLM / LM Studio / llama.cpp server)**
 ```bash
-# Download GGUF model
-wget https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q4_K_M.gguf
+# Start your preferred server first (examples)
+python -m vllm.entrypoints.openai.api_server --model path/to/model --port 8000
+./llama-server -m models/llama-2-7b-chat.gguf -c 4096 -ngl 35
+# In LM Studio: Start the "OpenAI Compatible Server" from the UI
 
-# Use with performance tuning
-codeconcat run --ai-summary \
-  --ai-provider llamacpp \
-  --ai-model ./codellama-7b.Q4_K_M.gguf \
-  --llama-gpu-layers 35 \
-  --llama-context 4096
+# Run the configuration wizard
+codeconcat config local-llm
+
+# Then use CodeConCat with the saved settings
+codeconcat run --ai-summary
 ```
+
+> ⚠️ The legacy `--ai-provider llamacpp` integration is deprecated and will be
+> removed in a future version. Run the llama.cpp HTTP server and use the wizard
+> instead for better compatibility and auto-discovery.
 
 **Recommended Models:**
 - **Code-specific**: DeepSeek-Coder, CodeLlama, StarCoder, WizardCoder
@@ -759,14 +833,14 @@ codeconcat run --ai-summary \
 # In .codeconcat.yml
 enable_ai_summary: true
 ai_provider: openai
-ai_model: gpt-5-nano-2025-08-07  # Optional
+ai_model: gpt-5-mini-2025-08-07  # Optional
 
 # Meta-overview settings
 ai_meta_overview: false
 ai_meta_prompt: ""  # Custom prompt
 ai_meta_overview_use_higher_tier: true  # Use premium models
 ai_save_summaries: false
-ai_summaries_dir: ".codeconcat/summaries"
+ai_summaries_dir: "codeconcat_summaries"
 
 # Processing limits
 ai_min_file_lines: 20
@@ -776,7 +850,10 @@ ai_max_functions_per_file: 10
 # Performance
 ai_max_concurrent: 5
 ai_cache_enabled: true
+ai_timeout: 600  # 10 minutes (default) for AI operations
 ```
+
+> **Note:** AI summaries are saved in the `codeconcat_summaries/` directory adjacent to your output file. The default timeout of 10 minutes accommodates both cloud and local AI models for comprehensive analysis.
 
 #### Cost Optimization
 
@@ -785,7 +862,7 @@ ai_cache_enabled: true
 codeconcat run --ai-summary --ai-provider ollama --ai-model llama3.2
 
 # Use low-cost cloud models
-codeconcat run --ai-summary --ai-provider openai --ai-model gpt-5-nano-2025-08-07
+codeconcat run --ai-summary --ai-provider openai --ai-model gpt-5-mini-2025-08-07
 
 # Limit scope
 codeconcat run --ai-summary --ai-min-file-lines 50

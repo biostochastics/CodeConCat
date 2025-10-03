@@ -21,7 +21,10 @@ class AIProviderType(Enum):
     OPENROUTER = "openrouter"
     OLLAMA = "ollama"
     LLAMACPP = "llamacpp"
-    LOCAL_SERVER = "local_server"  # OpenAI-compatible local servers (vLLM, TGI, LocalAI)
+    LOCAL_SERVER = "local_server"  # Generic OpenAI-compatible local servers
+    VLLM = "vllm"
+    LMSTUDIO = "lmstudio"
+    LLAMACPP_SERVER = "llamacpp_server"
 
 
 @dataclass
@@ -34,7 +37,7 @@ class AIProviderConfig:
     model: str = ""
     temperature: float = 0.3
     max_tokens: int = 500
-    timeout: int = 30
+    timeout: int = 600  # 10 minutes - increased for AI model processing
     max_retries: int = 3
     retry_delay: float = 1.0
     cache_enabled: bool = True

@@ -62,6 +62,7 @@ ALLOWED_LANGUAGES = {
     "powershell",
     "sql",
     "graphql",
+    "solidity",
     "html",
     "css",
     "xml",
@@ -75,6 +76,11 @@ ALLOWED_LANGUAGES = {
     "documentation",
     "config",
     "unknown",
+    "glsl",
+    "hlsl",
+    "metal",
+    "wat",
+    "wasm",
 }
 
 
@@ -153,6 +159,12 @@ def _try_tree_sitter_parser(language: str) -> Optional[Any]:
             "dart": "tree_sitter_dart_parser",
             "sql": "tree_sitter_sql_parser",
             "graphql": "tree_sitter_graphql_parser",
+            "ruby": "tree_sitter_ruby_parser",
+            "solidity": "tree_sitter_solidity_parser",
+            "glsl": "tree_sitter_glsl_parser",
+            "hlsl": "tree_sitter_hlsl_parser",
+            "wat": "tree_sitter_wat_parser",
+            "wasm": "tree_sitter_wat_parser",
         }
 
         module_name = parser_map.get(language.lower())
@@ -183,6 +195,14 @@ def _try_tree_sitter_parser(language: str) -> Optional[Any]:
             class_name = "TreeSitterSqlParser"
         elif language == "graphql":
             class_name = "TreeSitterGraphqlParser"
+        elif language == "ruby":
+            class_name = "TreeSitterRubyParser"
+        elif language == "solidity":
+            class_name = "TreeSitterSolidityParser"
+        elif language == "glsl":
+            class_name = "TreeSitterGlslParser"
+        elif language == "hlsl":
+            class_name = "TreeSitterHlslParser"
 
         parser_class = getattr(module, class_name, None)
         if parser_class:
