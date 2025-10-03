@@ -242,8 +242,7 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
         try:
             # Use modern Query() constructor
             doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
-            cursor = QueryCursor(doc_query)
-            doc_captures = cursor.captures(root_node)
+            doc_captures = self._execute_query_with_cursor(doc_query, root_node)
             # doc_captures is a dict: {capture_name: [list of nodes]}
             for _capture_name, nodes in doc_captures.items():
                 for node in nodes:
@@ -263,8 +262,7 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
             try:
                 # Use modern Query() constructor
                 query = Query(self.ts_language, query_str)
-                cursor = QueryCursor(query)
-                captures = cursor.captures(root_node)
+                captures = self._execute_query_with_cursor(query, root_node)
                 logger.debug(f"Running JS/TS query '{query_name}', found {len(captures)} captures.")
 
                 if query_name == "imports":
@@ -292,7 +290,7 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 elif query_name == "declarations":
                     logger.debug("Processing declarations query...")
                     # Use matches for better structure with declarations
-                    matches = cursor.matches(root_node)
+                    matches = self._execute_query_matches(query, root_node)
                     logger.debug(f"Got {len(matches)} matches")
                     for match_id, captures_dict in matches:
                         logger.debug(

@@ -126,8 +126,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
             return imports
 
         try:
-            cursor = QueryCursor(import_query)
-            captures = cursor.captures(tree)
+            captures = self._execute_query_with_cursor(import_query, tree)
 
             # captures is a dict: {capture_name: [list of nodes]}
             if "import" in captures:
@@ -167,8 +166,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
             return doc_comment_map
 
         try:
-            cursor = QueryCursor(doc_query)
-            captures = cursor.captures(tree)
+            captures = self._execute_query_with_cursor(doc_query, tree)
 
             # Track consecutive doc comment blocks
             current_doc_block: List[str] = []
@@ -255,8 +253,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
         doc_comment_map = self._extract_doc_comments(tree, byte_content)
 
         try:
-            cursor = QueryCursor(decl_query)
-            captures = cursor.captures(tree)
+            captures = self._execute_query_with_cursor(decl_query, tree)
 
             # captures is a dict: {capture_name: [list of nodes]}
             # Group captures by their parent nodes to avoid duplicates
@@ -738,8 +735,7 @@ class TreeSitterSwiftParser(BaseTreeSitterParser):
             return ""
 
         try:
-            cursor = QueryCursor(doc_query)
-            captures = cursor.captures(tree)
+            captures = self._execute_query_with_cursor(doc_query, tree)
 
             # Collect consecutive doc comment lines that appear before the node
             doc_comment_lines: List[str] = []

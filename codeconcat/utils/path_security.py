@@ -12,6 +12,7 @@ This module implements defense-in-depth path validation using:
 """
 
 import os
+import re
 import unicodedata
 from pathlib import Path
 from typing import Optional, Union
@@ -96,19 +97,20 @@ def validate_safe_path(
 
     # Check for definitely malicious patterns (encoded/obfuscated traversal)
     # We allow plain ".." since it might resolve safely, but block encoded/obfuscated versions
-    malicious_patterns = [
-        "%2e%2e",  # URL encoded ..
-        "%252e",  # Double encoded
-        "%00",  # Null byte
-        "%01",  # Control character
-        "..;",  # Semicolon tricks
+    # Use regex lookarounds to avoid false positives with legitimate hex strings
+    malicious_patterns_regex = [
+        (r"(?<![0-9a-fA-F])%2e%2e(?![0-9a-fA-F])", "URL encoded .."),  # URL encoded ..
+        (r"(?<![0-9a-fA-F])%252e(?![0-9a-fA-F])", "Double encoded"),  # Double encoded
+        (r"%00", "Null byte"),  # Null byte
+        (r"%01", "Control character"),  # Control character
+        (r"\.\.\;", "Semicolon trick"),  # Semicolon tricks
     ]
 
     # Check in the normalized and decoded versions for malicious patterns
     for check_str in [normalized.lower(), decoded.lower()]:
-        for pattern in malicious_patterns:
-            if pattern in check_str:
-                raise PathTraversalError(f"Malicious pattern detected: {pattern}")
+        for pattern_regex, pattern_desc in malicious_patterns_regex:
+            if re.search(pattern_regex, check_str, re.IGNORECASE):
+                raise PathTraversalError(f"Malicious pattern detected: {pattern_desc}")
 
     # Use the normalized path for further processing
     path_str = normalized
@@ -120,8 +122,10 @@ def validate_safe_path(
         # We'll let the later resolution handle this case
         pass
 
-    # Check for Windows drive letter attacks (e.g., C:/)
-    if len(path_str) >= 2 and path_str[1] == ":":
+    # Check for Windows drive letter attacks (e.g., C:/, D:\)
+    # Only apply this check on non-Windows hosts to avoid false positives on Windows
+    # Valid drive letter pattern: single letter followed by colon
+    if os.name != "nt" and len(path_str) >= 2 and path_str[1] == ":" and path_str[0].isalpha():
         raise PathTraversalError(f"Absolute Windows path not allowed: {path_str}")
 
     # Check for UNC path attacks (e.g., \\server\share or //server/share)
@@ -178,10 +182,19 @@ def validate_safe_path(
                     if test_path.exists():
                         real_test = Path(os.path.realpath(test_path))
                         real_base = Path(os.path.realpath(base_obj))
-                        if not str(real_test).startswith(
-                            str(real_base) + (os.sep if not str(real_base).endswith(os.sep) else "")
-                        ):
-                            raise PathTraversalError(f"Symlink escapes base directory: {test_path}")
+                        # Use os.path.commonpath for robust comparison (handles separators correctly)
+                        # Compare normalized string forms to avoid path object/case-sensitivity mismatches
+                        try:
+                            common = os.path.commonpath([str(real_base), str(real_test)])
+                            if os.path.normcase(common) != os.path.normcase(str(real_base)):
+                                raise PathTraversalError(
+                                    f"Symlink escapes base directory: {test_path}"
+                                )
+                        except ValueError:
+                            # Different drives on Windows
+                            raise PathTraversalError(
+                                f"Symlink on different drive than base: {test_path}"
+                            ) from None
         except (OSError, RuntimeError) as e:
             # If we can't check, fail closed for security
             if "symlink" not in str(e).lower():
@@ -190,15 +203,17 @@ def validate_safe_path(
     # Boundary enforcement: verify resolved path is within base directory
     try:
         # Use os.path.commonpath to check if paths share a common prefix
-        common = Path(os.path.commonpath([resolved_base, resolved_path]))
-        if common != resolved_base:
+        # Compare normalized string forms to avoid case-sensitivity issues
+        common = os.path.commonpath([str(resolved_base), str(resolved_path)])
+        if os.path.normcase(common) != os.path.normcase(str(resolved_base)):
             raise PathTraversalError(f"Path escapes base directory: {path} -> {resolved_path}")
     except ValueError as e:
         # commonpath raises ValueError if paths are on different drives (Windows)
         raise PathTraversalError(f"Path on different drive than base: {path}") from e
 
     # Additional check: verify string prefix (defense-in-depth)
-    if not str(resolved_path).startswith(str(resolved_base)):
+    # Use case-normalized comparison for cross-platform compatibility
+    if not os.path.normcase(str(resolved_path)).startswith(os.path.normcase(str(resolved_base))):
         raise PathTraversalError(f"Path escapes base directory: {path}")
 
     return resolved_path

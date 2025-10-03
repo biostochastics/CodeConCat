@@ -348,12 +348,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
 
         # Execute the query
         try:
-            if QueryCursor is not None:
-                cursor = QueryCursor(self._declarations_query)
-                matches = cursor.matches(root_node)
-            else:
-                # Use newer tree-sitter API without QueryCursor
-                matches = self._declarations_query.matches(root_node)
+            matches = self._execute_query_matches(self._declarations_query, root_node)
 
             for match in matches:
                 # Handle both old (Match object) and new (tuple) API formats
@@ -443,11 +438,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
             return declarations
 
         try:
-            if QueryCursor is not None:
-                cursor = QueryCursor(self._declarations_query)
-                matches = cursor.matches(root_node)
-            else:
-                matches = self._declarations_query.matches(root_node)
+            matches = self._execute_query_matches(self._declarations_query, root_node)
 
             for match in matches:
                 # Handle both old (Match object) and new (tuple) API formats
@@ -510,11 +501,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
             return declarations
 
         try:
-            if QueryCursor is not None:
-                cursor = QueryCursor(self._declarations_query)
-                matches = cursor.matches(root_node)
-            else:
-                matches = self._declarations_query.matches(root_node)
+            matches = self._execute_query_matches(self._declarations_query, root_node)
 
             for match in matches:
                 # Handle both old (Match object) and new (tuple) API formats
@@ -562,11 +549,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
             return declarations
 
         try:
-            if QueryCursor is not None:
-                cursor = QueryCursor(self._declarations_query)
-                matches = cursor.matches(root_node)
-            else:
-                matches = self._declarations_query.matches(root_node)
+            matches = self._execute_query_matches(self._declarations_query, root_node)
 
             for match in matches:
                 # Handle both old (Match object) and new (tuple) API formats
@@ -625,11 +608,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
             return declarations
 
         try:
-            if QueryCursor is not None:
-                cursor = QueryCursor(self._blocks_query)
-                matches = cursor.matches(root_node)
-            else:
-                matches = self._blocks_query.matches(root_node)
+            matches = self._execute_query_matches(self._blocks_query, root_node)
 
             for match in matches:
                 # Handle both old (Match object) and new (tuple) API formats
@@ -711,11 +690,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
             return declarations
 
         try:
-            if QueryCursor is not None:
-                cursor = QueryCursor(self._metaprogramming_query)
-                matches = cursor.matches(root_node)
-            else:
-                matches = self._metaprogramming_query.matches(root_node)
+            matches = self._execute_query_matches(self._metaprogramming_query, root_node)
 
             for match in matches:
                 # Handle both old (Match object) and new (tuple) API formats
@@ -780,11 +755,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
             return declarations
 
         try:
-            if QueryCursor is not None:
-                cursor = QueryCursor(self._dsl_patterns_query)
-                matches = cursor.matches(root_node)
-            else:
-                matches = self._dsl_patterns_query.matches(root_node)
+            matches = self._execute_query_matches(self._dsl_patterns_query, root_node)
 
             for match in matches:
                 # Handle both old (Match object) and new (tuple) API formats
@@ -884,11 +855,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
             if not hasattr(self, "_imports_query"):
                 return imports
 
-            if QueryCursor is not None:
-                cursor = QueryCursor(self._imports_query)
-                matches = cursor.matches(tree.root_node)
-            else:
-                matches = self._imports_query.matches(tree.root_node)
+            matches = self._execute_query_matches(self._imports_query, tree.root_node)
 
             for match in matches:
                 # Handle both old (Match object) and new (tuple) API formats

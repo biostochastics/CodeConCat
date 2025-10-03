@@ -126,7 +126,7 @@ codeconcat run --security --semgrep --compress --output secure-report.json
 
 ## Language Support
 
-CodeConCat provides comprehensive parsing for 25+ programming languages with industry-validated accuracy:
+CodeConCat provides comprehensive parsing for 20+ programming languages with industry-validated accuracy:
 
 | Language | Parser Type | Key Features | Documentation |
 |----------|-------------|--------------|---------------|

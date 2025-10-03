@@ -216,8 +216,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
 
         try:
             if QueryCursor is not None:
-                cursor = QueryCursor(query)
-                matches = cursor.matches(root_node)
+                matches = self._execute_query_matches(query, root_node)
             else:
                 matches = query.matches(root_node)
 
@@ -277,8 +276,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
 
         try:
             if QueryCursor is not None:
-                cursor = QueryCursor(query)
-                matches = cursor.matches(root_node)
+                matches = self._execute_query_matches(query, root_node)
             else:
                 matches = query.matches(root_node)
 

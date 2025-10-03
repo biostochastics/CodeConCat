@@ -41,7 +41,8 @@ pub fn add(a: i32, b: i32) i32 {
     return a + b;
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         assert len(declarations) == 1
         func = declarations[0]
@@ -57,7 +58,8 @@ pub async fn fetchData(url: []const u8) !Response {
     return response;
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         assert len(declarations) >= 1
         func = declarations[0]
@@ -97,7 +99,8 @@ test "comptime evaluation" {
     }
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find function and test
         assert len(declarations) >= 2
@@ -136,7 +139,8 @@ pub fn safeReadFile(path: []const u8) []u8 {
     };
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find both functions
         func_names = [d.name for d in declarations if d.kind == "function"]
@@ -174,7 +178,8 @@ pub fn processWithArena(data: []const u8) !void {
     // Process data...
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find both functions
         assert len(declarations) >= 2
@@ -204,7 +209,8 @@ test {
     try testing.expect(true);
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find all test blocks
         test_decls = [d for d in declarations if d.kind == "test"]
@@ -236,7 +242,8 @@ pub const Vector = struct {
     }
 };
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find struct and its methods
         assert any(d.name == "Vector" and d.kind == "struct" for d in declarations)
@@ -273,7 +280,8 @@ pub const Value = union(enum) {
     }
 };
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find enum and union
         type_names = [d.name for d in declarations if d.kind in ["enum", "union"]]
@@ -301,7 +309,8 @@ pub fn panicHandler(msg: []const u8) noreturn {
     @panic(msg);
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Check builtin calls detected
         features = self.parser.get_language_features()
@@ -327,7 +336,8 @@ pub fn cpuid(leaf: u32) u32 {
     );
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find functions with inline assembly
         func_names = [d.name for d in declarations if d.kind == "function"]
@@ -364,7 +374,8 @@ pub fn ArrayList(comptime T: type) type {
     };
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find generic functions
         func_names = [d.name for d in declarations if d.kind == "function"]
@@ -389,7 +400,8 @@ pub fn processFile(path: []const u8) !void {
     _ = try file.read(buffer);
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find function with defer/errdefer
         assert any(d.name == "processFile" for d in declarations)
@@ -418,7 +430,8 @@ pub const Vector3 = struct {
     z: f32,
 };
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Check for doc comments
         func = next((d for d in declarations if d.name == "add"), None)
@@ -450,7 +463,8 @@ pub const Color = packed struct {
     }
 };
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find packed structs
         struct_names = [d.name for d in declarations if d.kind == "struct"]
@@ -466,7 +480,8 @@ pub extern "c" fn free(ptr: ?*anyopaque) void;
 
 extern "kernel32" fn GetCurrentProcessId() callconv(std.os.windows.WINAPI) u32;
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Should find extern functions
         func_names = [d.name for d in declarations if d.kind == "function"]
@@ -495,7 +510,8 @@ pub fn generateArray(comptime size: usize) [size]u8 {
     return array;
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Check comptime features for inline loops
         features = self.parser.get_language_features()
@@ -526,7 +542,8 @@ pub fn nosuspendFunction() void {
     }
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Check async features detected
         features = self.parser.get_language_features()
@@ -558,7 +575,8 @@ pub fn handleResult(result: anyerror!i32) void {
     std.log.info("Value: {}", .{value});
 }
 '''
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
 
         # Check error handling features
         features = self.parser.get_language_features()
@@ -567,7 +585,8 @@ pub fn handleResult(result: anyerror!i32) void {
     def test_empty_file(self):
         """Test parsing an empty file."""
         code = ""
-        declarations = self.parser.parse(code)
+        result = self.parser.parse(code)
+        declarations = result.declarations
         assert declarations == []
 
     def test_malformed_code(self):
@@ -577,8 +596,11 @@ pub fn broken(a: i32, b: {
     // Missing closing brace and return type
 '''
         # Should not crash, just return what it can parse
-        declarations = self.parser.parse(code)
-        # May or may not find the broken function depending on recovery
+        result = self.parser.parse(code)
+        # Add assertion: parser should not crash and handle gracefully
+        assert result is not None
+        # Verify error recovery worked - no crash is success
+        assert isinstance(result.declarations, list)
 
     def test_get_language_features(self):
         """Test the get_language_features method."""

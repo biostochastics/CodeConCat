@@ -165,33 +165,19 @@ class TreeSitterWatParser(BaseTreeSitterParser):
             # Extract imports
             imports_query = self._get_compiled_query("imports")
             if imports_query:
-                # Use QueryCursor for tree-sitter 0.24.0+
-                if QueryCursor is not None:
-                    cursor = QueryCursor(imports_query)
-                    captures = cursor.captures(tree.root_node)
-                else:
-                    # Fallback for older versions (though unlikely to work with WAT)
-                    captures = []
+                captures = self._execute_query_with_cursor(imports_query, tree.root_node)
                 result.imports.extend(self._process_imports(captures))
 
             # Extract exports
             exports_query = self._get_compiled_query("exports")
             if exports_query:
-                if QueryCursor is not None:
-                    cursor = QueryCursor(exports_query)
-                    captures = cursor.captures(tree.root_node)
-                else:
-                    captures = []
+                captures = self._execute_query_with_cursor(exports_query, tree.root_node)
                 self._process_exports(captures, result)
 
             # Extract declarations
             declarations_query = self._get_compiled_query("declarations")
             if declarations_query:
-                if QueryCursor is not None:
-                    cursor = QueryCursor(declarations_query)
-                    captures = cursor.captures(tree.root_node)
-                else:
-                    captures = []
+                captures = self._execute_query_with_cursor(declarations_query, tree.root_node)
                 result.declarations.extend(self._process_declarations(captures, content))
 
         except Exception as e:

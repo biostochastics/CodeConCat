@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, NamedTuple
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import urlopen
 
 import typer
@@ -136,8 +137,19 @@ def _choose_provider(existing_provider: str | None) -> LocalProviderPreset:
 
 
 def _probe_plain_http(url: str, timeout: float = 1.5) -> bool:
+    # Validate URL is localhost to prevent SSRF attacks
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").lower()
+
+    # Allow localhost, IPv6 loopback, and any 127.* loopback addresses
+    is_localhost = hostname in {"localhost", "::1", "0.0.0.0"} or hostname.startswith("127.")
+
+    if not is_localhost:
+        # Refuse to probe non-localhost URLs for security
+        return False
+
     try:
-        with urlopen(url, timeout=timeout) as response:  # nosec B310 - user-controlled localhost
+        with urlopen(url, timeout=timeout) as response:  # nosec B310 - validated localhost only
             return 200 <= response.status < 500  # type: ignore[no-any-return]
     except HTTPError as exc:
         return exc.code in {401, 403, 404}
@@ -200,11 +212,7 @@ def _prompt_for_api_key(provider_key: str, existing_key: str | None) -> str:
     env_value = os.getenv(env_var) if env_var else None
     default_value = existing_key or env_value or ""
     prompt_text = "API key (leave blank if not required)"
-    return (  # type: ignore[no-any-return]
-        typer.prompt(prompt_text, default=default_value, hide_input=True)
-        if default_value
-        else typer.prompt(prompt_text, default="", hide_input=True)
-    )
+    return typer.prompt(prompt_text, default=default_value, hide_input=True)  # type: ignore[no-any-return]
 
 
 def _prompt_for_base_url(
@@ -227,7 +235,9 @@ def _prompt_for_base_url(
             f"[yellow]Could not validate {label} at {base}: {error or 'unknown error'}[/yellow]"
         )
         if not typer.confirm("Keep this URL anyway?", default=False):
-            default_base = base
+            # Reset to first candidate instead of reusing failed value
+            # Normalize by removing trailing slash
+            default_base = candidates[0].rstrip("/")
             continue
         return base, {}
 

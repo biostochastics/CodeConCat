@@ -190,6 +190,75 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         result = self._compile_query_cached(cache_key)
         return result if result is not None else None
 
+    def _execute_query_with_cursor(self, query: Query, root_node: Node):  # type: ignore[no-any-return]
+        """Execute a tree-sitter query with version compatibility.
+
+        Handles both tree-sitter 0.23.x (with QueryCursor) and 0.24.0+ (without QueryCursor).
+        This method provides a consistent interface for executing queries across different
+        tree-sitter versions.
+
+        Args:
+            query: Compiled tree-sitter Query object
+            root_node: Root node to query against
+
+        Returns:
+            Captures from the query execution, or empty dict on failure. Format depends on tree-sitter version:
+            - 0.23.x: Returns list of (node, capture_name) tuples
+            - 0.24.0+: Returns dict of {capture_name: [nodes]}
+
+        Complexity: O(n) where n is the number of nodes in the tree
+        """
+        try:
+            if QueryCursor is None:
+                # tree-sitter 0.24.0+ - use query.captures() directly
+                result = query.captures(root_node)
+            else:
+                # tree-sitter 0.23.x - use QueryCursor
+                cursor = QueryCursor(query)
+                result = cursor.captures(root_node)
+            # Normalize to dict for consistent return type (0.24.0+ already returns dict)
+            return result if result is not None else {}
+        except Exception as e:
+            logger.warning(
+                f"Error executing captures for query on {getattr(root_node, 'type', 'root')}: {e}",
+                exc_info=True,
+            )
+            return {}
+
+    def _execute_query_matches(self, query: Query, root_node: Node):  # type: ignore[no-any-return]
+        """Execute a tree-sitter query using matches with version compatibility.
+
+        Similar to _execute_query_with_cursor but uses matches() instead of captures().
+        Matches provide structured pattern matching with multiple captures per match.
+
+        Args:
+            query: Compiled tree-sitter Query object
+            root_node: Root node to query against
+
+        Returns:
+            List of matches from the query execution, or empty list on failure. Format depends on tree-sitter version:
+            - 0.23.x: Returns list of (match_id, {capture_name: [nodes]}) tuples
+            - 0.24.0+: Returns list of (match_id, {capture_name: [nodes]}) tuples
+
+        Complexity: O(n) where n is the number of nodes in the tree
+        """
+        try:
+            if QueryCursor is None:
+                # tree-sitter 0.24.0+ - use query.matches() directly
+                result = query.matches(root_node)
+            else:
+                # tree-sitter 0.23.x - use QueryCursor
+                cursor = QueryCursor(query)
+                result = cursor.matches(root_node)
+            # Normalize to a list to avoid returning generators/None
+            return list(result) if result is not None else []
+        except Exception as e:
+            logger.warning(
+                f"Error executing matches for query on {getattr(root_node, 'type', 'root')}: {e}",
+                exc_info=True,
+            )
+            return []
+
     def _load_language(self) -> Language:
         """Loads the Tree-sitter language object.
 

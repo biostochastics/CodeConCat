@@ -170,8 +170,7 @@ class TreeSitterKotlinParser(BaseTreeSitterParser):
         # --- Pass 1: Extract KDoc Comments --- #
         try:
             doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
-            doc_cursor = QueryCursor(doc_query)
-            doc_captures = doc_cursor.captures(root_node)
+            doc_captures = self._execute_query_with_cursor(doc_query, root_node)
             # doc_captures is a dict: {capture_name: [list of nodes]}
             for capture_name, nodes in doc_captures.items():
                 if capture_name == "kdoc":
@@ -195,8 +194,7 @@ class TreeSitterKotlinParser(BaseTreeSitterParser):
 
                 if query_name == "imports":
                     # Use captures for imports
-                    cursor = QueryCursor(query)
-                    captures = cursor.captures(root_node)
+                    captures = self._execute_query_with_cursor(query, root_node)
                     logger.debug(
                         f"Running Kotlin query '{query_name}', found {len(captures)} captures."
                     )
@@ -213,8 +211,7 @@ class TreeSitterKotlinParser(BaseTreeSitterParser):
 
                 elif query_name == "declarations":
                     # Use matches for better structure with declarations
-                    cursor = QueryCursor(query)
-                    matches = cursor.matches(root_node)
+                    matches = self._execute_query_matches(query, root_node)
 
                     for _match_id, captures_dict in matches:
                         declaration_node = None

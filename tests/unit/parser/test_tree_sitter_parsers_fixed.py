@@ -264,12 +264,14 @@ class TestTreeSitterParsersFixed:
                     "from tree_sitter import" in content and "QueryCursor" in content
                 ), f"{parser_module} doesn't import QueryCursor"
 
-                # Check that QueryCursor is actually used
+                # Check that QueryCursor is actually used (either directly or via helper methods)
                 assert (
                     "QueryCursor(" in content or
                     "cursor.captures(" in content or
-                    "cursor.matches(" in content
-                ), f"{parser_module} doesn't use QueryCursor API"
+                    "cursor.matches(" in content or
+                    "_execute_query_with_cursor(" in content or
+                    "_execute_query_matches(" in content
+                ), f"{parser_module} doesn't use QueryCursor API or helper methods"
             except FileNotFoundError:
                 pass  # Skip if file doesn't exist
 

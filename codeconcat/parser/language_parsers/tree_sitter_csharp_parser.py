@@ -180,8 +180,7 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
         try:
             # Use modern Query() constructor and QueryCursor
             doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
-            doc_cursor = QueryCursor(doc_query)
-            doc_captures = doc_cursor.captures(root_node)
+            doc_captures = self._execute_query_with_cursor(doc_query, root_node)
             last_comment_line = -2
             current_doc_block: List[str] = []
 
@@ -225,8 +224,7 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
         # --- Pass 2: Extract Imports --- #
         try:
             import_query = Query(self.ts_language, queries.get("imports", ""))
-            cursor = QueryCursor(import_query)
-            captures = cursor.captures(root_node)
+            captures = self._execute_query_with_cursor(import_query, root_node)
             logger.debug(f"Running C# imports query, found {len(captures)} captures.")
 
             # captures is a dict of {capture_name: [list of nodes]}

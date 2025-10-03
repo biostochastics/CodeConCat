@@ -139,10 +139,13 @@ class TestTreeSitterWatParser:
 
         table_decls = [d for d in result.declarations if d.kind == "table"]
         assert len(table_decls) >= 1
-        # At least one table should have a name
+        # Verify both named and anonymous tables
         named_tables = [d for d in table_decls if d.name != "(table)"]
         assert len(named_tables) >= 1
         assert named_tables[0].name == "indirect"
+        # Also verify anonymous table
+        anonymous_tables = [d for d in table_decls if d.name == "(table)"]
+        assert len(anonymous_tables) >= 1
 
     def test_parse_global_definitions(self):
         """Test parsing global variable definitions."""
