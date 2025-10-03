@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
@@ -29,10 +29,10 @@ class LocalProviderPreset(NamedTuple):
     key: str
     description: str
     provider_type: AIProviderType
-    candidates: List[str]
+    candidates: list[str]
 
 
-SERVER_CHOICES: List[LocalProviderPreset] = [
+SERVER_CHOICES: list[LocalProviderPreset] = [
     LocalProviderPreset(
         "vLLM (http://localhost:8000)",
         "vllm",
@@ -84,7 +84,7 @@ ENV_VAR_BY_PROVIDER = {
 }
 
 
-def _load_config(path: Path) -> Dict[str, Any]:
+def _load_config(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
 
@@ -97,13 +97,13 @@ def _load_config(path: Path) -> Dict[str, Any]:
         return {}
 
 
-def _save_config(path: Path, data: Dict[str, Any]) -> None:
+def _save_config(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(data, handle, sort_keys=False)
 
 
-def _choose_provider(existing_provider: Optional[str]) -> LocalProviderPreset:
+def _choose_provider(existing_provider: str | None) -> LocalProviderPreset:
     console.print("\n[bold]Local LLM Presets[/bold]")
     table = Table(show_header=True, header_style="bold cyan")
     table.add_column("#", style="bold")
@@ -138,7 +138,7 @@ def _choose_provider(existing_provider: Optional[str]) -> LocalProviderPreset:
 def _probe_plain_http(url: str, timeout: float = 1.5) -> bool:
     try:
         with urlopen(url, timeout=timeout) as response:  # nosec B310 - user-controlled localhost
-            return 200 <= response.status < 500
+            return 200 <= response.status < 500  # type: ignore[no-any-return]
     except HTTPError as exc:
         return exc.code in {401, 403, 404}
     except URLError:
@@ -148,8 +148,8 @@ def _probe_plain_http(url: str, timeout: float = 1.5) -> bool:
 async def _validate_local_server(
     provider_type: AIProviderType,
     api_base: str,
-    api_key: Optional[str],
-) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+    api_key: str | None,
+) -> tuple[bool, dict[str, Any], str | None]:
     config = AIProviderConfig(
         provider_type=provider_type,
         api_base=api_base,
@@ -169,9 +169,9 @@ async def _validate_local_server(
 
 def _auto_detect_base(
     provider: LocalProviderPreset,
-    existing_base: Optional[str],
-    api_key: Optional[str],
-) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
+    existing_base: str | None,
+    api_key: str | None,
+) -> tuple[str | None, dict[str, Any], str | None]:
     label, key, _desc, provider_type, candidates = provider
     candidate_urls = []
     for candidate in [existing_base, *candidates]:
@@ -195,12 +195,12 @@ def _auto_detect_base(
     return None, {}, None
 
 
-def _prompt_for_api_key(provider_key: str, existing_key: Optional[str]) -> str:
+def _prompt_for_api_key(provider_key: str, existing_key: str | None) -> str:
     env_var = ENV_VAR_BY_PROVIDER.get(provider_key)
     env_value = os.getenv(env_var) if env_var else None
     default_value = existing_key or env_value or ""
     prompt_text = "API key (leave blank if not required)"
-    return (
+    return (  # type: ignore[no-any-return]
         typer.prompt(prompt_text, default=default_value, hide_input=True)
         if default_value
         else typer.prompt(prompt_text, default="", hide_input=True)
@@ -209,10 +209,10 @@ def _prompt_for_api_key(provider_key: str, existing_key: Optional[str]) -> str:
 
 def _prompt_for_base_url(
     provider: LocalProviderPreset,
-    auto_detected: Optional[str],
-    existing_base: Optional[str],
-    api_key: Optional[str],
-) -> Tuple[str, Dict[str, Any]]:
+    auto_detected: str | None,
+    existing_base: str | None,
+    api_key: str | None,
+) -> tuple[str, dict[str, Any]]:
     label, key, _description, provider_type, candidates = provider
     default_base = auto_detected or existing_base or candidates[0]
 
@@ -233,12 +233,12 @@ def _prompt_for_base_url(
 
 
 def _prompt_for_model(
-    available_models: List[str],
-    existing_model: Optional[str],
+    available_models: list[str],
+    existing_model: str | None,
 ) -> str:
     if not available_models:
         default_model = existing_model or "local-model"
-        return typer.prompt("Model name", default=default_model).strip()
+        return typer.prompt("Model name", default=default_model).strip()  # type: ignore[no-any-return]
 
     limited_models = available_models[:10]
     if len(available_models) > len(limited_models):

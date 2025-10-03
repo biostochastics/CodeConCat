@@ -107,7 +107,7 @@ class TestOpenAIProvider:
 
             assert provider.config.api_key == "test-key"
             assert provider.config.api_base == "https://api.openai.com/v1"
-            assert provider.config.model == "gpt-5-nano-2025-08-07"  # Updated default to 2025 model
+            assert provider.config.model == "gpt-5-mini-2025-08-07"  # Updated default to 2025 model
 
     @pytest.mark.asyncio
     async def test_openai_summarize_code(self):
@@ -115,7 +115,7 @@ class TestOpenAIProvider:
         config = AIProviderConfig(
             provider_type=AIProviderType.OPENAI,
             api_key="test-key",
-            model="gpt-5-nano-2025-08-07",  # Updated to 2025 model
+            model="gpt-5-mini-2025-08-07",  # Updated to 2025 model
             cache_enabled=False,  # Disable cache for testing
         )
 
@@ -142,7 +142,7 @@ class TestOpenAIProvider:
             assert result.summary == "This function calculates the factorial of a number."
             assert result.tokens_used == 60
             assert result.provider == "openai"
-            assert result.model_used == "gpt-5-nano-2025-08-07"
+            assert result.model_used == "gpt-5-mini-2025-08-07"
             assert result.error is None
 
     @pytest.mark.asyncio
@@ -177,7 +177,7 @@ class TestAnthropicProvider:
 
             assert provider.config.api_key == "test-key"
             assert provider.config.api_base == "https://api.anthropic.com/v1"
-            assert provider.config.model == "claude-haiku-4.1"  # Updated to 2025 model
+            assert provider.config.model == "claude-3-5-haiku-20241022"  # Updated to current model
 
 
 class TestProviderFactory:

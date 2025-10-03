@@ -43,12 +43,12 @@ def analyze_contract(parser: TreeSitterSolidityParser, file_path: Path) -> Dict:
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
-        result = parser.parse(content, str(file_path))
+        result = parser.parse(content)
 
         analysis = {
             "file": str(file_path.relative_to(file_path.parent.parent.parent)),
-            "success": not bool(result.errors),
-            "errors": result.errors if result.errors else None,
+            "success": not bool(result.error),
+            "errors": [result.error] if result.error else None,
             "declarations": len(result.declarations) if result.declarations else 0,
             "declaration_types": {},
             "security_patterns": {},

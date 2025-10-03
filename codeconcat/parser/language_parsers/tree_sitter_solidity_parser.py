@@ -27,7 +27,7 @@ try:
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
-from ...base_types import Declaration
+from ...base_types import Declaration, ParseResult
 from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
@@ -37,160 +37,45 @@ logger = logging.getLogger(__name__)
 SOLIDITY_QUERIES = {
     "imports": """
         ; Import directives
-        (import_directive
-            source: (_) @import_source
-        ) @import_statement
-
-        ; Import with aliases
-        (import_directive
-            (_import_clause) @import_clause
-        ) @import_with_clause
+        (import_directive) @import_statement
     """,
     "declarations": """
-        ; Contract declarations with inheritance
-        (contract_declaration
-            name: (identifier) @name
-            (inheritance_specifier
-                (user_defined_type_name) @parent_contract
-            )? @inheritance
-            body: (contract_body) @body
-        ) @contract
+        ; Contract declarations (simple capture)
+        (contract_declaration) @contract
 
-        ; Interface declarations
-        (interface_declaration
-            name: (identifier) @name
-            body: (_) @body
-        ) @interface
-
-        ; Library declarations
-        (library_declaration
-            name: (identifier) @name
-            body: (_) @body
-        ) @library
-
-        ; Function definitions with modifiers
-        (function_definition
-            name: (identifier)? @name
-            (modifier_invocation
-                name: (identifier) @modifier_name
-            )* @modifiers
-            parameters: (parameter_list) @params
-            return_type: (return_type_definition)? @returns
-            body: (function_body)? @body
-        ) @function
-
-        ; Constructor definitions
-        (constructor_definition
-            (modifier_invocation)* @modifiers
-            parameters: (parameter_list) @params
-            body: (function_body) @body
-        ) @constructor
-
-        ; Fallback function
-        (fallback_function_definition
-            parameters: (parameter_list)? @params
-            (modifier_invocation)* @modifiers
-            body: (function_body) @body
-        ) @fallback
-
-        ; Receive function
-        (receive_function_definition
-            (modifier_invocation)* @modifiers
-            body: (function_body) @body
-        ) @receive
-
-        ; Modifier definitions
-        (modifier_definition
-            name: (identifier) @name
-            parameters: (parameter_list)? @params
-            body: (function_body) @body
-        ) @modifier_def
-
-        ; Event definitions
-        (event_definition
-            name: (identifier) @name
-            parameters: (event_parameter_list) @params
-        ) @event
+        ; Function definitions
+        (function_definition) @function
 
         ; State variable declarations
-        (state_variable_declaration
-            type: (_) @type
-            name: (identifier) @name
-            value: (_)? @initial_value
-        ) @state_var
+        (state_variable_declaration) @state_var
+
+        ; Event definitions
+        (event_definition) @event
+
+        ; Modifier definitions
+        (modifier_definition) @modifier_def
+
+        ; Constructor definitions
+        (constructor_definition) @constructor
 
         ; Struct definitions
-        (struct_declaration
-            name: (identifier) @name
-            body: (struct_body) @members
-        ) @struct
+        (struct_declaration) @struct
 
         ; Enum definitions
-        (enum_declaration
-            name: (identifier) @name
-            body: (enum_body) @values
-        ) @enum
+        (enum_declaration) @enum
 
-        ; Error definitions (Solidity 0.8.4+)
-        (error_declaration
-            name: (identifier) @name
-            parameters: (error_parameter_list)? @params
-        ) @error
+        ; Interface declarations
+        (interface_declaration) @interface
+
+        ; Library declarations
+        (library_declaration) @library
+
+        ; Error definitions
+        (error_declaration) @error
     """,
     "syntactic_patterns": """
-        ; Assembly blocks - flag for manual review
-        (assembly_statement
-            body: (assembly_body) @assembly_content
-        ) @assembly_block
-
-        ; Delegatecall usage - potential security concern
-        (member_access_expression
-            object: (identifier) @object
-            property: (property_identifier) @property
-            (#eq? @property "delegatecall")
-        ) @delegatecall_usage
-
-        ; Selfdestruct calls - critical security concern
-        (call_expression
-            function: (identifier) @function_name
-            (#eq? @function_name "selfdestruct")
-        ) @selfdestruct_call
-
-        ; Suicide calls (deprecated but still found in older contracts)
-        (call_expression
-            function: (identifier) @function_name
-            (#eq? @function_name "suicide")
-        ) @suicide_call
-
-        ; External calls - flag for reentrancy review
-        (call_expression
-            function: (member_access_expression
-                property: (property_identifier) @call_type
-                (#match? @call_type "^(call|send|transfer)$")
-            )
-        ) @external_call
-
-        ; Emit statements
-        (emit_statement
-            name: (identifier) @event_name
-            arguments: (call_arguments) @args
-        ) @event_emission
-
         ; Using statements for libraries
-        (using_directive
-            library: (_) @library_name
-            type: (_) @target_type
-        ) @using_statement
-
-        ; Payable functions and modifiers
-        (function_definition
-            (payable) @payable_marker
-        ) @payable_function
-
-        ; View/Pure function modifiers
-        (function_definition
-            [(view) (pure)] @state_mutability
-        ) @state_restricted_function
+        (using_directive) @using_statement
     """,
 }
 
@@ -222,7 +107,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
         """
         return SOLIDITY_QUERIES
 
-    def parse(self, content: str) -> "ParseResult":
+    def parse(self, content: str, file_path: str = "") -> ParseResult:  # noqa: ARG002
         """Parse Solidity source code and extract declarations and patterns.
 
         Args:
@@ -243,25 +128,50 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
             # Extract imports
             imports_query = self._get_compiled_query("imports")
             if imports_query:
-                imports = self._run_query(imports_query, tree.root_node, content)
+                if QueryCursor is not None:
+                    cursor = QueryCursor(imports_query)
+                    captures_dict = cursor.captures(tree.root_node)
+                else:
+                    captures_dict = imports_query.captures(tree.root_node)
+                # Convert dict format to list of tuples
+                imports = []
+                for name, nodes in captures_dict.items():
+                    for node in nodes:
+                        imports.append((node, name))
                 result.imports.extend(self._process_imports(imports))
 
             # Extract declarations
             declarations_query = self._get_compiled_query("declarations")
             if declarations_query:
-                declarations = self._run_query(declarations_query, tree.root_node, content)
+                if QueryCursor is not None:
+                    cursor = QueryCursor(declarations_query)
+                    captures_dict = cursor.captures(tree.root_node)
+                else:
+                    captures_dict = declarations_query.captures(tree.root_node)
+                # Convert dict format to list of tuples
+                declarations = []
+                for name, nodes in captures_dict.items():
+                    for node in nodes:
+                        declarations.append((node, name))
                 result.declarations.extend(self._process_declarations(declarations, content))
 
             # Extract syntactic patterns for security review
             patterns_query = self._get_compiled_query("syntactic_patterns")
             if patterns_query:
-                patterns = self._run_query(patterns_query, tree.root_node, content)
+                if QueryCursor is not None:
+                    cursor = QueryCursor(patterns_query)
+                    captures_dict = cursor.captures(tree.root_node)
+                else:
+                    captures_dict = patterns_query.captures(tree.root_node)
+                # Convert dict format to list of tuples
+                patterns = []
+                for name, nodes in captures_dict.items():
+                    for node in nodes:
+                        patterns.append((node, name))
                 self._process_patterns(patterns, content, result)
 
-            # Add pattern warnings as metadata
+            # Log pattern warnings if any were found
             if self._pattern_warnings:
-                result.metadata = result.metadata or {}
-                result.metadata["security_patterns"] = list(self._pattern_warnings)
                 logger.info(f"Found {len(self._pattern_warnings)} syntactic patterns for review")
 
         except Exception as e:
@@ -288,17 +198,16 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
             elif name == "import_statement":
                 # Full import statement for reference
                 full_import = node.text.decode("utf-8").strip()
-                if not any(imp in full_import for imp in imports):
+                if not any(imp in full_import for imp in imports) and "from" in full_import:
                     # Extract just the path if we haven't captured it yet
-                    if "from" in full_import:
-                        parts = full_import.split("from")
-                        if len(parts) > 1:
-                            path = parts[1].strip().strip(";").strip("\"'")
-                            imports.append(path)
+                    parts = full_import.split("from")
+                    if len(parts) > 1:
+                        path = parts[1].strip().strip(";").strip("\"'")
+                        imports.append(path)
 
         return imports
 
-    def _process_declarations(self, captures: List[tuple], content: str) -> List[Declaration]:
+    def _process_declarations(self, captures: List[tuple], content: str) -> List[Declaration]:  # noqa: ARG002
         """Process declaration captures into Declaration objects.
 
         Args:
@@ -309,10 +218,9 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
             List of Declaration objects
         """
         declarations = []
-        current_decl = None
 
-        for node, name in captures:
-            if name in [
+        for node, capture_name in captures:
+            if capture_name in [
                 "contract",
                 "interface",
                 "library",
@@ -327,54 +235,47 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
                 "enum",
                 "error",
             ]:
-                # Start new declaration
-                if current_decl:
-                    declarations.append(current_decl)
+                # Extract name from the node - look for identifier child
+                decl_name = ""
+                for child in node.children:
+                    if child.type == "identifier":
+                        decl_name = child.text.decode("utf-8").strip()
+                        break
 
-                decl_type = self._map_declaration_type(name)
-                location = get_node_location(node)
-                current_decl = Declaration(
-                    name="",  # Will be filled by name capture
-                    type=decl_type,
-                    location=location,
-                    metadata={},
+                # For state variables, the identifier might be deeper
+                if capture_name == "state_var" and not decl_name:
+                    # Look for identifier anywhere in the tree
+                    for child in node.children:
+                        if child.type == "identifier":
+                            decl_name = child.text.decode("utf-8").strip()
+                            break
+                        # Check children of children for state variables
+                        for grandchild in child.children:
+                            if grandchild.type == "identifier":
+                                decl_name = grandchild.text.decode("utf-8").strip()
+                                break
+
+                decl_type = self._map_declaration_type(capture_name)
+                start_line, end_line = get_node_location(node)
+
+                declaration = Declaration(
+                    name=decl_name,
+                    kind=decl_type,
+                    start_line=start_line,
+                    end_line=end_line,
                 )
 
-            elif name == "name" and current_decl:
-                # Set declaration name
-                current_decl.name = node.text.decode("utf-8").strip()
+                # Add signature for functions
+                if capture_name == "function" and decl_name:
+                    declaration.signature = f"function {decl_name}()"
+                elif capture_name == "contract":
+                    declaration.signature = f"contract {decl_name}"
 
-            elif name == "parent_contract" and current_decl:
-                # Add inheritance info
-                parent = node.text.decode("utf-8").strip()
-                if "inherits" not in current_decl.metadata:
-                    current_decl.metadata["inherits"] = []
-                current_decl.metadata["inherits"].append(parent)
-
-            elif name == "modifier_name" and current_decl:
-                # Add modifier info
-                modifier = node.text.decode("utf-8").strip()
-                if "modifiers" not in current_decl.metadata:
-                    current_decl.metadata["modifiers"] = []
-                current_decl.metadata["modifiers"].append(modifier)
-
-            elif name == "type" and current_decl and current_decl.type == "variable":
-                # Add type info for state variables
-                current_decl.metadata["var_type"] = node.text.decode("utf-8").strip()
-
-            elif name == "payable_marker" and current_decl:
-                current_decl.metadata["payable"] = True
-
-            elif name == "state_mutability" and current_decl:
-                current_decl.metadata["state_mutability"] = node.text.decode("utf-8").strip()
-
-        # Add final declaration
-        if current_decl:
-            declarations.append(current_decl)
+                declarations.append(declaration)
 
         return declarations
 
-    def _process_patterns(self, captures: List[tuple], content: str, result: "ParseResult"):
+    def _process_patterns(self, captures: List[tuple], content: str, result: "ParseResult"):  # noqa: ARG002, F821
         """Process syntactic patterns that may be of security interest.
 
         Args:
@@ -382,7 +283,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
             content: Original source code
             result: ParseResult to add warnings to
         """
-        pattern_counts = {}
+        pattern_counts: Dict[str, int] = {}
 
         for node, name in captures:
             if name in [
@@ -395,34 +296,30 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
                 pattern_counts[name] = pattern_counts.get(name, 0) + 1
 
                 # Add specific warnings for critical patterns
-                location = get_node_location(node)
+                start_line, end_line = get_node_location(node)
                 if name == "selfdestruct_call":
-                    self._pattern_warnings.add(
-                        f"CRITICAL: selfdestruct usage at line {location.line_start}"
-                    )
+                    self._pattern_warnings.add(f"CRITICAL: selfdestruct usage at line {start_line}")
                 elif name == "suicide_call":
                     self._pattern_warnings.add(
-                        f"CRITICAL: deprecated suicide usage at line {location.line_start}"
+                        f"CRITICAL: deprecated suicide usage at line {start_line}"
                     )
                 elif name == "delegatecall_usage":
                     self._pattern_warnings.add(
-                        f"WARNING: delegatecall usage at line {location.line_start} - review for security"
+                        f"WARNING: delegatecall usage at line {start_line} - review for security"
                     )
                 elif name == "assembly_block":
                     self._pattern_warnings.add(
-                        f"INFO: Assembly block at line {location.line_start} - requires careful review"
+                        f"INFO: Assembly block at line {start_line} - requires careful review"
                     )
                 elif name == "external_call":
-                    # Less verbose for external calls as they're common
-                    if "external_calls" not in result.metadata:
-                        result.metadata = result.metadata or {}
-                        result.metadata["external_calls"] = []
-                    result.metadata["external_calls"].append(location.line_start)
+                    # Track external calls as potential security issues
+                    result.security_issues.append(
+                        {"type": "external_call", "line": start_line, "severity": "info"}
+                    )
 
-        # Add summary of patterns found
-        if pattern_counts:
-            result.metadata = result.metadata or {}
-            result.metadata["pattern_counts"] = pattern_counts
+        # Add pattern warnings as security issues
+        for warning in self._pattern_warnings:
+            result.security_issues.append({"type": "security_pattern", "message": warning})
 
     def _map_declaration_type(self, capture_name: str) -> str:
         """Map tree-sitter capture names to declaration types.

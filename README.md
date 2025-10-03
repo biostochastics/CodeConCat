@@ -126,7 +126,7 @@ codeconcat run --security --semgrep --compress --output secure-report.json
 
 ## Language Support
 
-CodeConCat provides comprehensive parsing for 20+ programming languages with industry-validated accuracy:
+CodeConCat provides comprehensive parsing for 25+ programming languages with industry-validated accuracy:
 
 | Language | Parser Type | Key Features | Documentation |
 |----------|-------------|--------------|---------------|
@@ -150,6 +150,8 @@ CodeConCat provides comprehensive parsing for 20+ programming languages with ind
 | **SQL** | Tree-sitter | Multi-dialect (PostgreSQL, MySQL, SQLite), CTEs | ✓ Comments |
 | **HCL/Terraform** | Tree-sitter | Resources, modules, providers, variables | ✓ Comments |
 | **GraphQL** | Tree-sitter | Schema definitions, operations, directives | ✓ Descriptions |
+| **GLSL** | Tree-sitter | Vertex/fragment/compute shaders, uniforms, samplers, textures, in/out variables, layout qualifiers | ✓ Comments |
+| **HLSL** | Tree-sitter | Compute/vertex/pixel shaders, cbuffer/tbuffer, RWTextures, structured buffers, typedefs, semantics | ✓ Comments |
 | **Bash/Shell** | Tree-sitter | Functions, variables, source imports | ✓ Comments |
 | **TOML** | Enhanced Regex | Configuration parsing, nested tables | ✓ Comments |
 | **WAT (WebAssembly Text)** | Tree-sitter | Modules, functions, imports/exports, memory, types | ✓ Comments |

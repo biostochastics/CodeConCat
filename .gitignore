@@ -138,4 +138,14 @@ codeconcat_language_expansion_guide.md
 LANGUAGE_EXPANSION_IMPLEMENTATION_PLAN.md
 LANGUAGE_EXPANSION_PHASE2.md
 
+# ---------------------------
+# Tree-sitter Compiled Bindings
+# ---------------------------
+**/tree_sitter_*/_binding.so
+**/tree_sitter_*/_binding.dylib
+**/tree_sitter_*/_binding.pyd
+**/tree_sitter_*/*.so
+**/tree_sitter_*/*.dylib
+**/tree_sitter_*/*.pyd
+
 # End of .gitignore

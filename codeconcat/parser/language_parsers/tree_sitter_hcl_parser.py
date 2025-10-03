@@ -27,6 +27,12 @@ try:
 except ImportError:
     Node = None  # type: ignore
 
+# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
+try:
+    from tree_sitter import QueryCursor
+except ImportError:
+    QueryCursor = None  # type: ignore[assignment,misc]
+
 logger = logging.getLogger(__name__)
 
 # Tree-sitter queries for HCL2/Terraform syntax

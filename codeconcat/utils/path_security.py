@@ -12,8 +12,10 @@ This module implements defense-in-depth path validation using:
 """
 
 import os
+import unicodedata
 from pathlib import Path
 from typing import Optional, Union
+from urllib.parse import unquote
 
 
 class PathTraversalError(Exception):
@@ -75,8 +77,63 @@ def validate_safe_path(
     if "\x00" in path_str:
         raise PathTraversalError("Path contains null bytes")
 
-    # Convert to Path objects
-    path_obj = Path(path) if isinstance(path, str) else path
+    # URL decode multiple times to handle double/triple encoding
+    decoded = path_str
+    for _ in range(3):  # Handle up to triple encoding
+        prev = decoded
+        decoded = unquote(decoded)
+        if prev == decoded:
+            break  # No more decoding needed
+
+    # Normalize Unicode characters to handle homoglyph attacks
+    normalized = unicodedata.normalize("NFKC", decoded)
+
+    # Check for backslash traversal patterns (Windows-style on Unix)
+    # If path contains backslashes and parent references, it's suspicious
+    if "..\\" in normalized:
+        # This is a clear traversal attempt using Windows-style separators
+        raise PathTraversalError("Path escapes base directory")
+
+    # Check for definitely malicious patterns (encoded/obfuscated traversal)
+    # We allow plain ".." since it might resolve safely, but block encoded/obfuscated versions
+    malicious_patterns = [
+        "%2e%2e",  # URL encoded ..
+        "%252e",  # Double encoded
+        "%00",  # Null byte
+        "%01",  # Control character
+        "..;",  # Semicolon tricks
+    ]
+
+    # Check in the normalized and decoded versions for malicious patterns
+    for check_str in [normalized.lower(), decoded.lower()]:
+        for pattern in malicious_patterns:
+            if pattern in check_str:
+                raise PathTraversalError(f"Malicious pattern detected: {pattern}")
+
+    # Use the normalized path for further processing
+    path_str = normalized
+
+    # Check if path tries to escape immediately (starts with ..)
+    # This is always suspicious since we're supposed to stay within base
+    if path_str.startswith(".."):
+        # Double-check by resolving - it might be okay if base is not root
+        # We'll let the later resolution handle this case
+        pass
+
+    # Check for Windows drive letter attacks (e.g., C:/)
+    if len(path_str) >= 2 and path_str[1] == ":":
+        raise PathTraversalError(f"Absolute Windows path not allowed: {path_str}")
+
+    # Check for UNC path attacks (e.g., \\server\share or //server/share)
+    if path_str.startswith("\\\\") or path_str.startswith("//"):
+        raise PathTraversalError(f"UNC path not allowed: {path_str}")
+
+    # Check for excessively long paths (potential attack)
+    if len(path_str) > 4096:  # Most filesystems limit to 4096
+        raise PathTraversalError(f"Path too long: {len(path_str)} bytes")
+
+    # Convert to Path objects using the normalized string
+    path_obj = Path(path_str)
 
     # Determine base path
     if base_path is None:
@@ -88,20 +145,47 @@ def validate_safe_path(
     # Use os.path.realpath for security (handles symlinks properly)
     try:
         resolved_base = Path(os.path.realpath(base_obj))
-        resolved_path = Path(os.path.realpath(base_obj / path_obj))
+
+        # Handle absolute paths differently - don't combine with base
+        if path_obj.is_absolute():
+            # For absolute paths, resolve them directly
+            resolved_path = Path(os.path.realpath(path_obj))
+        else:
+            # For relative paths, combine with base then resolve
+            resolved_path = Path(os.path.realpath(base_obj / path_obj))
     except (OSError, RuntimeError) as e:
         raise PathTraversalError(f"Path resolution failed: {e}") from e
 
     # Symlink detection (if disallowed)
     if not allow_symlinks:
-        # Check if the path component (not the final file) contains symlinks
+        # Check each component of the path for symlinks
         try:
-            test_path = base_obj / path_obj
-            if test_path.exists() and test_path.is_symlink():
-                raise PathTraversalError(f"Symlinks not allowed: {path}")
-        except (OSError, RuntimeError):
+            # For absolute paths, check the path directly
+            if path_obj.is_absolute():
+                test_path = path_obj
+                if test_path.exists() and test_path.is_symlink():
+                    raise PathTraversalError(f"Symlinks not allowed in path: {test_path}")
+            else:
+                # For relative paths, check each component when combined with base
+                test_path = base_obj
+                for part in path_obj.parts:
+                    if not part or part == "/":  # Skip empty parts or root
+                        continue
+                    test_path = test_path / part
+                    if test_path.exists() and test_path.is_symlink():
+                        raise PathTraversalError(f"Symlinks not allowed in path: {test_path}")
+                    # Also check if it would escape via symlink
+                    if test_path.exists():
+                        real_test = Path(os.path.realpath(test_path))
+                        real_base = Path(os.path.realpath(base_obj))
+                        if not str(real_test).startswith(
+                            str(real_base) + (os.sep if not str(real_base).endswith(os.sep) else "")
+                        ):
+                            raise PathTraversalError(f"Symlink escapes base directory: {test_path}")
+        except (OSError, RuntimeError) as e:
             # If we can't check, fail closed for security
-            pass
+            if "symlink" not in str(e).lower():
+                raise PathTraversalError(f"Path validation error: {e}") from e
 
     # Boundary enforcement: verify resolved path is within base directory
     try:
