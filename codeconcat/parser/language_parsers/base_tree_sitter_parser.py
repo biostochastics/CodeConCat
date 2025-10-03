@@ -202,22 +202,28 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             root_node: Root node to query against
 
         Returns:
-            List of captures from the query execution. Format depends on tree-sitter version:
+            Captures from the query execution, or empty dict on failure. Format depends on tree-sitter version:
             - 0.23.x: Returns list of (node, capture_name) tuples
             - 0.24.0+: Returns dict of {capture_name: [nodes]}
 
-        Raises:
-            Exception: If query execution fails
-
         Complexity: O(n) where n is the number of nodes in the tree
         """
-        if QueryCursor is None:
-            # tree-sitter 0.24.0+ - use query.captures() directly
-            return query.captures(root_node)
-        else:
-            # tree-sitter 0.23.x - use QueryCursor
-            cursor = QueryCursor(query)
-            return cursor.captures(root_node)
+        try:
+            if QueryCursor is None:
+                # tree-sitter 0.24.0+ - use query.captures() directly
+                result = query.captures(root_node)
+            else:
+                # tree-sitter 0.23.x - use QueryCursor
+                cursor = QueryCursor(query)
+                result = cursor.captures(root_node)
+            # Normalize to dict for consistent return type (0.24.0+ already returns dict)
+            return result if result is not None else {}
+        except Exception as e:
+            logger.warning(
+                f"Error executing captures for query on {getattr(root_node, 'type', 'root')}: {e}",
+                exc_info=True,
+            )
+            return {}
 
     def _execute_query_matches(self, query: Query, root_node: Node):  # type: ignore[no-any-return]
         """Execute a tree-sitter query using matches with version compatibility.
@@ -230,22 +236,28 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             root_node: Root node to query against
 
         Returns:
-            List of matches from the query execution. Format depends on tree-sitter version:
+            List of matches from the query execution, or empty list on failure. Format depends on tree-sitter version:
             - 0.23.x: Returns list of (match_id, {capture_name: [nodes]}) tuples
             - 0.24.0+: Returns list of (match_id, {capture_name: [nodes]}) tuples
 
-        Raises:
-            Exception: If query execution fails
-
         Complexity: O(n) where n is the number of nodes in the tree
         """
-        if QueryCursor is None:
-            # tree-sitter 0.24.0+ - use query.matches() directly
-            return query.matches(root_node)
-        else:
-            # tree-sitter 0.23.x - use QueryCursor
-            cursor = QueryCursor(query)
-            return cursor.matches(root_node)
+        try:
+            if QueryCursor is None:
+                # tree-sitter 0.24.0+ - use query.matches() directly
+                result = query.matches(root_node)
+            else:
+                # tree-sitter 0.23.x - use QueryCursor
+                cursor = QueryCursor(query)
+                result = cursor.matches(root_node)
+            # Normalize to a list to avoid returning generators/None
+            return list(result) if result is not None else []
+        except Exception as e:
+            logger.warning(
+                f"Error executing matches for query on {getattr(root_node, 'type', 'root')}: {e}",
+                exc_info=True,
+            )
+            return []
 
     def _load_language(self) -> Language:
         """Loads the Tree-sitter language object.

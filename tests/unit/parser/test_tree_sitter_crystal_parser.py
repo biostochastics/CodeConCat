@@ -268,14 +268,15 @@ class TestTreeSitterCrystalParser:
 
         assert result is not None
 
-        # Note: Type aliases may be extracted as general declarations (not specifically "type_alias" kind)
-        # The important thing is that parsing doesn't crash
+        # Note: Type aliases are mapped to "class" kind in the Crystal parser
+        # (see CRYSTAL_QUERIES where aliases use @class capture)
         assert isinstance(result.declarations, list)
-        # If type aliases are extracted, verify they contain expected names
-        alias_decls = [d for d in result.declarations if "alias" in d.kind.lower() or d.kind == "type_alias"]
-        if alias_decls:
-            alias_names = [d.name for d in alias_decls]
-            assert any(name in alias_names for name in ["UserId", "UserMap", "Callback", "Result"])
+        # Aliases should be extracted as class declarations
+        class_decls = [d for d in result.declarations if d.kind == "class"]
+        if class_decls:
+            class_names = [d.name for d in class_decls]
+            # At least one of the alias names should be present
+            assert any(name in class_names for name in ["UserId", "UserMap", "Callback", "Result"])
 
     def test_parse_imports(self):
         """Test require, include, and extend parsing."""

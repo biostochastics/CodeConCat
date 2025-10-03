@@ -139,7 +139,12 @@ def _choose_provider(existing_provider: str | None) -> LocalProviderPreset:
 def _probe_plain_http(url: str, timeout: float = 1.5) -> bool:
     # Validate URL is localhost to prevent SSRF attacks
     parsed = urlparse(url)
-    if parsed.hostname not in ["localhost", "127.0.0.1", "::1", "0.0.0.0"]:
+    hostname = (parsed.hostname or "").lower()
+
+    # Allow localhost, IPv6 loopback, and any 127.* loopback addresses
+    is_localhost = hostname in {"localhost", "::1", "0.0.0.0"} or hostname.startswith("127.")
+
+    if not is_localhost:
         # Refuse to probe non-localhost URLs for security
         return False
 
@@ -231,7 +236,8 @@ def _prompt_for_base_url(
         )
         if not typer.confirm("Keep this URL anyway?", default=False):
             # Reset to first candidate instead of reusing failed value
-            default_base = candidates[0]
+            # Normalize by removing trailing slash
+            default_base = candidates[0].rstrip("/")
             continue
         return base, {}
 
