@@ -114,6 +114,8 @@ try:
         "graphql": "TreeSitterGraphqlParser",
         "ruby": "TreeSitterRubyParser",
         "solidity": "TreeSitterSolidityParser",
+        "wat": "TreeSitterWatParser",
+        "wasm": "TreeSitterWatParser",
     }
 
     import logging
@@ -175,5 +177,8 @@ LANGUAGE_EXTENSION_MAP = {
         ".rake": "ruby",
         ".gemspec": "ruby",
         ".sol": "solidity",
+        ".wat": "wat",
+        ".wast": "wat",
+        ".wasm": "wasm",
     }.items()
 }
