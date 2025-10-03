@@ -143,9 +143,10 @@ CodeConCat provides comprehensive parsing for 20+ programming languages with ind
 | **Swift** | Tree-sitter + Enhanced Regex | Property wrappers, actors, async/await | ✓ SwiftDoc |
 | **Kotlin** | Tree-sitter | Extension functions, suspend functions, sealed classes | ✓ KDoc |
 | **Solidity** | Tree-sitter | Smart contracts, inheritance, modifiers, events, security patterns | ✓ NatSpec |
-| **Crystal** | Tree-sitter | Type annotations, union types, C bindings, macros | ⚠️ Manual install* |
+| **Crystal** | Tree-sitter | Type annotations, union types, C bindings, macros | ✓ Comments |
 | **Dart** | Tree-sitter | Null safety, Flutter patterns, mixins | ✓ Dartdoc |
 | **Elixir** | Tree-sitter | GenServer, LiveView, pattern matching, pipe operators, macros | ✓ @doc/@moduledoc |
+| **Zig** | Tree-sitter | Comptime blocks, async/await (suspend/resume), error unions, inline for, struct methods | ✓ /// comments |
 | **SQL** | Tree-sitter | Multi-dialect (PostgreSQL, MySQL, SQLite), CTEs | ✓ Comments |
 | **HCL/Terraform** | Tree-sitter | Resources, modules, providers, variables | ✓ Comments |
 | **GraphQL** | Tree-sitter | Schema definitions, operations, directives | ✓ Descriptions |
@@ -153,7 +154,7 @@ CodeConCat provides comprehensive parsing for 20+ programming languages with ind
 | **TOML** | Enhanced Regex | Configuration parsing, nested tables | ✓ Comments |
 | **WAT (WebAssembly Text)** | Tree-sitter | Modules, functions, imports/exports, memory, types | ✓ Comments |
 
-**\* Crystal Parser Limitation:** The `tree-sitter-crystal` package is not currently available on PyPI. To use the Crystal parser, you must manually compile and install the tree-sitter-crystal grammar. See the [Crystal installation guide](https://github.com/crystal-lang-tools/tree-sitter-crystal) for instructions.
+**Crystal Support:** CodeConCat provides comprehensive parsing for Crystal using a dynamically-compiled tree-sitter grammar from [crystal-lang-tools/tree-sitter-crystal](https://github.com/crystal-lang-tools/tree-sitter-crystal). The grammar is automatically downloaded and compiled on first use, with configurable cache directory via `CODECONCAT_CACHE_DIR` environment variable. The parser extracts classes, modules, structs, methods, macros, type aliases, and C library bindings (lib blocks). It tracks Crystal-specific features including type annotations, union types, nilable types, and generic type parameters. All security features include file locking to prevent race conditions, atomic file operations to prevent TOCTOU vulnerabilities, and automatic caching for improved performance.
 
 **WebAssembly Support:** CodeConCat provides comprehensive parsing for WebAssembly Text (WAT) format using a dynamically-compiled tree-sitter grammar from [wasm-lsp/tree-sitter-wasm](https://github.com/wasm-lsp/tree-sitter-wasm). The grammar is automatically downloaded and compiled on first use, with configurable cache directory via `CODECONCAT_CACHE_DIR` environment variable. The parser extracts module structure, function signatures with parameter/result types, import/export statements, type definitions, and global/table declarations. All security features include file locking to prevent race conditions, commit hash pinning for reproducible builds, and atomic file operations to prevent TOCTOU vulnerabilities.
 
