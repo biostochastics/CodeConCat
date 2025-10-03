@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, NamedTuple
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import urlopen
 
 import typer
@@ -136,8 +137,14 @@ def _choose_provider(existing_provider: str | None) -> LocalProviderPreset:
 
 
 def _probe_plain_http(url: str, timeout: float = 1.5) -> bool:
+    # Validate URL is localhost to prevent SSRF attacks
+    parsed = urlparse(url)
+    if parsed.hostname not in ["localhost", "127.0.0.1", "::1", "0.0.0.0"]:
+        # Refuse to probe non-localhost URLs for security
+        return False
+
     try:
-        with urlopen(url, timeout=timeout) as response:  # nosec B310 - user-controlled localhost
+        with urlopen(url, timeout=timeout) as response:  # nosec B310 - validated localhost only
             return 200 <= response.status < 500  # type: ignore[no-any-return]
     except HTTPError as exc:
         return exc.code in {401, 403, 404}

@@ -96,19 +96,22 @@ def validate_safe_path(
 
     # Check for definitely malicious patterns (encoded/obfuscated traversal)
     # We allow plain ".." since it might resolve safely, but block encoded/obfuscated versions
-    malicious_patterns = [
-        "%2e%2e",  # URL encoded ..
-        "%252e",  # Double encoded
-        "%00",  # Null byte
-        "%01",  # Control character
-        "..;",  # Semicolon tricks
+    # Use regex word boundaries to avoid false positives with legitimate hex strings
+    import re
+
+    malicious_patterns_regex = [
+        (r"\b%2e%2e\b", "URL encoded .."),  # URL encoded ..
+        (r"\b%252e\b", "Double encoded"),  # Double encoded (word boundary to avoid false positives)
+        (r"%00", "Null byte"),  # Null byte
+        (r"%01", "Control character"),  # Control character
+        (r"\.\.\;", "Semicolon trick"),  # Semicolon tricks
     ]
 
     # Check in the normalized and decoded versions for malicious patterns
     for check_str in [normalized.lower(), decoded.lower()]:
-        for pattern in malicious_patterns:
-            if pattern in check_str:
-                raise PathTraversalError(f"Malicious pattern detected: {pattern}")
+        for pattern_regex, pattern_desc in malicious_patterns_regex:
+            if re.search(pattern_regex, check_str, re.IGNORECASE):
+                raise PathTraversalError(f"Malicious pattern detected: {pattern_desc}")
 
     # Use the normalized path for further processing
     path_str = normalized
@@ -120,8 +123,9 @@ def validate_safe_path(
         # We'll let the later resolution handle this case
         pass
 
-    # Check for Windows drive letter attacks (e.g., C:/)
-    if len(path_str) >= 2 and path_str[1] == ":":
+    # Check for Windows drive letter attacks (e.g., C:/, D:\)
+    # Valid drive letter pattern: single letter followed by colon
+    if len(path_str) >= 2 and path_str[1] == ":" and path_str[0].isalpha():
         raise PathTraversalError(f"Absolute Windows path not allowed: {path_str}")
 
     # Check for UNC path attacks (e.g., \\server\share or //server/share)
@@ -178,10 +182,18 @@ def validate_safe_path(
                     if test_path.exists():
                         real_test = Path(os.path.realpath(test_path))
                         real_base = Path(os.path.realpath(base_obj))
-                        if not str(real_test).startswith(
-                            str(real_base) + (os.sep if not str(real_base).endswith(os.sep) else "")
-                        ):
-                            raise PathTraversalError(f"Symlink escapes base directory: {test_path}")
+                        # Use os.path.commonpath for robust comparison (handles separators correctly)
+                        try:
+                            common = Path(os.path.commonpath([real_base, real_test]))
+                            if common != real_base:
+                                raise PathTraversalError(
+                                    f"Symlink escapes base directory: {test_path}"
+                                )
+                        except ValueError:
+                            # Different drives on Windows
+                            raise PathTraversalError(
+                                f"Symlink on different drive than base: {test_path}"
+                            ) from None
         except (OSError, RuntimeError) as e:
             # If we can't check, fail closed for security
             if "symlink" not in str(e).lower():
