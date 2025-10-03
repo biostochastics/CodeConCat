@@ -165,8 +165,7 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
         try:
             # Use modern Query() constructor and QueryCursor
             doc_query = Query(self.ts_language, queries.get("doc_line_comments", ""))
-            doc_cursor = QueryCursor(doc_query)
-            doc_captures = doc_cursor.captures(root_node)
+            doc_captures = self._execute_query_with_cursor(doc_query, root_node)
             last_line_comment_line = -2
             current_doc_block_expression: List[str] = []
 
@@ -217,8 +216,7 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
 
                 if query_name == "imports":
                     # Use captures for imports
-                    cursor = QueryCursor(query)
-                    captures = cursor.captures(root_node)
+                    captures = self._execute_query_with_cursor(query, root_node)
                     logger.debug(
                         f"Running Julia query '{query_name}', found {len(captures)} captures."
                     )
@@ -238,8 +236,7 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
 
                 elif query_name == "declarations":
                     # Use matches for better structure with declarations
-                    cursor = QueryCursor(query)
-                    matches = cursor.matches(root_node)
+                    matches = self._execute_query_matches(query, root_node)
                     for _match_id, captures_dict in matches:
                         declaration_node = None
                         name_node = None

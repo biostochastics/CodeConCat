@@ -128,11 +128,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
             # Extract imports
             imports_query = self._get_compiled_query("imports")
             if imports_query:
-                if QueryCursor is not None:
-                    cursor = QueryCursor(imports_query)
-                    captures_dict = cursor.captures(tree.root_node)
-                else:
-                    captures_dict = imports_query.captures(tree.root_node)
+                captures_dict = self._execute_query_with_cursor(imports_query, tree.root_node)
                 # Convert dict format to list of tuples
                 imports = []
                 for name, nodes in captures_dict.items():
@@ -143,11 +139,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
             # Extract declarations
             declarations_query = self._get_compiled_query("declarations")
             if declarations_query:
-                if QueryCursor is not None:
-                    cursor = QueryCursor(declarations_query)
-                    captures_dict = cursor.captures(tree.root_node)
-                else:
-                    captures_dict = declarations_query.captures(tree.root_node)
+                captures_dict = self._execute_query_with_cursor(declarations_query, tree.root_node)
                 # Convert dict format to list of tuples
                 declarations = []
                 for name, nodes in captures_dict.items():
@@ -158,11 +150,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
             # Extract syntactic patterns for security review
             patterns_query = self._get_compiled_query("syntactic_patterns")
             if patterns_query:
-                if QueryCursor is not None:
-                    cursor = QueryCursor(patterns_query)
-                    captures_dict = cursor.captures(tree.root_node)
-                else:
-                    captures_dict = patterns_query.captures(tree.root_node)
+                captures_dict = self._execute_query_with_cursor(patterns_query, tree.root_node)
                 # Convert dict format to list of tuples
                 patterns = []
                 for name, nodes in captures_dict.items():

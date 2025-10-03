@@ -283,8 +283,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             root_node = tree.root_node
             if QueryCursor is not None:
                 # tree-sitter 0.25.x with QueryCursor
-                cursor = QueryCursor(query)
-                captures = cursor.captures(root_node)
+                captures = self._execute_query_with_cursor(query, root_node)
             else:
                 # Fallback (shouldn't reach here with 0.25.x)
                 raise RuntimeError("QueryCursor not available - incompatible tree-sitter version")
@@ -339,8 +338,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
         try:
             # tree-sitter 0.25.x API: Use QueryCursor
             if QueryCursor is not None:
-                cursor = QueryCursor(query)
-                captures = cursor.captures(tree.root_node)
+                captures = self._execute_query_with_cursor(query, tree.root_node)
             else:
                 raise RuntimeError("QueryCursor not available")
             view_defs = captures.get("view_def", [])
@@ -395,8 +393,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         try:
             if QueryCursor is not None:
-                cursor = QueryCursor(query)
-                captures = cursor.captures(tree.root_node)
+                captures = self._execute_query_with_cursor(query, tree.root_node)
             else:
                 raise RuntimeError("QueryCursor not available")
 
@@ -452,8 +449,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         try:
             if QueryCursor is not None:
-                cursor = QueryCursor(query)
-                captures = cursor.captures(tree.root_node)
+                captures = self._execute_query_with_cursor(query, tree.root_node)
             else:
                 raise RuntimeError("QueryCursor not available")
 
@@ -529,8 +525,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         try:
             if QueryCursor is not None:
-                cursor = QueryCursor(query)
-                captures = cursor.captures(tree.root_node)
+                captures = self._execute_query_with_cursor(query, tree.root_node)
             else:
                 raise RuntimeError("QueryCursor not available")
 

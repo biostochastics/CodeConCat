@@ -192,8 +192,7 @@ class TreeSitterRustParser(BaseTreeSitterParser):
 
             # FIX 2: QueryCursor API compatibility for tree-sitter 0.24.0
             if QueryCursor is not None:
-                cursor = QueryCursor(doc_query)
-                doc_captures = cursor.captures(root_node)
+                doc_captures = self._execute_query_with_cursor(doc_query, root_node)
             else:
                 doc_captures = doc_query.captures(root_node)
 
@@ -277,8 +276,7 @@ class TreeSitterRustParser(BaseTreeSitterParser):
 
                 # FIX 2: QueryCursor API compatibility for tree-sitter 0.24.0
                 if QueryCursor is not None:
-                    cursor = QueryCursor(query)
-                    captures = cursor.captures(root_node)
+                    captures = self._execute_query_with_cursor(query, root_node)
                 else:
                     captures = query.captures(root_node)
 
@@ -304,8 +302,7 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                     # Use matches for better structure
                     # FIX 2: QueryCursor API compatibility
                     if QueryCursor is not None:
-                        cursor = QueryCursor(query)
-                        matches = cursor.matches(root_node)
+                        matches = self._execute_query_matches(query, root_node)
                     else:
                         matches = query.matches(root_node)
                     for _match_id, captures_dict in matches:

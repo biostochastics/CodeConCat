@@ -131,8 +131,7 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         try:
             doc_query = self._get_compiled_query("doc_comments")
             if doc_query:
-                cursor = QueryCursor(doc_query)
-                doc_captures = cursor.captures(root_node)
+                doc_captures = self._execute_query_with_cursor(doc_query, root_node)
                 # doc_captures is a dict: {capture_name: [list of nodes]}
                 for capture_name, nodes in doc_captures.items():
                     if capture_name == "docstring":
@@ -160,8 +159,7 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         try:
             import_query = self._get_compiled_query("imports")
             if import_query:
-                cursor = QueryCursor(import_query)
-                import_captures = cursor.captures(root_node)
+                import_captures = self._execute_query_with_cursor(import_query, root_node)
                 # import_captures is a dict: {capture_name: [list of nodes]}
                 for capture_name, nodes in import_captures.items():
                     if capture_name in ["import_name", "module_name"]:
@@ -179,8 +177,7 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         try:
             decl_query = self._get_compiled_query("declarations")
             if decl_query:
-                cursor = QueryCursor(decl_query)
-                matches = cursor.matches(root_node)
+                matches = self._execute_query_matches(decl_query, root_node)
 
                 # matches is a list of tuples: (match_id, dict of capture_name -> nodes)
                 for _match_id, captures_dict in matches:
