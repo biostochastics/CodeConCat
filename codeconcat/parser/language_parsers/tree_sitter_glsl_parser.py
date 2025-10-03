@@ -204,12 +204,18 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         )
 
     def _extract_samplers(
-        self, root_node: Node, source_code: str, declarations: List[Declaration]
+        self, _root_node: Node, _source_code: str, _declarations: List[Declaration]
     ) -> None:
         """Extract sampler and image declarations."""
-        # Samplers are typically uniform declarations with sampler/image types
-        # We'll extract them during uniform traversal and reclassify based on type
-        pass  # Handled in traverse_declarations
+        # Reclassify uniforms collected in `self._uniforms` into sampler/image kinds
+        for decl in self._uniforms:
+            sig = (decl.signature or "").lower()
+            if "sampler" in sig:
+                decl.kind = "sampler"
+                self._samplers.append(decl)
+            elif "image" in sig:
+                decl.kind = "image"
+                self._samplers.append(decl)
 
     def _extract_buffers(
         self,
@@ -542,5 +548,7 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         return None
 
     def _get_node_text(self, node: Node, source_code: str) -> str:
-        """Extract text from a node."""
-        return source_code[node.start_byte : node.end_byte]
+        """Extract text from a node using byte offsets (handles non-ASCII)."""
+        # Node start/end are byte offsets, so slice the UTF-8 encoded bytes and decode.
+        b = source_code.encode("utf8")
+        return b[node.start_byte : node.end_byte].decode("utf8", errors="replace")

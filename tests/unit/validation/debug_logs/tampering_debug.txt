@@ -1,13 +1,13 @@
 --- Debugging test_detect_tampering ---
 Initial cache clear. Cache content: TTLCache({}, maxsize=10000, currsize=0)
-Test file created: /private/var/folders/1f/73w085tx1dx4dz6h971cm7qr0000gn/T/pytest-of-biostochastics/pytest-10/test_detect_tampering0/file.txt
+Test file created: /private/var/folders/1f/73w085tx1dx4dz6h971cm7qr0000gn/T/pytest-of-biostochastics/pytest-11/test_detect_tampering1/file.txt
 Original content hash: bf573149b23303cac63c2a359b53760d919770c5d070047e76de42e2184f1046
-Cache content after hashing original file: TTLCache({'/private/var/folders/1f/73w085tx1dx4dz6h971cm7qr0000gn/T/pytest-of-biostochastics/pytest-10/test_detect_tampering0/file.txt:sha256:16:1759438472804925174': 'bf573149b23303cac63c2a359b53760d919770c5d070047e76de42e2184f1046'}, maxsize=10000, currsize=1)
+Cache content after hashing original file: TTLCache({'/private/var/folders/1f/73w085tx1dx4dz6h971cm7qr0000gn/T/pytest-of-biostochastics/pytest-11/test_detect_tampering1/file.txt:sha256:16:1759471455100991027': 'bf573149b23303cac63c2a359b53760d919770c5d070047e76de42e2184f1046'}, maxsize=10000, currsize=1)
 Tampering check 1 (original file, should be False): False
 File modified. Original hash was: bf573149b23303cac63c2a359b53760d919770c5d070047e76de42e2184f1046
-Cache content BEFORE clearing for modified file check: TTLCache({'/private/var/folders/1f/73w085tx1dx4dz6h971cm7qr0000gn/T/pytest-of-biostochastics/pytest-10/test_detect_tampering0/file.txt:sha256:16:1759438472804925174': 'bf573149b23303cac63c2a359b53760d919770c5d070047e76de42e2184f1046'}, maxsize=10000, currsize=1)
+Cache content BEFORE clearing for modified file check: TTLCache({'/private/var/folders/1f/73w085tx1dx4dz6h971cm7qr0000gn/T/pytest-of-biostochastics/pytest-11/test_detect_tampering1/file.txt:sha256:16:1759471455100991027': 'bf573149b23303cac63c2a359b53760d919770c5d070047e76de42e2184f1046'}, maxsize=10000, currsize=1)
 Cache CLEARED for modified file check. Cache content: TTLCache({}, maxsize=10000, currsize=0)
 Hash of modified file (for debug, re-populates cache): 4ccfac83d4aadc93c5d62a50cd894c4b213e3ab1d5654800a61356a70e0b1f37
-Cache content after computing hash for modified file (for debug): TTLCache({'/private/var/folders/1f/73w085tx1dx4dz6h971cm7qr0000gn/T/pytest-of-biostochastics/pytest-10/test_detect_tampering0/file.txt:sha256:16:1759438472805111631': '4ccfac83d4aadc93c5d62a50cd894c4b213e3ab1d5654800a61356a70e0b1f37'}, maxsize=10000, currsize=1)
+Cache content after computing hash for modified file (for debug): TTLCache({'/private/var/folders/1f/73w085tx1dx4dz6h971cm7qr0000gn/T/pytest-of-biostochastics/pytest-11/test_detect_tampering1/file.txt:sha256:16:1759471455101139236': '4ccfac83d4aadc93c5d62a50cd894c4b213e3ab1d5654800a61356a70e0b1f37'}, maxsize=10000, currsize=1)
 Tampering check 2 (modified file, should be True): True
 --- End Debugging test_detect_tampering ---

@@ -207,11 +207,7 @@ def _prompt_for_api_key(provider_key: str, existing_key: str | None) -> str:
     env_value = os.getenv(env_var) if env_var else None
     default_value = existing_key or env_value or ""
     prompt_text = "API key (leave blank if not required)"
-    return (  # type: ignore[no-any-return]
-        typer.prompt(prompt_text, default=default_value, hide_input=True)
-        if default_value
-        else typer.prompt(prompt_text, default="", hide_input=True)
-    )
+    return typer.prompt(prompt_text, default=default_value, hide_input=True)  # type: ignore[no-any-return]
 
 
 def _prompt_for_base_url(
@@ -234,7 +230,8 @@ def _prompt_for_base_url(
             f"[yellow]Could not validate {label} at {base}: {error or 'unknown error'}[/yellow]"
         )
         if not typer.confirm("Keep this URL anyway?", default=False):
-            default_base = base
+            # Reset to first candidate instead of reusing failed value
+            default_base = candidates[0]
             continue
         return base, {}
 

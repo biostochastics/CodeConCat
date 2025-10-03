@@ -166,7 +166,7 @@ class TreeSitterElixirParser(BaseTreeSitterParser):
                     self._genserver_callbacks.add(func_name)
 
                 # LiveView callbacks
-                elif func_name in [
+                if func_name in [
                     "mount",
                     "render",
                     "handle_event",
@@ -175,7 +175,11 @@ class TreeSitterElixirParser(BaseTreeSitterParser):
                     self._liveview_callbacks.add(func_name)
 
                 # Supervisor callbacks
-                elif func_name in ["init", "start_link", "child_spec"]:
+                # Only count if NOT already counted as GenServer to avoid double-counting
+                if (
+                    func_name in ["init", "start_link", "child_spec"]
+                    and func_name not in self._genserver_callbacks
+                ):
                     self._supervisor_trees += 1
 
         # Walk AST to find macros, pipes, patterns, and behaviors
@@ -216,6 +220,17 @@ class TreeSitterElixirParser(BaseTreeSitterParser):
                                             alias_node.start_byte : alias_node.end_byte
                                         ].decode("utf-8", errors="replace")
                                         self._behaviors.add(behavior_name)
+                        break
+                    # Track protocol definitions and implementations
+                    elif id_text in ["defprotocol", "defimpl"]:
+                        for arg_node in node.children:
+                            if arg_node.type == "arguments":
+                                for proto_node in arg_node.children:
+                                    if proto_node.type in ("alias", "identifier"):
+                                        proto_name = content_bytes[
+                                            proto_node.start_byte : proto_node.end_byte
+                                        ].decode("utf-8", errors="replace")
+                                        self._protocols.add(proto_name)
                         break
 
         # Track pipe operators

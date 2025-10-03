@@ -111,7 +111,6 @@ class TreeSitterCrystalParser(BaseTreeSitterParser):
         """Initialize the Crystal parser."""
         super().__init__("crystal")
         # Language-specific tracking (not part of ParseResult)
-        self._type_annotations: Dict[str, str] = {}
         self._macros: Set[str] = set()
         self._c_bindings: Dict[str, List[str]] = {}
         self._generic_types: Set[str] = set()
@@ -190,7 +189,6 @@ class TreeSitterCrystalParser(BaseTreeSitterParser):
             ParseResult containing declarations and imports
         """
         # Reset Crystal-specific tracking
-        self._type_annotations.clear()
         self._macros.clear()
         self._c_bindings.clear()
         self._generic_types.clear()
@@ -295,11 +293,6 @@ class TreeSitterCrystalParser(BaseTreeSitterParser):
                         break
 
     # Public accessors for language-specific metrics (for testing)
-    @property
-    def type_annotation_count(self) -> int:
-        """Get count of type annotations found."""
-        return len(self._type_annotations)
-
     @property
     def macro_count(self) -> int:
         """Get count of macros found."""

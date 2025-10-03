@@ -72,7 +72,7 @@ class LocalServerProvider(AIProvider):
         )
 
         # Derive human-friendly server label
-        extra_server_kind = config.extra_params.pop("server_kind", None)
+        extra_server_kind = config.extra_params.get("server_kind", None)
         self.server_kind = extra_server_kind or preset.get("name") or "local server"
 
         # Resolve API base precedence: explicit config > provider-specific env > generic env > preset default
