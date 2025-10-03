@@ -577,8 +577,11 @@ pub fn broken(a: i32, b: {
     // Missing closing brace and return type
 '''
         # Should not crash, just return what it can parse
-        declarations = self.parser.parse(code)
-        # May or may not find the broken function depending on recovery
+        result = self.parser.parse(code)
+        # Add assertion: parser should not crash and handle gracefully
+        assert result is not None
+        # Verify error recovery worked - no crash is success
+        assert isinstance(result.declarations, list)
 
     def test_get_language_features(self):
         """Test the get_language_features method."""

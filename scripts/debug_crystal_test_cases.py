@@ -129,7 +129,8 @@ def print_tree(node, indent=0, max_depth=4):
         try:
             text = node.text.decode("utf8")
             print("  " * indent + f"  → {text}")
-        except:  # noqa: E722
+        except (UnicodeDecodeError, AttributeError):
+            # Silently skip nodes that can't be decoded
             pass
     for child in node.children:
         print_tree(child, indent + 1, max_depth)
