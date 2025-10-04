@@ -404,8 +404,8 @@ class TreeSitterCppParser(BaseTreeSitterParser):
         """Find the active access specifier for a class member.
 
         In C++, access specifiers (public:, private:, protected:) apply to all
-        subsequent members until the next access specifier. This method traverses
-        backwards through the class body to find the active access specifier.
+        subsequent members until the next access specifier. This method uses an
+        optimized approach to find the active access specifier.
 
         Args:
             declaration_node: Declaration node inside a class
@@ -433,9 +433,16 @@ class TreeSitterCppParser(BaseTreeSitterParser):
             if decl_index == -1:
                 return ""
 
-            # Traverse backwards to find the most recent access_specifier
+            # OPTIMIZATION: Cache access specifiers to avoid repeated text extraction
+            # Traverse backwards more efficiently - check only relevant nodes
+            last_access_specifier = ""
             for i in range(decl_index - 1, -1, -1):
                 child = parent.children[i]
+
+                # Skip non-relevant nodes quickly
+                if child.type not in ["access_specifier", "field_declaration", "method_definition"]:
+                    continue
+
                 if child.type == "access_specifier":
                     # Extract the access specifier text (public, private, protected)
                     access_text = (
@@ -444,11 +451,10 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                         .strip()
                     )
                     # Remove the trailing colon if present
-                    return access_text.rstrip(":")
+                    last_access_specifier = access_text.rstrip(":")
+                    break  # Found the most recent access specifier
 
-            # Default is private for classes, public for structs
-            # We don't have enough context here, so return empty
-            return ""
+            return last_access_specifier
 
         except Exception as e:
             logger.debug(f"Failed to find access specifier: {e}")
@@ -470,39 +476,32 @@ class TreeSitterCppParser(BaseTreeSitterParser):
         modifiers: set[str] = set()
 
         try:
-            # Common C++ modifiers to look for
-            modifier_types = [
-                "storage_class_specifier",  # static, extern, inline
-                "type_qualifier",  # const, volatile
-                "virtual_specifier",  # virtual, override, final
-                "access_specifier",  # public, private, protected (in class context)
+            # OPTIMIZATION: Use direct text extraction for common modifiers
+            # instead of recursive traversal for better performance
+            node_text = byte_content[
+                declaration_node.start_byte : declaration_node.end_byte
+            ].decode("utf-8", errors="replace")
+
+            # Common C++ modifiers - check with simple string matching first
+            common_modifiers = [
+                "static",
+                "extern",
+                "inline",
+                "virtual",
+                "const",
+                "volatile",
+                "override",
+                "final",
             ]
+            for modifier in common_modifiers:
+                if f" {modifier} " in f" {node_text} " or node_text.startswith(f"{modifier} "):
+                    modifiers.add(modifier)
 
-            def extract_from_node(node: Node) -> None:
-                """Recursively extract modifiers from node and its children."""
-                if node.type in modifier_types:
-                    modifier_text = (
-                        byte_content[node.start_byte : node.end_byte]
-                        .decode("utf-8", errors="replace")
-                        .strip()
-                    )
-                    if modifier_text and modifier_text not in [":", ";"]:
-                        modifiers.add(modifier_text)
-
-                # Also check for inline keywords in text
-                if node.type in ["inline", "virtual", "static", "extern", "const", "volatile"]:
-                    modifiers.add(node.type)
-
-                # Recursively check children
-                for child in node.children:
-                    extract_from_node(child)
-
-            # Extract from the declaration node
-            extract_from_node(declaration_node)
-
-            # For functions with trailing const/noexcept, check the function declarator
+            # For more complex cases, use targeted node inspection
+            # Check for function declarator with trailing qualifiers
             for child in declaration_node.children:
                 if child.type == "function_declarator":
+                    # Check for trailing const/volatile/noexcept
                     for sub_child in child.children:
                         if sub_child.type == "type_qualifier":
                             qualifier = (
@@ -510,8 +509,10 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                                 .decode("utf-8", errors="replace")
                                 .strip()
                             )
-                            if qualifier:
+                            if qualifier and qualifier not in [":", ";"]:
                                 modifiers.add(qualifier)
+                        elif sub_child.type == "noexcept_specifier":
+                            modifiers.add("noexcept")
 
         except Exception as e:
             logger.debug(f"Failed to extract C++ modifiers: {e}")

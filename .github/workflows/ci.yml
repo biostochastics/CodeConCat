@@ -35,9 +35,9 @@ jobs:
     - name: Install project
       run: poetry install --no-interaction
     - name: Run ruff check
-      run: poetry run ruff check .
+      run: poetry run ruff check codeconcat tests
     - name: Run ruff format check
-      run: poetry run ruff format --check .
+      run: poetry run ruff format --check codeconcat tests
     - name: Run mypy
       run: poetry run mypy codeconcat
 

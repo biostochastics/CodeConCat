@@ -1,10 +1,18 @@
 import abc
 import logging
-from typing import Dict, List, Optional
+from collections import deque
+from typing import Dict, List, Optional, Tuple
 
 from codeconcat.base_types import Declaration, ParseResult, ParserInterface
 
 from ...errors import LanguageParserError
+from ...utils.path_security import PathTraversalError, validate_safe_path
+from ..error_handling import (
+    ErrorHandler,
+    ParserInitializationError,
+    handle_security_error,
+)
+from ..type_mapping import standardize_declaration_kind
 
 # Import tree-sitter dependencies with proper error handling
 TREE_SITTER_AVAILABLE = False
@@ -110,22 +118,37 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         - Cached query retrieval: O(1)
     """
 
-    def __init__(self, language_name: str):
+    def __init__(self, language_name: str, max_cache_size: int = 128):
         """Initializes the parser and loads the language grammar.
 
         Args:
             language_name: The name of the language (e.g., 'python', 'javascript').
+            max_cache_size: Maximum number of queries to cache (default: 128).
 
         Raises:
             LanguageParserError: If the Tree-sitter grammar cannot be loaded or parser creation fails.
         """
         self.language_name = language_name
-        # Load the language object first
-        self.ts_language: Language = self._load_language()
-        # Create the parser instance and set its language
-        self.parser: Parser = self._create_parser()
-        # Instance-level cache for compiled queries to avoid memory leaks
-        self._query_cache: Dict[tuple, Optional[Query]] = {}
+        self.max_cache_size = max_cache_size
+        # Initialize error handler
+        self.error_handler = ErrorHandler(self.language_name)
+
+        try:
+            # Load the language object first
+            self.ts_language: Language = self._load_language()
+            # Create the parser instance and set its language
+            self.parser: Parser = self._create_parser()
+            # Instance-level cache for compiled queries with LRU eviction
+            self._query_cache: Dict[Tuple[str, str, str], Optional[Query]] = {}
+            # Use deque for O(1) append and popleft operations
+            self._cache_access_order: deque = deque()
+        except Exception as e:
+            # Use standardized error handling for initialization failures
+            raise ParserInitializationError(
+                f"Failed to initialize {self.language_name} parser: {e}",
+                parser_name=self.language_name,
+                details={"original_error": str(e)},
+            ) from e
 
     def check_language_availability(self) -> bool:
         """Checks if the Tree-sitter language was successfully loaded."""
@@ -133,8 +156,8 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         # have been raised. This method confirms the instance is usable.
         return self.parser is not None
 
-    def _compile_query_cached(self, cache_key: tuple) -> Optional[Query]:
-        """Compile a Tree-sitter query with instance-level caching.
+    def _compile_query_cached(self, cache_key: Tuple[str, str, str]) -> Optional[Query]:
+        """Compile a Tree-sitter query with instance-level LRU caching.
 
         Args:
             cache_key: Tuple of (language_name, query_name, query_str) for cache key
@@ -144,30 +167,58 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         """
         # Check instance cache first
         if cache_key in self._query_cache:
+            # Update access order for LRU
+            self._update_cache_access_order(cache_key)
             return self._query_cache[cache_key]
 
         language_name, query_name, query_str = cache_key
 
         if not TREE_SITTER_AVAILABLE:
-            raise LanguageParserError(
-                "Tree-sitter is not available. Please install it with: pip install tree-sitter-language-pack>=0.7.2"
+            raise ParserInitializationError(
+                "Tree-sitter is not available. Please install it with: pip install tree-sitter-language-pack>=0.7.2",
+                parser_name=self.language_name,
             )
 
         try:
             # Use modern Query() constructor instead of deprecated query() method
             compiled_query = Query(self.ts_language, query_str)
             logger.debug(f"Compiled Tree-sitter query '{query_name}' for {language_name}")
+
+            # Implement LRU cache eviction if needed
+            self._evict_cache_if_needed()
+
             # Cache the result
             self._query_cache[cache_key] = compiled_query
+            self._cache_access_order.append(cache_key)
             return compiled_query
         except Exception as e:
-            logger.error(
-                f"Failed to compile Tree-sitter query '{query_name}' for {language_name}: {e}",
-                exc_info=True,
+            error_msg = (
+                f"Failed to compile Tree-sitter query '{query_name}' for {language_name}: {e}"
             )
+            logger.error(error_msg, exc_info=True)
             # Cache None to avoid repeated compilation attempts
+            self._evict_cache_if_needed()
             self._query_cache[cache_key] = None
+            self._cache_access_order.append(cache_key)
             return None
+
+    def _update_cache_access_order(self, cache_key: Tuple[str, str, str]) -> None:
+        """Update the access order for LRU cache."""
+        if cache_key in self._cache_access_order:
+            self._cache_access_order.remove(cache_key)
+        self._cache_access_order.append(cache_key)
+
+    def _evict_cache_if_needed(self) -> None:
+        """Evict oldest entries from cache if it exceeds max size."""
+        while len(self._query_cache) >= self.max_cache_size:
+            if not self._cache_access_order:
+                break  # Safety check to avoid infinite loop
+
+            # Use popleft() for O(1) operation instead of pop(0) which is O(n)
+            oldest_key = self._cache_access_order.popleft()
+            if oldest_key in self._query_cache:
+                del self._query_cache[oldest_key]
+                logger.debug(f"Evicted query from cache: {oldest_key[1]}")
 
     def _get_compiled_query(self, query_name: str) -> Query | None:
         """Gets a compiled Tree-sitter query using instance cache.
@@ -212,12 +263,27 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             if QueryCursor is None:
                 # tree-sitter 0.24.0+ - use query.captures() directly
                 result = query.captures(root_node)
+                # 0.24.0+ already returns dict format
+                return result if isinstance(result, dict) else {}
             else:
                 # tree-sitter 0.23.x - use QueryCursor
                 cursor = QueryCursor(query)
-                result = cursor.captures(root_node)
-            # Normalize to dict for consistent return type (0.24.0+ already returns dict)
-            return result if result is not None else {}
+                captures = cursor.captures(root_node)
+                # Check if already in dict format or needs conversion
+                if isinstance(captures, dict):
+                    return captures
+                # Convert tuple format to dict for consistency
+                if captures:
+                    result_dict: Dict[str, List[Node]] = {}
+                    for item in captures:
+                        # Handle both (node, name) tuples and dict entries
+                        if isinstance(item, tuple) and len(item) == 2:
+                            node, capture_name = item
+                            if capture_name not in result_dict:
+                                result_dict[capture_name] = []
+                            result_dict[capture_name].append(node)
+                    return result_dict
+                return {}
         except Exception as e:
             logger.warning(
                 f"Error executing captures for query on {getattr(root_node, 'type', 'root')}: {e}",
@@ -246,12 +312,14 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             if QueryCursor is None:
                 # tree-sitter 0.24.0+ - use query.matches() directly
                 result = query.matches(root_node)
+                # Ensure we return a list, not a generator
+                return list(result) if result is not None else []
             else:
                 # tree-sitter 0.23.x - use QueryCursor
                 cursor = QueryCursor(query)
                 result = cursor.matches(root_node)
-            # Normalize to a list to avoid returning generators/None
-            return list(result) if result is not None else []
+                # Ensure we return a list, not a generator
+                return list(result) if result is not None else []
         except Exception as e:
             logger.warning(
                 f"Error executing matches for query on {getattr(root_node, 'type', 'root')}: {e}",
@@ -364,9 +432,10 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             logger.debug(f"Created parser for {self.language_name} manually")
             return parser
         except Exception as e:
-            logger.error(f"Failed to create parser for {self.language_name}: {e}")
-            raise LanguageParserError(
-                f"Failed to create parser for {self.language_name}: {e}"
+            error_msg = f"Failed to create parser for {self.language_name}: {e}"
+            logger.error(error_msg)
+            raise ParserInitializationError(
+                error_msg, parser_name=self.language_name, details={"original_error": str(e)}
             ) from e
 
     @abc.abstractmethod
@@ -474,6 +543,46 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         """
         logger.debug(f"Starting Tree-sitter parsing for: {file_path} ({self.language_name})")
 
+        # Security: Validate file path to prevent path traversal
+        try:
+            # Validate the file path is safe
+            validated_path = validate_safe_path(file_path)
+            logger.debug(f"Validated file path: {validated_path}")
+        except PathTraversalError as e:
+            return handle_security_error(
+                f"Path traversal attempt detected for {file_path}: {e}",
+                self.language_name,
+                file_path,
+                {"validation_error": str(e)},
+            )
+        except Exception as e:
+            return self.error_handler.handle_error(
+                f"Path validation failed for {file_path}: {e}",
+                file_path,
+                context={"validation_error": str(e)},
+            )
+
+        # Security: Check content size to prevent memory exhaustion
+        max_content_size = 10 * 1024 * 1024  # 10MB limit
+        # First check string length (faster, approximate for non-ASCII)
+        if len(content) > max_content_size:
+            return handle_security_error(
+                f"File too large for parsing: {len(content)} characters (max: {max_content_size})",
+                self.language_name,
+                file_path,
+                {"content_size": len(content), "max_size": max_content_size},
+            )
+        # For more accurate byte count, check encoded size only if close to limit
+        if len(content) > max_content_size * 0.8:  # Check if within 80% of limit
+            content_size_bytes = len(content.encode("utf-8"))
+            if content_size_bytes > max_content_size:
+                return handle_security_error(
+                    f"File too large for parsing: {content_size_bytes} bytes (max: {max_content_size})",
+                    self.language_name,
+                    file_path,
+                    {"content_size": content_size_bytes, "max_size": max_content_size},
+                )
+
         # --- Add diagnostic logging --- #
         parser_state = f"Parser: {type(self.parser).__name__ if self.parser else 'None'}"
         lang_state = f"Language: {type(self.ts_language).__name__ if self.ts_language else 'None'}"
@@ -481,11 +590,11 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         # ----------------------------- #
 
         if not self.parser or not self.ts_language:
-            logger.error(
-                f"Parser or language not loaded for {self.language_name}. Cannot parse {file_path}."
+            return self.error_handler.handle_error(
+                f"Parser or language not loaded for {self.language_name}. Cannot parse {file_path}.",
+                file_path,
+                context={"parser_state": "uninitialized"},
             )
-            # Return empty result or raise an error, depending on desired handling
-            return ParseResult(declarations=[], imports=[])
 
         tree: Optional[Tree] = None
         try:
@@ -494,17 +603,19 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             tree = self.parser.parse(content_bytes)
             logger.debug(f"Finished self.parser.parse() for {file_path}")
         except Exception as e:
-            logger.error(
+            return self.error_handler.handle_error(
                 f"Exception occurred during self.parser.parse() for {file_path}: {e}",
-                exc_info=True,  # Log the full traceback
+                file_path,
+                context={"exception_type": type(e).__name__},
             )
-            # Decide how to handle: return empty, raise, etc.
-            return ParseResult(declarations=[], imports=[])
 
         # Check if parsing was successful even if no exception was raised
         if tree is None:
-            logger.error(f"Tree-sitter parsing returned None for {file_path}")
-            return ParseResult(declarations=[], imports=[])
+            return self.error_handler.handle_error(
+                f"Tree-sitter parsing returned None for {file_path}",
+                file_path,
+                context={"tree_result": "null"},
+            )
 
         root_node: Node = tree.root_node
 
@@ -535,27 +646,43 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                 f"Tree-sitter parsing error detected near line {line}, column {col} in file {file_path}"
             )
             # Still attempt extraction, but report error
-            declarations, imports = self._run_queries(root_node, content_bytes)
-            return ParseResult(
-                declarations=declarations,
-                imports=imports,
-                ast_root=root_node,  # Include AST root even if errors exist
-                error=f"Tree-sitter parsing error near line {line}, column {col}",
-                engine_used="tree_sitter",
-                parser_quality="partial",
-                missed_features=["error_recovery"],
-            )
+            try:
+                declarations, imports = self._run_queries(root_node, content_bytes)
+                return self.error_handler.handle_partial_parse(
+                    declarations,
+                    imports,
+                    f"Tree-sitter parsing error near line {line}, column {col}",
+                    file_path,
+                    line_number=line,
+                    context={"error_node_type": error_node.type if error_node else "unknown"},
+                    missed_features=["error_recovery"],
+                )
+            except Exception as e:
+                # If even partial extraction fails, return error
+                return self.error_handler.handle_error(
+                    f"Failed to extract declarations after parsing error: {e}",
+                    file_path,
+                    line_number=line,
+                    context={
+                        "original_error": f"Tree-sitter parsing error near line {line}, column {col}"
+                    },
+                )
         else:
-            declarations, imports = self._run_queries(root_node, content_bytes)
-            return ParseResult(
-                declarations=declarations,
-                imports=imports,
-                ast_root=root_node,
-                error=None,
-                engine_used="tree_sitter",
-                parser_quality="full",
-                missed_features=[],
-            )
+            try:
+                declarations, imports = self._run_queries(root_node, content_bytes)
+                return self.error_handler.create_success_result(
+                    declarations, imports, file_path, context={"root_node_type": root_node.type}
+                )
+            except Exception as e:
+                # If extraction fails after successful parsing
+                return self.error_handler.handle_partial_parse(
+                    [],
+                    [],
+                    f"Failed to extract declarations after successful parsing: {e}",
+                    file_path,
+                    context={"root_node_type": root_node.type, "extraction_error": str(e)},
+                    missed_features=["declaration_extraction"],
+                )
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
@@ -645,11 +772,16 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                             start_line = declaration_node.start_point[0] + 1  # TS is 0-indexed
                             end_line = declaration_node.end_point[0] + 1
 
+                            # Standardize the kind using the type mapping
+                            standardized_kind = standardize_declaration_kind(
+                                self.language_name, kind
+                            )
+
                             # TODO: Extract signature and docstring if queries support them
                             declarations.append(
                                 Declaration(
                                     name=decl_name,
-                                    kind=kind,
+                                    kind=standardized_kind,
                                     start_line=start_line,
                                     end_line=end_line,
                                     # signature="", # Placeholder
@@ -692,17 +824,24 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         Returns:
             The first error node found, or None if no errors or max depth reached
         """
-        # Prevent stack overflow on deeply nested ASTs
-        if current_depth >= max_depth:
-            logger.warning(
-                f"Maximum recursion depth ({max_depth}) reached while searching for error nodes"
-            )
-            return None
+        # Use deque for O(1) popleft and extend operations instead of O(n) list.pop(0)
+        nodes_to_check = deque([(node, current_depth)])
 
-        if node.is_error or node.is_missing:
-            return node
-        for child in node.children:
-            error_node = self._find_first_error_node(child, max_depth, current_depth + 1)
-            if error_node:
-                return error_node
+        while nodes_to_check:
+            # Use popleft() for O(1) operation instead of pop(0) which is O(n)
+            check_node, depth = nodes_to_check.popleft()
+
+            if depth >= max_depth:
+                logger.warning(
+                    f"Maximum recursion depth ({max_depth}) reached while searching for error nodes"
+                )
+                continue
+
+            if check_node.is_error or check_node.is_missing:
+                return check_node
+
+            # Use extend() to efficiently add children to the queue (breadth-first search)
+            if check_node.children:
+                nodes_to_check.extend((child, depth + 1) for child in check_node.children)
+
         return None

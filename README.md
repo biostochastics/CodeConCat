@@ -1244,6 +1244,43 @@ Includes:
 - Modern tree-sitter API migration details
 - Language-specific implementation notes
 
+#### Recent Parser Improvements (v0.8.5+)
+
+The parser system has undergone comprehensive security and performance improvements:
+
+**Security Enhancements:**
+- **ReDoS Protection**: All regex patterns now include timeout limits and input sanitization
+- **Path Traversal Prevention**: Robust validation prevents directory traversal attacks
+- **Memory Exhaustion Protection**: Content size limits (10MB) prevent resource exhaustion attacks
+- **Input Sanitization**: Comprehensive sanitization of all user inputs
+
+**Performance Optimizations:**
+- **LRU Cache Implementation**: Query caching with configurable size limits prevents memory leaks
+- **Memory Management**: Automatic cache eviction and resource cleanup
+- **Performance Monitoring**: Built-in metrics tracking for parser performance analysis
+
+**Error Handling Improvements:**
+- **Standardized Error Reporting**: Unified error handling across all parsers with consistent error flags
+- **Partial Parse Recovery**: Graceful handling of syntax errors with continued parsing
+- **Quality Indicators**: Parser quality metrics for result reliability assessment
+
+**Type System Standardization:**
+- **Unified Type Mapping**: Consistent type classification across 20+ programming languages
+- **Declaration Type Hierarchy**: Standardized type relationships (function, class, module, etc.)
+- **Language-Agnostic Interface**: Consistent API regardless of source language
+
+**Documentation Extraction:**
+- **Unified Docstring Parsing**: Consistent extraction across all documentation formats
+- **Multi-Language Support**: Support for Python docstrings, JSDoc, Javadoc, Rustdoc, etc.
+- **Smart Context Detection**: Automatic detection of docstring location (preceding, internal, following)
+
+**Enhanced Parser Implementations:**
+- **Modern Tree-sitter API**: Updated for compatibility with tree-sitter 0.23.x and 0.24.0+
+- **Improved Error Recovery**: Better handling of malformed code and syntax errors
+- **Optimized Query Processing**: Efficient AST traversal with memory-safe operations
+
+For detailed technical documentation of all fixes, see **[PARSER_FIXES_SUMMARY.md](./PARSER_FIXES_SUMMARY.md)**.
+
 ### Version History
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete version history and release notes.
