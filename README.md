@@ -27,10 +27,10 @@
 
 ## What is CodeConCat?
 
-CodeConCat is a Python tool that transforms codebases into formats optimized for AI consumption and analysis. It automatically processes your code to extract functions, classes, imports, and documentation across 20+ programming languages, providing structured output that makes code analysis intuitive and efficient.
+CodeConCat is a Python tool that transforms codebases into formats optimized for AI consumption and analysis. It automatically processes your code to extract functions, classes, imports, and documentation across 25+ programming languages, providing structured output that makes code analysis intuitive and efficient.
 
 **Why CodeConCat?**
-- **Multi-Language Intelligence**: Parse 20+ languages including smart contracts
+- **Multi-Language Intelligence**: Parse 25+ languages including smart contracts
 - **AI-Optimized Output**: Optional compression and AI summarization
 - **Production-Grade Security**: Path traversal protection, XXE prevention, Semgrep integration
 - **High Performance**: Process 100+ files in under 5 seconds with parallel execution
@@ -111,7 +111,7 @@ codeconcat run --security --semgrep --compress --output secure-report.json
 
 ## Core Features
 
-- **Multi-Language Parsing** - 20+ languages using tree-sitter and regex engines with intelligent result merging
+- **Multi-Language Parsing** - 25+ languages using tree-sitter and regex engines with intelligent result merging
 - **AI Summarization** *(Optional)* - Code summaries via OpenAI, Anthropic, OpenRouter, or local models (Ollama, llama.cpp)
 - **Differential Outputs** - Generate diffs between Git refs with AI-powered change summaries
 - **Code Compression** - Pattern recognition reduces token usage by 35-40% with configurable levels
@@ -126,7 +126,7 @@ codeconcat run --security --semgrep --compress --output secure-report.json
 
 ## Language Support
 
-CodeConCat provides comprehensive parsing for 20+ programming languages with industry-validated accuracy:
+CodeConCat provides comprehensive parsing for 25+ programming languages with industry-validated accuracy:
 
 | Language | Parser Type | Key Features | Documentation |
 |----------|-------------|--------------|---------------|
@@ -142,6 +142,7 @@ CodeConCat provides comprehensive parsing for 20+ programming languages with ind
 | **R** | Tree-sitter + Enhanced Regex | S3/S4 OOP, functions, tidyverse patterns | ✓ Roxygen |
 | **Swift** | Tree-sitter + Enhanced Regex | Property wrappers, actors, async/await | ✓ SwiftDoc |
 | **Kotlin** | Tree-sitter | Extension functions, suspend functions, sealed classes | ✓ KDoc |
+| **Ruby** | Tree-sitter | Modules, classes, blocks, metaprogramming, mixins | ✓ RDoc |
 | **Solidity** | Tree-sitter | Smart contracts, inheritance, modifiers, events, security patterns | ✓ NatSpec |
 | **Crystal** | Tree-sitter | Type annotations, union types, C bindings, macros | ✓ Comments |
 | **Dart** | Tree-sitter | Null safety, Flutter patterns, mixins | ✓ Dartdoc |
@@ -1246,7 +1247,13 @@ Includes:
 
 #### Recent Parser Improvements (v0.8.5+)
 
-The parser system has undergone comprehensive security and performance improvements:
+The parser system has undergone comprehensive security and performance improvements with critical bug fixes:
+
+**Critical Bug Fixes:**
+- **Cross-Platform Compatibility**: Removed POSIX-only signal timeout that caused AttributeError on Windows systems
+- **Tree-sitter Version Compatibility**: Fixed QueryCursor API compatibility across tree-sitter 0.23.x and 0.24.0+ versions
+- **Query Performance**: Optimized LRU cache eviction from O(n) to O(1) using deque.popleft() (128x improvement)
+- **Error Search Performance**: Reduced BFS complexity from O(n²) to O(n) for deeply nested AST structures
 
 **Security Enhancements:**
 - **ReDoS Protection**: All regex patterns now include timeout limits and input sanitization
@@ -1256,8 +1263,10 @@ The parser system has undergone comprehensive security and performance improveme
 
 **Performance Optimizations:**
 - **LRU Cache Implementation**: Query caching with configurable size limits prevents memory leaks
-- **Memory Management**: Automatic cache eviction and resource cleanup
-- **Performance Monitoring**: Built-in metrics tracking for parser performance analysis
+- **Memory Management**: Automatic cache eviction using collections.deque for O(1) operations
+- **Content Size Validation**: Two-tier approach (character count then UTF-8 encoding) for efficiency
+- **C++ Parser**: Direct lookup for access specifiers and modifiers (reduced tree traversals)
+- **Rust Parser**: Dict-based deduplication for O(1) lookup performance
 
 **Error Handling Improvements:**
 - **Standardized Error Reporting**: Unified error handling across all parsers with consistent error flags
@@ -1265,7 +1274,7 @@ The parser system has undergone comprehensive security and performance improveme
 - **Quality Indicators**: Parser quality metrics for result reliability assessment
 
 **Type System Standardization:**
-- **Unified Type Mapping**: Consistent type classification across 20+ programming languages
+- **Unified Type Mapping**: Consistent type classification across 25+ programming languages
 - **Declaration Type Hierarchy**: Standardized type relationships (function, class, module, etc.)
 - **Language-Agnostic Interface**: Consistent API regardless of source language
 
@@ -1275,7 +1284,7 @@ The parser system has undergone comprehensive security and performance improveme
 - **Smart Context Detection**: Automatic detection of docstring location (preceding, internal, following)
 
 **Enhanced Parser Implementations:**
-- **Modern Tree-sitter API**: Updated for compatibility with tree-sitter 0.23.x and 0.24.0+
+- **Modern Tree-sitter API**: Full compatibility with tree-sitter 0.23.x and 0.24.0+ (handles both dict and tuple capture formats)
 - **Improved Error Recovery**: Better handling of malformed code and syntax errors
 - **Optimized Query Processing**: Efficient AST traversal with memory-safe operations
 
