@@ -170,61 +170,68 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
                 "doc_comments": JS_TS_QUERIES["doc_comments"],
             }
             # Simplified JavaScript declarations without TypeScript features
+            # OPTIMIZATION: Pre-computed JavaScript-specific queries to avoid runtime filtering
             js_queries["declarations"] = """
         ; Standard function declarations
         (function_declaration
             "async"? @async_modifier
             name: (identifier) @name
+            parameters: (formal_parameters) @params
+            body: (statement_block) @body
         ) @function
 
         ; Generator function declarations
         (generator_function_declaration
             name: (identifier) @name
+            parameters: (formal_parameters) @params
+            body: (statement_block) @body
         ) @generator_function
 
         ; Arrow functions assigned to variables
         (lexical_declaration
             (variable_declarator
                 name: (identifier) @name
-                value: (arrow_function)
+                value: (arrow_function
+                    parameters: [(formal_parameters) (identifier)] @arrow_params
+                    body: [(statement_block) (expression)] @arrow_body
+                )
             )
-        ) @arrow_function_const
-
-        ; Arrow functions assigned to var variables
-        (variable_declaration
-            (variable_declarator
-                name: (identifier) @name
-                value: (arrow_function)
-            )
-        ) @arrow_function_var
+        ) @arrow_function
 
         ; Class declarations
         (class_declaration
             name: (identifier) @name
+            body: (class_body) @body
         ) @class
 
         ; Class methods
         (method_definition
             "static"? @static_modifier
             "async"? @async_modifier
+            "*"? @generator_modifier
             name: (property_identifier) @name
+            parameters: (formal_parameters) @params
+            body: (statement_block) @body
         ) @method
 
         ; Function expressions assigned to variables
         (lexical_declaration
             (variable_declarator
                 name: (identifier) @name
-                value: (function_expression)
+                value: (function_expression
+                    parameters: (formal_parameters) @func_params
+                    body: (statement_block) @func_body
+                )
             )
-        ) @function_expression_const
+        ) @function_expression
 
-        ; Function expressions assigned to var variables
-        (variable_declaration
+        ; Variable declarations (const, let, var)
+        (lexical_declaration
             (variable_declarator
                 name: (identifier) @name
-                value: (function_expression)
+                value: (_)? @var_value
             )
-        ) @function_expression_var
+        ) @variable
             """
             return js_queries
         return JS_TS_QUERIES

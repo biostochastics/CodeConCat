@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.6] - 2025-10-04
+
+### Fixed
+- **Performance Optimization**: Fixed double UTF-8 encoding in base tree-sitter parser
+  - Reduced memory allocation by encoding content only once
+  - Improved parsing performance across all tree-sitter based parsers
+- **Test Infrastructure**: Fixed Apiiro ruleset mock configuration
+  - Corrected git rev-parse stdout mock to return proper string values
+  - Improved test reliability for security validation
+- **Code Quality**: Resolved all linting warnings
+  - Fixed unused parameter warnings in error handling module
+  - Improved code maintainability and type safety
+
 ### Added
 - **Solidity Smart Contract Parser**: Full support for Ethereum/blockchain smart contracts
   - Comprehensive parsing of contracts, interfaces, libraries, and inheritance
@@ -22,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Full test coverage with unit and integration tests
   - Performance optimized (<70ms for 10KB files)
   - Based on JoranHonig/tree-sitter-solidity grammar
+- **Documentation**: Added DeepWiki badge to README for enhanced documentation access
 
 ### Changed
 - Updated language support count from 15+ to 20+ languages in documentation

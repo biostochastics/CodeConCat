@@ -8,7 +8,7 @@ set -e  # Exit on error
 echo "Verifying tree-sitter grammar availability..."
 echo "=============================================="
 
-# Current supported languages (v0.8.5)
+# Current supported languages (v0.8.6)
 CURRENT_LANGUAGES=(
   python c cpp csharp java javascript typescript go rust php swift julia bash r
 )
@@ -88,7 +88,7 @@ done
 case $TIER in
   current)
     LANGUAGES_TO_CHECK=("${CURRENT_LANGUAGES[@]}")
-    echo "Checking current languages (v0.8.5)..."
+    echo "Checking current languages (v0.8.6)..."
     ;;
   tier1)
     LANGUAGES_TO_CHECK=("${CURRENT_LANGUAGES[@]}" "${TIER1_LANGUAGES[@]}")

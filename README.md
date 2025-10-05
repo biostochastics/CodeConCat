@@ -8,7 +8,7 @@
   <strong>Transform codebases into AI-ready formats with intelligent parsing, compression, and security analysis</strong>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.8.5-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
+[![Version](https://img.shields.io/badge/version-0.8.6-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![DeepWiki](https://img.shields.io/badge/DeepWiki-Documentation-purple)](https://deepwiki.com/biostochastics/CodeConCat) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
 
 ## Table of Contents
 
@@ -27,10 +27,10 @@
 
 ## What is CodeConCat?
 
-CodeConCat is a Python tool that transforms codebases into formats optimized for AI consumption and analysis. It automatically processes your code to extract functions, classes, imports, and documentation across 20+ programming languages, providing structured output that makes code analysis intuitive and efficient.
+CodeConCat is a Python tool that transforms codebases into formats optimized for AI consumption and analysis. It automatically processes your code to extract functions, classes, imports, and documentation across 25+ programming languages, providing structured output that makes code analysis intuitive and efficient.
 
 **Why CodeConCat?**
-- **Multi-Language Intelligence**: Parse 20+ languages including smart contracts
+- **Multi-Language Intelligence**: Parse 25+ languages including smart contracts
 - **AI-Optimized Output**: Optional compression and AI summarization
 - **Production-Grade Security**: Path traversal protection, XXE prevention, Semgrep integration
 - **High Performance**: Process 100+ files in under 5 seconds with parallel execution
@@ -111,7 +111,7 @@ codeconcat run --security --semgrep --compress --output secure-report.json
 
 ## Core Features
 
-- **Multi-Language Parsing** - 20+ languages using tree-sitter and regex engines with intelligent result merging
+- **Multi-Language Parsing** - 25+ languages using tree-sitter and regex engines with intelligent result merging
 - **AI Summarization** *(Optional)* - Code summaries via OpenAI, Anthropic, OpenRouter, or local models (Ollama, llama.cpp)
 - **Differential Outputs** - Generate diffs between Git refs with AI-powered change summaries
 - **Code Compression** - Pattern recognition reduces token usage by 35-40% with configurable levels
@@ -126,7 +126,7 @@ codeconcat run --security --semgrep --compress --output secure-report.json
 
 ## Language Support
 
-CodeConCat provides comprehensive parsing for 20+ programming languages with industry-validated accuracy:
+CodeConCat provides comprehensive parsing for 25+ programming languages with industry-validated accuracy:
 
 | Language | Parser Type | Key Features | Documentation |
 |----------|-------------|--------------|---------------|
@@ -142,6 +142,7 @@ CodeConCat provides comprehensive parsing for 20+ programming languages with ind
 | **R** | Tree-sitter + Enhanced Regex | S3/S4 OOP, functions, tidyverse patterns | ✓ Roxygen |
 | **Swift** | Tree-sitter + Enhanced Regex | Property wrappers, actors, async/await | ✓ SwiftDoc |
 | **Kotlin** | Tree-sitter | Extension functions, suspend functions, sealed classes | ✓ KDoc |
+| **Ruby** | Tree-sitter | Modules, classes, blocks, metaprogramming, mixins | ✓ RDoc |
 | **Solidity** | Tree-sitter | Smart contracts, inheritance, modifiers, events, security patterns | ✓ NatSpec |
 | **Crystal** | Tree-sitter | Type annotations, union types, C bindings, macros | ✓ Comments |
 | **Dart** | Tree-sitter | Null safety, Flutter patterns, mixins | ✓ Dartdoc |
@@ -1171,7 +1172,7 @@ CodeConCat implements defense-in-depth security with multiple protection layers:
 
 - **API Access Controls**: Configurable path access and authentication
 - **Thread-Safe Operations**: Concurrent request handling with isolated configurations
-- **Memory Management**: File size limits (20MB max) and resource controls
+- **Memory Management**: File size limits (10MB max) and resource controls
 - **Path Validation**: Traversal protection and symlink handling
 - **Secure Git Operations**: All repository URLs and tokens sanitized
 
@@ -1244,11 +1245,56 @@ Includes:
 - Modern tree-sitter API migration details
 - Language-specific implementation notes
 
+#### Recent Parser Improvements (v0.8.6+)
+
+The parser system has undergone comprehensive security and performance improvements with critical bug fixes:
+
+**Critical Bug Fixes:**
+- **Cross-Platform Compatibility**: Removed POSIX-only signal timeout that caused AttributeError on Windows systems
+- **Tree-sitter Version Compatibility**: Fixed QueryCursor API compatibility across tree-sitter 0.23.x and 0.24.0+ versions
+- **Query Performance**: Optimized LRU cache eviction from O(n) to O(1) using deque.popleft() (128x improvement)
+- **Error Search Performance**: Reduced BFS complexity from O(n²) to O(n) for deeply nested AST structures
+
+**Security Enhancements:**
+- **ReDoS Protection**: All regex patterns now include timeout limits and input sanitization
+- **Path Traversal Prevention**: Robust validation prevents directory traversal attacks
+- **Memory Exhaustion Protection**: Content size limits (10MB) prevent resource exhaustion attacks
+- **Input Sanitization**: Comprehensive sanitization of all user inputs
+
+**Performance Optimizations:**
+- **LRU Cache Implementation**: Query caching with configurable size limits prevents memory leaks
+- **Memory Management**: Automatic cache eviction using collections.deque for O(1) operations
+- **Content Size Validation**: Two-tier approach (character count then UTF-8 encoding) for efficiency
+- **C++ Parser**: Direct lookup for access specifiers and modifiers (reduced tree traversals)
+- **Rust Parser**: Dict-based deduplication for O(1) lookup performance
+
+**Error Handling Improvements:**
+- **Standardized Error Reporting**: Unified error handling across all parsers with consistent error flags
+- **Partial Parse Recovery**: Graceful handling of syntax errors with continued parsing
+- **Quality Indicators**: Parser quality metrics for result reliability assessment
+
+**Type System Standardization:**
+- **Unified Type Mapping**: Consistent type classification across 25+ programming languages
+- **Declaration Type Hierarchy**: Standardized type relationships (function, class, module, etc.)
+- **Language-Agnostic Interface**: Consistent API regardless of source language
+
+**Documentation Extraction:**
+- **Unified Docstring Parsing**: Consistent extraction across all documentation formats
+- **Multi-Language Support**: Support for Python docstrings, JSDoc, Javadoc, Rustdoc, etc.
+- **Smart Context Detection**: Automatic detection of docstring location (preceding, internal, following)
+
+**Enhanced Parser Implementations:**
+- **Modern Tree-sitter API**: Full compatibility with tree-sitter 0.23.x and 0.24.0+ (handles both dict and tuple capture formats)
+- **Improved Error Recovery**: Better handling of malformed code and syntax errors
+- **Optimized Query Processing**: Efficient AST traversal with memory-safe operations
+
+For detailed technical documentation of all fixes, see **[PARSER_FIXES_SUMMARY.md](./PARSER_FIXES_SUMMARY.md)**.
+
 ### Version History
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete version history and release notes.
 
-**Current Version:** 0.8.5
+**Current Version:** 0.8.6
 
 ### Troubleshooting
 

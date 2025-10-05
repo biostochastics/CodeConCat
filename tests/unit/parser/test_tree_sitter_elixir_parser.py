@@ -28,7 +28,7 @@ class TestTreeSitterElixirParser:
           defstruct name: nil, age: 0
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         assert len(result.declarations) > 0
@@ -60,7 +60,7 @@ class TestTreeSitterElixirParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         assert self.parser.genserver_callback_count >= 4
@@ -86,7 +86,7 @@ class TestTreeSitterElixirParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         assert self.parser.pattern_match_count > 0
@@ -105,7 +105,7 @@ class TestTreeSitterElixirParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         assert self.parser.pipe_operation_count >= 5
@@ -129,7 +129,7 @@ class TestTreeSitterElixirParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         assert self.parser.macro_count >= 2
@@ -153,7 +153,7 @@ class TestTreeSitterElixirParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         # Protocols not yet fully implemented in simplified version
@@ -184,7 +184,7 @@ class TestTreeSitterElixirParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         assert self.parser.liveview_callback_count >= 3
@@ -209,7 +209,7 @@ class TestTreeSitterElixirParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         assert self.parser.supervisor_tree_count > 0
@@ -224,7 +224,7 @@ class TestTreeSitterElixirParser:
           @behaviour MyApp.CustomBehaviour
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         assert self.parser.behavior_count >= 2
@@ -243,7 +243,7 @@ class TestTreeSitterElixirParser:
           use Ecto.Schema
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         assert len(result.imports) >= 3  # Reduced expectation due to simplified parser
@@ -263,7 +263,7 @@ class TestTreeSitterElixirParser:
           @callback process(any()) :: :ok | :error
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.ex")
 
         assert result is not None
         # Type specs not yet implemented in simplified version
@@ -297,7 +297,7 @@ class TestTreeSitterElixirParser:
 
         import time
         start = time.time()
-        result = self.parser.parse(large_code)
+        result = self.parser.parse(large_code, "test.ex")
         elapsed = time.time() - start
 
         assert result is not None

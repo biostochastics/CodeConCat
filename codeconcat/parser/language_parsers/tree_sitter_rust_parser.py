@@ -33,6 +33,9 @@ from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
 
+# Maximum reasonable length for impl type text to avoid parsing very large expressions
+MAX_IMPL_TYPE_LENGTH = 200
+
 # Enhanced Tree-sitter queries for Rust with comprehensive coverage
 RUST_QUERIES = {
     "imports": """
@@ -200,14 +203,14 @@ class TreeSitterRustParser(BaseTreeSitterParser):
             current_doc_block: List[str] = []
             current_block_inner = False
 
-            # FIX 4: Deduplicate nodes by position (same node can be captured multiple times)
-            seen_positions = set()
+            # FIX 4: Efficient deduplication using dictionary for O(1) lookup
+            seen_positions = {}
             all_comment_nodes = []
             for _capture_name, nodes in doc_captures.items():
                 for node in nodes:
                     pos = (node.start_byte, node.end_byte)
                     if pos not in seen_positions:
-                        seen_positions.add(pos)
+                        seen_positions[pos] = True
                         all_comment_nodes.append(node)
 
             # Sort by start line to ensure proper consecutive block detection
@@ -345,9 +348,26 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                                 name_node = name_nodes[0]
                         elif kind == "impl_block" and "impl_type" in captures_dict:
                             # Impl blocks use the type being implemented as the name
+                            # FIX: More robust impl type extraction
                             impl_type_nodes = captures_dict["impl_type"]
                             if impl_type_nodes and len(impl_type_nodes) > 0:
-                                name_node = impl_type_nodes[0]
+                                # Use the first impl_type node, but validate it's reasonable
+                                impl_type_node = impl_type_nodes[0]
+                                impl_type_text = (
+                                    byte_content[
+                                        impl_type_node.start_byte : impl_type_node.end_byte
+                                    ]
+                                    .decode("utf8", errors="replace")
+                                    .strip()
+                                )
+
+                                # Skip if impl type seems invalid (empty, too long, or contains suspicious content)
+                                if (
+                                    impl_type_text
+                                    and len(impl_type_text) < MAX_IMPL_TYPE_LENGTH
+                                    and "\n" not in impl_type_text
+                                ):
+                                    name_node = impl_type_node
 
                         # Check for modifiers
                         if "pub_modifier" in captures_dict or "visibility" in captures_dict:

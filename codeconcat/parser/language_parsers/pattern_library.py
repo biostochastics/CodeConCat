@@ -8,8 +8,13 @@ language parsers to improve consistency and reduce duplication. Patterns are
 organized by their purpose and language family compatibility.
 """
 
+import logging
 import re
 from typing import List, Optional, Pattern
+
+from ...utils.security import InputSanitizer
+
+logger = logging.getLogger(__name__)
 
 # Common identifier patterns
 IDENTIFIER_BASIC = r"[a-zA-Z_][a-zA-Z0-9_]*"
@@ -116,35 +121,48 @@ class FunctionPatterns:
     """Patterns for identifying functions in different languages."""
 
     # C-style function patterns with optional modifiers and return type
-    C_STYLE = re.compile(
+    # Security: Sanitize pattern to prevent ReDoS attacks
+    c_style_pattern = (
         r"^\s*(?:(?:" + "|".join(C_FAMILY_MODIFIERS) + r")\s+)*"
         r"(?:(?P<return_type>[\w\.\$<>,\[\]?]+\s+)+?)?"
         r"(?P<name>" + IDENTIFIER_BASIC + r")\s*\([^)]*\)"
     )
+    C_STYLE = re.compile(InputSanitizer.sanitize_regex(c_style_pattern, max_length=500))
 
     # Python function pattern with optional decorators
-    PYTHON = re.compile(
+    # Security: Sanitize pattern to prevent ReDoS attacks
+    python_pattern = (
         r"^\s*"
         + PYTHON_DECORATORS
         + r"def\s+(?P<name>"
         + IDENTIFIER_BASIC
         + r")\s*\([^)]*\)\s*(?:->\s*[^:]+)?:"
     )
+    PYTHON = re.compile(InputSanitizer.sanitize_regex(python_pattern, max_length=500))
 
     # JavaScript/TypeScript function patterns (including arrow functions)
+    # Security: Sanitize patterns to prevent ReDoS attacks
+    js_function_pattern = (
+        r"^\s*(?:export\s+)?(?:async\s+)?function\s+(?P<name>" + IDENTIFIER_BASIC + r")\s*\([^)]*\)"
+    )
+    js_method_pattern = (
+        r"^\s*(?:static\s+)?(?:async\s+)?(?P<name>" + IDENTIFIER_BASIC + r")\s*\([^)]*\)"
+    )
+    js_arrow_pattern = (
+        r"^\s*(?:export\s+)?(?:const|let|var)\s+(?P<name>"
+        + IDENTIFIER_BASIC
+        + r")\s*=\s*(?:async\s+)?(?:\([^)]*\)|[a-zA-Z_][a-zA-Z0-9_]*)\s*=>"
+    )
+
     JS_TS = {
         "function_declaration": re.compile(
-            r"^\s*(?:export\s+)?(?:async\s+)?function\s+(?P<name>"
-            + IDENTIFIER_BASIC
-            + r")\s*\([^)]*\)"
+            InputSanitizer.sanitize_regex(js_function_pattern, max_length=500)
         ),
         "method_declaration": re.compile(
-            r"^\s*(?:static\s+)?(?:async\s+)?(?P<name>" + IDENTIFIER_BASIC + r")\s*\([^)]*\)"
+            InputSanitizer.sanitize_regex(js_method_pattern, max_length=500)
         ),
         "arrow_function": re.compile(
-            r"^\s*(?:export\s+)?(?:const|let|var)\s+(?P<name>"
-            + IDENTIFIER_BASIC
-            + r")\s*=\s*(?:async\s+)?(?:\([^)]*\)|[a-zA-Z_][a-zA-Z0-9_]*)\s*=>"
+            InputSanitizer.sanitize_regex(js_arrow_pattern, max_length=500)
         ),
     }
 
@@ -153,60 +171,78 @@ class ClassPatterns:
     """Patterns for identifying classes in different languages."""
 
     # C-style class definitions
-    C_STYLE = re.compile(
+    # Security: Sanitize pattern to prevent ReDoS attacks
+    c_class_pattern = (
         r"^\s*(?:(?:" + "|".join(C_FAMILY_MODIFIERS) + r")\s+)*"
         r"class\s+(?P<name>"
         + IDENTIFIER_BASIC
         + r")(?:\s+extends\s+\w+)?(?:\s+implements\s+[^{]+)?"
     )
+    C_STYLE = re.compile(InputSanitizer.sanitize_regex(c_class_pattern, max_length=500))
 
     # Python class with optional decorators and inheritance
-    PYTHON = re.compile(
+    # Security: Sanitize pattern to prevent ReDoS attacks
+    python_class_pattern = (
         r"^\s*"
         + PYTHON_DECORATORS
         + r"class\s+(?P<name>"
         + IDENTIFIER_BASIC
         + r")(?:\s*\([^)]*\))?:"
     )
+    PYTHON = re.compile(InputSanitizer.sanitize_regex(python_class_pattern, max_length=500))
 
     # JavaScript/TypeScript class
-    JS_TS = re.compile(
+    # Security: Sanitize pattern to prevent ReDoS attacks
+    js_class_pattern = (
         r"^\s*(?:export\s+)?class\s+(?P<name>"
         + IDENTIFIER_BASIC
         + r")(?:\s+extends\s+\w+)?(?:\s+implements\s+[^{]+)?"
     )
+    JS_TS = re.compile(InputSanitizer.sanitize_regex(js_class_pattern, max_length=500))
 
 
 class ImportPatterns:
     """Patterns for identifying imports in different languages."""
 
     # Python imports
+    # Security: Sanitize patterns to prevent ReDoS attacks
+    python_import_pattern = (
+        r"^\s*import\s+(?P<module>[a-zA-Z0-9_.,\s]+)(?:\s+as\s+(?P<alias>[a-zA-Z0-9_]+))?"
+    )
+    python_from_import_pattern = (
+        r"^\s*from\s+(?P<source>[a-zA-Z0-9_.]+)\s+import\s+(?P<imports>[a-zA-Z0-9_.*,\s]+)"
+    )
+
     PYTHON = {
-        "import": re.compile(
-            r"^\s*import\s+(?P<module>[a-zA-Z0-9_.,\s]+)(?:\s+as\s+(?P<alias>[a-zA-Z0-9_]+))?"
-        ),
+        "import": re.compile(InputSanitizer.sanitize_regex(python_import_pattern, max_length=300)),
         "from_import": re.compile(
-            r"^\s*from\s+(?P<source>[a-zA-Z0-9_.]+)\s+import\s+(?P<imports>[a-zA-Z0-9_.*,\s]+)"
+            InputSanitizer.sanitize_regex(python_from_import_pattern, max_length=300)
         ),
     }
 
     # JavaScript/TypeScript imports
+    # Security: Sanitize patterns to prevent ReDoS attacks
+    js_import_pattern = (
+        r'^\s*import\s+(?:{[^}]+}|\*\s+as\s+[a-zA-Z0-9_]+|[a-zA-Z0-9_]+)\s+from\s+[\'"][^\'"]+[\'"]'
+    )
+    js_require_pattern = r'^\s*(?:const|let|var)\s+(?P<name>[a-zA-Z0-9_{}:,\s]+)\s*=\s*require\s*\([\'"][^\'"]+[\'"]\)'
+
     JS_TS = {
-        "import": re.compile(
-            r'^\s*import\s+(?:{[^}]+}|\*\s+as\s+[a-zA-Z0-9_]+|[a-zA-Z0-9_]+)\s+from\s+[\'"][^\'"]+"[\'"]'
-        ),
-        "require": re.compile(
-            r'^\s*(?:const|let|var)\s+(?P<name>[a-zA-Z0-9_{}:,\s]+)\s*=\s*require\s*\([\'"][^\'"]+"[\'"]\)'
-        ),
+        "import": re.compile(InputSanitizer.sanitize_regex(js_import_pattern, max_length=300)),
+        "require": re.compile(InputSanitizer.sanitize_regex(js_require_pattern, max_length=300)),
     }
 
     # Java imports
-    JAVA = re.compile(
+    # Security: Sanitize pattern to prevent ReDoS attacks
+    java_import_pattern = (
         r"^\s*import\s+(?:static\s+)?(?P<package>[a-zA-Z0-9_.]+(?:\.[a-zA-Z0-9_]+|\*));"
     )
+    JAVA = re.compile(InputSanitizer.sanitize_regex(java_import_pattern, max_length=300))
 
     # Go imports
-    GO = re.compile(r'^\s*import\s+(?:\([^)]+\)|"[^"]+")')
+    # Security: Sanitize pattern to prevent ReDoS attacks
+    go_import_pattern = r'^\s*import\s+(?:\([^)]+\)|"[^"]+")'
+    GO = re.compile(InputSanitizer.sanitize_regex(go_import_pattern, max_length=300))
 
 
 def create_pattern_with_modifiers(
@@ -225,5 +261,10 @@ def create_pattern_with_modifiers(
     """
     if modifiers:
         modifier_pattern = f"(?:(?:{'|'.join(modifiers)})\\s+)*"
-        return re.compile(f"{prefix}{modifier_pattern}{base_pattern}")
-    return re.compile(f"{prefix}{base_pattern}")
+        full_pattern = f"{prefix}{modifier_pattern}{base_pattern}"
+    else:
+        full_pattern = f"{prefix}{base_pattern}"
+
+    # Security: Sanitize the final pattern to prevent ReDoS attacks
+    sanitized_pattern = InputSanitizer.sanitize_regex(full_pattern, max_length=500)
+    return re.compile(sanitized_pattern)
