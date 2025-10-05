@@ -84,7 +84,7 @@ CRYSTAL_QUERIES = {
         ; Macro definitions
         (macro_def
             (identifier) @name
-        ) @function
+        ) @macro
 
         ; Type aliases - mapped to class since they define types
         (alias

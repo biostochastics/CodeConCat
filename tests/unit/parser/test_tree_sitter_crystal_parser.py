@@ -42,7 +42,7 @@ class TestTreeSitterCrystalParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
         assert len(result.declarations) > 0
@@ -76,7 +76,7 @@ class TestTreeSitterCrystalParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
 
@@ -115,7 +115,7 @@ class TestTreeSitterCrystalParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
         # Generic type tracking in development
@@ -149,7 +149,7 @@ class TestTreeSitterCrystalParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
         # Union and nilable type tracking in development
@@ -179,10 +179,12 @@ class TestTreeSitterCrystalParser:
           define_method hello, "Hello World"
         end
         '''
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
-        assert self.parser.macro_count >= 2
+        # Check we found at least 2 macros
+        macro_count = len([d for d in result.declarations if d.kind == "macro"])
+        assert macro_count >= 2
 
     def test_parse_c_bindings(self):
         """Test C library binding parsing."""
@@ -210,10 +212,13 @@ class TestTreeSitterCrystalParser:
           fun quit : Void
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
-        assert self.parser.c_binding_count >= 1
+        # Check we found lib declarations (mapped to module type)
+        lib_found = any(d.name in ["LibMath", "LibSDL"] and d.kind == "module"
+                       for d in result.declarations)
+        assert lib_found
 
         # Lib blocks extracted as module-like declarations
         lib_found = any(d.name in ["LibMath", "LibSDL"] and d.kind == "module"
@@ -247,7 +252,7 @@ class TestTreeSitterCrystalParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
 
@@ -264,7 +269,7 @@ class TestTreeSitterCrystalParser:
         alias Callback = Proc(String, Int32, Nil)
         alias Result = {success: Bool, data: String?}
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
 
@@ -290,7 +295,7 @@ class TestTreeSitterCrystalParser:
           extend ClassMethods
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
         assert len(result.imports) >= 5
@@ -316,7 +321,7 @@ class TestTreeSitterCrystalParser:
           end
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
         # Complex type annotations tracked internally
@@ -381,7 +386,7 @@ development_dependencies:
           fun open(filename : UInt8*, db : Handle*) : Int32
         end
         """
-        result = self.parser.parse(code)
+        result = self.parser.parse(code, "test.cr")
 
         assert result is not None
         # Annotations should be captured
@@ -419,7 +424,7 @@ development_dependencies:
 
         import time
         start = time.time()
-        result = self.parser.parse(large_code)
+        result = self.parser.parse(large_code, "test.cr")
         elapsed = time.time() - start
 
         assert result is not None

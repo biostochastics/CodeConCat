@@ -9,10 +9,11 @@ memory usage.
 import logging
 import time
 import weakref
+from collections import OrderedDict
 from dataclasses import dataclass
 from functools import wraps
 from threading import Lock
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 logger = logging.getLogger(__name__)
 
@@ -162,10 +163,10 @@ def performance_monitor(operation_name: str):
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
-            start_time = time.time()
+            start_time = time.perf_counter()
             try:
                 result = func(*args, **kwargs)
-                end_time = time.time()
+                end_time = time.perf_counter()
 
                 # Record the metric
                 _global_monitor.record_metric(
@@ -174,7 +175,7 @@ def performance_monitor(operation_name: str):
 
                 return result
             except Exception:
-                end_time = time.time()
+                end_time = time.perf_counter()
 
                 # Record the metric even for failures
                 _global_monitor.record_metric(
@@ -205,7 +206,7 @@ class StringInterner:
         """
         self.max_size = max_size
         self._cache: Dict[str, str] = {}
-        self._access_order: List[str] = []
+        self._access_order: OrderedDict[str, None] = OrderedDict()  # O(1) LRU tracking
         self._lock = Lock()
 
     def intern(self, string: str) -> str:
@@ -223,21 +224,20 @@ class StringInterner:
 
         with self._lock:
             if string in self._cache:
-                # Update access order
-                if string in self._access_order:
-                    self._access_order.remove(string)
-                self._access_order.append(string)
+                # Update access order with O(1) move_to_end
+                self._access_order.move_to_end(string)
                 return self._cache[string]
 
             # Add new string
             if len(self._cache) >= self.max_size and self._access_order:
-                # Remove least recently used string
-                oldest = self._access_order.pop(0)
+                # Remove least recently used string with O(1) operation
+                oldest = next(iter(self._access_order))
+                self._access_order.pop(oldest)
                 if oldest in self._cache:
                     del self._cache[oldest]
 
             self._cache[string] = string
-            self._access_order.append(string)
+            self._access_order[string] = None
             return string
 
     def clear(self) -> None:
@@ -318,7 +318,7 @@ class WeakValueCache:
 
     def __init__(self):
         """Initialize the weak value cache."""
-        self._cache: Dict[Any, weakref.ref] = {}
+        self._cache: Dict[Any, Union[weakref.ref, Callable[[], Any]]] = {}
         self._lock = Lock()
 
     def get(self, key: Any) -> Optional[Any]:
@@ -353,7 +353,13 @@ class WeakValueCache:
             value: The value to cache
         """
         with self._lock:
-            self._cache[key] = weakref.ref(value)
+            try:
+                # Prefer weak reference when possible
+                self._cache[key] = weakref.ref(value)
+            except TypeError:
+                # Value is not weak-referenceable (e.g., int/str)
+                # Store a callable wrapper that returns a strong reference
+                self._cache[key] = cast(Callable[[], Any], lambda v=value: v)
 
     def clear(self) -> None:
         """Clear the cache."""
@@ -387,14 +393,48 @@ def create_efficient_deduplicator() -> Callable[[List[Any]], List[Any]]:
 
     def deduplicate(items: List[Any]) -> List[Any]:
         """Deduplicate items while preserving order."""
-        seen = set()
-        result = []
+        if not items:
+            return []
 
-        for item in items:
-            if item not in seen:
-                seen.add(item)
-                result.append(item)
+        # Try using set-based deduplication for hashable items (fast path)
+        try:
+            seen = set()
+            result = []
 
-        return result
+            for item in items:
+                if item not in seen:
+                    seen.add(item)
+                    result.append(item)
+
+            return result
+        except TypeError:
+            # Items are not hashable, use list-based deduplication
+            # For Declaration objects, deduplicate based on (name, kind, start_line)
+            result = []
+            seen_keys = []
+
+            for item in items:
+                # Try to create a unique key for comparison
+                try:
+                    # For Declaration objects
+                    key: Union[tuple[Any, Any, Any], str]
+                    if (
+                        hasattr(item, "name")
+                        and hasattr(item, "kind")
+                        and hasattr(item, "start_line")
+                    ):
+                        key = (item.name, item.kind, item.start_line)
+                    else:
+                        # For other objects, use string representation as fallback
+                        key = str(item)
+
+                    if key not in seen_keys:
+                        seen_keys.append(key)
+                        result.append(item)
+                except Exception:
+                    # If we can't create a key, just add the item
+                    result.append(item)
+
+            return result
 
     return deduplicate

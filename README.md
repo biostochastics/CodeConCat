@@ -8,7 +8,7 @@
   <strong>Transform codebases into AI-ready formats with intelligent parsing, compression, and security analysis</strong>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.8.5-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
+[![Version](https://img.shields.io/badge/version-0.8.6-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![DeepWiki](https://img.shields.io/badge/DeepWiki-Documentation-purple)](https://deepwiki.com/biostochastics/CodeConCat) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
 
 ## Table of Contents
 
@@ -1172,7 +1172,7 @@ CodeConCat implements defense-in-depth security with multiple protection layers:
 
 - **API Access Controls**: Configurable path access and authentication
 - **Thread-Safe Operations**: Concurrent request handling with isolated configurations
-- **Memory Management**: File size limits (20MB max) and resource controls
+- **Memory Management**: File size limits (10MB max) and resource controls
 - **Path Validation**: Traversal protection and symlink handling
 - **Secure Git Operations**: All repository URLs and tokens sanitized
 
@@ -1245,7 +1245,7 @@ Includes:
 - Modern tree-sitter API migration details
 - Language-specific implementation notes
 
-#### Recent Parser Improvements (v0.8.5+)
+#### Recent Parser Improvements (v0.8.6+)
 
 The parser system has undergone comprehensive security and performance improvements with critical bug fixes:
 
@@ -1294,7 +1294,7 @@ For detailed technical documentation of all fixes, see **[PARSER_FIXES_SUMMARY.m
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete version history and release notes.
 
-**Current Version:** 0.8.5
+**Current Version:** 0.8.6
 
 ### Troubleshooting
 

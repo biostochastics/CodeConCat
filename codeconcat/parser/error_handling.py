@@ -171,6 +171,7 @@ class ErrorHandler:
         line_number: Optional[int] = None,
         context: Optional[Dict[str, Any]] = None,
         missed_features: Optional[List[str]] = None,
+        ast_root: Optional[Any] = None,
     ) -> ParseResult:
         """
         Handle a partial parse result (some data extracted but with errors).
@@ -183,6 +184,7 @@ class ErrorHandler:
             line_number: Line number where the error occurred
             context: Additional context information
             missed_features: List of features that couldn't be extracted
+            ast_root: Optional AST root node from tree-sitter
 
         Returns:
             ParseResult with partial results and error information
@@ -213,6 +215,7 @@ class ErrorHandler:
             engine_used=self.parser_name,
             parser_quality="partial",
             missed_features=missed_features or ["error_recovery"],
+            ast_root=ast_root,
         )
 
     def handle_warning(
@@ -246,6 +249,7 @@ class ErrorHandler:
         imports: List[str],
         file_path: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
+        ast_root: Optional[Any] = None,
     ) -> ParseResult:
         """
         Create a successful parse result.
@@ -255,6 +259,7 @@ class ErrorHandler:
             imports: Imports that were extracted
             file_path: Path to the file being parsed
             context: Additional context information
+            ast_root: Optional AST root node from tree-sitter
 
         Returns:
             ParseResult with successful parsing information
@@ -274,6 +279,7 @@ class ErrorHandler:
             engine_used=self.parser_name,
             parser_quality="full",
             missed_features=[],
+            ast_root=ast_root,
         )
 
     def get_error_summary(self) -> Dict[str, Any]:

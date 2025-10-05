@@ -17,7 +17,7 @@ As codeconcat expands from 11 to 40 languages across multiple tiers (v0.9.0 - v0
 
 ### Basic Usage
 
-Verify current languages only (v0.8.5):
+Verify current languages only (v0.8.6):
 
 ```bash
 ./scripts/verify_grammars.sh
@@ -81,7 +81,7 @@ Display usage information:
 
 ## Language Tiers
 
-### Current (v0.8.5)
+### Current (v0.8.6)
 14 languages: Python, C, C++, C#, Java, JavaScript, TypeScript, Go, Rust, PHP, Swift, Julia, Bash, R
 
 ### Tier 1 (v0.9.0 target)

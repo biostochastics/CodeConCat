@@ -33,6 +33,9 @@ from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
 
+# Maximum reasonable length for impl type text to avoid parsing very large expressions
+MAX_IMPL_TYPE_LENGTH = 200
+
 # Enhanced Tree-sitter queries for Rust with comprehensive coverage
 RUST_QUERIES = {
     "imports": """
@@ -350,12 +353,20 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                             if impl_type_nodes and len(impl_type_nodes) > 0:
                                 # Use the first impl_type node, but validate it's reasonable
                                 impl_type_node = impl_type_nodes[0]
-                                impl_type_text = byte_content[
-                                    impl_type_node.start_byte : impl_type_node.end_byte
-                                ].decode("utf8", errors="replace")
+                                impl_type_text = (
+                                    byte_content[
+                                        impl_type_node.start_byte : impl_type_node.end_byte
+                                    ]
+                                    .decode("utf8", errors="replace")
+                                    .strip()
+                                )
 
-                                # Skip if impl type seems invalid (too long or contains suspicious content)
-                                if len(impl_type_text) < 200 and "\n" not in impl_type_text:
+                                # Skip if impl type seems invalid (empty, too long, or contains suspicious content)
+                                if (
+                                    impl_type_text
+                                    and len(impl_type_text) < MAX_IMPL_TYPE_LENGTH
+                                    and "\n" not in impl_type_text
+                                ):
                                     name_node = impl_type_node
 
                         # Check for modifiers

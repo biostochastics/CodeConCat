@@ -26,7 +26,8 @@ class TestApiiroRuleset:
             def fake_git_clone(cmd, **_kwargs):
                 if "git" in cmd[0] and "clone" in cmd[1]:
                     # Create some fake rule files in the temp directory
-                    temp_dir = Path(cmd[3])
+                    # Command is: ["git", "clone", "--depth", "1", URL, temp_dir]
+                    temp_dir = Path(cmd[-1])  # Last argument is the target directory
 
                     # Create directory structure
                     (temp_dir / "rules" / "python").mkdir(parents=True)
@@ -58,6 +59,14 @@ rules:
     severity: ERROR
 """
                     )
+
+                    return MagicMock(returncode=0)
+                elif "git" in cmd[0] and "rev-parse" in cmd:
+                    # Mock git rev-parse HEAD to return the expected commit hash
+                    mock_result = MagicMock(returncode=0)
+                    # Configure stdout.strip() to return the actual hash string
+                    mock_result.stdout.strip.return_value = "c8e8fc2d90e5a3b6d7f1e9c4a2b5d8f3e6c9a1b4"
+                    return mock_result
 
                 return MagicMock(returncode=0)
 

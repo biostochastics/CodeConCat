@@ -222,8 +222,10 @@ class ImportPatterns:
 
     # JavaScript/TypeScript imports
     # Security: Sanitize patterns to prevent ReDoS attacks
-    js_import_pattern = r'^\s*import\s+(?:{[^}]+}|\*\s+as\s+[a-zA-Z0-9_]+|[a-zA-Z0-9_]+)\s+from\s+[\'"][^\'"]+"[\'"]'
-    js_require_pattern = r'^\s*(?:const|let|var)\s+(?P<name>[a-zA-Z0-9_{}:,\s]+)\s*=\s*require\s*\([\'"][^\'"]+"[\'"]\)'
+    js_import_pattern = (
+        r'^\s*import\s+(?:{[^}]+}|\*\s+as\s+[a-zA-Z0-9_]+|[a-zA-Z0-9_]+)\s+from\s+[\'"][^\'"]+[\'"]'
+    )
+    js_require_pattern = r'^\s*(?:const|let|var)\s+(?P<name>[a-zA-Z0-9_{}:,\s]+)\s*=\s*require\s*\([\'"][^\'"]+[\'"]\)'
 
     JS_TS = {
         "import": re.compile(InputSanitizer.sanitize_regex(js_import_pattern, max_length=300)),

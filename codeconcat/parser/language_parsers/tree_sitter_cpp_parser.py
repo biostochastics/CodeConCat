@@ -440,7 +440,12 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                 child = parent.children[i]
 
                 # Skip non-relevant nodes quickly
-                if child.type not in ["access_specifier", "field_declaration", "method_definition"]:
+                if child.type not in [
+                    "access_specifier",
+                    "field_declaration",
+                    "method_definition",
+                    "function_definition",
+                ]:
                     continue
 
                 if child.type == "access_specifier":
@@ -482,7 +487,7 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                 declaration_node.start_byte : declaration_node.end_byte
             ].decode("utf-8", errors="replace")
 
-            # Common C++ modifiers - check with simple string matching first
+            # Common C++ modifiers - check with regex word boundaries for accuracy
             common_modifiers = [
                 "static",
                 "extern",
@@ -494,7 +499,10 @@ class TreeSitterCppParser(BaseTreeSitterParser):
                 "final",
             ]
             for modifier in common_modifiers:
-                if f" {modifier} " in f" {node_text} " or node_text.startswith(f"{modifier} "):
+                # Use word-boundary search to detect modifiers correctly
+                # This avoids false positives like 'constexpr' matching 'const'
+                # and correctly handles 'const&', 'const;', etc.
+                if re.search(rf"\b{re.escape(modifier)}\b", node_text):
                     modifiers.add(modifier)
 
             # For more complex cases, use targeted node inspection

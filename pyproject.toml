@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "codeconcat"
-version = "0.8.5"
+version = "0.8.6"
 description = "An LLM-friendly code aggregator and documentation extractor with advanced CLI"
 authors = ["Sergey Kornilov <sergey.kornilov@biostochastics.com>"]
 license = "MIT"

@@ -129,11 +129,12 @@ class EnhancedBaseParser(ABC):
             ParseResult with extracted information
         """
         # Security: Check file size
-        if len(content.encode("utf-8")) > self.config.max_file_size:
+        content_bytes = content.encode("utf-8")
+        if len(content_bytes) > self.config.max_file_size:
             return self.error_handler.handle_error(
-                f"File too large: {len(content)} bytes (max: {self.config.max_file_size})",
+                f"File too large: {len(content_bytes)} bytes (max: {self.config.max_file_size})",
                 file_path,
-                context={"file_size": len(content)},
+                context={"file_size_bytes": len(content_bytes)},
             )
 
         # Security: Check for extremely long lines
@@ -353,12 +354,13 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
 
         Args:
             lines: List of source lines
-            start: Starting line index (0-based)
+            start: Starting line index (0-based, typically the line with opening brace)
 
         Returns:
             Index of the line where the block ends
         """
-        brace_count = 0
+        # Initialize to 1 since we're called after finding an opening brace
+        brace_count = 1
         in_string = False
         in_char = False
         escape_next = False
@@ -393,7 +395,7 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
                     brace_count += 1
                 elif char == "}":
                     brace_count -= 1
-                    if brace_count == 0:
+                    if brace_count <= 0:
                         return i
 
         return len(lines) - 1

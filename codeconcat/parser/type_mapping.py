@@ -20,6 +20,7 @@ class DeclarationType(Enum):
     INTERFACE = "interface"
     STRUCT = "struct"
     ENUM = "enum"
+    OBJECT = "object"
 
     # Language-specific types
     MODULE = "module"
@@ -227,6 +228,75 @@ class TypeMapper:
             "constant": DeclarationType.CONSTANT,
             "property": DeclarationType.PROPERTY,
         },
+        "crystal": {
+            "function": DeclarationType.FUNCTION,
+            "class": DeclarationType.CLASS,
+            "struct": DeclarationType.STRUCT,
+            "module": DeclarationType.MODULE,
+            "macro": DeclarationType.MACRO,
+            "import": DeclarationType.IMPORT,
+            "constant": DeclarationType.CONSTANT,
+            "variable": DeclarationType.VARIABLE,
+        },
+        "elixir": {
+            "function": DeclarationType.FUNCTION,
+            "module": DeclarationType.MODULE,
+            "macro": DeclarationType.MACRO,
+            "import": DeclarationType.IMPORT,
+            "protocol": DeclarationType.INTERFACE,
+            "struct": DeclarationType.STRUCT,
+        },
+        "hcl": {
+            "function": DeclarationType.FUNCTION,  # Used for resource and data blocks
+            "module": DeclarationType.MODULE,
+            "class": DeclarationType.CLASS,  # Used for provider blocks
+            "property": DeclarationType.PROPERTY,  # Used for variable/output blocks
+            "object": DeclarationType.OBJECT,  # Used for locals blocks
+            "resource": DeclarationType.FUNCTION,  # Alias
+            "data": DeclarationType.FUNCTION,  # Alias
+            "variable": DeclarationType.PROPERTY,  # Alias
+            "output": DeclarationType.PROPERTY,  # Alias
+            "locals": DeclarationType.OBJECT,  # Alias
+            "provider": DeclarationType.CLASS,  # Alias
+            "block": DeclarationType.CLASS,
+        },
+        "terraform": {  # alias for hcl
+            "function": DeclarationType.FUNCTION,
+            "module": DeclarationType.MODULE,
+            "class": DeclarationType.CLASS,
+            "property": DeclarationType.PROPERTY,
+            "object": DeclarationType.OBJECT,
+            "resource": DeclarationType.FUNCTION,
+            "data": DeclarationType.FUNCTION,
+            "variable": DeclarationType.PROPERTY,
+            "output": DeclarationType.PROPERTY,
+            "locals": DeclarationType.OBJECT,
+            "provider": DeclarationType.CLASS,
+            "block": DeclarationType.CLASS,
+        },
+        "graphql": {
+            "object": DeclarationType.OBJECT,
+            "interface": DeclarationType.INTERFACE,
+            "enum": DeclarationType.ENUM,
+            "union": DeclarationType.CLASS,
+            "input": DeclarationType.CLASS,
+            "scalar": DeclarationType.CLASS,
+            "field": DeclarationType.PROPERTY,
+            "query": DeclarationType.FUNCTION,
+            "mutation": DeclarationType.FUNCTION,
+            "subscription": DeclarationType.FUNCTION,
+            "type": DeclarationType.CLASS,
+        },
+        "sql": {
+            "function": DeclarationType.FUNCTION,
+            "procedure": DeclarationType.FUNCTION,
+            "table": DeclarationType.CLASS,
+            "view": DeclarationType.CLASS,
+            "index": DeclarationType.PROPERTY,
+            "trigger": DeclarationType.FUNCTION,
+            "column": DeclarationType.PROPERTY,
+            "statement": DeclarationType.FUNCTION,
+        },
     }
 
     # Reverse mapping for lookup
@@ -287,8 +357,7 @@ class TypeMapper:
             cls._build_reverse_mappings()
 
         language = language.lower()
-        if cls._reverse_mappings is None:
-            return set()
+        assert cls._reverse_mappings is not None  # Ensured by _build_reverse_mappings()
         lang_reverse_mapping = cls._reverse_mappings.get(language, {})
         return lang_reverse_mapping.get(standard_type, set())
 
@@ -337,6 +406,7 @@ class TypeMapper:
         """
         return declaration_type in {
             DeclarationType.CLASS,
+            DeclarationType.OBJECT,
             DeclarationType.INTERFACE,
             DeclarationType.STRUCT,
             DeclarationType.ENUM,
@@ -358,6 +428,7 @@ class TypeMapper:
         """
         return declaration_type in {
             DeclarationType.CLASS,
+            DeclarationType.OBJECT,
             DeclarationType.INTERFACE,
             DeclarationType.STRUCT,
             DeclarationType.TRAIT,
@@ -383,6 +454,7 @@ class TypeMapper:
                 DeclarationType.MACRO,
             ],
             DeclarationType.CLASS: [
+                DeclarationType.OBJECT,
                 DeclarationType.INTERFACE,
                 DeclarationType.STRUCT,
                 DeclarationType.TRAIT,

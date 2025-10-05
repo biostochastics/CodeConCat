@@ -507,9 +507,11 @@ class ImprovedStandardParser:
 
         Returns:
             Dictionary of pattern names to compiled patterns
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method
         """
-        # This should be overridden by subclasses
-        return {}
+        raise NotImplementedError("Subclasses must implement _get_import_patterns()")
 
     def _get_declaration_patterns(self) -> Dict[str, Pattern]:
         """
@@ -517,9 +519,11 @@ class ImprovedStandardParser:
 
         Returns:
             Dictionary of pattern names to compiled patterns
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method
         """
-        # This should be overridden by subclasses
-        return {}
+        raise NotImplementedError("Subclasses must implement _get_declaration_patterns()")
 
     def _create_declaration_from_match_enhanced(
         self,

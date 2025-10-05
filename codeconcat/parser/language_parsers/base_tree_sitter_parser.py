@@ -1,6 +1,6 @@
 import abc
 import logging
-from collections import deque
+from collections import OrderedDict, deque
 from typing import Dict, List, Optional, Tuple
 
 from codeconcat.base_types import Declaration, ParseResult, ParserInterface
@@ -140,8 +140,8 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             self.parser: Parser = self._create_parser()
             # Instance-level cache for compiled queries with LRU eviction
             self._query_cache: Dict[Tuple[str, str, str], Optional[Query]] = {}
-            # Use deque for O(1) append and popleft operations
-            self._cache_access_order: deque = deque()
+            # Use OrderedDict for O(1) LRU operations (move_to_end, popitem)
+            self._cache_access_order: OrderedDict[Tuple[str, str, str], None] = OrderedDict()
         except Exception as e:
             # Use standardized error handling for initialization failures
             raise ParserInitializationError(
@@ -189,7 +189,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
 
             # Cache the result
             self._query_cache[cache_key] = compiled_query
-            self._cache_access_order.append(cache_key)
+            self._cache_access_order[cache_key] = None
             return compiled_query
         except Exception as e:
             error_msg = (
@@ -199,23 +199,22 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             # Cache None to avoid repeated compilation attempts
             self._evict_cache_if_needed()
             self._query_cache[cache_key] = None
-            self._cache_access_order.append(cache_key)
+            self._cache_access_order[cache_key] = None
             return None
 
     def _update_cache_access_order(self, cache_key: Tuple[str, str, str]) -> None:
-        """Update the access order for LRU cache."""
-        if cache_key in self._cache_access_order:
-            self._cache_access_order.remove(cache_key)
-        self._cache_access_order.append(cache_key)
+        """Update the access order for LRU cache with O(1) move_to_end."""
+        # OrderedDict.move_to_end() is O(1), much better than deque.remove() which is O(n)
+        self._cache_access_order.move_to_end(cache_key)
 
     def _evict_cache_if_needed(self) -> None:
-        """Evict oldest entries from cache if it exceeds max size."""
+        """Evict oldest entries from cache if it exceeds max size with O(1) popitem."""
         while len(self._query_cache) >= self.max_cache_size:
             if not self._cache_access_order:
                 break  # Safety check to avoid infinite loop
 
-            # Use popleft() for O(1) operation instead of pop(0) which is O(n)
-            oldest_key = self._cache_access_order.popleft()
+            # Use popitem(last=False) for O(1) FIFO eviction
+            oldest_key, _ = self._cache_access_order.popitem(last=False)
             if oldest_key in self._query_cache:
                 del self._query_cache[oldest_key]
                 logger.debug(f"Evicted query from cache: {oldest_key[1]}")
@@ -572,9 +571,12 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                 file_path,
                 {"content_size": len(content), "max_size": max_content_size},
             )
+        # Encode content once for both size check and parsing (optimization: avoid double encoding)
+        content_bytes = content.encode("utf-8")
+
         # For more accurate byte count, check encoded size only if close to limit
         if len(content) > max_content_size * 0.8:  # Check if within 80% of limit
-            content_size_bytes = len(content.encode("utf-8"))
+            content_size_bytes = len(content_bytes)
             if content_size_bytes > max_content_size:
                 return handle_security_error(
                     f"File too large for parsing: {content_size_bytes} bytes (max: {max_content_size})",
@@ -598,7 +600,6 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
 
         tree: Optional[Tree] = None
         try:
-            content_bytes = content.encode("utf-8")
             logger.debug(f"Attempting self.parser.parse() for {file_path}")
             tree = self.parser.parse(content_bytes)
             logger.debug(f"Finished self.parser.parse() for {file_path}")
@@ -656,6 +657,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                     line_number=line,
                     context={"error_node_type": error_node.type if error_node else "unknown"},
                     missed_features=["error_recovery"],
+                    ast_root=root_node,
                 )
             except Exception as e:
                 # If even partial extraction fails, return error
@@ -671,7 +673,11 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             try:
                 declarations, imports = self._run_queries(root_node, content_bytes)
                 return self.error_handler.create_success_result(
-                    declarations, imports, file_path, context={"root_node_type": root_node.type}
+                    declarations,
+                    imports,
+                    file_path,
+                    context={"root_node_type": root_node.type},
+                    ast_root=root_node,
                 )
             except Exception as e:
                 # If extraction fails after successful parsing
@@ -682,6 +688,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                     file_path,
                     context={"root_node_type": root_node.type, "extraction_error": str(e)},
                     missed_features=["declaration_extraction"],
+                    ast_root=root_node,
                 )
 
     def _run_queries(
@@ -752,6 +759,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                             "trait",
                             "protocol",
                             "module",
+                            "macro",
                         ]
 
                         for decl_type in declaration_types:

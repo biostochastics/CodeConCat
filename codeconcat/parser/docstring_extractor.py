@@ -70,7 +70,7 @@ class DocstringExtractor:
         ],
         "java": [
             (DocstringStyle.JAVADOC, re.compile(r"/\*\*(.*?)\*/", re.DOTALL)),
-            (DocstringStyle.JAVADOC_SINGLE, re.compile(r"/\*\*(.*?)\*/", re.DOTALL)),
+            (DocstringStyle.JAVADOC_SINGLE, re.compile(r"//\s*(.+)$", re.MULTILINE)),
         ],
         "c": [
             (DocstringStyle.CPP_DOC, re.compile(r"///\s*(.+)$", re.MULTILINE)),
@@ -222,13 +222,15 @@ class DocstringExtractor:
 
         # Collect lines before the declaration
         for i in range(search_start, max(-1, search_start - 20), -1):
-            line = lines[i].strip()
+            raw_line = lines[i]
+            line = raw_line.strip()
 
             # Stop if we hit another declaration or empty line without docstring
-            if line and not self._is_docstring_line(line) and not line.startswith((" ", "\t")):
+            # Check indentation on raw_line to preserve original formatting
+            if line and not self._is_docstring_line(line) and not raw_line.startswith((" ", "\t")):
                 break
 
-            search_lines.insert(0, lines[i])
+            search_lines.insert(0, raw_line)
 
         search_text = "\n".join(search_lines)
 
