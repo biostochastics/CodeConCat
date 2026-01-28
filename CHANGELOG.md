@@ -62,6 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Google/Zhipu providers: added `from err` for exception chaining
   - Factory: combined nested conditionals (SIM102, SIM117)
 
+- **CI Test Compatibility**: Fixed tests failing in CI environments
+  - WAT parser tests: Added pytest fixture that skips when grammar unavailable
+  - Crystal parser tests: Added pytest.skip in setup_method for missing grammar
+  - Diff functionality tests: Fixed branch name issue (git default may be "master")
+    - Now explicitly renames initial branch to "main" after first commit
+
 - **Pydantic V2 Migration**: Modernized all Pydantic usage patterns
   - Replaced deprecated `.dict()` with `.model_dump()` in legacy `app.py`
   - Migrated V1-style nested `Config` classes to V2 `model_config = ConfigDict(...)`

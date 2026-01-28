@@ -38,6 +38,10 @@ def test_repo(tmp_path):
     repo.index.add(["file1.py"])
     repo.index.commit("Initial commit")
 
+    # Ensure the branch is named "main" (git default may be "master" on some systems)
+    if repo.active_branch.name != "main":
+        repo.active_branch.rename("main")
+
     # Create feature branch
     feature_branch = repo.create_head("feature-branch")
     feature_branch.checkout()
