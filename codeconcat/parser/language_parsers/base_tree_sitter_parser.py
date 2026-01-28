@@ -543,8 +543,12 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
 
         # Security: Validate file path to prevent path traversal
         try:
-            # Validate the file path is safe
-            validated_path = validate_safe_path(file_path)
+            # Validate the file path is safe (use file's parent as base since we're
+            # just parsing content, not accessing files - the file was already read)
+            from pathlib import Path
+
+            file_parent = Path(file_path).parent if file_path else None
+            validated_path = validate_safe_path(file_path, base_path=file_parent)
             logger.debug(f"Validated file path: {validated_path}")
         except PathTraversalError as e:
             return handle_security_error(

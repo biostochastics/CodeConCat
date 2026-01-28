@@ -262,6 +262,7 @@ def _calculate_diff_statistics(items: list[WritableItem]) -> dict:
 
 def _add_cdata_sections_optimized(xml_str: str) -> str:
     """Add CDATA sections to elements that need content preservation."""
+    import html
     import re
 
     # Elements that should have CDATA-wrapped content
@@ -281,6 +282,9 @@ def _add_cdata_sections_optimized(xml_str: str) -> str:
             content = match.group(1)
             if content.strip().startswith("<![CDATA["):
                 return match.group(0)
+            # Unescape XML entities before wrapping in CDATA since CDATA
+            # preserves content literally (so &quot; would stay as &quot;)
+            content = html.unescape(content)
             return f"<{elem_name}><![CDATA[{content}]]></{elem_name}>"
 
         xml_str = re.sub(pattern, replace_with_cdata, xml_str, flags=re.DOTALL)

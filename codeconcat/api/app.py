@@ -18,7 +18,7 @@ import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from codeconcat.api.timeout_middleware import add_timeout_middleware
@@ -175,10 +175,8 @@ class CodeConcatRequest(BaseModel):
                     raise ValueError("Either source_url or target_path must be provided")
         return v
 
-    class Config:
-        """Pydantic configuration for CodeConcatRequest model."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "source_url": "username/repo",
                 "format": "json",
@@ -190,6 +188,7 @@ class CodeConcatRequest(BaseModel):
                 "compression_level": "medium",
             }
         }
+    )
 
 
 class CodeConcatErrorResponse(BaseModel):

@@ -121,6 +121,28 @@ class SecurityIssue:
     context: str = ""  # Snippet of code around the issue
 
 
+def _compile_and_test_regex(pattern: str, result_queue: Any) -> None:
+    """Compile regex and test with backtracking-prone strings.
+
+    This function is defined at module level to be picklable for multiprocessing.
+
+    Args:
+        pattern: The regex pattern to validate.
+        result_queue: Multiprocessing Queue to put results into.
+    """
+    try:
+        compiled = re.compile(pattern)
+        # Test with potential backtracking triggers
+        test_strings = ["a" * 50, "ab" * 25, "x" * 30 + "y"]
+        for test_str in test_strings:
+            compiled.search(test_str)
+        result_queue.put((True, pattern))
+    except re.error as e:
+        result_queue.put((False, f"Invalid regex: {e}"))
+    except Exception as e:
+        result_queue.put((False, f"Validation error: {e}"))
+
+
 # Pydantic model for Custom Security Patterns
 class CustomSecurityPattern(BaseModel):
     """Custom security pattern for detecting sensitive data in code.
@@ -152,14 +174,19 @@ class CustomSecurityPattern(BaseModel):
     severity: str  # User-provided severity (e.g., "HIGH", "MEDIUM")
 
     @field_validator("severity")
-    def validate_severity(cls, value):
+    @classmethod
+    def validate_severity(cls, value: str) -> str:
         """Validate if the given severity value corresponds to a valid `SecuritySeverity` enum.
-        Parameters:
-            - value (str): The severity level to validate.
+
+        Args:
+            value: The severity level to validate.
+
         Returns:
-            - str: The valid severity level from the `SecuritySeverity` enum.
+            The valid severity level from the `SecuritySeverity` enum.
+
         Raises:
-            - ValueError: If the given value is not a valid severity level."""
+            ValueError: If the given value is not a valid severity level.
+        """
         try:
             # Ensure severity is uppercase and exists in the enum
             return SecuritySeverity[value.upper()].name
@@ -170,6 +197,7 @@ class CustomSecurityPattern(BaseModel):
             ) from e
 
     @field_validator("regex")
+    @classmethod
     def validate_regex(cls, value: str) -> str:
         """Validate regex pattern with proper ReDoS protection.
 

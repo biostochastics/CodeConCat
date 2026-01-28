@@ -58,6 +58,15 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
 
     def _load_language(self):
         """Load the HLSL language grammar."""
+        # Try tree_sitter_language_pack first (preferred)
+        try:
+            from tree_sitter_language_pack import get_language
+
+            return get_language("hlsl")
+        except ImportError:
+            pass
+
+        # Try the standalone tree-sitter-hlsl package
         try:
             import tree_sitter_hlsl
             from tree_sitter import Language
@@ -67,13 +76,14 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
         except ImportError:
             pass
 
+        # Fall back to tree_sitter_languages if available
         try:
             from tree_sitter_languages import get_language
 
             return get_language("hlsl")
         except ImportError:
             raise LanguageParserError(
-                "Failed to load HLSL language. Install tree-sitter-hlsl package."
+                "Failed to load HLSL language. Install tree-sitter-language-pack or tree-sitter-hlsl."
             ) from None
 
     def parse(self, source_code: str, file_path: str = "unknown") -> ParseResult:  # noqa: ARG002

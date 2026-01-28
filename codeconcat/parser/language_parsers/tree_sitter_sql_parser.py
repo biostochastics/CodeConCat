@@ -21,11 +21,6 @@ from typing import Any
 
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
-try:
-    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
-except ImportError:
-    QueryCursor = None  # type: ignore
-
 logger = logging.getLogger(__name__)
 
 
@@ -510,11 +505,8 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return procedures
 
         try:
-            if QueryCursor is not None:
-                captures = self._execute_query_with_cursor(query, tree.root_node)
-            else:
-                raise RuntimeError("QueryCursor not available")
-
+            # Execute query using base class method (handles all tree-sitter versions)
+            captures = self._execute_query_with_cursor(query, tree.root_node)
             proc_defs = captures.get("proc_def", [])
             proc_names = captures.get("proc_name", [])
 

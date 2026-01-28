@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Pydantic V2 Migration**: Modernized all Pydantic usage patterns
+  - Replaced deprecated `.dict()` with `.model_dump()` in legacy `app.py`
+  - Migrated V1-style nested `Config` classes to V2 `model_config = ConfigDict(...)`
+  - Updated `GlobalState` in `cli/config.py` to use `ConfigDict(arbitrary_types_allowed=True)`
+  - Updated `CodeConcatRequest` in `api/app.py` to use `ConfigDict(json_schema_extra=...)`
+  - Added `@classmethod` decorators to all `@field_validator` methods in `base_types.py`
+  - Added proper type hints to validator methods (`value: str -> str`)
+
+- **Type Annotations**: Updated legacy `app.py` to Python 3.10+ syntax
+  - Replaced `Optional[str]` with `str | None`
+  - Replaced `List[str]` with `list[str]`
+  - Added `from __future__ import annotations` for forward compatibility
+
 ## [0.8.8] - 2026-01-28
 
 ### Performance

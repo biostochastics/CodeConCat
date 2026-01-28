@@ -175,7 +175,7 @@ locals {
         # Verify parsing was successful
         assert result is not None
         assert result.error is None
-        assert result.engine_used == "tree_sitter"
+        assert result.engine_used == "hcl"  # Tree-sitter HCL parser
 
         # Verify we extracted multiple block types
         assert len(result.declarations) >= 10

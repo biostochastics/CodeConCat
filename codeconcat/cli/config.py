@@ -23,7 +23,7 @@ Usage:
 
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from codeconcat.base_types import CodeConCatConfig
 
@@ -44,18 +44,15 @@ class GlobalState(BaseModel):
 
     Note:
         Uses Pydantic's BaseModel for automatic validation and serialization.
-        The Config class enables arbitrary types to allow Path objects.
+        The model_config enables arbitrary types to allow Path objects.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     verbose: int = 0
     quiet: bool = False
     config_path: Path | None = None
     config: CodeConCatConfig | None = None
-
-    class Config:
-        """Pydantic configuration to allow Path and other custom types."""
-
-        arbitrary_types_allowed = True
 
 
 # Singleton instance - ensures only one state object exists globally

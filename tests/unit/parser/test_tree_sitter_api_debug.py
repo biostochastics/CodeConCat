@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Debug tree-sitter API to understand capture structure.
 
-This test verifies the NEW tree-sitter API (0.24.0+) that uses QueryCursor
-instead of the deprecated query.captures() method.
+This test verifies tree-sitter query API behavior across different versions.
+- tree-sitter < 0.24.0: Uses QueryCursor for queries
+- tree-sitter >= 0.24.0: Uses Query.captures() and Query.matches() directly
 """
 
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -22,6 +25,7 @@ from tree_sitter_language_pack import get_language, get_parser  # noqa: E402
 
 
 # Test Python parser API
+@pytest.mark.skipif(QueryCursor is None, reason="QueryCursor not available in tree-sitter >= 0.24.0")
 def test_capture_api():
     """Test the NEW QueryCursor API for tree-sitter queries."""
     print("Testing tree-sitter NEW QueryCursor API...")

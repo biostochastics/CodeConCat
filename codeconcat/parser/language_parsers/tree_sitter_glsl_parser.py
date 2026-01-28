@@ -101,7 +101,15 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         Raises:
             LanguageParserError: If the language cannot be loaded.
         """
-        # Try to use the standalone tree-sitter-glsl package
+        # Try tree_sitter_language_pack first (preferred)
+        try:
+            from tree_sitter_language_pack import get_language
+
+            return get_language("glsl")
+        except ImportError:
+            pass
+
+        # Try the standalone tree-sitter-glsl package
         try:
             import tree_sitter_glsl
             from tree_sitter import Language
@@ -119,7 +127,7 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
             return get_language("glsl")
         except ImportError:
             raise LanguageParserError(
-                "Failed to load GLSL language. Install tree-sitter-glsl package."
+                "Failed to load GLSL language. Install tree-sitter-language-pack or tree-sitter-glsl."
             ) from None
 
     def parse(self, source_code: str, file_path: str = "unknown") -> ParseResult:  # noqa: ARG002
