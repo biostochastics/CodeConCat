@@ -25,6 +25,7 @@ from codeconcat.api.validation_middleware import add_validation_middleware
 from codeconcat.config.config_builder import ConfigBuilder
 from codeconcat.main import run_codeconcat_in_memory
 from codeconcat.validation.schema_validation import SCHEMAS
+from codeconcat.version import __version__
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -245,7 +246,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="CodeConCat API",
         description="REST API for the CodeConCat code aggregation and documentation tool",
-        version="0.7.0",  # Should match the package version
+        version=__version__,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",

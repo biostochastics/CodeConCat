@@ -128,14 +128,18 @@ def _is_valid_language_input(language: str) -> bool:
     return language.lower() in ALLOWED_LANGUAGES
 
 
+@functools.lru_cache(maxsize=64)
 def _try_tree_sitter_parser(language: str) -> Optional[Any]:
     """Try to load a tree-sitter parser for the language.
+
+    PERFORMANCE: Results are cached per language to avoid repeated module imports
+    and parser instantiation.
 
     Args:
         language: Language identifier
 
     Returns:
-        Tree-sitter parser instance or None
+        Tree-sitter parser instance or None (cached)
     """
     try:
         # Map language to tree-sitter parser module name
@@ -214,15 +218,19 @@ def _try_tree_sitter_parser(language: str) -> Optional[Any]:
     return None
 
 
+@functools.lru_cache(maxsize=64)
 def _try_enhanced_regex_parser(language: str, use_enhanced: bool = True) -> Optional[Any]:
     """Try to load an enhanced regex parser for the language.
+
+    PERFORMANCE: Results are cached per (language, use_enhanced) to avoid repeated
+    module imports and parser instantiation.
 
     Args:
         language: Language identifier
         use_enhanced: Whether to use enhanced parsers
 
     Returns:
-        Enhanced parser instance or None
+        Enhanced parser instance or None (cached)
     """
     if not use_enhanced:
         return None
@@ -268,14 +276,18 @@ def _try_enhanced_regex_parser(language: str, use_enhanced: bool = True) -> Opti
     return None
 
 
+@functools.lru_cache(maxsize=64)
 def _try_standard_regex_parser(language: str) -> Optional[Any]:
     """Try to load a standard regex parser for the language.
+
+    PERFORMANCE: Results are cached per language to avoid repeated module imports
+    and parser instantiation.
 
     Args:
         language: Language identifier
 
     Returns:
-        Standard parser instance or None
+        Standard parser instance or None (cached)
     """
     try:
         # Map language to standard parser module name
@@ -528,6 +540,15 @@ class UnifiedPipeline:
         enable_result_merging = getattr(self.config, "enable_result_merging", True)
         merge_strategy_name = getattr(self.config, "merge_strategy", "confidence")
 
+        # PERFORMANCE: Early termination when primary parser (tree-sitter) succeeds
+        # Default: True - skip additional parsers when tree-sitter produces good results
+        # Set to False to always run all parsers for maximum coverage (slower)
+        early_termination = getattr(self.config, "parser_early_termination", True)
+
+        # Minimum declarations threshold for early termination
+        # If tree-sitter finds at least this many declarations, skip other parsers
+        early_termination_threshold = getattr(self.config, "parser_early_termination_threshold", 1)
+
         # Convert strategy name to enum
         strategy_map = {
             "confidence": MergeStrategy.CONFIDENCE_WEIGHTED,
@@ -587,14 +608,29 @@ class UnifiedPipeline:
                         parse_result.engine_used = parser_name
 
                     if not parse_result.error:
+                        num_declarations = len(parse_result.declarations)
                         logger.debug(
                             f"{parser_name} parsing successful for {file_path}: "
-                            f"{len(parse_result.declarations)} declarations"
+                            f"{num_declarations} declarations"
                         )
 
                         if enable_result_merging:
                             # Collect result for merging
                             all_results.append(parse_result)
+
+                            # PERFORMANCE: Early termination for tree-sitter with good results
+                            # Skip remaining parsers if tree-sitter produced sufficient declarations
+                            if (
+                                early_termination
+                                and parser_type == "tree_sitter"
+                                and num_declarations >= early_termination_threshold
+                            ):
+                                logger.debug(
+                                    f"Early termination: tree-sitter found {num_declarations} "
+                                    f"declarations (threshold: {early_termination_threshold}), "
+                                    f"skipping remaining parsers for {file_path}"
+                                )
+                                break  # Exit the parser loop early
                         else:
                             # Legacy behavior: return first successful result
                             return parse_result

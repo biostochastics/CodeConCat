@@ -617,6 +617,21 @@ class CodeConCatConfig(BaseModel):
         "'best_of_breed' (pick best parser per feature type).",
         validate_default=True,
     )
+
+    parser_early_termination: bool = Field(
+        True,
+        description="Enable early termination of parser fallback chain when tree-sitter succeeds. "
+        "When True, skips enhanced and standard parsers if tree-sitter produces sufficient results. "
+        "Set to False to always run all parsers for maximum coverage (slower).",
+        validate_default=True,
+    )
+
+    parser_early_termination_threshold: int = Field(
+        1,
+        description="Minimum number of declarations tree-sitter must find to trigger early termination. "
+        "Higher values ensure more thorough parsing at the cost of speed.",
+        validate_default=True,
+    )
     # --- End added fields ---
 
     target_path: str = Field(

@@ -301,13 +301,31 @@ MAX_PROJECT_SIZE = 100 * 1024 * 1024  # 100 MB
 
 # Token limits for different models
 TOKEN_LIMITS = {
+    # OpenAI GPT models
     "gpt-3.5-turbo": 16385,
     "gpt-4": 8192,
     "gpt-4-32k": 32768,
+    "gpt-4-turbo": 128000,
+    "gpt-4o": 128000,
+    "gpt-4o-mini": 128000,
+    "o1": 200000,
+    "o1-mini": 128000,
+    "text-davinci-003": 4097,
+    # Anthropic Claude models
     "claude": 100000,
     "claude-2": 100000,
+    "claude-2.1": 200000,
     "claude-3": 200000,
-    "text-davinci-003": 4097,
+    "claude-3-opus": 200000,
+    "claude-3-sonnet": 200000,
+    "claude-3-haiku": 200000,
+    "claude-3.5-sonnet": 200000,
+    "claude-3.5-haiku": 200000,
+    # Google Gemini models
+    "gemini-1.5-pro": 1000000,
+    "gemini-1.5-flash": 1000000,
+    # Default fallback
+    "default": 100000,
 }
 
 # Compression levels and their settings

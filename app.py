@@ -5,11 +5,12 @@ from pydantic import BaseModel
 
 from codeconcat.config.config_builder import ConfigBuilder
 from codeconcat.main import run_codeconcat_in_memory
+from codeconcat.version import __version__
 
 app = FastAPI(
     title="CodeConCat API",
     description="API for CodeConCat - An LLM-friendly code parser, aggregator and doc extractor",
-    version="1.0.0",
+    version=__version__,
 )
 
 
@@ -84,6 +85,6 @@ async def root():
     """
     return {
         "name": "CodeConCat API",
-        "version": "1.0.0",
+        "version": __version__,
         "description": "API for code concatenation and documentation extraction",
     }

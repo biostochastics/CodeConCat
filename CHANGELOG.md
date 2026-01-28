@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.7] - 2025-01-28
+
+### Performance
+
+- **Consolidated File I/O**: Reduced file reads from 2-4x per file to exactly once
+  - `process_file()` now performs single read and uses content for all subsequent checks
+  - Binary detection and language detection both use already-read content
+  - Removed redundant `should_include_file()` call before executor submission
+
+- **Inverted Language Detection Priority**: Extension-first O(1) lookup before guesslang ML
+  - Added `get_language_by_extension()` for fast path-only language detection
+  - Guesslang now used only as fallback via `__DETECT_BY_CONTENT__` marker
+  - Deferred content-based detection runs in worker threads, not main thread
+
+- **Parser Early Termination**: Skip fallback parsers when tree-sitter succeeds
+  - Added `parser_early_termination` config option (default: True)
+  - Added `parser_early_termination_threshold` config (default: 1 declaration)
+  - Avoids running all 3 parser tiers when primary parser finds sufficient results
+
+- **Parser Instance Caching**: LRU cache for parser instantiation
+  - Added `@functools.lru_cache(maxsize=64)` to tree-sitter, enhanced, and standard parser loaders
+  - Eliminates repeated module imports and parser object creation
+
+- **Optimized Binary Detection**: Path-only checks before content checks
+  - Added `is_likely_binary_by_path()` for fast extension-based binary detection
+  - Added `is_binary_content()` for content-based checks using already-read data
+  - `BINARY_EXTENSIONS` frozenset and `BINARY_SKIP_PATTERNS` for O(1) lookups
+
+### Fixed
+
+- **API Version Consistency**: FastAPI apps now use dynamic `__version__` from `codeconcat.version`
+  - Fixed hardcoded outdated versions in `codeconcat/api/app.py` and `app.py`
+
 ## [0.8.6] - 2025-10-04
 
 ### Fixed

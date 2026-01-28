@@ -25,9 +25,9 @@ class FileSizeConfig:
     convenient size unit constants.
 
     Attributes:
-        DEFAULT_MAX_FILE_SIZE: 5MB limit for general file processing
+        DEFAULT_MAX_FILE_SIZE: 10MB limit for general file processing
         DEFAULT_MAX_COLLECTION_SIZE: 20MB limit for collection phase
-        DEFAULT_MAX_BINARY_CHECK_SIZE: 5MB limit for binary detection
+        DEFAULT_MAX_BINARY_CHECK_SIZE: 10MB limit for binary detection
         KB, MB, GB: Size unit constants for calculations
 
     Usage:
@@ -36,9 +36,9 @@ class FileSizeConfig:
     """
 
     # Default size limits in bytes
-    DEFAULT_MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB for general processing
+    DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB for general processing
     DEFAULT_MAX_COLLECTION_SIZE = 20 * 1024 * 1024  # 20MB for collection phase
-    DEFAULT_MAX_BINARY_CHECK_SIZE = 5 * 1024 * 1024  # 5MB for binary checking
+    DEFAULT_MAX_BINARY_CHECK_SIZE = 10 * 1024 * 1024  # 10MB for binary checking
 
     # Size units for convenience
     KB = 1024
@@ -58,7 +58,7 @@ def check_file_size(
 
     Args:
         file_path: Path to the file to check
-        max_size: Maximum allowed size in bytes (defaults to 5MB)
+        max_size: Maximum allowed size in bytes (defaults to 10MB)
         context: Context string for logging (e.g., "collection", "parsing")
 
     Returns:

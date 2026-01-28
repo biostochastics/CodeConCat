@@ -166,46 +166,34 @@ def should_include_file(
         return None
 
     # --- Language Determination and Filtering --- #
-    language: Optional[str] = None
-    # Try guesslang first if available and enabled (check config? maybe not needed here)
-    if GUESSLANG_AVAILABLE:
-        try:
-            # Read content specifically for guesslang if not already read
-            # TODO: Optimize - can we avoid reading twice?
-            with open(file_path, encoding="utf-8", errors="replace") as f:
-                content_for_guess = f.read(5000)  # Read a chunk for detection
-            language = get_language_guesslang(content_for_guess)
-            if language and config.verbose:
-                logger.debug(f"Language detected by guesslang as '{language}' for {rel_path}")
-        except (OSError, ValueError, UnicodeDecodeError) as e:
-            if config.verbose:
-                logger.debug(f"guesslang check failed for {rel_path}: {e}")
-            language = None  # Ensure language is None if guesslang fails
+    # OPTIMIZED: Check extension FIRST (O(1) lookup, no I/O)
+    # Guesslang will be used as fallback in process_file() if needed
+    language = get_language_by_extension(file_path)
 
-    # Fallback to extension map if guesslang fails, is unavailable, or returns None/Unknown
-    if not language or language.lower() == "unknown":
-        filename = os.path.basename(file_path)
-        # Use extension WITH the dot for lookup
-        ext_with_dot = os.path.splitext(file_path)[1].lower()
-        language = ext_map.get(filename.lower(), ext_map.get(ext_with_dot))
-        if language:
+    if language:
+        if config.verbose:
+            logger.debug(f"Using language '{language}' for {rel_path} based on extension/filename.")
+    else:
+        # For files with unknown extensions, we'll try guesslang in process_file()
+        # For now, mark as potential candidate with special marker
+        # This allows the file to proceed to process_file() where content-based
+        # detection will be performed after reading the file once
+        if GUESSLANG_AVAILABLE:
+            # Mark for content-based detection in process_file
+            language = "__DETECT_BY_CONTENT__"
             if config.verbose:
                 logger.debug(
-                    f"Using language '{language}' for {rel_path} based on extension/filename."
+                    f"Unknown extension for {rel_path}, will use guesslang in process_file"
                 )
         else:
             if config.verbose:
                 logger.debug(
                     f"Could not determine language for {rel_path} using extension/filename."
                 )
-            # If include_paths was specified and matched, but language is unknown, maybe warn?
-            # For now, if language is unknown, we don't include unless forced by config?
-            # If we got here because include_paths matched, maybe default to 'unknown' language?
-            # Let's return None for now if language is undetermined.
             reporter = unsupported_reporter
             reporter.add_skipped_file(
                 Path(file_path),
-                "Could not determine language from extension or content",
+                "Could not determine language from extension",
                 "unknown_language",
             )
             return None
@@ -242,12 +230,15 @@ def should_include_file(
         )
         return None
 
-    # Check if the file is binary (we only want text files)
-    if is_binary_file(file_path):
+    # Check if the file is binary by path only (fast check, no I/O)
+    # Content-based binary detection will happen in process_file() after reading once
+    if is_likely_binary_by_path(file_path):
         if config.verbose:
-            logger.debug(f"Excluded binary file: {rel_path}")
+            logger.debug(f"Excluded binary file (by path): {rel_path}")
         reporter = unsupported_reporter
-        reporter.add_skipped_file(Path(file_path), "Binary file detected", "binary")
+        reporter.add_skipped_file(
+            Path(file_path), "Binary file detected (by extension/path)", "binary"
+        )
         return None
 
     # If we passed all checks, the file should be included
@@ -476,15 +467,17 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
                 if not os.path.islink(file_path):
                     # Check if the file itself should be included before adding
                     # Pass compiled specs here
-                    if should_include_file(
+                    lang = should_include_file(
                         file_path,
                         config,
                         gitignore_spec,
                         default_exclude_spec,
                         config_exclude_spec,
                         config_include_spec,
-                    ):
-                        all_files.append(os.path.abspath(file_path))
+                    )
+                    if lang:
+                        # Store (file_path, language) tuple to avoid redundant should_include_file call later
+                        all_files.append((os.path.abspath(file_path), lang))
                     # Log exclusion if verbose
                     elif config.verbose:
                         _log_exclusion_reason(
@@ -521,11 +514,11 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
         timeout_seconds = 30  # Timeout after 30 seconds per file
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Determine language *before* submitting to executor to avoid redundant checks
+            # OPTIMIZED: Language was already determined during os.walk (stored as tuples)
+            # No redundant should_include_file() call needed
             future_to_file_lang = {}
-            for file_path in all_files:
+            for file_path, lang in all_files:  # Unpack (path, language) tuples
                 # Skip any files that are too large (early filter to prevent hangs)
-                # Check file size before processing
                 if is_file_too_large_for_collection(file_path):
                     reporter = unsupported_reporter
                     reporter.add_skipped_file(
@@ -533,17 +526,9 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
                     )
                     continue  # File is too large, skip it
 
-                # We already filtered in the walk, but let's re-determine language for process_file
-
-                lang = should_include_file(file_path, config)
-                if lang:  # Should always be true if it made it to all_files
-                    future = executor.submit(process_file, file_path, config, lang)
-                    future_to_file_lang[future] = (file_path, lang)
-                else:
-                    # This case should ideally not happen due to pre-filtering
-                    logger.warning(
-                        f"File {file_path} passed pre-filter but failed language determination."
-                    )
+                # Submit directly - language already determined, no redundant call
+                future = executor.submit(process_file, file_path, config, lang)
+                future_to_file_lang[future] = (file_path, lang)
 
             # Import the timeout utilities
             import concurrent.futures
@@ -607,10 +592,17 @@ def process_file(
     file_path: str, config: CodeConCatConfig, language: str
 ) -> Optional[ParsedFileData]:
     """Process a single file, reading its content. Assumes file should be included.
+
+    OPTIMIZED: Reads file content ONCE and uses it for:
+    - Binary content detection
+    - Language detection (guesslang fallback if needed)
+    - Final content storage
+
     Args:
         file_path (str): Absolute path to the file.
         config (CodeConCatConfig): Configuration object.
         language (str): The language determined by should_include_file.
+                        May be "__DETECT_BY_CONTENT__" for guesslang fallback.
     Returns:
         Optional[ParsedFileData]: Data object if successful, None otherwise.
     """
@@ -618,7 +610,6 @@ def process_file(
         # Validate file path for security
         if is_enabled("enable_path_validation"):
             try:
-                # Use the parent directory of the file as base for absolute paths
                 base_path = (
                     os.path.dirname(os.path.abspath(file_path))
                     if os.path.isabs(file_path)
@@ -631,41 +622,65 @@ def process_file(
             except (ValueError, TypeError, OSError, AttributeError) as e:
                 logger.error(f"Path validation failed for {file_path}: {e}")
                 return None
-        # Log before binary check
-        logger.debug(f"[process_file] Checking if binary: {file_path}")
-        is_bin = is_binary_file(file_path)
-        # Log after binary check
-        logger.debug(f"[process_file] Binary check result for {file_path}: {is_bin}")
-        if is_bin:
-            # is_binary_file now logs internally
+
+        # Check file size before opening
+        if is_file_too_large_for_binary_check(file_path):
+            logger.debug(f"[process_file] File too large, skipping: {file_path}")
             return None
 
-        # Log before open
-        logger.debug(f"[process_file] Attempting to open for read: {file_path}")
-        with open(file_path, encoding="utf-8") as f:
-            # Log after open, before read
-            logger.debug(f"[process_file] Opened {file_path}, attempting read.")
-            content = f.read()
-            # Log after read
-            logger.debug(f"[process_file] Read successful for: {file_path}")
+        # === SINGLE READ: Read file content ONCE ===
+        logger.debug(f"[process_file] Reading file (single read): {file_path}")
+        try:
+            with open(file_path, "rb") as f:
+                raw_content = f.read()
+        except (OSError, PermissionError, FileNotFoundError) as e:
+            logger.error(f"[process_file] Error reading {file_path}: {e}")
+            return None
 
-        # Language is now passed as an argument, no need to look it up here
-        # ext = os.path.splitext(file_path)[1].lstrip(".")
-        # filename = os.path.basename(file_path)
-        # Use dictionary access on the imported ext_map
-        # language = ext_map.get(filename.lower(), ext_map.get(ext.lower()))
+        # === BINARY CHECK using already-read content ===
+        if is_binary_content(raw_content[:4096], file_path):
+            logger.debug(f"[process_file] Binary content detected, skipping: {file_path}")
+            return None
+
+        # === DECODE content to string ===
+        try:
+            content = raw_content.decode("utf-8")
+        except UnicodeDecodeError:
+            # Try with error replacement as fallback
+            try:
+                content = raw_content.decode("utf-8", errors="replace")
+            except Exception:
+                logger.debug(f"[process_file] Could not decode file: {file_path}")
+                return None
+
+        # === LANGUAGE DETECTION using content if needed ===
+        if language == "__DETECT_BY_CONTENT__":
+            # Use guesslang with already-read content (no additional I/O)
+            detected_lang = get_language_by_content(content, file_path, bool(config.verbose))
+            if detected_lang:
+                language = detected_lang
+                logger.debug(
+                    f"[process_file] Language detected by content: {language} for {file_path}"
+                )
+            else:
+                # Could not determine language even with guesslang
+                logger.debug(f"[process_file] Could not determine language for: {file_path}")
+                reporter = get_unsupported_reporter()
+                reporter.add_skipped_file(
+                    Path(file_path),
+                    "Could not determine language from content",
+                    "unknown_language",
+                )
+                return None
 
         logger.debug(f"[CodeConCat] Processed file: {file_path} ({language})")
+
         # Resolve the file path to handle symlinks and ensure consistency
-        original_path = file_path
         resolved_path = str(Path(file_path).resolve())
-        logger.debug(
-            f"[process_file] Path resolution: original={original_path}, resolved={resolved_path}"
-        )
 
         return ParsedFileData(
             file_path=resolved_path,
-            language=language,  # Use the passed language
+            language=language,
             content=content,
             declarations=[],  # We'll fill this in during parsing phase
         )
@@ -761,50 +776,89 @@ def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept c
     return False
 
 
-def determine_language(file_path: str, config: CodeConCatConfig) -> Optional[str]:
-    """Determine the language of a file based on extension or content.
-
-    This function extracts the language detection logic from should_include_file
-    to make it accessible for other functions.
+def get_language_by_extension(file_path: str) -> Optional[str]:
+    """Get language based on file extension only (no I/O, O(1) lookup).
 
     Args:
-        file_path: Path to the file to determine language for
-        config: Configuration object
+        file_path: Path to the file
+
+    Returns:
+        The language as a string if detected by extension, None otherwise
+    """
+    filename = os.path.basename(file_path)
+    ext_with_dot = os.path.splitext(file_path)[1].lower()
+    return ext_map.get(filename.lower(), ext_map.get(ext_with_dot))
+
+
+def get_language_by_content(
+    content: str, file_path: str = "", verbose: bool = False
+) -> Optional[str]:
+    """Get language by analyzing file content with guesslang (if available).
+
+    Args:
+        content: The file content (or first ~5KB of it)
+        file_path: Optional file path for logging
+        verbose: Whether to log debug messages
 
     Returns:
         The language as a string if detected, None otherwise
     """
-    from codeconcat.language_map import ext_map, get_language_guesslang
+    if not GUESSLANG_AVAILABLE:
+        return None
 
-    # Try using guesslang if available and enabled
-    language = None
-    if GUESSLANG_AVAILABLE and config.parser_engine == "tree_sitter":
-        try:
-            # Read file content for language detection (guesslang needs content, not path)
-            with open(file_path, encoding="utf-8", errors="replace") as f:
-                sample = f.read(5000)  # Read first 5KB for language detection
-            language = get_language_guesslang(sample)
-            if language and language.lower() != "unknown" and config.verbose:
-                logger.debug(
-                    f"Using language '{language}' for {file_path} based on content analysis."
-                )
-        except (OSError, ValueError, UnicodeDecodeError, AttributeError) as e:
-            if config.verbose:
-                logger.debug(f"guesslang check failed for {file_path}: {e}")
-            language = None  # Ensure language is None if guesslang fails
+    try:
+        language = get_language_guesslang(content[:5000] if len(content) > 5000 else content)
+        if language and language.lower() != "unknown":
+            if verbose:
+                logger.debug(f"Language detected by guesslang as '{language}' for {file_path}")
+            return language
+    except (ValueError, AttributeError) as e:
+        if verbose:
+            logger.debug(f"guesslang check failed for {file_path}: {e}")
+    return None
 
-    # Fallback to extension map if guesslang fails, is unavailable, or returns None/Unknown
-    if not language or language.lower() == "unknown":
-        filename = os.path.basename(file_path)
-        # Use extension WITH the dot for lookup
-        ext_with_dot = os.path.splitext(file_path)[1].lower()
-        language = ext_map.get(filename.lower(), ext_map.get(ext_with_dot))
-        if language and config.verbose:
+
+def determine_language(
+    file_path: str, config: CodeConCatConfig, content: Optional[str] = None
+) -> Optional[str]:
+    """Determine the language of a file based on extension or content.
+
+    OPTIMIZED: Now checks extension FIRST (O(1)), only uses guesslang as fallback.
+
+    Args:
+        file_path: Path to the file to determine language for
+        config: Configuration object
+        content: Optional pre-read content to avoid file I/O for guesslang
+
+    Returns:
+        The language as a string if detected, None otherwise
+    """
+    # FAST PATH: Try extension-based detection first (O(1) lookup, no I/O)
+    language = get_language_by_extension(file_path)
+    if language:
+        if config.verbose:
             logger.debug(
                 f"Using language '{language}' for {file_path} based on extension/filename."
             )
-        elif config.verbose:
-            logger.debug(f"Could not determine language for {file_path} using extension/filename.")
+        return language
+
+    # SLOW PATH: Fall back to guesslang for unknown extensions
+    if GUESSLANG_AVAILABLE:
+        # Use provided content or read file
+        if content is not None:
+            language = get_language_by_content(content, file_path, bool(config.verbose))
+        else:
+            # Only read file if content not provided (legacy path)
+            try:
+                with open(file_path, encoding="utf-8", errors="replace") as f:
+                    sample = f.read(5000)
+                language = get_language_by_content(sample, file_path, bool(config.verbose))
+            except (OSError, UnicodeDecodeError) as e:
+                if config.verbose:
+                    logger.debug(f"Could not read file for guesslang: {file_path}: {e}")
+
+    if not language and config.verbose:
+        logger.debug(f"Could not determine language for {file_path}")
 
     return language
 
@@ -821,10 +875,9 @@ def matches_pattern(path_str: str, pattern: str) -> bool:
     return bool(_cache[norm_pattern].match(norm_path))
 
 
-def is_binary_file(file_path: str) -> bool:
-    """Check if a file is likely to be binary."""
-    # Fast path: check by extension
-    binary_exts = {
+# Binary file extensions - module-level constant for performance
+BINARY_EXTENSIONS = frozenset(
+    {
         # Images
         "png",
         "jpg",
@@ -891,55 +944,103 @@ def is_binary_file(file_path: str) -> bool:
         "min.js",
         "bundle.js",
     }
+)
+
+# Skip patterns for path-based binary detection
+BINARY_SKIP_PATTERNS = (
+    "lock.json",
+    "package-lock",
+    "yarn.lock",
+    "pnpm-lock",
+    ".min.js",
+    ".bundle.js",
+    "vendor.js",
+    "polyfill",
+    "compiled",
+    "generated",
+    "build/",
+    "dist/",
+)
+
+
+def is_likely_binary_by_path(file_path: str) -> bool:
+    """Fast path-only check for binary files (no I/O).
+
+    Returns True if the file is likely binary based on extension or path patterns.
+    Returns False if content-based check is needed.
+    """
     ext = os.path.splitext(file_path)[1].lstrip(".").lower()
-    if ext in binary_exts:
-        logger.debug(f"[is_binary_file] Extension match for binary: {file_path} (ext: {ext})")
+    if ext in BINARY_EXTENSIONS:
+        logger.debug(
+            f"[is_likely_binary_by_path] Extension match for binary: {file_path} (ext: {ext})"
+        )
         return True
 
-    # Path-based checks for known binary files or large text files we want to skip
     path_lower = file_path.lower()
-
-    # Skip lock files, minified files, and known large generated files
-    skip_patterns = [
-        "lock.json",
-        "package-lock",
-        "yarn.lock",
-        "pnpm-lock",
-        ".min.js",
-        ".bundle.js",
-        "vendor.js",
-        "polyfill",
-        "compiled",
-        "generated",
-        "build/",
-        "dist/",
-    ]
-    if any(pattern in path_lower for pattern in skip_patterns):
-        logger.debug(f"[is_binary_file] Path pattern match for binary/skip: {file_path}")
+    if any(pattern in path_lower for pattern in BINARY_SKIP_PATTERNS):
+        logger.debug(f"[is_likely_binary_by_path] Path pattern match for binary/skip: {file_path}")
         return True
 
-    # Check file size before opening - skip very large files
+    return False
+
+
+def is_binary_content(content: bytes, file_path: str = "") -> bool:
+    """Check if content bytes represent binary data.
+
+    Args:
+        content: The file content as bytes (or first chunk of it)
+        file_path: Optional file path for logging
+
+    Returns:
+        True if content appears to be binary, False otherwise
+    """
+    if not content:
+        return False
+
+    # Check for null bytes - strong indicator of binary
+    if b"\0" in content:
+        logger.debug(f"[is_binary_content] Binary content detected (null bytes): {file_path}")
+        return True
+
+    # Check for high concentration of non-ASCII characters
+    non_ascii_count = sum(1 for b in content if b > 127)
+    if len(content) > 0 and non_ascii_count > len(content) * 0.3:
+        logger.debug(f"[is_binary_content] High non-ASCII content: {file_path}")
+        return True
+
+    return False
+
+
+def is_binary_file(file_path: str, content: Optional[bytes] = None) -> bool:
+    """Check if a file is likely to be binary.
+
+    Args:
+        file_path: Path to the file
+        content: Optional pre-read content bytes. If provided, avoids file I/O.
+
+    Returns:
+        True if the file is binary, False otherwise
+    """
+    # Fast path: check by extension and path patterns (no I/O)
+    if is_likely_binary_by_path(file_path):
+        return True
+
     # Check file size before opening - skip very large files
     if is_file_too_large_for_binary_check(file_path):
         return True  # Treat as binary if too large to check
 
+    # If content was provided, use it directly (no I/O needed)
+    if content is not None:
+        return is_binary_content(content[:4096], file_path)
+
+    # Fallback: read file for content-based check
     try:
-        # First, quick check with binary read for null bytes
         with open(file_path, "rb") as f:
-            # Read just the first few KB to detect binary content
             sample = f.read(4096)
-            if b"\0" in sample:  # Null bytes are a good indicator of binary content
-                logger.debug(f"[is_binary_file] Binary content detected in: {file_path}")
+            if is_binary_content(sample, file_path):
                 return True
 
-            # Additional binary indicators
-            # Check for high concentration of non-ASCII characters
-            non_ascii_count = sum(1 for b in sample if b > 127)
-            if non_ascii_count > len(sample) * 0.3:  # More than 30% non-ASCII
-                logger.debug(f"[is_binary_file] High non-ASCII content in: {file_path}")
-                return True
-
-        # If passes binary checks, verify as text with a readline
+        # Verify as text with a readline
         with open(file_path, encoding="utf-8", errors="replace") as check_file:
             check_file.readline()
             return False
