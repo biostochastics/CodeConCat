@@ -34,6 +34,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Tree-sitter Upgraded to 0.25.2**: Updated tree-sitter from 0.24.0 to 0.25.2
+  - Fixes Crystal parser compatibility (language version 15 support)
+  - All 1520 tests passing
+
+- **Solidity Parser Security Patterns**: Implemented comprehensive security pattern detection
+  - Assembly blocks, delegatecall, selfdestruct, external calls (.call, .send, .transfer)
+  - Security issues now tracked in `result.security_issues` list
+
+### Fixed
+
+- **Multiprocessing Compatibility**: Fixed `_compile_and_test_regex` serialization
+  - Moved local function to module level for Process target compatibility
+  - Affects `CustomSecurityPattern.validate_regex` in `base_types.py`
+
+- **Solidity Corpus Tests**: Fixed test compatibility issues
+  - `result.errors` → `result.error` (singular)
+  - `d.type` → `d.kind` for Declaration objects
+  - `result.metadata` → `result.security_issues` for security patterns
+
+- **Unified Pipeline Merging Tests**: Disabled `parser_early_termination` in tests
+  - Early termination was preventing result merging from occurring
+  - Tests now properly verify merging behavior
+
+- **Mypy Errors**: Fixed type checking issues
+  - HLSL/GLSL parsers: aliased duplicate `get_language` imports
+  - Google/Zhipu providers: added `from err` for exception chaining
+  - Factory: combined nested conditionals (SIM102, SIM117)
+
 - **Pydantic V2 Migration**: Modernized all Pydantic usage patterns
   - Replaced deprecated `.dict()` with `.model_dump()` in legacy `app.py`
   - Migrated V1-style nested `Config` classes to V2 `model_config = ConfigDict(...)`
