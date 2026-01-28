@@ -63,7 +63,7 @@ keyring = "^24.0.0"  # For system keyring integration (optional)
 pyyaml = "^6.0.0"  # YAML configuration file support
 
 [tool.poetry.group.dev.dependencies]
-ruff = "^0.1.0"
+ruff = "^0.14.0"
 black = "^23.0.0"
 isort = "^5.13.0"
 mypy = "^1.7.0"
