@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multiprocessing Serialization**: Fixed serialization for parallel parsing workers
   - Clear `ast_root` (tree_sitter.Node) before returning from workers
   - Use `dataclasses.asdict()` for recursive dataclass conversion
+- **Mypy Type Errors**: Resolved strict type checking issues across parsers
+  - Ruby parser: Fixed `Node | None` handling in documentation extraction
+  - Zig parser: Fixed `Query | None` handling in query execution
+  - Crystal parser: Fixed parent node reference in lib function extraction
+  - Summarization processor: Added proper type annotation for `extra_params`
 
 ### Code Quality
 

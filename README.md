@@ -33,7 +33,7 @@ CodeConCat is a Python tool that transforms codebases into formats optimized for
 - **Multi-Language Intelligence**: Parse 25+ languages including smart contracts
 - **AI-Optimized Output**: Optional compression and AI summarization
 - **Production-Grade Security**: Path traversal protection, XXE prevention, Semgrep integration
-- **High Performance**: Process 100+ files in under 5 seconds with parallel execution
+- **High Performance**: 5-7x speedup with parallel parsing using ProcessPoolExecutor
 
 **Primary Use Cases:**
 - Preparing codebases for AI assistant analysis
