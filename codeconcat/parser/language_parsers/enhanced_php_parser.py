@@ -9,7 +9,6 @@ with PHP-specific patterns and functionality.
 
 import logging
 import re
-from typing import Dict, List, Optional, Set
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
@@ -178,13 +177,13 @@ class EnhancedPHPParser(EnhancedBaseParser):
 
     def _process_block(
         self,
-        lines: List[str],
+        lines: list[str],
         start: int,
         end: int,
-        declarations: List[Declaration],
-        imports: List[str],
-        errors: List[str],
-        parent_declaration: Optional[Declaration] = None,
+        declarations: list[Declaration],
+        imports: list[str],
+        errors: list[str],
+        parent_declaration: Declaration | None = None,
     ) -> int:
         """
         Process a PHP code block and extract declarations and imports.
@@ -367,7 +366,7 @@ class EnhancedPHPParser(EnhancedBaseParser):
 
         return i
 
-    def _process_imports(self, line: str, imports: List[str]) -> bool:
+    def _process_imports(self, line: str, imports: list[str]) -> bool:
         """
         Process PHP use statements and add them to the imports list.
 
@@ -412,7 +411,7 @@ class EnhancedPHPParser(EnhancedBaseParser):
 
         return False
 
-    def _extract_phpdoc(self, lines: List[str], current_line: int) -> str:
+    def _extract_phpdoc(self, lines: list[str], current_line: int) -> str:
         """
         Extract PHPDoc comments before a declaration.
 
@@ -457,7 +456,7 @@ class EnhancedPHPParser(EnhancedBaseParser):
 
         return ""
 
-    def _extract_modifiers(self, line: str) -> Set[str]:
+    def _extract_modifiers(self, line: str) -> set[str]:
         """
         Extract modifiers from a declaration line.
 
@@ -474,7 +473,7 @@ class EnhancedPHPParser(EnhancedBaseParser):
                 found_modifiers.add(mod)
         return found_modifiers
 
-    def get_capabilities(self) -> Dict[str, bool]:
+    def get_capabilities(self) -> dict[str, bool]:
         """Return the capabilities of this parser."""
         return {
             "can_parse_functions": True,

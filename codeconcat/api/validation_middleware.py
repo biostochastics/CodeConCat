@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
@@ -34,8 +34,8 @@ class ValidationMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: FastAPI,
-        request_schemas: Dict[str, Dict[str, Any]] | None = None,
-        response_schemas: Dict[str, Dict[str, Any]] | None = None,
+        request_schemas: dict[str, dict[str, Any]] | None = None,
+        response_schemas: dict[str, dict[str, Any]] | None = None,
         max_request_size: int = 10 * 1024 * 1024,  # 10MB
         rate_limit: int = 100,  # requests per minute
         rate_limit_window: int = 60,  # seconds
@@ -69,7 +69,7 @@ class ValidationMiddleware(BaseHTTPMiddleware):
         }
 
         # Rate limiting state with bounded size using OrderedDict for LRU behavior
-        self.request_counts: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+        self.request_counts: OrderedDict[str, dict[str, Any]] = OrderedDict()
         # Use RLock for recursive locking support and better thread safety
         self._cleanup_lock = threading.RLock()
         self._last_cleanup = time.time()
@@ -270,9 +270,7 @@ class ValidationMiddleware(BaseHTTPMiddleware):
 
             self._last_cleanup = now
 
-    def _get_schema_for_path(
-        self, path: str, schema_dict: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def _get_schema_for_path(self, path: str, schema_dict: dict[str, Any]) -> dict[str, Any] | None:
         """
         Find the schema for a given path, considering path parameters.
 
@@ -287,7 +285,7 @@ class ValidationMiddleware(BaseHTTPMiddleware):
         if path in schema_dict:
             schema = schema_dict[path]
             if isinstance(schema, dict):
-                return cast(Dict[str, Any], schema)
+                return cast(dict[str, Any], schema)
             # If not a dict, return None as we can't handle other types
             return None
 
@@ -302,7 +300,9 @@ class ValidationMiddleware(BaseHTTPMiddleware):
                     continue
 
                 match = True
-                for _i, (pattern_part, path_part) in enumerate(zip(pattern_parts, path_parts)):
+                for _i, (pattern_part, path_part) in enumerate(
+                    zip(pattern_parts, path_parts, strict=False)
+                ):
                     if "{" in pattern_part and "}" in pattern_part:
                         # This is a path parameter, so it matches any value
                         continue
@@ -312,7 +312,7 @@ class ValidationMiddleware(BaseHTTPMiddleware):
 
                 if match:
                     if isinstance(schema, dict):
-                        return cast(Dict[str, Any], schema)
+                        return cast(dict[str, Any], schema)
                     # If not a dict, return None as we can't handle other types
                     return None
 
@@ -322,8 +322,8 @@ class ValidationMiddleware(BaseHTTPMiddleware):
 # Add helper function to register with FastAPI app
 def add_validation_middleware(
     app: FastAPI,
-    request_schemas: Dict[str, Dict[str, Any]] | None = None,
-    response_schemas: Dict[str, Dict[str, Any]] | None = None,
+    request_schemas: dict[str, dict[str, Any]] | None = None,
+    response_schemas: dict[str, dict[str, Any]] | None = None,
     max_request_size: int = 10 * 1024 * 1024,
     rate_limit: int = 100,
     rate_limit_window: int = 60,

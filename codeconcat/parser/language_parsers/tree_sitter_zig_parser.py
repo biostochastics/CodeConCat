@@ -16,7 +16,7 @@ This parser provides comprehensive support for Zig language features:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from tree_sitter import Node, Query
 
@@ -106,14 +106,14 @@ class TreeSitterZigParser(BaseTreeSitterParser):
         self._setup_queries()
 
         # Track Zig-specific features
-        self.comptime_blocks: List[Dict[str, Any]] = []
-        self.async_functions: List[Dict[str, Any]] = []
-        self.error_handlers: List[Dict[str, Any]] = []
-        self.allocator_usage: List[Dict[str, Any]] = []
-        self.test_blocks: List[Dict[str, Any]] = []
-        self.builtin_calls: List[Dict[str, Any]] = []
+        self.comptime_blocks: list[dict[str, Any]] = []
+        self.async_functions: list[dict[str, Any]] = []
+        self.error_handlers: list[dict[str, Any]] = []
+        self.allocator_usage: list[dict[str, Any]] = []
+        self.test_blocks: list[dict[str, Any]] = []
+        self.builtin_calls: list[dict[str, Any]] = []
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """
         Returns a dictionary of Tree-sitter queries for Zig.
 
@@ -169,7 +169,7 @@ class TreeSitterZigParser(BaseTreeSitterParser):
 
     def _setup_queries(self):
         """Set up tree-sitter queries for Zig syntax."""
-        self.queries = {}
+        self.queries: dict[str, Query | None] = {}
         for name, query_str in ZIG_QUERIES.items():
             try:
                 # Use modern Query() constructor
@@ -180,7 +180,7 @@ class TreeSitterZigParser(BaseTreeSitterParser):
                 logger.warning(f"Failed to create query '{name}': {e}")
                 self.queries[name] = None
 
-    def _execute_query_captures(self, query: Query, root: Node) -> Dict[str, List[Node]]:
+    def _execute_query_captures(self, query: Query, root: Node) -> dict[str, list[Node]]:
         """Execute a query and get captures, handling both old and new tree-sitter API.
 
         Args:
@@ -239,15 +239,17 @@ class TreeSitterZigParser(BaseTreeSitterParser):
     def _process_queries(self, root: Node, source: str):
         """Process tree-sitter queries to extract Zig-specific features."""
         # Process declarations query
-        if self.queries.get("declarations"):
-            captures_dict = self._execute_query_captures(self.queries["declarations"], root)
+        decl_query = self.queries.get("declarations")
+        if decl_query:
+            captures_dict = self._execute_query_captures(decl_query, root)
             for capture_name, nodes in captures_dict.items():
                 for node in nodes:
                     logger.debug(f"Found declaration: {capture_name} - {node.type}")
 
         # Process comptime features
-        if self.queries.get("comptime"):
-            captures_dict = self._execute_query_captures(self.queries["comptime"], root)
+        comptime_query = self.queries.get("comptime")
+        if comptime_query:
+            captures_dict = self._execute_query_captures(comptime_query, root)
             for capture_name, nodes in captures_dict.items():
                 if "comptime" in capture_name:
                     for node in nodes:
@@ -256,8 +258,9 @@ class TreeSitterZigParser(BaseTreeSitterParser):
                         )
 
         # Process async patterns
-        if self.queries.get("async_patterns"):
-            captures_dict = self._execute_query_captures(self.queries["async_patterns"], root)
+        async_query = self.queries.get("async_patterns")
+        if async_query:
+            captures_dict = self._execute_query_captures(async_query, root)
             for capture_name, nodes in captures_dict.items():
                 # All async_patterns query captures are async-related
                 for node in nodes:
@@ -266,8 +269,9 @@ class TreeSitterZigParser(BaseTreeSitterParser):
                     )
 
         # Process error handling
-        if self.queries.get("error_handling"):
-            captures_dict = self._execute_query_captures(self.queries["error_handling"], root)
+        error_query = self.queries.get("error_handling")
+        if error_query:
+            captures_dict = self._execute_query_captures(error_query, root)
             for capture_name, nodes in captures_dict.items():
                 for node in nodes:
                     self.error_handlers.append(
@@ -275,8 +279,9 @@ class TreeSitterZigParser(BaseTreeSitterParser):
                     )
 
         # Process builtin functions
-        if self.queries.get("builtin_functions"):
-            captures_dict = self._execute_query_captures(self.queries["builtin_functions"], root)
+        builtin_query = self.queries.get("builtin_functions")
+        if builtin_query:
+            captures_dict = self._execute_query_captures(builtin_query, root)
             for _capture_name, nodes in captures_dict.items():
                 for node in nodes:
                     # Extract builtin name
@@ -290,7 +295,7 @@ class TreeSitterZigParser(BaseTreeSitterParser):
                             )
                             break
 
-    def _walk_tree(self, node: Node, source: str) -> List[Declaration]:
+    def _walk_tree(self, node: Node, source: str) -> list[Declaration]:
         """Walk the AST and extract declarations."""
         declarations = []
 
@@ -392,7 +397,7 @@ class TreeSitterZigParser(BaseTreeSitterParser):
         visit_node(node)
         return declarations
 
-    def _create_function_declaration(self, node: Node, source: str) -> Optional[Declaration]:
+    def _create_function_declaration(self, node: Node, source: str) -> Declaration | None:
         """Create a Declaration object for a function."""
         name = None
         is_pub = False
@@ -431,7 +436,7 @@ class TreeSitterZigParser(BaseTreeSitterParser):
             end_line=end_line,
         )
 
-    def _create_test_declaration(self, node: Node, source: str) -> Optional[Declaration]:
+    def _create_test_declaration(self, node: Node, source: str) -> Declaration | None:
         """Create a Declaration object for a test block."""
         name = "test"
 
@@ -454,7 +459,7 @@ class TreeSitterZigParser(BaseTreeSitterParser):
             end_line=end_line,
         )
 
-    def _create_type_or_var_declaration(self, node: Node, source: str) -> Optional[Declaration]:
+    def _create_type_or_var_declaration(self, node: Node, source: str) -> Declaration | None:
         """Create a Declaration for variable/const or type definitions."""
         name = None
         var_type = "const"
@@ -512,25 +517,24 @@ class TreeSitterZigParser(BaseTreeSitterParser):
         # Check for 'async' keyword in children
         return any(source[child.start_byte : child.end_byte] == "async" for child in node.children)
 
-    def _extract_doc_comments(self, node: Node, source: str) -> List[str]:
+    def _extract_doc_comments(self, node: Node, source: str) -> list[str]:
         """Extract doc comments for a node."""
-        doc_comments: List[str] = []
+        doc_comments: list[str] = []
 
         # Look for preceding comments (Zig uses 'comment' node type, not 'line_comment')
-        if node.prev_sibling:
-            sibling = node.prev_sibling
-            while sibling and sibling.type == "comment":  # Fixed: was checking for 'line_comment'
-                comment = source[sibling.start_byte : sibling.end_byte]
-                # Check for doc comments (///)
-                if comment.startswith("///") or comment.startswith("//!"):
-                    doc_comments.insert(0, comment[3:].strip())
-                else:
-                    break  # Stop at first non-doc comment
-                sibling = sibling.prev_sibling
+        sibling: Node | None = node.prev_sibling
+        while sibling is not None and sibling.type == "comment":
+            comment = source[sibling.start_byte : sibling.end_byte]
+            # Check for doc comments (///)
+            if comment.startswith("///") or comment.startswith("//!"):
+                doc_comments.insert(0, comment[3:].strip())
+            else:
+                break  # Stop at first non-doc comment
+            sibling = sibling.prev_sibling
 
         return doc_comments
 
-    def get_language_features(self) -> Dict[str, Any]:
+    def get_language_features(self) -> dict[str, Any]:
         """
         Get Zig-specific language features detected in the parsed code.
 

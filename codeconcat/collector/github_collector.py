@@ -20,7 +20,6 @@ import asyncio
 import logging
 import re
 import tempfile
-from typing import List, Optional, Tuple
 
 from git import Repo
 from git.exc import GitCommandError
@@ -31,7 +30,7 @@ from codeconcat.collector.local_collector import collect_local_files
 logger = logging.getLogger(__name__)
 
 
-def parse_git_url(url: str) -> Tuple[str, str, Optional[str]]:
+def parse_git_url(url: str) -> tuple[str, str, str | None]:
     """Parse Git URL or shorthand into owner, repo, and ref.
 
     Supports multiple formats:
@@ -102,7 +101,7 @@ def parse_git_url(url: str) -> Tuple[str, str, Optional[str]]:
     )
 
 
-def _build_clone_url(url: str, owner: str, repo: str, token: Optional[str] = None) -> str:
+def _build_clone_url(url: str, owner: str, repo: str, token: str | None = None) -> str:
     """Build the appropriate clone URL for a repository.
 
     Args:
@@ -132,7 +131,7 @@ def _build_clone_url(url: str, owner: str, repo: str, token: Optional[str] = Non
 
 
 def _clone_repository(
-    clone_url: str, target_dir: str, target_ref: str = "main", depth: Optional[int] = 1
+    clone_url: str, target_dir: str, target_ref: str = "main", depth: int | None = 1
 ) -> Repo:
     """Clone a repository using GitPython.
 
@@ -173,7 +172,7 @@ def _clone_repository(
 
 async def collect_git_repo_async(
     source_url_in: str, config: CodeConCatConfig
-) -> Tuple[List[ParsedFileData], str]:
+) -> tuple[list[ParsedFileData], str]:
     """
     Async version: Collect files from a remote Git repository by cloning it.
 
@@ -240,7 +239,7 @@ async def collect_git_repo_async(
 
 def collect_git_repo(
     source_url_in: str, config: CodeConCatConfig
-) -> Tuple[List[ParsedFileData], str]:
+) -> tuple[list[ParsedFileData], str]:
     """
     Synchronous wrapper for backward compatibility.
     Collect files from a remote Git repository by cloning it.

@@ -3,7 +3,6 @@
 import bisect
 import logging
 import re
-from typing import List, Set
 
 from ...base_types import Declaration, ParseResult, ParserInterface
 from ...errors import LanguageParserError
@@ -139,7 +138,7 @@ class SwiftParser(ParserInterface):
         """
         try:
             declarations = []
-            imports: Set[str] = set()
+            imports: set[str] = set()
             lines = content.split("\n")
 
             # Precompute line number mapping for O(log N) lookups
@@ -446,7 +445,7 @@ class SwiftParser(ParserInterface):
 
         return line_without_strings
 
-    def _extract_docstring(self, lines: List[str], decl_line_idx: int) -> str:
+    def _extract_docstring(self, lines: list[str], decl_line_idx: int) -> str:
         """Extract documentation comments above a declaration.
 
         Swift uses /// for single-line doc comments and /** */ for multi-line.
@@ -454,7 +453,7 @@ class SwiftParser(ParserInterface):
         if decl_line_idx < 0:
             return ""
 
-        doc_lines: List[str] = []
+        doc_lines: list[str] = []
         i = decl_line_idx
 
         # Look backwards for documentation comments

@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 if TYPE_CHECKING:
     import aiohttp
@@ -32,8 +32,8 @@ class AIProviderConfig:
     """Configuration for an AI provider."""
 
     provider_type: AIProviderType
-    api_key: Optional[str] = None
-    api_base: Optional[str] = None
+    api_key: str | None = None
+    api_base: str | None = None
     model: str = ""
     temperature: float = 0.3
     max_tokens: int = 500
@@ -44,8 +44,8 @@ class AIProviderConfig:
     cache_ttl: int = 3600  # 1 hour
     cost_per_1k_input_tokens: float = 0.0
     cost_per_1k_output_tokens: float = 0.0
-    custom_headers: Dict[str, str] = field(default_factory=dict)
-    extra_params: Dict[str, Any] = field(default_factory=dict)
+    custom_headers: dict[str, str] = field(default_factory=dict)
+    extra_params: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -58,8 +58,8 @@ class SummarizationResult:
     model_used: str = ""
     provider: str = ""
     cached: bool = False
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class AIProvider(ABC):
@@ -87,8 +87,8 @@ class AIProvider(ABC):
         self,
         code: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
-        max_length: Optional[int] = None,
+        context: dict[str, Any] | None = None,
+        max_length: int | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a code file.
 
@@ -109,7 +109,7 @@ class AIProvider(ABC):
         function_code: str,
         function_name: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a specific function.
 
@@ -126,11 +126,11 @@ class AIProvider(ABC):
 
     async def generate_meta_overview(
         self,
-        file_summaries: Dict[str, str],
-        custom_prompt: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        tree_structure: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        file_summaries: dict[str, str],
+        custom_prompt: str | None = None,
+        max_tokens: int | None = None,
+        tree_structure: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
         """Generate a meta-overview from multiple file summaries with enhanced context.
 
@@ -168,7 +168,7 @@ class AIProvider(ABC):
         )
 
     @abstractmethod
-    async def get_model_info(self) -> Dict[str, Any]:
+    async def get_model_info(self) -> dict[str, Any]:
         """Get information about the current model.
 
         Returns:
@@ -283,7 +283,7 @@ class AIProvider(ABC):
         return truncated_code, True
 
     def _create_code_summary_prompt(
-        self, code: str, language: str, context: Optional[Dict[str, Any]] = None
+        self, code: str, language: str, context: dict[str, Any] | None = None
     ) -> str:
         """Create a prompt for code summarization using enhanced CO-STAR framework with few-shot examples."""
         file_path = context.get("file_path", "unknown") if context else "unknown"
@@ -399,7 +399,7 @@ Analyze the code and provide:
         function_code: str,
         function_name: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> str:
         """Create a prompt for function summarization using enhanced structured format with examples."""
         file_path = context.get("file_path", "unknown") if context else "unknown"
@@ -540,10 +540,10 @@ Key requirements:
 
     def _create_meta_overview_prompt(
         self,
-        file_summaries: Dict[str, str],
-        tree_structure: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        custom_prompt: Optional[str] = None,
+        file_summaries: dict[str, str],
+        tree_structure: str | None = None,
+        context: dict[str, Any] | None = None,
+        custom_prompt: str | None = None,
     ) -> str:
         """Create an enhanced prompt for meta-overview generation with tree structure.
 

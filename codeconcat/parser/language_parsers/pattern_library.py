@@ -10,7 +10,7 @@ organized by their purpose and language family compatibility.
 
 import logging
 import re
-from typing import List, Optional, Pattern
+from re import Pattern
 
 from ...utils.security import InputSanitizer
 
@@ -68,7 +68,7 @@ class DocstringPatterns:
     }
 
     @staticmethod
-    def extract_python_docstring(lines: List[str], start: int, end: int) -> str:
+    def extract_python_docstring(lines: list[str], start: int, end: int) -> str:
         """Extract Python-style docstring from lines."""
         for i in range(start, min(end + 1, len(lines))):
             line = lines[i].strip()
@@ -246,7 +246,7 @@ class ImportPatterns:
 
 
 def create_pattern_with_modifiers(
-    base_pattern: str, modifiers: Optional[List[str]] = None, prefix: str = r"^\s*"
+    base_pattern: str, modifiers: list[str] | None = None, prefix: str = r"^\s*"
 ) -> Pattern:
     """
     Create a regex pattern with optional modifiers.

@@ -19,7 +19,7 @@ Note:
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 try:
     import jsonschema
@@ -106,7 +106,7 @@ SCHEMAS = {
 
 
 def validate_against_schema(
-    data: Dict[str, Any], schema: Union[Dict[str, Any], str], context: Optional[str] = None
+    data: dict[str, Any], schema: dict[str, Any] | str, context: str | None = None
 ) -> bool:
     """
     Validate data against a JSON schema.
@@ -175,7 +175,7 @@ def validate_against_schema(
         ) from e
 
 
-def load_schema_from_file(schema_path: Union[str, Path]) -> Dict[str, Any]:
+def load_schema_from_file(schema_path: str | Path) -> dict[str, Any]:
     """
     Load a JSON schema from a file.
 
@@ -211,7 +211,7 @@ def load_schema_from_file(schema_path: Union[str, Path]) -> Dict[str, Any]:
         ) from e
 
 
-def register_schema(name: str, schema: Dict[str, Any]) -> None:
+def register_schema(name: str, schema: dict[str, Any]) -> None:
     """
     Register a new schema or update an existing one.
 
@@ -235,8 +235,8 @@ def register_schema(name: str, schema: Dict[str, Any]) -> None:
 
 
 def generate_schema_from_example(
-    example: Dict[str, Any], required_fields: Optional[list] = None
-) -> Dict[str, Any]:
+    example: dict[str, Any], required_fields: list | None = None
+) -> dict[str, Any]:
     """
     Generate a JSON schema from an example object.
 
@@ -270,7 +270,7 @@ def generate_schema_from_example(
     if not isinstance(example, dict):
         raise ValidationError("Example must be a dictionary")
 
-    schema: Dict[str, Any] = {"type": "object", "properties": {}}
+    schema: dict[str, Any] = {"type": "object", "properties": {}}
 
     if required_fields:
         schema["required"] = required_fields

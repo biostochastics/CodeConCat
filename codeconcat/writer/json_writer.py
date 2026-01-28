@@ -2,14 +2,14 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedDocData
 from codeconcat.writer.compression_helper import CompressionHelper
 
 
 def write_json(
-    items: List[Union[AnnotatedFileData, ParsedDocData]],
+    items: list[AnnotatedFileData | ParsedDocData],
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
@@ -65,7 +65,7 @@ def write_json(
             "changes": _calculate_diff_statistics(items),
         }
 
-    output: Dict[str, Any] = {
+    output: dict[str, Any] = {
         "metadata": {
             "version": "2.0",
             "generator": "codeconcat-optimized",
@@ -93,7 +93,7 @@ def write_json(
         }
 
     # Build indexes for efficient lookup
-    indexes: Dict[str, Any] = {
+    indexes: dict[str, Any] = {
         "by_language": {},
         "by_type": {},
         "by_directory": {},
@@ -229,7 +229,7 @@ def _get_timestamp() -> str:
     return datetime.now().isoformat()
 
 
-def _calculate_statistics(items: List[Union[AnnotatedFileData, ParsedDocData]]) -> Dict[str, Any]:
+def _calculate_statistics(items: list[AnnotatedFileData | ParsedDocData]) -> dict[str, Any]:
     """Calculate comprehensive statistics."""
     total_lines = sum(len(getattr(i, "content", "").splitlines()) for i in items)
     total_size = sum(len(getattr(i, "content", "").encode("utf-8")) for i in items)
@@ -244,8 +244,8 @@ def _calculate_statistics(items: List[Union[AnnotatedFileData, ParsedDocData]]) 
 
 
 def _calculate_diff_statistics(
-    items: List[Union[AnnotatedFileData, ParsedDocData]],
-) -> Dict[str, Any]:
+    items: list[AnnotatedFileData | ParsedDocData],
+) -> dict[str, Any]:
     """Calculate statistics for diff mode.
 
     Aggregates change statistics across all items with diff metadata to provide
@@ -289,7 +289,7 @@ def _calculate_diff_statistics(
     return stats
 
 
-def _categorize_files(items: List[Union[AnnotatedFileData, ParsedDocData]]) -> Dict[str, int]:
+def _categorize_files(items: list[AnnotatedFileData | ParsedDocData]) -> dict[str, int]:
     """Categorize files by type."""
     categories = {"source": 0, "test": 0, "documentation": 0, "configuration": 0, "other": 0}
 
@@ -346,9 +346,9 @@ def _get_file_type(file_path: str) -> str:
         return "other"
 
 
-def _group_by_severity(issues: List[Any]) -> Dict[str, int]:
+def _group_by_severity(issues: list[Any]) -> dict[str, int]:
     """Group security issues by severity."""
-    severity_counts: Dict[str, int] = {}
+    severity_counts: dict[str, int] = {}
     for issue in issues:
         severity = str(issue.severity.value)
         severity_counts[severity] = severity_counts.get(severity, 0) + 1
@@ -356,14 +356,14 @@ def _group_by_severity(issues: List[Any]) -> Dict[str, int]:
 
 
 def _build_relationships(
-    items: List[Union[AnnotatedFileData, ParsedDocData]],
+    items: list[AnnotatedFileData | ParsedDocData],
     config: CodeConCatConfig,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build relationships between files based on imports and references.
 
     Uses sanitized (possibly relative) paths as keys when config.redact_paths is enabled.
     """
-    relationships: Dict[str, Any] = {"imports": {}, "imported_by": {}, "references": {}}
+    relationships: dict[str, Any] = {"imports": {}, "imported_by": {}, "references": {}}
 
     for item in items:
         if hasattr(item, "imports") and item.imports:

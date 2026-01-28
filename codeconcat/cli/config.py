@@ -22,7 +22,6 @@ Usage:
 """
 
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -50,8 +49,8 @@ class GlobalState(BaseModel):
 
     verbose: int = 0
     quiet: bool = False
-    config_path: Optional[Path] = None
-    config: Optional[CodeConCatConfig] = None
+    config_path: Path | None = None
+    config: CodeConCatConfig | None = None
 
     class Config:
         """Pydantic configuration to allow Path and other custom types."""

@@ -8,7 +8,7 @@ the process of setting up a configuration tailored to their project's needs.
 
 import logging
 import os
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 import yaml  # type: ignore[import-untyped]
 
@@ -34,12 +34,12 @@ class InteractiveConfigBuilder:
         """
         self.target_dir = target_dir
         self.config_filename = os.path.join(target_dir, ".codeconcat.yml")
-        self.config: Dict[str, Any] = {}
+        self.config: dict[str, Any] = {}
         self.template_path = os.path.join(
             os.path.dirname(__file__), "templates", "default_config.template.yml"
         )
 
-    def load_template(self) -> Dict[str, Any]:
+    def load_template(self) -> dict[str, Any]:
         """
         Load the default configuration template.
 
@@ -50,7 +50,7 @@ class InteractiveConfigBuilder:
             with open(self.template_path) as f:
                 # Parse as yaml but preserve comments for later
                 template_data = yaml.safe_load(f)
-                return cast(Dict[str, Any], template_data) if template_data else {}
+                return cast(dict[str, Any], template_data) if template_data else {}
         except FileNotFoundError:
             logger.error(f"Default configuration template not found: {self.template_path}")
             return {}

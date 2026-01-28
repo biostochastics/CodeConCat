@@ -9,7 +9,6 @@ and more consistent behavior across language parsers.
 
 import logging
 import re
-from typing import Dict, List, Optional
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
@@ -140,13 +139,13 @@ class EnhancedPythonParser(EnhancedBaseParser):
 
     def _process_block(
         self,
-        lines: List[str],
+        lines: list[str],
         start: int,
         end: int,
-        declarations: List[Declaration],
-        imports: List[str],
-        errors: List[str],
-        parent_declaration: Optional[Declaration] = None,
+        declarations: list[Declaration],
+        imports: list[str],
+        errors: list[str],
+        parent_declaration: Declaration | None = None,
     ):
         """
         Process a block of code and extract declarations.
@@ -313,7 +312,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
                 # No declaration pattern matched this line
                 i += 1
 
-    def _process_imports(self, line: str, imports: List[str]) -> bool:
+    def _process_imports(self, line: str, imports: list[str]) -> bool:
         """
         Process import statements and add them to the imports list.
 
@@ -355,7 +354,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
 
         return False
 
-    def extract_docstring(self, lines: List[str], start: int, end: int) -> Optional[str]:
+    def extract_docstring(self, lines: list[str], start: int, end: int) -> str | None:
         """
         Extract Python docstring from a block of code.
 
@@ -410,7 +409,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
 
         return ""
 
-    def _count_total_declarations(self, declarations: List[Declaration]) -> int:
+    def _count_total_declarations(self, declarations: list[Declaration]) -> int:
         """
         Count the total number of declarations including all nested ones.
 
@@ -427,7 +426,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
         return total
 
     def _calculate_max_nesting_depth(
-        self, declarations: List[Declaration], current_depth: int = 1
+        self, declarations: list[Declaration], current_depth: int = 1
     ) -> int:
         """
         Calculate the maximum nesting depth in the declaration tree.
@@ -472,7 +471,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
                 break
         return indent
 
-    def _extract_python_decorators(self, lines: List[str], i: int) -> List[str]:
+    def _extract_python_decorators(self, lines: list[str], i: int) -> list[str]:
         """
         Extract Python decorators preceding a class or function declaration.
 
@@ -497,7 +496,7 @@ class EnhancedPythonParser(EnhancedBaseParser):
         logger.debug(f"Found {len(decorators)} decorators for declaration at line {i + 1}")
         return decorators
 
-    def get_capabilities(self) -> Dict[str, bool]:
+    def get_capabilities(self) -> dict[str, bool]:
         """Return the capabilities of this parser."""
         return {
             "can_parse_functions": True,

@@ -16,7 +16,7 @@ as a regex-based fallback with limited feature support.
 """
 
 import logging
-from typing import Any, Dict, List, Set
+from typing import Any
 
 from tree_sitter import Node
 
@@ -166,19 +166,19 @@ class TreeSitterRustParser(BaseTreeSitterParser):
         """Initializes the Rust Tree-sitter parser."""
         super().__init__(language_name="rust")
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns the predefined Tree-sitter queries for Rust."""
         return RUST_QUERIES
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs Rust-specific queries and extracts declarations and imports."""
         queries = self.get_queries()
         declarations = []
-        imports: Set[str] = set()
-        doc_comment_map: Dict[
-            int, Dict[str, Any]
+        imports: set[str] = set()
+        doc_comment_map: dict[
+            int, dict[str, Any]
         ] = {}  # end_line -> {'text': List[str], 'inner': bool}
 
         # --- Pass 1: Extract Doc Comments --- #
@@ -200,7 +200,7 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                 doc_captures = doc_query.captures(root_node)
 
             last_comment_line = -2
-            current_doc_block: List[str] = []
+            current_doc_block: list[str] = []
             current_block_inner = False
 
             # FIX 4: Efficient deduplication using dictionary for O(1) lookup
@@ -396,7 +396,7 @@ class TreeSitterRustParser(BaseTreeSitterParser):
                             # Convert docstring to string format
                             if isinstance(doc_data, dict) and "text" in doc_data:
                                 text_data = doc_data["text"]
-                                if isinstance(text_data, (list, tuple)):
+                                if isinstance(text_data, list | tuple):
                                     docstring = "\n".join(str(line) for line in text_data).strip()
                                     # Clean up Rust doc comment markers
                                     docstring = self._clean_rust_docstring(docstring)

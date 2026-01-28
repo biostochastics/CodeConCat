@@ -1,7 +1,6 @@
 """Optimized XML writer for LLM ingestion with semantic navigation."""
 
 import xml.etree.ElementTree as ET
-from typing import List
 from xml.dom import minidom
 
 from codeconcat.base_types import CodeConCatConfig, WritableItem
@@ -9,7 +8,7 @@ from codeconcat.writer.compression_helper import CompressionHelper
 
 
 def write_xml(
-    items: List[WritableItem],
+    items: list[WritableItem],
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
@@ -217,7 +216,7 @@ def write_xml(
     return xml_str
 
 
-def _calculate_diff_statistics(items: List[WritableItem]) -> dict:
+def _calculate_diff_statistics(items: list[WritableItem]) -> dict:
     """Calculate statistics for diff mode.
 
     Aggregates change statistics across all items with diff metadata to provide

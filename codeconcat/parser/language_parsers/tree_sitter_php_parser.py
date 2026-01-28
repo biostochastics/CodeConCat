@@ -1,7 +1,6 @@
 # file: codeconcat/parser/language_parsers/tree_sitter_php_parser.py
 
 import logging
-from typing import Dict, List, Set
 
 from tree_sitter import Node, Query
 
@@ -169,7 +168,7 @@ PHP_QUERIES = {
 
 
 # Patterns to clean PHPDoc comments
-def _clean_php_doc_comment(comment_block: List[str]) -> str:
+def _clean_php_doc_comment(comment_block: list[str]) -> str:
     """Cleans a block of PHPDoc comment lines using shared doc_comment_utils.
 
     PHPDoc uses the same /** */ format as Javadoc and JSDoc, so we can
@@ -188,17 +187,17 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
         """Initializes the PHP Tree-sitter parser."""
         super().__init__(language_name="php")
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns the predefined Tree-sitter queries for PHP."""
         return PHP_QUERIES
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs PHP-specific queries and extracts declarations and imports."""
         queries = self.get_queries()
         declarations = []
-        imports: Set[str] = set()
+        imports: set[str] = set()
         doc_comment_map = {}  # end_line -> raw comment_text (list of lines)
         current_namespace = ""
 

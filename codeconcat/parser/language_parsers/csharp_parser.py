@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import List, Set
 
 from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
@@ -60,9 +59,9 @@ class CSharpParser(BaseParser):
             A ParseResult object containing declarations and imports (usings).
         """
         declarations = []
-        imports: Set[str] = set()  # Using directives
+        imports: set[str] = set()  # Using directives
         lines = content.split("\n")
-        doc_buffer: List[str] = []
+        doc_buffer: list[str] = []
         in_multiline_comment = False
 
         try:
@@ -202,7 +201,7 @@ class CSharpParser(BaseParser):
                 original_exception=e,
             ) from e
 
-    def _format_docstring(self, doc_buffer: List[str]) -> str:
+    def _format_docstring(self, doc_buffer: list[str]) -> str:
         """Formats the collected /// comments, potentially stripping XML tags."""
         # Basic implementation: join lines. Could add XML stripping later.
         return "\n".join(doc_buffer).strip()

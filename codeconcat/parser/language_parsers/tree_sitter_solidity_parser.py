@@ -19,7 +19,6 @@ Based on JoranHonig/tree-sitter-solidity grammar.
 """
 
 import logging
-from typing import Dict, List, Set
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
@@ -97,9 +96,9 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
     def __init__(self):
         """Initialize the Solidity parser with the tree-sitter-solidity grammar."""
         super().__init__("solidity")
-        self._pattern_warnings: Set[str] = set()
+        self._pattern_warnings: set[str] = set()
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Return Solidity-specific tree-sitter queries.
 
         Returns:
@@ -168,7 +167,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
 
         return result
 
-    def _process_imports(self, captures: List[tuple]) -> List[str]:
+    def _process_imports(self, captures: list[tuple]) -> list[str]:
         """Process import statement captures.
 
         Args:
@@ -195,7 +194,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
 
         return imports
 
-    def _process_declarations(self, captures: List[tuple], content: str) -> List[Declaration]:  # noqa: ARG002
+    def _process_declarations(self, captures: list[tuple], content: str) -> list[Declaration]:  # noqa: ARG002
         """Process declaration captures into Declaration objects.
 
         Args:
@@ -263,7 +262,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _process_patterns(self, captures: List[tuple], content: str, result: "ParseResult"):  # noqa: ARG002, F821
+    def _process_patterns(self, captures: list[tuple], content: str, result: "ParseResult"):  # noqa: ARG002, F821
         """Process syntactic patterns that may be of security interest.
 
         Args:
@@ -271,7 +270,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
             content: Original source code
             result: ParseResult to add warnings to
         """
-        pattern_counts: Dict[str, int] = {}
+        pattern_counts: dict[str, int] = {}
 
         for node, name in captures:
             if name in [

@@ -15,7 +15,7 @@ in this order, making it clear where each setting comes from.
 import logging
 import os
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 from pydantic import ValidationError
@@ -113,14 +113,14 @@ class ConfigBuilder:
 
     def __init__(self):
         """Initialize the ConfigBuilder with empty configuration."""
-        self._config_dict: Dict[str, Any] = {}
-        self._sources: Dict[str, ConfigSource] = {}
+        self._config_dict: dict[str, Any] = {}
+        self._sources: dict[str, ConfigSource] = {}
         self._initialized = False
 
         # Store raw values from each source for reference
-        self._preset_values: Dict[str, Any] = {}
-        self._yaml_values: Dict[str, Any] = {}
-        self._cli_values: Dict[str, Any] = {}
+        self._preset_values: dict[str, Any] = {}
+        self._yaml_values: dict[str, Any] = {}
+        self._cli_values: dict[str, Any] = {}
 
     def with_defaults(self) -> "ConfigBuilder":
         """
@@ -198,7 +198,7 @@ class ConfigBuilder:
         logger.debug(f"Applied '{preset_name}' preset configuration")
         return self
 
-    def with_yaml_config(self, config_path: Optional[str] = None) -> "ConfigBuilder":
+    def with_yaml_config(self, config_path: str | None = None) -> "ConfigBuilder":
         """
         Load and apply configuration from a YAML file.
 
@@ -258,7 +258,7 @@ class ConfigBuilder:
 
         return self
 
-    def with_cli_args(self, cli_args: Dict[str, Any]) -> "ConfigBuilder":
+    def with_cli_args(self, cli_args: dict[str, Any]) -> "ConfigBuilder":
         """
         Apply command-line arguments as final configuration overrides.
 
@@ -487,7 +487,7 @@ class ConfigBuilder:
             logger.error(error_msg)
             raise ConfigurationError(error_msg) from e
 
-    def get_config_details(self) -> Dict[str, ConfigSetting]:
+    def get_config_details(self) -> dict[str, ConfigSetting]:
         """
         Get detailed information about configuration settings and their sources.
 
@@ -512,7 +512,7 @@ class ConfigBuilder:
         print("======================")
 
         # Group settings by source for more readable output
-        source_groups: Dict[ConfigSource, List[str]] = {source: [] for source in ConfigSource}
+        source_groups: dict[ConfigSource, list[str]] = {source: [] for source in ConfigSource}
 
         for name, source in self._sources.items():
             source_groups[source].append(name)
@@ -529,7 +529,7 @@ class ConfigBuilder:
             for name in sorted(settings):
                 value = self._config_dict[name]
                 # Format output for readability
-                if isinstance(value, (list, tuple)) and len(value) > 3:
+                if isinstance(value, list | tuple) and len(value) > 3:
                     value_str = (
                         f"[{', '.join(str(v) for v in value[:3])}... +{len(value) - 3} more]"
                     )
@@ -546,7 +546,7 @@ class ConfigBuilder:
 
 
 def load_config(
-    cli_args: Dict[str, Any], config_path_override: Optional[str] = None
+    cli_args: dict[str, Any], config_path_override: str | None = None
 ) -> CodeConCatConfig:
     """
     Load and build configuration using the new ConfigBuilder class.

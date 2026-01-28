@@ -8,14 +8,14 @@ debugging parsing issues, and validating the codebase setup.
 import importlib
 import logging
 import traceback
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from codeconcat.parser.language_parsers import TREE_SITTER_PARSER_MAP
 
 logger = logging.getLogger(__name__)
 
 
-def verify_tree_sitter_dependencies() -> Tuple[bool, List[str], List[str]]:
+def verify_tree_sitter_dependencies() -> tuple[bool, list[str], list[str]]:
     """
     Verify that Tree-sitter and all language grammars are properly installed.
 
@@ -105,7 +105,7 @@ def verify_tree_sitter_dependencies() -> Tuple[bool, List[str], List[str]]:
     return success, successful_languages, failed_languages
 
 
-def diagnose_parser(language: str, file_path: Optional[str] = None) -> Tuple[bool, Dict]:
+def diagnose_parser(language: str, file_path: str | None = None) -> tuple[bool, dict]:
     """
     Run diagnostic checks on the parser for a specific language.
 
@@ -121,7 +121,7 @@ def diagnose_parser(language: str, file_path: Optional[str] = None) -> Tuple[boo
     from codeconcat.base_types import CodeConCatConfig
     from codeconcat.parser.unified_pipeline import get_language_parser
 
-    results: Dict[str, Any] = {
+    results: dict[str, Any] = {
         "language": language,
         "parsers_found": {},
         "parsers_tested": {},

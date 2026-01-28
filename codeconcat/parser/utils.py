@@ -1,11 +1,9 @@
 """Parser utility functions for tree-sitter node processing."""
 
-from typing import Optional, Tuple
-
 from tree_sitter import Node
 
 
-def get_node_location(node: Node) -> Tuple[int, int]:
+def get_node_location(node: Node) -> tuple[int, int]:
     """
     Extract 1-indexed start/end line numbers from tree-sitter Node.
 
@@ -38,7 +36,7 @@ def get_node_text(node: Node, source_code: bytes) -> str:
     return source_code[node.start_byte : node.end_byte].decode("utf-8")
 
 
-def find_child_by_type(node: Node, *node_types: str) -> Optional[Node]:
+def find_child_by_type(node: Node, *node_types: str) -> Node | None:
     """
     Find first child node matching any of the given types.
 

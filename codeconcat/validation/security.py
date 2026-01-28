@@ -16,7 +16,7 @@ import hashlib
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any
 
 from cachetools import TTLCache  # type: ignore[import-untyped]
 
@@ -106,7 +106,7 @@ class SecurityValidator:
 
     @staticmethod
     def compute_file_hash(
-        file_path: Union[str, Path],
+        file_path: str | Path,
         algorithm: str = "sha256",
         use_cache: bool = True,
         max_file_size: int = 100 * 1024 * 1024,  # 100MB default limit
@@ -181,7 +181,7 @@ class SecurityValidator:
 
     @staticmethod
     def verify_file_integrity(
-        file_path: Union[str, Path], expected_hash: str, algorithm: str = "sha256"
+        file_path: str | Path, expected_hash: str, algorithm: str = "sha256"
     ) -> bool:
         """
         Verify the integrity of a file by comparing its hash with the expected value.
@@ -216,7 +216,7 @@ class SecurityValidator:
         return True
 
     @staticmethod
-    def sanitize_content(content: str, patterns: Optional[Dict[str, re.Pattern]] = None) -> str:
+    def sanitize_content(content: str, patterns: dict[str, re.Pattern] | None = None) -> str:
         """
         Sanitize content by removing or replacing potentially dangerous patterns.
 
@@ -263,8 +263,8 @@ class SecurityValidator:
 
     @staticmethod
     def check_for_suspicious_content(
-        file_path: Union[str, Path], use_semgrep: bool = False
-    ) -> List[Dict[str, Any]]:
+        file_path: str | Path, use_semgrep: bool = False
+    ) -> list[dict[str, Any]]:
         """
         Check a file for suspicious content patterns.
 
@@ -416,7 +416,7 @@ class SecurityValidator:
 
     @staticmethod
     def detect_tampering(
-        file_path: Union[str, Path], original_hash: str, algorithm: str = "sha256"
+        file_path: str | Path, original_hash: str, algorithm: str = "sha256"
     ) -> bool:
         """
         Detect if a file has been tampered with by comparing its current hash with the original.
@@ -447,7 +447,7 @@ class SecurityValidator:
         return is_tampered
 
     @staticmethod
-    def is_binary_file(file_path: Union[str, Path]) -> bool:
+    def is_binary_file(file_path: str | Path) -> bool:
         """
         Check if a file is binary.
 
@@ -493,8 +493,8 @@ class SecurityValidator:
 
     @staticmethod
     def generate_integrity_manifest(
-        directory: Union[str, Path], recursive: bool = True
-    ) -> Dict[str, str]:
+        directory: str | Path, recursive: bool = True
+    ) -> dict[str, str]:
         """
         Generate an integrity manifest for all files in a directory.
 
@@ -570,8 +570,8 @@ class SecurityValidator:
 
     @staticmethod
     def verify_integrity_manifest(
-        directory: Union[str, Path], manifest: Dict[str, str]
-    ) -> Dict[str, Dict[str, Union[bool, str]]]:
+        directory: str | Path, manifest: dict[str, str]
+    ) -> dict[str, dict[str, bool | str]]:
         """
         Verify file integrity using a previously generated manifest.
 
@@ -606,7 +606,7 @@ class SecurityValidator:
         """
         base_path = Path(directory).resolve()
         results = {}
-        manifest_files: Set[Path] = set()
+        manifest_files: set[Path] = set()
 
         # Validate manifest entries and compute hashes
         for rel_path, expected_hash in manifest.items():

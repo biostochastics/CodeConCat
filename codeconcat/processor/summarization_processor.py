@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..ai import AIProvider, AIProviderConfig, SummarizationResult, get_ai_provider
 from ..ai.base import AIProviderType
@@ -22,7 +22,7 @@ class SummarizationProcessor:
             config: Global configuration object
         """
         self.config = config
-        self.ai_provider: Optional[AIProvider] = None
+        self.ai_provider: AIProvider | None = None
         self.summary_writer = None
         self._initialize_provider()
 
@@ -66,7 +66,7 @@ class SummarizationProcessor:
             return
 
         # Build extra params for llama.cpp performance tuning
-        extra_params = {}
+        extra_params: dict[str, int | str] = {}
         api_base = getattr(self.config, "ai_api_base", None)
         if api_base and isinstance(api_base, str) and not api_base.strip():
             api_base = None
@@ -192,7 +192,7 @@ class SummarizationProcessor:
 
         return parsed_file
 
-    async def process_batch(self, files: List[ParsedFileData]) -> List[ParsedFileData]:
+    async def process_batch(self, files: list[ParsedFileData]) -> list[ParsedFileData]:
         """Process multiple files in batch for efficiency.
 
         Args:
@@ -265,7 +265,7 @@ class SummarizationProcessor:
 
         return processed_files
 
-    def _build_tree_structure(self, files: List[ParsedFileData]) -> str:
+    def _build_tree_structure(self, files: list[ParsedFileData]) -> str:
         """Build a tree structure visualization from file paths.
 
         Args:
@@ -280,7 +280,7 @@ class SummarizationProcessor:
         paths = [Path(f.file_path) for f in files]
 
         # Build tree structure
-        tree_dict: Dict[str, Any] = {}
+        tree_dict: dict[str, Any] = {}
         for path in paths:
             parts = path.parts
             current = tree_dict
@@ -305,7 +305,7 @@ class SummarizationProcessor:
         tree_lines = render_tree(tree_dict)
         return "\n".join(tree_lines)
 
-    def _collect_overview_context(self, files: List[ParsedFileData]) -> Dict[str, Any]:
+    def _collect_overview_context(self, files: list[ParsedFileData]) -> dict[str, Any]:
         """Collect contextual information for meta-overview generation.
 
         Args:
@@ -331,7 +331,7 @@ class SummarizationProcessor:
             "total_loc": total_loc,
         }
 
-    async def generate_meta_overview(self, files: List[ParsedFileData]) -> Optional[str]:
+    async def generate_meta_overview(self, files: list[ParsedFileData]) -> str | None:
         """Generate a meta-overview from all file summaries with enhanced context.
 
         Args:
@@ -450,7 +450,7 @@ class SummarizationProcessor:
 
     async def _generate_file_summary(
         self, parsed_file: ParsedFileData
-    ) -> Optional[SummarizationResult]:
+    ) -> SummarizationResult | None:
         """Generate a summary for an entire file.
 
         Args:
@@ -621,7 +621,7 @@ class SummarizationProcessor:
         if self.ai_provider:
             await self.ai_provider.close()
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get statistics about the summarization process.
 
         Returns:
@@ -640,7 +640,7 @@ class SummarizationProcessor:
         return stats
 
 
-def create_summarization_processor(config: CodeConCatConfig) -> Optional[SummarizationProcessor]:
+def create_summarization_processor(config: CodeConCatConfig) -> SummarizationProcessor | None:
     """Factory function to create a summarization processor.
 
     Args:

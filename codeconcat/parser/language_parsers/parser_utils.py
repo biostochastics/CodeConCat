@@ -2,7 +2,8 @@
 
 import functools
 import logging
-from typing import Any, Callable, Optional, TypeVar, Union
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ def extract_safe_substring(text: str, start: int, end: int) -> str:
     return text[start:end]
 
 
-def get_node_text_safe(node: Optional[Any], source_code: Union[str, bytes]) -> Optional[str]:
+def get_node_text_safe(node: Any | None, source_code: str | bytes) -> str | None:
     """
     Safely extract text from a tree-sitter node.
 

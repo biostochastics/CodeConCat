@@ -10,7 +10,6 @@ import logging
 import os
 import re
 import subprocess
-from typing import List, Optional, Tuple
 
 from codeconcat.processor.security_processor import SecurityProcessor
 
@@ -21,7 +20,7 @@ class GitURLParser:
     """Parser for Git URLs and shorthand notations."""
 
     @staticmethod
-    def parse(url: str) -> Tuple[str, str, Optional[str]]:
+    def parse(url: str) -> tuple[str, str, str | None]:
         """Parse Git URL or shorthand into owner, repo, and potentially ref.
 
         Args:
@@ -73,7 +72,7 @@ class GitURLParser:
 class GitClient:
     """Client for Git repository operations with security features."""
 
-    def __init__(self, token: Optional[str] = None):
+    def __init__(self, token: str | None = None):
         """Initialize GitClient with optional authentication token.
 
         Args:
@@ -107,8 +106,8 @@ class GitClient:
         return base_url
 
     async def run_command_async(
-        self, command: List[str], cwd: Optional[str] = None, timeout: float = 120.0
-    ) -> Tuple[int, str, str]:
+        self, command: list[str], cwd: str | None = None, timeout: float = 120.0
+    ) -> tuple[int, str, str]:
         """Run a git command asynchronously with proper error handling.
 
         Args:
@@ -147,8 +146,8 @@ class GitClient:
             return -1, "", str(e)
 
     def run_command_sync(
-        self, command: List[str], cwd: Optional[str] = None, timeout: float = 120.0
-    ) -> Tuple[int, str, str]:
+        self, command: list[str], cwd: str | None = None, timeout: float = 120.0
+    ) -> tuple[int, str, str]:
         """Run a git command synchronously.
 
         Args:

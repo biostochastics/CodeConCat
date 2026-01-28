@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
 
 
 class ModelTier(Enum):
@@ -29,8 +28,8 @@ class ModelConfig:
     supports_functions: bool = False
     supports_vision: bool = False
     supports_streaming: bool = True
-    tokenizer: Optional[str] = None  # tiktoken model or custom
-    notes: Optional[str] = None
+    tokenizer: str | None = None  # tiktoken model or custom
+    notes: str | None = None
 
 
 # Current model configurations (as of 2025)
@@ -360,7 +359,7 @@ DEFAULT_MODELS = {
 }
 
 
-def get_model_config(model_id: str) -> Optional[ModelConfig]:
+def get_model_config(model_id: str) -> ModelConfig | None:
     """Get configuration for a specific model.
 
     Args:
@@ -380,9 +379,7 @@ def get_model_config(model_id: str) -> Optional[ModelConfig]:
     return None
 
 
-def get_cheapest_model(
-    provider: Optional[str] = None, min_context: int = 16000
-) -> Optional[ModelConfig]:
+def get_cheapest_model(provider: str | None = None, min_context: int = 16000) -> ModelConfig | None:
     """Get the cheapest available model.
 
     Args:
@@ -409,7 +406,7 @@ def get_cheapest_model(
     return None
 
 
-def get_models_by_tier(tier: ModelTier) -> List[ModelConfig]:
+def get_models_by_tier(tier: ModelTier) -> list[ModelConfig]:
     """Get all models in a specific tier.
 
     Args:

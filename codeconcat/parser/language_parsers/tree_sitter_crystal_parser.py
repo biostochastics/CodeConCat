@@ -18,7 +18,6 @@ Supports Crystal 1.0+ with features including:
 """
 
 import logging
-from typing import Dict, List, Optional, Set
 
 from tree_sitter import Node
 
@@ -111,11 +110,11 @@ class TreeSitterCrystalParser(BaseTreeSitterParser):
         """Initialize the Crystal parser."""
         super().__init__("crystal")
         # Language-specific tracking (not part of ParseResult)
-        self._macros: Set[str] = set()
-        self._c_bindings: Dict[str, List[str]] = {}
-        self._generic_types: Set[str] = set()
-        self._union_types: List[str] = []
-        self._nilable_types: List[str] = []
+        self._macros: set[str] = set()
+        self._c_bindings: dict[str, list[str]] = {}
+        self._generic_types: set[str] = set()
+        self._union_types: list[str] = []
+        self._nilable_types: list[str] = []
 
     def _load_language(self):
         """Load the Crystal language from our custom tree_sitter_crystal module.
@@ -173,11 +172,11 @@ class TreeSitterCrystalParser(BaseTreeSitterParser):
                 f"Could not create Tree-sitter parser for Crystal. Error: {e}"
             ) from e
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Get the tree-sitter queries for Crystal."""
         return CRYSTAL_QUERIES
 
-    def parse(self, content: str, file_path: Optional[str] = None) -> ParseResult:
+    def parse(self, content: str, file_path: str | None = None) -> ParseResult:
         """
         Parse Crystal source code and extract structured information.
 
@@ -205,7 +204,7 @@ class TreeSitterCrystalParser(BaseTreeSitterParser):
         return result
 
     def _track_language_features(
-        self, root_node: Node, declarations: List[Declaration], content: str
+        self, root_node: Node, declarations: list[Declaration], content: str
     ) -> None:
         """
         Analyze the AST to track Crystal-specific language features.
@@ -257,8 +256,8 @@ class TreeSitterCrystalParser(BaseTreeSitterParser):
                         "utf-8", errors="replace"
                     )
                     self._c_bindings[lib_name] = []
-                    # Extract functions within this lib block
-                    self._extract_lib_functions(child.parent, content_bytes, lib_name)
+                    # Extract functions within this lib block (child.parent is node)
+                    self._extract_lib_functions(node, content_bytes, lib_name)
                     break
 
         # Track generic types

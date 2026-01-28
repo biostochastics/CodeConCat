@@ -1,7 +1,6 @@
 # file: codeconcat/parser/language_parsers/tree_sitter_go_parser.py
 
 import logging
-from typing import Dict, List, Set
 
 from tree_sitter import Node, Query
 
@@ -104,13 +103,13 @@ class TreeSitterGoParser(BaseTreeSitterParser):
 
     # Removed obsolete _find_type_node method
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns the predefined Tree-sitter queries for Go."""
         return GO_QUERIES
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs Go-specific queries and extracts declarations and imports.
 
         Performs multi-pass extraction:
@@ -126,10 +125,10 @@ class TreeSitterGoParser(BaseTreeSitterParser):
             Tuple of (declarations list, imports list)
         """
         queries = self.get_queries()
-        declarations: List[Declaration] = []
-        imports: Set[str] = set()
+        declarations: list[Declaration] = []
+        imports: set[str] = set()
         # Dictionary mapping end line numbers to accumulated doc comment text
-        doc_comment_map: Dict[int, str] = {}  # end_line -> comment_text
+        doc_comment_map: dict[int, str] = {}  # end_line -> comment_text
 
         # --- Pass 1: Extract Doc Comments --- #
         # Go doc comments are consecutive line comments preceding a declaration
@@ -138,7 +137,7 @@ class TreeSitterGoParser(BaseTreeSitterParser):
             doc_captures = self._execute_query_with_cursor(doc_query, root_node)
 
             last_comment_line = -2
-            current_doc_block: List[str] = []
+            current_doc_block: list[str] = []
 
             # doc_captures is a dict: {capture_name: [list of nodes]}
             for _capture_name, nodes in doc_captures.items():

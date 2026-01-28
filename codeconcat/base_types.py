@@ -6,9 +6,7 @@ Holds data classes and typed structures used throughout CodeConCat.
 
 from __future__ import annotations
 
-import abc
 import re
-import threading
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -172,65 +170,74 @@ class CustomSecurityPattern(BaseModel):
             ) from e
 
     @field_validator("regex")
-    def validate_regex(cls, value):
-        """Validate regex pattern with timeout protection against ReDoS attacks.
+    def validate_regex(cls, value: str) -> str:
+        """Validate regex pattern with proper ReDoS protection.
 
-        Uses a separate thread with a 2-second timeout to prevent malicious
-        or overly complex regex patterns from causing resource exhaustion.
+        Uses multiprocessing for true isolation (can actually kill runaway processes)
+        combined with static analysis of known ReDoS patterns.
+
+        Security features:
+            - Pattern length limitation (max 1000 chars)
+            - Static analysis for known ReDoS vulnerability patterns
+            - Multiprocessing-based timeout that can actually terminate
+            - Test validation with backtracking-prone strings
         """
-        import queue
+        from multiprocessing import Process
+        from multiprocessing import Queue as MPQueue
 
-        result_queue: queue.Queue = queue.Queue()
+        from codeconcat.constants import (
+            MAX_REGEX_LENGTH,
+            REDOS_PATTERNS,
+            REDOS_TIMEOUT_SECONDS,
+        )
 
-        def compile_regex():
-            """Compile and validate a regex pattern.
-            Parameters:
-                - value (str): Regex pattern to be compiled.
-                - result_queue (queue.Queue): A queue object to store the result of the regex compilation and validation.
-            Returns:
-                - None: Results are communicated via the result_queue, which contains a tuple with a boolean indicating success or failure, and a message or the validated pattern.
-            """
+        # Length limit check (fast, no process needed)
+        if len(value) > MAX_REGEX_LENGTH:
+            raise ValueError(f"Regex pattern too long (max {MAX_REGEX_LENGTH} chars)")
+
+        # Static analysis for known ReDoS patterns (fast, no process needed)
+        for indicator in REDOS_PATTERNS:
+            if re.search(indicator, value):
+                raise ValueError(
+                    "Regex pattern contains potential ReDoS vulnerability: "
+                    "nested quantifiers detected"
+                )
+
+        # Use multiprocessing for actual timeout enforcement
+        result_queue: MPQueue = MPQueue()
+
+        def compile_and_test():
+            """Compile regex and test with backtracking-prone strings."""
             try:
-                # Limit regex length as additional protection
-                if len(value) > 1000:
-                    result_queue.put((False, "Regex pattern too long (max 1000 chars)"))
-                    return
-
-                # Compile the regex
                 compiled = re.compile(value)
-
-                # Test with a simple string to catch immediate issues
-                test_str = "test_string_for_validation"
-                try:
+                # Test with potential backtracking triggers
+                test_strings = ["a" * 50, "ab" * 25, "x" * 30 + "y"]
+                for test_str in test_strings:
                     compiled.search(test_str)
-                except Exception:
-                    # If search fails on simple string, pattern is problematic
-                    result_queue.put((False, "Regex pattern failed basic validation"))
-                    return
-
                 result_queue.put((True, value))
             except re.error as e:
-                result_queue.put((False, f"Invalid regex pattern: {e}"))
+                result_queue.put((False, f"Invalid regex: {e}"))
             except Exception as e:
-                result_queue.put((False, f"Regex validation error: {e}"))
+                result_queue.put((False, f"Validation error: {e}"))
 
-        # Run compilation in separate thread with timeout
-        thread = threading.Thread(target=compile_regex, daemon=True)
-        thread.start()
-        thread.join(timeout=2.0)  # 2 second timeout
+        process = Process(target=compile_and_test, daemon=True)
+        process.start()
+        process.join(timeout=REDOS_TIMEOUT_SECONDS)
 
-        if thread.is_alive():
-            # Thread is still running after timeout
-            raise ValueError("Regex pattern compilation timed out (possible ReDoS pattern)")
+        if process.is_alive():
+            process.terminate()  # Actually kills the process
+            process.join(timeout=0.5)
+            if process.is_alive():
+                process.kill()  # Force kill if terminate didn't work
+            raise ValueError("Regex compilation timed out (possible ReDoS pattern)")
 
         try:
             success, result = result_queue.get_nowait()
             if success:
-                return result
-            else:
-                raise ValueError(result)
-        except queue.Empty as e:
-            raise ValueError("Regex validation failed unexpectedly") from e
+                return str(result)  # result is the validated regex pattern
+            raise ValueError(result)
+        except Exception:
+            raise ValueError("Regex validation failed unexpectedly") from None
 
 
 # --- Data Structures for Parsing & Processing ---
@@ -471,10 +478,10 @@ class AnnotatedFileData(WritableItem):
 
 
 # New Parser Interface
-class ParserInterface(abc.ABC):
+class ParserInterface(ABC):
     """Abstract Base Class defining the interface for language parsers."""
 
-    @abc.abstractmethod
+    @abstractmethod
     def parse(self, content: str, file_path: str) -> ParseResult:
         """Parse the given code content.
 
@@ -897,5 +904,35 @@ class CodeConCatConfig(BaseModel):
         "codeconcat_summaries",
         description="Directory for saving AI summaries (relative to output or absolute path)",
     )
+    ai_timeout: int = Field(
+        600,
+        description="Timeout in seconds for AI operations (default: 600 = 10 minutes)",
+    )
 
-    # ... rest of the code remains the same ...
+    # --- Local LLM Performance Options (llama.cpp) ---
+    llama_gpu_layers: int | None = Field(
+        None,
+        description="Number of layers to offload to GPU for llama.cpp (0=CPU only, None=auto)",
+    )
+    llama_context_size: int | None = Field(
+        None,
+        description="Context window size for llama.cpp (default: 2048)",
+    )
+    llama_threads: int | None = Field(
+        None,
+        description="Number of CPU threads for llama.cpp inference",
+    )
+    llama_batch_size: int | None = Field(
+        None,
+        description="Batch size for llama.cpp prompt processing",
+    )
+
+    # --- Report Generation Options ---
+    write_test_security_report: bool = Field(
+        False,
+        description="Write test file security findings to a separate report file",
+    )
+    write_unsupported_report: bool = Field(
+        False,
+        description="Write unsupported/skipped files report to a JSON file",
+    )

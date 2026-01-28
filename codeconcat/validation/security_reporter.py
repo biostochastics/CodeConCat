@@ -8,7 +8,6 @@ import json
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Set
 
 from rich.console import Console
 from rich.table import Table
@@ -21,19 +20,19 @@ console = Console()
 class SecurityReporter:
     """Collects and reports security findings in a structured format."""
 
-    def __init__(self, write_test_report: bool = False, test_report_path: Optional[Path] = None):
+    def __init__(self, write_test_report: bool = False, test_report_path: Path | None = None):
         """Initialize the security reporter.
 
         Args:
             write_test_report: Whether to write test findings to a separate file
             test_report_path: Path for the test findings report file
         """
-        self.findings: Dict[str, List[Dict]] = defaultdict(list)
-        self.test_findings: Dict[str, List[Dict]] = defaultdict(list)
+        self.findings: dict[str, list[dict]] = defaultdict(list)
+        self.test_findings: dict[str, list[dict]] = defaultdict(list)
         self.write_test_report = write_test_report
         self.test_report_path = test_report_path or Path(".codeconcat_test_security.json")
         self.total_files_scanned = 0
-        self.patterns_found: Set[str] = set()
+        self.patterns_found: set[str] = set()
 
     def is_test_file(self, file_path: Path) -> bool:
         """Check if a file is a test file based on its path.
@@ -98,7 +97,7 @@ class SecurityReporter:
             ]
         )
 
-    def add_finding(self, file_path: Path, finding: Dict) -> None:
+    def add_finding(self, file_path: Path, finding: dict) -> None:
         """Add a security finding for a file.
 
         Args:
@@ -115,7 +114,7 @@ class SecurityReporter:
         else:
             self.findings[str(file_path)].append(finding)
 
-    def get_summary_stats(self) -> Dict:
+    def get_summary_stats(self) -> dict:
         """Get summary statistics of findings.
 
         Returns:
@@ -226,7 +225,7 @@ class SecurityReporter:
 
 
 # Global reporter instance
-_reporter: Optional[SecurityReporter] = None
+_reporter: SecurityReporter | None = None
 
 
 def get_reporter() -> SecurityReporter:
@@ -237,7 +236,7 @@ def get_reporter() -> SecurityReporter:
     return _reporter
 
 
-def init_reporter(write_test_report: bool = False, test_report_path: Optional[Path] = None):
+def init_reporter(write_test_report: bool = False, test_report_path: Path | None = None):
     """Initialize a new security reporter.
 
     Args:

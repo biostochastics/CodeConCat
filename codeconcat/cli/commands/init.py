@@ -3,11 +3,10 @@ Init command - Initialize configuration interactively.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Annotated
 
 import typer
 from rich.panel import Panel
-from typing_extensions import Annotated
 
 from codeconcat.config.interactive_config import run_interactive_setup
 
@@ -46,7 +45,7 @@ def init_command(
         ),
     ] = False,
     preset: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--preset",
             "-p",
@@ -124,7 +123,7 @@ def init_command(
         raise typer.Exit(1) from e
 
 
-def create_default_config(output_file: Path, preset: Optional[str] = None) -> None:
+def create_default_config(output_file: Path, preset: str | None = None) -> None:
     """Create a default configuration file."""
     import yaml  # type: ignore[import-untyped]
 

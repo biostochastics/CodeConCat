@@ -17,7 +17,6 @@ import ast
 import logging
 import re
 from enum import Enum
-from typing import List, Set
 
 from codeconcat.base_types import (
     CodeConCatConfig,
@@ -95,7 +94,7 @@ class CompressionProcessor:
     def __init__(self, config: CodeConCatConfig):
         """Initialize the compression processor with configuration settings."""
         self.config = config
-        self._original_lines: List[str] = []  # Store original content
+        self._original_lines: list[str] = []  # Store original content
         self._setup_compression_pattern()
 
     def _setup_compression_pattern(self) -> None:
@@ -115,7 +114,7 @@ class CompressionProcessor:
         self.min_lines_to_compress = self.config.compression_keep_threshold
         self.max_gap_to_merge = 3
 
-    def process_file(self, file_data: ParsedFileData) -> List[ContentSegment]:
+    def process_file(self, file_data: ParsedFileData) -> list[ContentSegment]:
         """
         Process a file and create a list of content segments based on importance.
 
@@ -157,8 +156,8 @@ class CompressionProcessor:
         return self._format_placeholders(validated_segments, file_data)
 
     def _calculate_line_importance(
-        self, lines: List[str], file_data: ParsedFileData
-    ) -> List[float]:
+        self, lines: list[str], file_data: ParsedFileData
+    ) -> list[float]:
         """
         Calculate importance scores using modern pattern recognition.
 
@@ -171,7 +170,7 @@ class CompressionProcessor:
         line_importance = [0.0] * total_lines
 
         # Track important line numbers
-        important_lines: Set[int] = set()
+        important_lines: set[int] = set()
 
         # 1. Security issues are always critical
         if file_data.security_issues:
@@ -253,15 +252,15 @@ class CompressionProcessor:
         return line_importance
 
     def _create_initial_segments(
-        self, lines: List[str], line_importance: List[float]
-    ) -> List[ContentSegment]:
+        self, lines: list[str], line_importance: list[float]
+    ) -> list[ContentSegment]:
         """Create initial content segments based on line importance."""
-        segments: List[ContentSegment] = []
+        segments: list[ContentSegment] = []
         current_type = None
         segment_start = 0
         segment_content = []
 
-        for i, (line, importance) in enumerate(zip(lines, line_importance)):
+        for i, (line, importance) in enumerate(zip(lines, line_importance, strict=False)):
             # Determine segment type for this line
             line_type = (
                 ContentSegmentType.CODE
@@ -316,7 +315,7 @@ class CompressionProcessor:
 
         return segments
 
-    def _merge_small_segments(self, segments: List[ContentSegment]) -> List[ContentSegment]:
+    def _merge_small_segments(self, segments: list[ContentSegment]) -> list[ContentSegment]:
         """
         FIXED: Merge adjacent segments preserving actual gap content.
 
@@ -326,7 +325,7 @@ class CompressionProcessor:
         if not segments:
             return []
 
-        result: List[ContentSegment] = [segments[0]]
+        result: list[ContentSegment] = [segments[0]]
 
         for segment in segments[1:]:
             prev = result[-1]
@@ -384,8 +383,8 @@ class CompressionProcessor:
         return result
 
     def _validate_syntactic_correctness(
-        self, segments: List[ContentSegment], file_data: ParsedFileData
-    ) -> List[ContentSegment]:
+        self, segments: list[ContentSegment], file_data: ParsedFileData
+    ) -> list[ContentSegment]:
         """
         Validate and fix syntactic correctness of compressed code.
 
@@ -448,7 +447,7 @@ class CompressionProcessor:
 
         return result
 
-    def _expand_context_for_syntax(self, segments: List[ContentSegment], problem_line: int) -> None:
+    def _expand_context_for_syntax(self, segments: list[ContentSegment], problem_line: int) -> None:
         """Expand context around a problematic line to fix syntax errors."""
         # Find segment containing the problem line
         current_line = 0
@@ -473,10 +472,10 @@ class CompressionProcessor:
             current_line += segment_lines
 
     def _format_placeholders(
-        self, segments: List[ContentSegment], file_data: ParsedFileData
-    ) -> List[ContentSegment]:
+        self, segments: list[ContentSegment], file_data: ParsedFileData
+    ) -> list[ContentSegment]:
         """Format placeholders for omitted segments with improved metadata."""
-        result: List[ContentSegment] = []
+        result: list[ContentSegment] = []
 
         for segment in segments:
             if segment.segment_type == ContentSegmentType.OMITTED:

@@ -8,7 +8,6 @@ and handling of nested declarations for better parsing results.
 
 import logging
 import re
-from typing import Dict, List, Optional, Set
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
@@ -162,13 +161,13 @@ class EnhancedJuliaParser(EnhancedBaseParser):
 
     def _process_block(
         self,
-        lines: List[str],
+        lines: list[str],
         start: int,
         end: int,
-        declarations: List[Declaration],
-        imports: List[str],
-        errors: List[str],
-        parent_decl: Optional[Declaration] = None,
+        declarations: list[Declaration],
+        imports: list[str],
+        errors: list[str],
+        parent_decl: Declaration | None = None,
     ) -> None:
         """Process a block of Julia code for declarations and imports.
 
@@ -320,7 +319,7 @@ class EnhancedJuliaParser(EnhancedBaseParser):
             logger.error(f"Error processing Julia block: {str(e)}", exc_info=True)
             errors.append(f"Error processing block: {str(e)}")
 
-    def _find_julia_block_end(self, lines: List[str], start: int) -> int:
+    def _find_julia_block_end(self, lines: list[str], start: int) -> int:
         """
         Find the end of a Julia code block.
 
@@ -433,7 +432,7 @@ class EnhancedJuliaParser(EnhancedBaseParser):
         logger.warning(f"No matching 'end' found for block starting at line {start + 1}")
         return len(lines) - 1
 
-    def _process_imports(self, line: str, imports: List[str]) -> bool:
+    def _process_imports(self, line: str, imports: list[str]) -> bool:
         """
         Process Julia import statements and add them to the imports list.
 
@@ -468,7 +467,7 @@ class EnhancedJuliaParser(EnhancedBaseParser):
 
         return False
 
-    def _extract_modifiers(self, line: str) -> Set[str]:
+    def _extract_modifiers(self, line: str) -> set[str]:
         """
         Extract modifiers from a declaration line.
 
@@ -485,7 +484,7 @@ class EnhancedJuliaParser(EnhancedBaseParser):
                 found_modifiers.add(mod)
         return found_modifiers
 
-    def extract_docstring(self, lines: List[str], start: int, end: int) -> str | None:
+    def extract_docstring(self, lines: list[str], start: int, end: int) -> str | None:
         """
         Extract Julia docstring from a block.
 
@@ -534,7 +533,7 @@ class EnhancedJuliaParser(EnhancedBaseParser):
 
         return ""
 
-    def get_capabilities(self) -> Dict[str, bool]:
+    def get_capabilities(self) -> dict[str, bool]:
         """Return the capabilities of this parser."""
         return {
             "can_parse_functions": True,

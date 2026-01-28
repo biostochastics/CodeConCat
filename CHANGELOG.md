@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-01-28
+
+### Performance
+
+- **Parallel Parsing Phase**: Added `ProcessPoolExecutor`-based parallel file parsing
+  - 5-7x speedup for large codebases (100+ files)
+  - Module-level `_process_file_worker()` for picklability
+  - Sequential fallback for small batches (<4 files)
+  - 60-second per-file timeout for edge cases
+  - Rich progress bars with `as_completed()` pattern
+
+- **Eliminated Redundant File Reads**: Removed legacy file read path in `determine_language()`
+  - Skips guesslang detection if content not provided instead of re-reading files
+  - 10-15% improvement in file collection phase
+
+### Changed
+
+- **Updated AI Model Token Limits** (January 2026):
+  - OpenAI: Added GPT-5, GPT-5.1, GPT-5.2 (up to 1M tokens), o3/o3-mini
+  - Anthropic: Added Claude Opus 4.5, Sonnet 4.5, Haiku 4 (up to 500K tokens)
+  - Google: Added Gemini 3 Preview, Gemini 2.5 Pro/Flash (up to 2M tokens)
+  - Increased default fallback from 100K to 200K tokens
+
+- **Standardized File Size Limits**: Unified to 10MB across all components
+  - `DEFAULT_MAX_FILE_SIZE`: 10MB (was inconsistent)
+  - `DEFAULT_MAX_BINARY_CHECK_SIZE`: 10MB
+
+- **Hidden Config File Whitelist**: Added `HIDDEN_CONFIG_WHITELIST` with 51 entries
+  - JS/TS: `.eslintrc*`, `.prettierrc*`, `.babelrc*`, `.swcrc`, `.npmrc`, `.nvmrc`
+  - Python: `.flake8`, `.pylintrc`, `.python-version`, `.pre-commit-config.yaml`
+  - Editor: `.editorconfig`
+  - Docker: `.dockerignore`
+  - Ruby: `.rubocop.yml`, `.ruby-version`
+  - Templates: `.env.example`, `.env.template`, `.env.sample`
+  - Removed aggressive `**/.*` pattern that excluded valuable config files
+
+### Fixed
+
+- **ABC Import**: Fixed `ParserInterface` class to use imported `ABC`/`abstractmethod` instead of `abc.ABC`
+- **Multiprocessing Serialization**: Fixed serialization for parallel parsing workers
+  - Clear `ast_root` (tree_sitter.Node) before returning from workers
+  - Use `dataclasses.asdict()` for recursive dataclass conversion
+
+### Code Quality
+
+- **Ruff Lint Fixes**: Applied modern Python idioms across codebase
+  - `UP007`: Use `X | Y` union syntax instead of `Optional[X]` or `Union[X, Y]`
+  - `UP038`: Use `X | Y` in `isinstance()` calls instead of tuple syntax
+  - `B904`: Use `raise ... from err` or `raise ... from None` for exception chaining
+  - Reformatted 4 files with Ruff for consistent code style
+
 ## [0.8.7] - 2025-01-28
 
 ### Performance

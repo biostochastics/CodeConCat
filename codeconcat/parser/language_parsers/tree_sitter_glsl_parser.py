@@ -18,7 +18,6 @@ Supports GLSL ES and Desktop GLSL with features including:
 """
 
 import logging
-from typing import Dict, List, Optional, Set
 
 from tree_sitter import Node
 
@@ -79,13 +78,13 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
             # Fall back to base initialization
             super().__init__("glsl")
 
-        self.shader_stage: Optional[str] = None
-        self._uniforms: List[Declaration] = []
-        self._io_variables: List[Declaration] = []
-        self._samplers: List[Declaration] = []
-        self._buffers: List[Declaration] = []
+        self.shader_stage: str | None = None
+        self._uniforms: list[Declaration] = []
+        self._io_variables: list[Declaration] = []
+        self._samplers: list[Declaration] = []
+        self._buffers: list[Declaration] = []
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns Tree-sitter queries for GLSL.
 
         Returns:
@@ -144,11 +143,11 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         self._buffers = []
 
         # Extract all declarations
-        declarations: List[Declaration] = []
-        imports: List[str] = []
+        declarations: list[Declaration] = []
+        imports: list[str] = []
 
         # Shared processed_nodes set to avoid duplicates across all extractions
-        processed_nodes: Set = set()
+        processed_nodes: set = set()
 
         # Extract uniforms
         self._extract_uniforms(root_node, source_code, declarations, processed_nodes)
@@ -180,8 +179,8 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         self,
         root_node: Node,
         source_code: str,
-        declarations: List[Declaration],
-        processed_nodes: Set,
+        declarations: list[Declaration],
+        processed_nodes: set,
     ) -> None:
         """Extract uniform variables from declarations."""
         self._traverse_declarations(
@@ -192,8 +191,8 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         self,
         root_node: Node,
         source_code: str,
-        declarations: List[Declaration],
-        processed_nodes: Set,
+        declarations: list[Declaration],
+        processed_nodes: set,
     ) -> None:
         """Extract input/output variables."""
         self._traverse_declarations(
@@ -204,7 +203,7 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         )
 
     def _extract_samplers(
-        self, _root_node: Node, _source_code: str, _declarations: List[Declaration]
+        self, _root_node: Node, _source_code: str, _declarations: list[Declaration]
     ) -> None:
         """Extract sampler and image declarations."""
         # Reclassify uniforms collected in `self._uniforms` into sampler/image kinds
@@ -221,8 +220,8 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         self,
         root_node: Node,
         source_code: str,
-        declarations: List[Declaration],
-        processed_nodes: Set,
+        declarations: list[Declaration],
+        processed_nodes: set,
     ) -> None:
         """Extract shader storage buffer objects (SSBOs)."""
         self._traverse_declarations(
@@ -233,10 +232,10 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         self,
         node: Node,
         source_code: str,
-        declarations: List[Declaration],
+        declarations: list[Declaration],
         keyword: str,
         kind: str,
-        processed_nodes: Optional[Set] = None,
+        processed_nodes: set | None = None,
     ) -> None:
         """Recursively traverse the tree to find declarations with a specific keyword.
 
@@ -344,7 +343,7 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
             )
 
     def _extract_functions(
-        self, root_node: Node, source_code: str, declarations: List[Declaration]
+        self, root_node: Node, source_code: str, declarations: list[Declaration]
     ) -> None:
         """Extract function definitions and declarations."""
         query = self._get_compiled_query("functions")
@@ -397,7 +396,7 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
             logger.debug(f"Error extracting GLSL functions: {e}")
 
     def _extract_structs(
-        self, root_node: Node, source_code: str, declarations: List[Declaration]
+        self, root_node: Node, source_code: str, declarations: list[Declaration]
     ) -> None:
         """Extract struct definitions."""
         query = self._get_compiled_query("structs")
@@ -447,7 +446,7 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
         except Exception as e:
             logger.debug(f"Error extracting GLSL structs: {e}")
 
-    def _extract_preprocessor(self, root_node: Node, source_code: str, imports: List[str]) -> None:
+    def _extract_preprocessor(self, root_node: Node, source_code: str, imports: list[str]) -> None:
         """Extract preprocessor directives, particularly #include statements."""
 
         def traverse(node: Node) -> None:
@@ -508,7 +507,7 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
 
         self.shader_stage = "unknown"
 
-    def _extract_identifier_from_node(self, node: Node, source_code: str) -> Optional[str]:
+    def _extract_identifier_from_node(self, node: Node, source_code: str) -> str | None:
         """Recursively extract identifier from node, handling nested structures.
 
         Handles:
@@ -530,7 +529,7 @@ class TreeSitterGlslParser(BaseTreeSitterParser):
                     return self._get_node_text(child, source_code)
         return None
 
-    def _extract_type_from_node(self, node: Node, source_code: str) -> Optional[str]:
+    def _extract_type_from_node(self, node: Node, source_code: str) -> str | None:
         """Extract type name from various type node structures.
 
         Handles:

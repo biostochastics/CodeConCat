@@ -1,7 +1,6 @@
 # file: codeconcat/parser/language_parsers/tree_sitter_js_ts_parser.py
 
 import logging
-from typing import Dict, List, Set
 
 from tree_sitter import Node, Query
 
@@ -160,7 +159,7 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
         super().__init__(language_name=language)
         self.language = language
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns the predefined Tree-sitter queries for JS/TS."""
         # For JavaScript, we need to filter out TypeScript-specific syntax
         if self.language == "javascript":
@@ -238,11 +237,11 @@ class TreeSitterJsTsParser(BaseTreeSitterParser):
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs JS/TS-specific queries and extracts declarations and imports."""
         queries = self.get_queries()
         declarations = []
-        imports: Set[str] = set()
+        imports: set[str] = set()
         doc_comment_map = {}  # end_line -> comment_text
 
         # --- Pass 1: Extract Doc Comments --- #

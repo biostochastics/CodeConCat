@@ -1,7 +1,8 @@
 """Optimized Text writer for terminal and CLI usage."""
 
 import textwrap
-from typing import Any, List, Sequence, Union
+from collections.abc import Sequence
+from typing import Any
 
 from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedDocData, WritableItem
 
@@ -12,7 +13,7 @@ SUBSEPARATOR_CHAR = "-"
 
 
 def write_text(
-    items: List[Union[AnnotatedFileData, ParsedDocData]],
+    items: list[AnnotatedFileData | ParsedDocData],
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
@@ -366,7 +367,7 @@ def _build_file_tree(items: Sequence[WritableItem]) -> dict:
     return tree
 
 
-def _render_tree(tree: dict, indent: int = 0, prefix: str = "") -> List[str]:
+def _render_tree(tree: dict, indent: int = 0, prefix: str = "") -> list[str]:
     """Render tree structure with box drawing characters."""
     lines = []
     items = list(tree.items())

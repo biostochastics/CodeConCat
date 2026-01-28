@@ -6,7 +6,7 @@ This module provides helper functions to integrate validation throughout the Cod
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from ..base_types import CodeConCatConfig, ParsedFileData
 from ..errors import ConfigurationError, ValidationError
@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 
 def validate_input_files(
-    files_to_process: List[ParsedFileData], config: CodeConCatConfig
-) -> List[ParsedFileData]:
+    files_to_process: list[ParsedFileData], config: CodeConCatConfig
+) -> list[ParsedFileData]:
     """
     Validate a list of input files for processing.
 
@@ -178,7 +178,7 @@ def validate_input_files(
     return validated_files
 
 
-def validate_config_values(config: Union[Dict[str, Any], CodeConCatConfig]) -> bool:
+def validate_config_values(config: dict[str, Any] | CodeConCatConfig) -> bool:
     """
     Validate configuration values against the schema.
 
@@ -287,7 +287,7 @@ def setup_semgrep(config: CodeConCatConfig) -> bool:
     return False
 
 
-def verify_file_signatures(files_to_process: List[ParsedFileData]) -> Dict[str, str]:
+def verify_file_signatures(files_to_process: list[ParsedFileData]) -> dict[str, str]:
     """
     Verify file signatures (content types) to ensure they match expectations.
 

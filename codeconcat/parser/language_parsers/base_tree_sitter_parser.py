@@ -1,7 +1,6 @@
 import abc
 import logging
 from collections import OrderedDict, deque
-from typing import Dict, List, Optional, Tuple
 
 from codeconcat.base_types import Declaration, ParseResult, ParserInterface
 
@@ -22,7 +21,7 @@ TREE_SITTER_LANGUAGE_PACK_AVAILABLE = (
 TREE_SITTER_LANGUAGES_AVAILABLE = (
     False  # Specifically indicates legacy tree_sitter_languages presence
 )
-TREE_SITTER_BACKEND: Optional[str] = None  # "tree_sitter_language_pack" or "tree_sitter_languages"
+TREE_SITTER_BACKEND: str | None = None  # "tree_sitter_language_pack" or "tree_sitter_languages"
 
 try:
     # Try to import both packages in a single block to reduce filesystem operations
@@ -139,9 +138,9 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             # Create the parser instance and set its language
             self.parser: Parser = self._create_parser()
             # Instance-level cache for compiled queries with LRU eviction
-            self._query_cache: Dict[Tuple[str, str, str], Optional[Query]] = {}
+            self._query_cache: dict[tuple[str, str, str], Query | None] = {}
             # Use OrderedDict for O(1) LRU operations (move_to_end, popitem)
-            self._cache_access_order: OrderedDict[Tuple[str, str, str], None] = OrderedDict()
+            self._cache_access_order: OrderedDict[tuple[str, str, str], None] = OrderedDict()
         except Exception as e:
             # Use standardized error handling for initialization failures
             raise ParserInitializationError(
@@ -156,7 +155,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
         # have been raised. This method confirms the instance is usable.
         return self.parser is not None
 
-    def _compile_query_cached(self, cache_key: Tuple[str, str, str]) -> Optional[Query]:
+    def _compile_query_cached(self, cache_key: tuple[str, str, str]) -> Query | None:
         """Compile a Tree-sitter query with instance-level LRU caching.
 
         Args:
@@ -202,7 +201,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             self._cache_access_order[cache_key] = None
             return None
 
-    def _update_cache_access_order(self, cache_key: Tuple[str, str, str]) -> None:
+    def _update_cache_access_order(self, cache_key: tuple[str, str, str]) -> None:
         """Update the access order for LRU cache with O(1) move_to_end."""
         # OrderedDict.move_to_end() is O(1), much better than deque.remove() which is O(n)
         self._cache_access_order.move_to_end(cache_key)
@@ -273,7 +272,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                     return captures
                 # Convert tuple format to dict for consistency
                 if captures:
-                    result_dict: Dict[str, List[Node]] = {}
+                    result_dict: dict[str, list[Node]] = {}
                     for item in captures:
                         # Handle both (node, name) tuples and dict entries
                         if isinstance(item, tuple) and len(item) == 2:
@@ -438,7 +437,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
             ) from e
 
     @abc.abstractmethod
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns a dictionary of Tree-sitter queries for the language.
 
         Keys should describe the query (e.g., 'declarations', 'imports'),
@@ -598,7 +597,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
                 context={"parser_state": "uninitialized"},
             )
 
-        tree: Optional[Tree] = None
+        tree: Tree | None = None
         try:
             logger.debug(f"Attempting self.parser.parse() for {file_path}")
             tree = self.parser.parse(content_bytes)
@@ -693,7 +692,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs the language-specific queries against the parsed tree."""
         queries = self.get_queries()
         declarations = []
@@ -821,7 +820,7 @@ class BaseTreeSitterParser(ParserInterface, abc.ABC):
 
     def _find_first_error_node(
         self, node: Node, max_depth: int = 100, current_depth: int = 0
-    ) -> Optional[Node]:
+    ) -> Node | None:
         """Helper to find the first node marked as an error in the tree.
 
         Args:

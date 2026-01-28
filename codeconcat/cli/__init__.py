@@ -7,7 +7,6 @@ This module provides the main CLI application with sub-commands for various oper
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -72,7 +71,7 @@ def main(
         "-q",
         help="Quiet mode: suppress progress information",
     ),
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None,
         "--config",
         "-c",
@@ -157,7 +156,7 @@ app.add_typer(config_commands.app, name="config", help="Configure CodeConCat pre
 @app.command(hidden=True)
 def default(
     ctx: typer.Context,
-    target: Optional[str] = typer.Argument(None),
+    target: str | None = typer.Argument(None),
 ):
     """
     Hidden default command for backward compatibility.

@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiohttp
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class OpenAIProvider(AIProvider):
     """OpenAI API provider for code summarization."""
 
-    _session: Optional[aiohttp.ClientSession]
+    _session: aiohttp.ClientSession | None
 
     def __init__(self, config: AIProviderConfig):
         """Initialize OpenAI provider."""
@@ -79,7 +79,7 @@ class OpenAIProvider(AIProvider):
             self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
         return self._session
 
-    async def _make_api_call(self, messages: list, max_tokens: Optional[int] = None) -> dict:
+    async def _make_api_call(self, messages: list, max_tokens: int | None = None) -> dict:
         """Make an API call to OpenAI with rate limiting and concurrency control."""
         # Use semaphore to limit concurrent requests
         async with self._concurrent_limit:
@@ -139,8 +139,8 @@ class OpenAIProvider(AIProvider):
         self,
         code: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
-        max_length: Optional[int] = None,
+        context: dict[str, Any] | None = None,
+        max_length: int | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a code file using OpenAI."""
         # Check cache first
@@ -179,7 +179,7 @@ class OpenAIProvider(AIProvider):
             # For reasoning models, increase max_tokens significantly as they use tokens for reasoning
             model_lower = self.config.model.lower()
             is_reasoning_model = any(x in model_lower for x in ["gpt-5", "o1", "o3"])
-            actual_max_length: Optional[int]
+            actual_max_length: int | None
             if is_reasoning_model and (max_length is None or max_length < 2000):
                 # Reasoning models need more tokens - they use many for reasoning
                 actual_max_length = 2000
@@ -224,7 +224,7 @@ class OpenAIProvider(AIProvider):
         function_code: str,
         function_name: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a specific function using OpenAI."""
         # Check cache first
@@ -304,11 +304,11 @@ class OpenAIProvider(AIProvider):
 
     async def generate_meta_overview(
         self,
-        file_summaries: Dict[str, Any],
-        custom_prompt: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        tree_structure: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        file_summaries: dict[str, Any],
+        custom_prompt: str | None = None,
+        max_tokens: int | None = None,
+        tree_structure: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
         """Generate meta-overview using higher-tier GPT-5 with reasoning parameters.
 
@@ -461,7 +461,7 @@ class OpenAIProvider(AIProvider):
             ):
                 self.config.temperature = original_temp
 
-    async def get_model_info(self) -> Dict[str, Any]:
+    async def get_model_info(self) -> dict[str, Any]:
         """Get information about the current OpenAI model."""
         model_info = {
             "gpt-4-turbo-preview": {

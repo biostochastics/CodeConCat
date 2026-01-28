@@ -12,7 +12,6 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import List
 
 # Add the project root to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -158,7 +157,7 @@ end # module TestModule
 '''
 
 
-def print_declaration_tree(declarations: List[Declaration], indent: int = 0):
+def print_declaration_tree(declarations: list[Declaration], indent: int = 0):
     """Print a tree of declarations with proper indentation to show hierarchy."""
     for decl in declarations:
         print(
@@ -168,7 +167,7 @@ def print_declaration_tree(declarations: List[Declaration], indent: int = 0):
             print_declaration_tree(decl.children, indent + 1)
 
 
-def count_declarations(declarations: List[Declaration]) -> int:
+def count_declarations(declarations: list[Declaration]) -> int:
     """Count total declarations including nested ones."""
     total = len(declarations)
     for decl in declarations:
@@ -176,7 +175,7 @@ def count_declarations(declarations: List[Declaration]) -> int:
     return total
 
 
-def measure_nesting_depth(declarations: List[Declaration], current_depth: int = 0) -> int:
+def measure_nesting_depth(declarations: list[Declaration], current_depth: int = 0) -> int:
     """Calculate the maximum nesting depth of declarations."""
     if not declarations:
         return current_depth

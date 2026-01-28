@@ -14,7 +14,7 @@ import os  # Ensure os is imported at the global scope
 import sys
 import warnings
 from pathlib import Path
-from typing import List, Literal, Union
+from typing import Literal
 
 from rich.progress import track
 
@@ -65,9 +65,7 @@ logger = logging.getLogger(__name__)
 
 
 def configure_logging(
-    log_level: Union[
-        str, int, Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-    ] = "WARNING",
+    log_level: str | int | Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "WARNING",
     debug: bool = False,
     quiet: bool = False,
 ) -> None:
@@ -787,7 +785,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         # Collect input files
         logger.info("Collecting input files...")
-        files_to_process: List[ParsedFileData] = []
+        files_to_process: list[ParsedFileData] = []
 
         # Check if we're in diff mode
         diff_mode = (
@@ -902,7 +900,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             if diff_mode:
                 logger.info("Diff mode: skipping additional parsing (files already processed)")
                 parsed_files = files_to_process
-                parser_errors: List[ParserError] = []
+                parser_errors: list[ParserError] = []
             else:
                 # Use the unified parsing pipeline
                 logger.info("Using unified parsing pipeline with progressive fallbacks")
@@ -941,18 +939,19 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                     logger.info(
                         f"[CodeConCat] Summarizer created, processing {len(parsed_files)} files..."
                     )
-                    # Run async summarization
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        parsed_files = loop.run_until_complete(
-                            summarizer.process_batch(parsed_files)
-                        )
-                    finally:
-                        loop.run_until_complete(summarizer.cleanup())
-                        # Allow aiohttp session cleanup to complete before closing loop
-                        loop.run_until_complete(asyncio.sleep(0.25))
-                        loop.close()
+
+                    # Define async wrapper for proper cleanup
+                    async def run_summarization():
+                        """Run summarization with proper async cleanup."""
+                        try:
+                            return await summarizer.process_batch(parsed_files)
+                        finally:
+                            await summarizer.cleanup()
+                            # Allow aiohttp session cleanup to complete
+                            await asyncio.sleep(0.25)
+
+                    # Use asyncio.run() which handles loop lifecycle properly (Python 3.7+)
+                    parsed_files = asyncio.run(run_summarization())
 
                     # Check if any summaries were actually added
                     summaries_added = sum(
@@ -1065,7 +1064,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
             raise FileProcessingError(f"Error during annotation phase: {str(e)}") from e
 
         # --- Prepare list for polymorphic writers --- #
-        items: List[WritableItem] = []
+        items: list[WritableItem] = []
         items.extend(annotated_files)
         items.extend(docs)
 
@@ -1312,21 +1311,40 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                     total_claude_compressed += stats.claude_tokens
 
                 print("\n[Token Summary] Total tokens for all parsed files (COMPRESSED):")
-                print(
-                    f"  Claude:   {total_claude_compressed} ({(total_claude_compressed / total_claude_uncompressed * 100):.1f}%)"
-                )
-                print(
-                    f"  GPT-4:    {total_gpt4_compressed} ({(total_gpt4_compressed / total_gpt4_uncompressed * 100):.1f}%)"
-                )
+                # Guard against division by zero
+                if total_claude_uncompressed > 0:
+                    claude_pct = (total_claude_compressed / total_claude_uncompressed) * 100
+                    print(f"  Claude:   {total_claude_compressed} ({claude_pct:.1f}%)")
+                else:
+                    print(f"  Claude:   {total_claude_compressed} (N/A - no uncompressed data)")
+
+                if total_gpt4_uncompressed > 0:
+                    gpt4_pct = (total_gpt4_compressed / total_gpt4_uncompressed) * 100
+                    print(f"  GPT-4:    {total_gpt4_compressed} ({gpt4_pct:.1f}%)")
+                else:
+                    print(f"  GPT-4:    {total_gpt4_compressed} (N/A - no uncompressed data)")
 
                 # Show token reduction from compression
                 print("\n[Compression Effectiveness]")
-                print(
-                    f"  Claude:   {total_claude_uncompressed - total_claude_compressed} tokens saved ({(1 - total_claude_compressed / total_claude_uncompressed) * 100:.1f}% reduction)"
-                )
-                print(
-                    f"  GPT-4:    {total_gpt4_uncompressed - total_gpt4_compressed} tokens saved ({(1 - total_gpt4_compressed / total_gpt4_uncompressed) * 100:.1f}% reduction)"
-                )
+                if total_claude_uncompressed > 0:
+                    claude_reduction = (
+                        1 - total_claude_compressed / total_claude_uncompressed
+                    ) * 100
+                    print(
+                        f"  Claude:   {total_claude_uncompressed - total_claude_compressed} "
+                        f"tokens saved ({claude_reduction:.1f}% reduction)"
+                    )
+                else:
+                    print("  Claude:   N/A - no uncompressed data")
+
+                if total_gpt4_uncompressed > 0:
+                    gpt4_reduction = (1 - total_gpt4_compressed / total_gpt4_uncompressed) * 100
+                    print(
+                        f"  GPT-4:    {total_gpt4_uncompressed - total_gpt4_compressed} "
+                        f"tokens saved ({gpt4_reduction:.1f}% reduction)"
+                    )
+                else:
+                    print("  GPT-4:    N/A - no uncompressed data")
         except (ImportError, AttributeError, ValueError, TypeError) as e:
             logger.warning(f"[Tokens] Failed to calculate token stats: {e}")
             import traceback

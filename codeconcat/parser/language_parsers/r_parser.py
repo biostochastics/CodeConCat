@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import List, Set, Tuple
 
 from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
@@ -110,8 +109,8 @@ class RParser(ParserInterface):
         """
         self.current_file_path = file_path
         logger.debug(f"Starting RParser.parse (Regex) for file: {file_path}")
-        declarations: List[Declaration] = []
-        imports: Set[str] = set()
+        declarations: list[Declaration] = []
+        imports: set[str] = set()
 
         try:
             lines = self._merge_multiline_assignments(content.split("\n"), also_for_classes=True)
@@ -159,12 +158,12 @@ class RParser(ParserInterface):
             self.docstring = docstring if docstring else ""
             self.modifiers = modifiers if modifiers else set()
 
-    def _parse_block(self, lines: List[str], start_idx: int, end_idx: int) -> List[TempCodeSymbol]:
+    def _parse_block(self, lines: list[str], start_idx: int, end_idx: int) -> list[TempCodeSymbol]:
         """
         Parse lines from start_idx to end_idx (exclusive).
         Return a list of TempCodeSymbol objects.
         """
-        symbols: List[RParser.TempCodeSymbol] = []
+        symbols: list[RParser.TempCodeSymbol] = []
         i = start_idx
         current_docstring_lines = []
 
@@ -277,8 +276,8 @@ class RParser(ParserInterface):
         return symbols
 
     def _merge_multiline_assignments(
-        self, raw_lines: List[str], also_for_classes: bool = False
-    ) -> List[str]:
+        self, raw_lines: list[str], also_for_classes: bool = False
+    ) -> list[str]:
         """
         Fix for cases like:
           complex_func <- # comment
@@ -333,7 +332,7 @@ class RParser(ParserInterface):
             i += 1
         return merged
 
-    def _find_function_block(self, lines: List[str], start_idx: int) -> Tuple[int, int]:
+    def _find_function_block(self, lines: list[str], start_idx: int) -> tuple[int, int]:
         """
         Return (start_line, end_line) for a function (or method) definition starting at start_idx.
         We'll count braces to find the end of the function body. If no brace on that line,
@@ -358,7 +357,7 @@ class RParser(ParserInterface):
         return start_idx, end_idx
 
     def _function_defines_s3(
-        self, lines: List[str], start_idx: int, end_idx: int, fname: str
+        self, lines: list[str], start_idx: int, end_idx: int, fname: str
     ) -> bool:
         """
         Check if between start_idx and end_idx there's 'class(...) <- "fname"'
@@ -370,7 +369,7 @@ class RParser(ParserInterface):
                 return True
         return False
 
-    def _find_matching_parenthesis_block(self, lines: List[str], start_idx: int) -> Tuple[int, int]:
+    def _find_matching_parenthesis_block(self, lines: list[str], start_idx: int) -> tuple[int, int]:
         """
         For code like MyClass <- R6Class("MyClass", public=list(...)),
         we only track parentheses '(' and ')' -- not braces -- so we don't get confused by
@@ -395,8 +394,8 @@ class RParser(ParserInterface):
         return (start_idx, min(j, len(lines) - 1))
 
     def _parse_r6_methods(
-        self, lines: List[str], start_idx: int, end_idx: int, class_name: str
-    ) -> List[TempCodeSymbol]:
+        self, lines: list[str], start_idx: int, end_idx: int, class_name: str
+    ) -> list[TempCodeSymbol]:
         """Parse methods defined within an R6 class block.
 
         Identifies methods defined as `methodName = function(...) { ... }`
@@ -438,8 +437,8 @@ class RParser(ParserInterface):
         return methods
 
     def _parse_refclass_methods(
-        self, lines: List[str], start_idx: int, end_idx: int, class_name: str
-    ) -> List[TempCodeSymbol]:
+        self, lines: list[str], start_idx: int, end_idx: int, class_name: str
+    ) -> list[TempCodeSymbol]:
         """
         For setRefClass("Employee", fields=list(...), methods=list(...)), parse methodName = function(...).
         We'll produce "Employee.methodName".
@@ -468,7 +467,7 @@ class RParser(ParserInterface):
                 )
         return methods
 
-    def _find_function_start_line(self, lines: List[str], start_line: int, func_name: str) -> int:
+    def _find_function_start_line(self, lines: list[str], start_line: int, func_name: str) -> int:
         """
         Find the line number where the function definition starts
         """
@@ -477,7 +476,7 @@ class RParser(ParserInterface):
                 return line_num
         return -1
 
-    def _find_class_start_line(self, lines: List[str], start_line: int, class_name: str) -> int:
+    def _find_class_start_line(self, lines: list[str], start_line: int, class_name: str) -> int:
         """
         Find the line number where the class definition starts
         """

@@ -1,10 +1,10 @@
 """Factory for creating AI provider instances."""
 
-from typing import Any, Dict, List, Type
+from typing import Any
 
 from .base import AIProvider, AIProviderConfig, AIProviderType
 
-_PROVIDER_REGISTRY: Dict[AIProviderType, Type[AIProvider]] = {}
+_PROVIDER_REGISTRY: dict[AIProviderType, type[AIProvider]] = {}
 
 
 def register_provider(provider_type: AIProviderType):
@@ -22,7 +22,7 @@ def register_provider(provider_type: AIProviderType):
             ...
     """
 
-    def decorator(cls: Type[AIProvider]):
+    def decorator(cls: type[AIProvider]):
         """Register the decorated class as a provider.
 
         Args:
@@ -89,7 +89,7 @@ def get_ai_provider(config: AIProviderConfig) -> AIProvider:
         raise ValueError(f"Unsupported provider type: {config.provider_type}")
 
 
-def list_available_providers() -> List[str]:
+def list_available_providers() -> list[str]:
     """List all available AI providers.
 
     Returns:
@@ -138,7 +138,7 @@ def list_available_providers() -> List[str]:
     return available
 
 
-def get_provider_info(provider_name: str) -> Dict[str, Any]:
+def get_provider_info(provider_name: str) -> dict[str, Any]:
     """Get information about a specific provider.
 
     Args:

@@ -16,7 +16,6 @@ Supports HCL2/Terraform with features including:
 """
 
 import logging
-from typing import Dict, List
 
 from codeconcat.base_types import Declaration
 
@@ -131,7 +130,7 @@ class TreeSitterHclParser(BaseTreeSitterParser):
         super().__init__("hcl")
         logger.debug("TreeSitterHclParser initialized")
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns Tree-sitter query patterns for HCL2/Terraform.
 
         Returns:
@@ -144,7 +143,7 @@ class TreeSitterHclParser(BaseTreeSitterParser):
 
     def _run_queries(
         self, root_node: "Node", byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs queries and post-processes HCL-specific name extraction.
 
         Overrides base class to strip quotes from HCL string_lit nodes,

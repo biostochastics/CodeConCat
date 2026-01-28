@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import Dict, List, Set
 
 try:
     import defusedxml.ElementTree as ET  # noqa: F401
@@ -164,16 +163,16 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
         """Initializes the C# Tree-sitter parser."""
         super().__init__(language_name="csharp")
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns the predefined Tree-sitter queries for C#."""
         return CSHARP_QUERIES
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs C#-specific queries and extracts declarations and imports."""
         queries = self.get_queries()
-        imports: Set[str] = set()
+        imports: set[str] = set()
         doc_comment_map = {}  # end_line -> raw comment_text (list of lines)
 
         # --- Pass 1: Extract Doc Comments --- #
@@ -182,7 +181,7 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
             doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
             doc_captures = self._execute_query_with_cursor(doc_query, root_node)
             last_comment_line = -2
-            current_doc_block: List[str] = []
+            current_doc_block: list[str] = []
 
             # Collect all comment nodes and sort by line number
             # Use a set to deduplicate (same node can match multiple captures)
@@ -258,7 +257,7 @@ class TreeSitterCSharpParser(BaseTreeSitterParser):
 
     def _extract_declarations_recursive(
         self, parent_node: Node, byte_content: bytes, doc_comment_map: dict
-    ) -> List[Declaration]:
+    ) -> list[Declaration]:
         """Recursively extract declarations and build parent-child hierarchy.
 
         Args:

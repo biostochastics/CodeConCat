@@ -3,7 +3,8 @@
 import re
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Pattern, Set
+from re import Pattern
+from typing import Optional
 
 from codeconcat.base_types import Declaration, ParseResult, ParserInterface
 
@@ -30,10 +31,10 @@ class CodeSymbol:
     kind: str
     start_line: int
     end_line: int
-    modifiers: Set[str]
+    modifiers: set[str]
     parent: Optional["CodeSymbol"] = None
-    children: List["CodeSymbol"] = field(default_factory=list)
-    docstring: Optional[str] = None
+    children: list["CodeSymbol"] = field(default_factory=list)
+    docstring: str | None = None
 
 
 class BaseParser(ParserInterface):
@@ -44,16 +45,16 @@ class BaseParser(ParserInterface):
 
     def __init__(self, _file_path: str = ""):
         """Initialize the parser with default values."""
-        self.symbols: List[CodeSymbol] = []
-        self.current_symbol: Optional[CodeSymbol] = None
-        self.symbol_stack: List[CodeSymbol] = []
+        self.symbols: list[CodeSymbol] = []
+        self.current_symbol: CodeSymbol | None = None
+        self.symbol_stack: list[CodeSymbol] = []
         self.block_start = "{"  # Default block start
         self.block_end = "}"  # Default block end
         self.line_comment: str | None = None  # Default line comment
         self.block_comment_start: str | None = None  # Default block comment start
         self.block_comment_end: str | None = None  # Default block comment end
-        self.patterns: Dict[str, Pattern[str]] = {}
-        self.modifiers: Set[str] = set()
+        self.patterns: dict[str, Pattern[str]] = {}
+        self.modifiers: set[str] = set()
         # Use Unicode word character class \w to match Unicode identifiers
         self.identifier_pattern = re.compile(r"[\w\u0080-\uffff]+")
 
@@ -72,7 +73,7 @@ class BaseParser(ParserInterface):
         """
         raise NotImplementedError("Subclasses must implement the parse method.")
 
-    def _flatten_symbol(self, symbol: CodeSymbol) -> List[Declaration]:
+    def _flatten_symbol(self, symbol: CodeSymbol) -> list[Declaration]:
         """Flatten a symbol and its children into a list of declarations."""
         declarations = [
             Declaration(
@@ -88,7 +89,7 @@ class BaseParser(ParserInterface):
             declarations.extend(self._flatten_symbol(child))
         return declarations
 
-    def _find_block_end(self, lines: List[str], start: int) -> int:
+    def _find_block_end(self, lines: list[str], start: int) -> int:
         """Find the end of a code block."""
         if self.block_start is None or self.block_end is None:
             return start
@@ -111,13 +112,13 @@ class BaseParser(ParserInterface):
 
         return len(lines) - 1
 
-    def _create_pattern(self, base_pattern: str, modifiers: Optional[List[str]] = None) -> Pattern:
+    def _create_pattern(self, base_pattern: str, modifiers: list[str] | None = None) -> Pattern:
         if modifiers:
             modifier_pattern = f"(?:{'|'.join(modifiers)})\\s+"
             return re.compile(f"^\\s*(?:{modifier_pattern})?{base_pattern}")
         return re.compile(f"^\\s*{base_pattern}")
 
-    def extract_docstring(self, lines: List[str], start: int, end: int) -> Optional[str]:
+    def extract_docstring(self, lines: list[str], start: int, end: int) -> str | None:
         """
         Example extraction for docstring-like text between triple quotes or similar.
         Subclasses can override or use as needed.

@@ -5,7 +5,6 @@ across 10+ enhanced parsers by providing a single, language-agnostic interface.
 """
 
 import logging
-from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +57,11 @@ class CommentExtractor:
 
     @staticmethod
     def extract_pre_declaration_comments(
-        lines: List[str],
+        lines: list[str],
         declaration_line: int,
         language: str,
         max_lookback: int = 10,
-    ) -> Optional[str]:
+    ) -> str | None:
         (
             """Extract comments immediately before a declaration.
 
@@ -102,7 +101,7 @@ class CommentExtractor:
             logger.debug(f"No comment patterns defined for language: {language}")
             return None
 
-        comment_lines: List[str] = []
+        comment_lines: list[str] = []
         search_start = max(0, declaration_line - max_lookback)
 
         # Search backwards from declaration
@@ -156,8 +155,8 @@ class CommentExtractor:
 
     @staticmethod
     def _extract_block_comment_backwards(
-        lines: List[str], end_line: int, markers: Tuple[str, str]
-    ) -> List[str]:
+        lines: list[str], end_line: int, markers: tuple[str, str]
+    ) -> list[str]:
         """Extract block comment by searching backwards from end marker.
 
         Args:
@@ -169,7 +168,7 @@ class CommentExtractor:
             List of comment text lines (without markers)
         """
         start_marker, end_marker = markers
-        comment_lines: List[str] = []
+        comment_lines: list[str] = []
 
         # Extract content from end line (might have content before end marker)
         end_line_text = lines[end_line]
@@ -205,8 +204,8 @@ class CommentExtractor:
 
     @staticmethod
     def extract_inline_docstring(
-        lines: List[str], start_line: int, end_line: int, language: str
-    ) -> Optional[str]:
+        lines: list[str], start_line: int, end_line: int, language: str
+    ) -> str | None:
         """Extract docstring from within a declaration body.
 
         This is particularly useful for Python's triple-quoted docstrings
@@ -247,8 +246,8 @@ class CommentExtractor:
 
     @staticmethod
     def _extract_python_inline_docstring(
-        lines: List[str], start_line: int, end_line: int
-    ) -> Optional[str]:
+        lines: list[str], start_line: int, end_line: int
+    ) -> str | None:
         """Extract Python's triple-quoted docstrings."""
         # Look for triple quotes at the start of the block
         for i in range(start_line, min(end_line + 1, len(lines))):
@@ -297,11 +296,11 @@ class CommentExtractor:
 
     @staticmethod
     def _extract_block_comment_forward(
-        lines: List[str], start_line: int, markers: Tuple[str, str]
-    ) -> List[str]:
+        lines: list[str], start_line: int, markers: tuple[str, str]
+    ) -> list[str]:
         """Extract block comment by searching forward from start marker."""
         start_marker, end_marker = markers
-        comment_lines: List[str] = []
+        comment_lines: list[str] = []
 
         # Extract content from start line
         start_line_text = lines[start_line]

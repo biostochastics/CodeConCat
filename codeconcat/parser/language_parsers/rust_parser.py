@@ -1,6 +1,5 @@
 import logging
 import re
-from typing import List, Set
 
 from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
@@ -48,12 +47,12 @@ class RustParser(ParserInterface):
     def parse(self, content: str, file_path: str) -> ParseResult:
         """Parses Rust code using Regex to find declarations and imports."""
         declarations = []
-        imports: Set[str] = set()
+        imports: set[str] = set()
         lines = content.split("\n")
-        doc_buffer: List[str] = []
+        doc_buffer: list[str] = []
         in_block_comment = False
         in_doc_comment = False
-        current_module_stack: List[str] = []  # Basic module tracking
+        current_module_stack: list[str] = []  # Basic module tracking
         bracket_level = 0
 
         try:

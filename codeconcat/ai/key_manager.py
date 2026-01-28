@@ -6,7 +6,6 @@ import json
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -25,7 +24,7 @@ class KeyStorage(Enum):
 class APIKeyManager:
     """Manages API keys securely for AI providers."""
 
-    _fernet: Optional[Fernet]
+    _fernet: Fernet | None
 
     def __init__(self, storage_method: KeyStorage = KeyStorage.ENCRYPTED_FILE):
         """Initialize the key manager.
@@ -39,7 +38,7 @@ class APIKeyManager:
         self.keys_file = self.config_dir / "api_keys.enc"
         self.salt_file = self.config_dir / "salt"
         self._fernet = None
-        self._keys_cache: Dict[str, str] = {}
+        self._keys_cache: dict[str, str] = {}
 
     def _get_or_create_salt(self) -> bytes:
         """Get or create a salt for key derivation."""
@@ -61,7 +60,7 @@ class APIKeyManager:
                 raise ValueError("Passwords do not match")
         return password
 
-    def _get_fernet(self, password: Optional[str] = None) -> Fernet:
+    def _get_fernet(self, password: str | None = None) -> Fernet:
         """Get Fernet instance for encryption/decryption."""
         if self._fernet is not None:
             return self._fernet
@@ -145,7 +144,7 @@ class APIKeyManager:
         except Exception:
             return False
 
-    def get_key(self, provider: str) -> Optional[str]:
+    def get_key(self, provider: str) -> str | None:
         """Get API key for a provider.
 
         Args:
@@ -188,7 +187,7 @@ class APIKeyManager:
 
         return None
 
-    def _get_key_from_encrypted_file(self, provider: str) -> Optional[str]:
+    def _get_key_from_encrypted_file(self, provider: str) -> str | None:
         """Get key from encrypted file storage."""
         if not self.keys_file.exists():
             return None
@@ -208,7 +207,7 @@ class APIKeyManager:
         except Exception:
             return None
 
-    def _get_key_from_keyring(self, provider: str) -> Optional[str]:
+    def _get_key_from_keyring(self, provider: str) -> str | None:
         """Get key from system keyring."""
         try:
             import keyring
@@ -381,7 +380,7 @@ class APIKeyManager:
         return providers
 
 
-async def setup_api_keys(interactive: bool = True) -> Dict[str, str]:
+async def setup_api_keys(interactive: bool = True) -> dict[str, str]:
     """Interactive setup for API keys.
 
     Args:

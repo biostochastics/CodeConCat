@@ -1,4 +1,15 @@
 repos:
+  # Local hooks for version syncing
+  - repo: local
+    hooks:
+      - id: sync-version
+        name: Sync version across files
+        entry: python scripts/sync_version.py
+        language: python
+        files: ^codeconcat/version\.py$
+        pass_filenames: false
+        description: Syncs version from version.py to pyproject.toml and README.md
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -26,6 +37,8 @@ repos:
       - id: mypy
         args: [--ignore-missing-imports]
         exclude: ^(tests|scripts)/
+        additional_dependencies:
+          - types-PyYAML>=6.0.0
 
   - repo: https://github.com/python-poetry/poetry
     rev: 2.1.3

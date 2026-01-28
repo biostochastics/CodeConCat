@@ -2,7 +2,6 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import Set
 
 from codeconcat.base_types import Declaration, ParseResult
 
@@ -74,7 +73,7 @@ class JuliaParser(ParserInterface):
                         continue
 
                     # Extract modifiers
-                    modifiers: Set[str] = set()
+                    modifiers: set[str] = set()
                     if kind == "struct" and "mutable" in line:
                         modifiers.add("mutable")
                     # A simple check for inline, might need refinement

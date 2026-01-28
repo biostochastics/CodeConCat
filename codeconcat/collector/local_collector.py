@@ -4,14 +4,13 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List, Optional
 
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern  # type: ignore[attr-defined]
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
-from codeconcat.constants import DEFAULT_EXCLUDE_PATTERNS
+from codeconcat.constants import DEFAULT_EXCLUDE_PATTERNS, HIDDEN_CONFIG_WHITELIST
 from codeconcat.language_map import GUESSLANG_AVAILABLE, ext_map, get_language_guesslang
 from codeconcat.processor.security_processor import SecurityProcessor
 from codeconcat.utils import is_file_too_large_for_binary_check, is_file_too_large_for_collection
@@ -71,11 +70,11 @@ def get_gitignore_spec(root_path: str) -> PathSpec:
 def should_include_file(
     file_path: str,
     config: CodeConCatConfig,
-    gitignore_spec: Optional[PathSpec] = None,
-    default_exclude_spec: Optional[PathSpec] = None,
-    config_exclude_spec: Optional[PathSpec] = None,
-    config_include_spec: Optional[PathSpec] = None,
-) -> Optional[str]:  # Return Optional[str] (language or None)
+    gitignore_spec: PathSpec | None = None,
+    default_exclude_spec: PathSpec | None = None,
+    config_exclude_spec: PathSpec | None = None,
+    config_include_spec: PathSpec | None = None,
+) -> str | None:  # Return Optional[str] (language or None)
     """Determine if a file should be included based on various criteria.
 
     Args:
@@ -107,22 +106,33 @@ def should_include_file(
         rel_path = file_path
 
     norm_path = Path(rel_path).as_posix()  # Normalize path for matching
+    filename = os.path.basename(file_path)
+    is_whitelisted_hidden = filename in HIDDEN_CONFIG_WHITELIST
     if config.verbose:
         logger.debug(f"Checking file: {rel_path} (Normalized: {norm_path}, Full: {file_path})")
+        if is_whitelisted_hidden:
+            logger.debug(f"File {filename} is in hidden config whitelist")
 
     # --- Path Filtering --- #
 
     # 1. Check .gitignore (if spec exists and enabled)
+    # Whitelisted hidden configs bypass gitignore for hidden file patterns
     if config.use_gitignore and gitignore_spec and gitignore_spec.match_file(norm_path):
-        if config.verbose:
-            logger.debug(f"Excluded by .gitignore: {rel_path}")
-        return None
+        if is_whitelisted_hidden:
+            if config.verbose:
+                logger.debug(f"Allowing whitelisted hidden config despite .gitignore: {rel_path}")
+        else:
+            if config.verbose:
+                logger.debug(f"Excluded by .gitignore: {rel_path}")
+            return None
 
     # 2. Check default excludes (if spec exists and enabled)
+    # Whitelisted hidden configs bypass default excludes
     if (
         config.use_default_excludes
         and default_exclude_spec
         and default_exclude_spec.match_file(norm_path)
+        and not is_whitelisted_hidden
     ):
         if config.verbose:
             logger.debug(f"Excluded by default excludes: {rel_path}")
@@ -247,7 +257,7 @@ def should_include_file(
     return language  # Return the determined language string
 
 
-def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[ParsedFileData]:
+def collect_local_files(root_path: str, config: CodeConCatConfig) -> list[ParsedFileData]:
     """
     Walks a directory tree or processes a single file, identifies, reads, and collects data for code files.
 
@@ -314,7 +324,7 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
             logger.error(f"Path validation failed for {root_path}: {e}")
             return []
 
-    parsed_files_data: List[ParsedFileData] = []
+    parsed_files_data: list[ParsedFileData] = []
 
     # Cache the unsupported reporter to avoid repeated calls
     unsupported_reporter = get_unsupported_reporter()
@@ -588,9 +598,7 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> List[Parsed
 
 
 # Function to process a single file (called by the executor)
-def process_file(
-    file_path: str, config: CodeConCatConfig, language: str
-) -> Optional[ParsedFileData]:
+def process_file(file_path: str, config: CodeConCatConfig, language: str) -> ParsedFileData | None:
     """Process a single file, reading its content. Assumes file should be included.
 
     OPTIMIZED: Reads file content ONCE and uses it for:
@@ -776,7 +784,7 @@ def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept c
     return False
 
 
-def get_language_by_extension(file_path: str) -> Optional[str]:
+def get_language_by_extension(file_path: str) -> str | None:
     """Get language based on file extension only (no I/O, O(1) lookup).
 
     Args:
@@ -790,9 +798,7 @@ def get_language_by_extension(file_path: str) -> Optional[str]:
     return ext_map.get(filename.lower(), ext_map.get(ext_with_dot))
 
 
-def get_language_by_content(
-    content: str, file_path: str = "", verbose: bool = False
-) -> Optional[str]:
+def get_language_by_content(content: str, file_path: str = "", verbose: bool = False) -> str | None:
     """Get language by analyzing file content with guesslang (if available).
 
     Args:
@@ -819,8 +825,8 @@ def get_language_by_content(
 
 
 def determine_language(
-    file_path: str, config: CodeConCatConfig, content: Optional[str] = None
-) -> Optional[str]:
+    file_path: str, config: CodeConCatConfig, content: str | None = None
+) -> str | None:
     """Determine the language of a file based on extension or content.
 
     OPTIMIZED: Now checks extension FIRST (O(1)), only uses guesslang as fallback.
@@ -844,18 +850,14 @@ def determine_language(
 
     # SLOW PATH: Fall back to guesslang for unknown extensions
     if GUESSLANG_AVAILABLE:
-        # Use provided content or read file
+        # Use provided content for guesslang detection
         if content is not None:
             language = get_language_by_content(content, file_path, bool(config.verbose))
         else:
-            # Only read file if content not provided (legacy path)
-            try:
-                with open(file_path, encoding="utf-8", errors="replace") as f:
-                    sample = f.read(5000)
-                language = get_language_by_content(sample, file_path, bool(config.verbose))
-            except (OSError, UnicodeDecodeError) as e:
-                if config.verbose:
-                    logger.debug(f"Could not read file for guesslang: {file_path}: {e}")
+            # Skip guesslang if content not provided - caller should provide content
+            # to avoid redundant file reads
+            if config.verbose:
+                logger.debug(f"Skipping guesslang detection for {file_path}: content not provided")
 
     if not language and config.verbose:
         logger.debug(f"Could not determine language for {file_path}")
@@ -1011,7 +1013,7 @@ def is_binary_content(content: bytes, file_path: str = "") -> bool:
     return False
 
 
-def is_binary_file(file_path: str, content: Optional[bytes] = None) -> bool:
+def is_binary_file(file_path: str, content: bytes | None = None) -> bool:
     """Check if a file is likely to be binary.
 
     Args:
@@ -1054,10 +1056,10 @@ def is_binary_file(file_path: str, content: Optional[bytes] = None) -> bool:
 
 def is_excluded(
     path: str,
-    gitignore_spec: Optional[PathSpec],
-    default_exclude_spec: Optional[PathSpec],
-    config_exclude_spec: Optional[PathSpec],
-    config_include_spec: Optional[PathSpec],
+    gitignore_spec: PathSpec | None,
+    default_exclude_spec: PathSpec | None,
+    config_exclude_spec: PathSpec | None,
+    config_include_spec: PathSpec | None,
     config: CodeConCatConfig,  # Add config here
     is_dir: bool = False,
 ) -> bool:
@@ -1098,10 +1100,10 @@ def is_excluded(
 def _log_exclusion_reason(
     file_path: str,
     config: CodeConCatConfig,
-    gitignore_spec: Optional[PathSpec],
-    default_exclude_spec: Optional[PathSpec],
-    config_exclude_spec: Optional[PathSpec],
-    config_include_spec: Optional[PathSpec],
+    gitignore_spec: PathSpec | None,
+    default_exclude_spec: PathSpec | None,
+    config_exclude_spec: PathSpec | None,
+    config_include_spec: PathSpec | None,
 ) -> None:
     """Log the reason for excluding a file.
 

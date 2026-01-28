@@ -1,6 +1,6 @@
 # Define custom exceptions for CodeConCat
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class CodeConcatError(Exception):
@@ -47,9 +47,9 @@ class ValidationError(CodeConcatError):
     def __init__(
         self,
         message: str,
-        field: Optional[str] = None,
+        field: str | None = None,
         value: Any = None,
-        original_exception: Optional[Exception] = None,
+        original_exception: Exception | None = None,
         **kwargs,
     ):
         """Initialize a validation error.
@@ -89,8 +89,8 @@ class FileProcessingError(CodeConcatError):
     def __init__(
         self,
         message: str,
-        file_path: Optional[str] = None,
-        original_exception: Optional[Exception] = None,
+        file_path: str | None = None,
+        original_exception: Exception | None = None,
         **kwargs,
     ):
         """Initialize a file processing error.
@@ -119,9 +119,9 @@ class ParserError(FileProcessingError):
     def __init__(
         self,
         message: str,
-        file_path: Optional[str] = None,
-        line_number: Optional[int] = None,
-        original_exception: Optional[Exception] = None,
+        file_path: str | None = None,
+        line_number: int | None = None,
+        original_exception: Exception | None = None,
         **kwargs,
     ):
         """Initialize a parser error.
@@ -161,10 +161,10 @@ class UnsupportedLanguageError(ParserError):
     def __init__(
         self,
         message: str,
-        file_path: Optional[str] = None,
-        language: Optional[str] = None,
-        line_number: Optional[int] = None,
-        original_exception: Optional[Exception] = None,
+        file_path: str | None = None,
+        language: str | None = None,
+        line_number: int | None = None,
+        original_exception: Exception | None = None,
         **kwargs,
     ):
         """Initialize an unsupported language error.
@@ -207,8 +207,8 @@ class PatternMatchError(SecurityValidationError):
     def __init__(
         self,
         message: str,
-        pattern_name: Optional[str] = None,
-        severity: Optional[str] = None,
+        pattern_name: str | None = None,
+        severity: str | None = None,
         **kwargs,
     ):
         """Initialize a pattern match error."""
@@ -218,7 +218,7 @@ class PatternMatchError(SecurityValidationError):
 class SemgrepValidationError(SecurityValidationError):
     """Raised when Semgrep validation fails or finds issues."""
 
-    def __init__(self, message: str, findings: Optional[List[Dict]] = None, **kwargs):
+    def __init__(self, message: str, findings: list[dict] | None = None, **kwargs):
         """Initialize a Semgrep validation error."""
         super().__init__(message, findings=findings or [], **kwargs)
 
@@ -229,8 +229,8 @@ class FileIntegrityError(SecurityValidationError):
     def __init__(
         self,
         message: str,
-        expected_hash: Optional[str] = None,
-        actual_hash: Optional[str] = None,
+        expected_hash: str | None = None,
+        actual_hash: str | None = None,
         **kwargs,
     ):
         """Initialize a file integrity error."""

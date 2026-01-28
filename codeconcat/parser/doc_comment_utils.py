@@ -13,11 +13,10 @@ Functions:
 """
 
 import re
-from typing import List
 
 
 def clean_line_comments(
-    lines: List[str],
+    lines: list[str],
     prefix_pattern: str = r"^(///?|#+)",
     strip_whitespace: bool = True,
     join_lines: bool = True,
@@ -47,7 +46,7 @@ def clean_line_comments(
         return ""
 
     prefix_re = re.compile(prefix_pattern)
-    cleaned_lines: List[str] = []
+    cleaned_lines: list[str] = []
 
     for line in lines:
         # Remove comment prefix
@@ -70,7 +69,7 @@ def clean_line_comments(
 
 
 def clean_block_comments(
-    lines: List[str],
+    lines: list[str],
     start_pattern: str = r"^/\*\*",
     line_pattern: str = r"^\s*\*",
     end_pattern: str = r"\*/$",
@@ -104,7 +103,7 @@ def clean_block_comments(
     start_re = re.compile(start_pattern)
     line_re = re.compile(line_pattern)
     end_re = re.compile(end_pattern)
-    cleaned_lines: List[str] = []
+    cleaned_lines: list[str] = []
 
     for i, line in enumerate(lines):
         cleaned = line
@@ -179,7 +178,7 @@ def clean_xml_doc_comments(xml_content: str, extract_tags: bool = True) -> str:
             return normalize_whitespace(ET.tostring(root, encoding="unicode", method="text"))
 
         # Extract specific tags with formatting
-        parts: List[str] = []
+        parts: list[str] = []
 
         # Extract summary
         summary = root.find("summary")
@@ -273,7 +272,7 @@ def clean_jsdoc_tags(text: str) -> str:
         return ""
 
     lines = text.split("\n")
-    cleaned_lines: List[str] = []
+    cleaned_lines: list[str] = []
 
     for line in lines:
         line = line.strip()

@@ -9,7 +9,6 @@ with Go-specific patterns and functionality.
 
 import logging
 import re
-from typing import Dict, List, Set, Tuple
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
@@ -250,8 +249,8 @@ class EnhancedGoParser(EnhancedBaseParser):
             )
 
     def _process_imports(
-        self, line: str, imports: List[str], i: int, lines: List[str]
-    ) -> Tuple[bool, int]:
+        self, line: str, imports: list[str], i: int, lines: list[str]
+    ) -> tuple[bool, int]:
         """
         Process Go import statements and add them to the imports list.
 
@@ -305,7 +304,7 @@ class EnhancedGoParser(EnhancedBaseParser):
 
         return False, i
 
-    def _extract_modifiers(self, line: str) -> Set[str]:
+    def _extract_modifiers(self, line: str) -> set[str]:
         """
         Extract modifiers from a declaration line.
 
@@ -322,7 +321,7 @@ class EnhancedGoParser(EnhancedBaseParser):
                 found_modifiers.add(mod)
         return found_modifiers
 
-    def get_capabilities(self) -> Dict[str, bool]:
+    def get_capabilities(self) -> dict[str, bool]:
         """Return the capabilities of this parser."""
         return {
             "can_parse_functions": True,

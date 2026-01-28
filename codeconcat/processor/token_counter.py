@@ -1,7 +1,7 @@
 """Token counting functionality using tiktoken."""
 
 import threading
-from typing import Any, Dict, Union
+from typing import Any
 
 import tiktoken
 from transformers import GPT2TokenizerFast
@@ -9,7 +9,7 @@ from transformers import GPT2TokenizerFast
 from ..base_types import TokenStats
 
 # Cache for encoders to avoid recreating them
-_ENCODER_CACHE: Dict[str, tiktoken.Encoding] = {}
+_ENCODER_CACHE: dict[str, tiktoken.Encoding] = {}
 _ENCODER_CACHE_LOCK = threading.Lock()
 
 # Claude tokenizer - loaded lazily
@@ -17,7 +17,7 @@ _CLAUDE_TOKENIZER = None
 _CLAUDE_TOKENIZER_LOCK = threading.Lock()
 
 
-def get_claude_tokenizer() -> Union[GPT2TokenizerFast, Any]:
+def get_claude_tokenizer() -> GPT2TokenizerFast | Any:
     """Get or create the Claude tokenizer."""
     global _CLAUDE_TOKENIZER
     if _CLAUDE_TOKENIZER is None:

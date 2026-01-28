@@ -34,7 +34,7 @@ Example:
 import bz2
 import gzip
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 
 class CompressionHelper:
@@ -57,7 +57,7 @@ class CompressionHelper:
 
     @staticmethod
     def get_compression_stream(
-        file_path: Union[str, Path], compression: Optional[str] = None, mode: str = "wt"
+        file_path: str | Path, compression: str | None = None, mode: str = "wt"
     ) -> Any:
         """Open a file with optional transparent compression.
 

@@ -8,7 +8,6 @@ import json
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 from typer.testing import CliRunner
 
@@ -20,7 +19,7 @@ class CLITestRunner:
 
     def __init__(self):
         self.runner = CliRunner()
-        self.temp_dirs: List[Path] = []
+        self.temp_dirs: list[Path] = []
 
     def cleanup(self):
         """Clean up temporary directories."""
@@ -43,10 +42,10 @@ class CLITestRunner:
 
     def run_command(
         self,
-        args: List[str],
-        input_text: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
-    ) -> Tuple[int, str, str]:
+        args: list[str],
+        input_text: str | None = None,
+        env: dict[str, str] | None = None,
+    ) -> tuple[int, str, str]:
         """
         Run a CLI command and return exit code, stdout, and stderr.
 
@@ -63,10 +62,10 @@ class CLITestRunner:
 
     def run_and_validate(
         self,
-        args: List[str],
+        args: list[str],
         expected_exit_code: int = 0,
-        expected_in_stdout: Optional[List[str]] = None,
-        not_expected_in_stdout: Optional[List[str]] = None,
+        expected_in_stdout: list[str] | None = None,
+        not_expected_in_stdout: list[str] | None = None,
     ) -> bool:
         """
         Run a command and validate the output.
@@ -107,10 +106,10 @@ class CLITestRunner:
     def create_sample_project(
         self,
         project_dir: Path,
-        languages: List[str] = None,
+        languages: list[str] = None,
         include_tests: bool = True,
         include_docs: bool = True,
-    ) -> Dict[str, Path]:
+    ) -> dict[str, Path]:
         """
         Create a sample project structure for testing.
 
@@ -374,7 +373,7 @@ venv/
 
             return 1.0 - (compressed_size / uncompressed_size)
 
-    def test_all_formats(self, project_dir: Path) -> Dict[str, bool]:
+    def test_all_formats(self, project_dir: Path) -> dict[str, bool]:
         """
         Test all output formats and return validation results.
 

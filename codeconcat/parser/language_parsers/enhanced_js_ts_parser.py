@@ -9,7 +9,7 @@ with specific patterns and functionality for JavaScript and TypeScript.
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
@@ -174,13 +174,13 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
 
     def _process_block(
         self,
-        lines: List[str],
+        lines: list[str],
         start: int,
         end: int,
-        declarations: List[Declaration],
-        imports: List[str],
-        errors: List[str],
-        parent_declaration: Optional[Declaration] = None,
+        declarations: list[Declaration],
+        imports: list[str],
+        errors: list[str],
+        parent_declaration: Declaration | None = None,
     ) -> int:
         """
         Process a JS/TS code block and extract declarations and imports.
@@ -520,7 +520,7 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
 
         return kind
 
-    def _extract_modifiers(self, line: str) -> Set[str]:
+    def _extract_modifiers(self, line: str) -> set[str]:
         """
         Extract modifiers from a declaration line.
 
@@ -537,7 +537,7 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
                 found_modifiers.add(mod)
         return found_modifiers
 
-    def _extract_jsdoc(self, lines: List[str], current_line: int) -> Optional[str]:
+    def _extract_jsdoc(self, lines: list[str], current_line: int) -> str | None:
         """
         Extract JSDoc comments that precede a declaration.
 
@@ -610,7 +610,7 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
 
         return None
 
-    def _process_imports(self, line: str, imports: List[str]) -> bool:
+    def _process_imports(self, line: str, imports: list[str]) -> bool:
         """
         Process JS/TS import statements and add them to the imports list.
 
@@ -674,7 +674,7 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
 
         return False
 
-    def _count_total_declarations(self, declarations: List[Declaration]) -> int:
+    def _count_total_declarations(self, declarations: list[Declaration]) -> int:
         """
         Count the total number of declarations including all nested ones.
 
@@ -691,7 +691,7 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
         return total
 
     def _calculate_max_nesting_depth(
-        self, declarations: List[Declaration], current_depth: int = 1
+        self, declarations: list[Declaration], current_depth: int = 1
     ) -> int:
         """
         Calculate the maximum nesting depth in the declaration tree.
@@ -714,7 +714,7 @@ class EnhancedJSTypeScriptParser(EnhancedBaseParser):
 
         return max_depth
 
-    def get_capabilities(self) -> Dict[str, bool]:
+    def get_capabilities(self) -> dict[str, bool]:
         """Return the capabilities of this parser."""
         return {
             "can_parse_functions": True,

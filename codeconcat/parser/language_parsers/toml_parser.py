@@ -1,7 +1,5 @@
 """Parser for TOML configuration files."""
 
-from typing import List
-
 import tomli
 
 from codeconcat.base_types import Declaration, ParseResult
@@ -13,7 +11,7 @@ class TomlParser(BaseParser):
     """Parser for TOML configuration files."""
 
     @classmethod
-    def get_supported_languages(cls) -> List[str]:
+    def get_supported_languages(cls) -> list[str]:
         """Return the list of languages this parser supports."""
         return ["config", "toml"]
 

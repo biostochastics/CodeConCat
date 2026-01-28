@@ -12,7 +12,6 @@ Supports HLSL shader constructs including:
 """
 
 import logging
-from typing import Dict, List, Optional
 
 from tree_sitter import Node
 
@@ -22,7 +21,7 @@ from ...errors import LanguageParserError
 try:
     from tree_sitter import QueryCursor
 except ImportError:
-    QueryCursor = None
+    QueryCursor = None  # type: ignore[misc,assignment]
 
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
@@ -51,9 +50,9 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
     def __init__(self):
         """Initialize the HLSL parser."""
         super().__init__("hlsl")
-        self.shader_stage: Optional[str] = None
+        self.shader_stage: str | None = None
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns Tree-sitter queries for HLSL."""
         return HLSL_QUERIES
 
@@ -82,8 +81,8 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
         tree = self.parser.parse(bytes(source_code, "utf8"))
         root_node = tree.root_node
 
-        declarations: List[Declaration] = []
-        imports: List[str] = []
+        declarations: list[Declaration] = []
+        imports: list[str] = []
 
         # Extract declarations using tree traversal
         self._traverse_hlsl_declarations(root_node, source_code, declarations)
@@ -95,7 +94,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
         return ParseResult(declarations=declarations, imports=imports)
 
     def _traverse_hlsl_declarations(
-        self, node: Node, source_code: str, declarations: List[Declaration]
+        self, node: Node, source_code: str, declarations: list[Declaration]
     ) -> None:
         """Traverse tree to find HLSL-specific declarations."""
         if node.type == "type_definition":
@@ -186,7 +185,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
         for child in node.children:
             self._traverse_hlsl_declarations(child, source_code, declarations)
 
-    def _classify_hlsl_type(self, type_name: str) -> Optional[str]:
+    def _classify_hlsl_type(self, type_name: str) -> str | None:
         """Classify HLSL type into declaration kind."""
         type_lower = type_name.lower()
 
@@ -207,7 +206,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
             return None
 
     def _extract_functions(
-        self, root_node: Node, source_code: str, declarations: List[Declaration]
+        self, root_node: Node, source_code: str, declarations: list[Declaration]
     ) -> None:
         """Extract function definitions using queries."""
         query = self._get_compiled_query("functions")
@@ -267,7 +266,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
             logger.debug(f"Error extracting HLSL functions: {e}")
 
     def _extract_structs(
-        self, root_node: Node, source_code: str, declarations: List[Declaration]
+        self, root_node: Node, source_code: str, declarations: list[Declaration]
     ) -> None:
         """Extract struct definitions using queries."""
         query = self._get_compiled_query("structs")

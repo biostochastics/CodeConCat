@@ -3,12 +3,11 @@ Reconstruct command - Reconstruct files from CodeConCat output.
 """
 
 from pathlib import Path
-from typing import List, Optional
+from typing import Annotated
 
 import typer
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from typing_extensions import Annotated
 
 from codeconcat.reconstruction import reconstruct_from_file
 
@@ -40,7 +39,7 @@ def reconstruct_command(
         ),
     ] = Path("./reconstructed"),
     input_format: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--format",
             "-f",
@@ -202,7 +201,7 @@ def preview_command(
     try:
         # Use input_file once preview_files is implemented
         _ = input_file  # Suppress unused variable warning
-        files: List[str] = []  # preview_files(str(input_file))
+        files: list[str] = []  # preview_files(str(input_file))
 
         if not files:
             print_warning("No files found in the input file")

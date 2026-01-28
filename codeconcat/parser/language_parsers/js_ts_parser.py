@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import List, Set
 
 from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
@@ -54,10 +53,10 @@ class JsTsParser(BaseParser):
             A ParseResult object containing declarations and imports.
         """
         declarations = []
-        imports: Set[str] = set()
+        imports: set[str] = set()
         lines = content.split("\n")
         in_multiline_comment = False
-        docstring_buffer: List[str] = []
+        docstring_buffer: list[str] = []
 
         try:
             logger.debug(f"Starting JsTsParser.parse (Regex) for file: {file_path}")
@@ -183,7 +182,7 @@ class JsTsParser(BaseParser):
                 original_exception=e,
             ) from e
 
-    def _clean_jsdoc(self, docstring_lines: List[str]) -> str:
+    def _clean_jsdoc(self, docstring_lines: list[str]) -> str:
         """Cleans a JSDoc block comment buffer, removing delimiters and leading asterisks."""
         if not docstring_lines:
             return ""

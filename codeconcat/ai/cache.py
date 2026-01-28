@@ -5,13 +5,13 @@ import json
 import time
 from pathlib import Path
 from threading import Lock
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class SummaryCache:
     """Cache for AI-generated summaries to avoid redundant API calls."""
 
-    def __init__(self, cache_dir: Optional[Path] = None, ttl: int = 3600):
+    def __init__(self, cache_dir: Path | None = None, ttl: int = 3600):
         """Initialize the cache.
 
         Args:
@@ -28,13 +28,13 @@ class SummaryCache:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.ttl = ttl
         self._lock = Lock()
-        self._memory_cache: Dict[str, Dict[str, Any]] = {}
+        self._memory_cache: dict[str, dict[str, Any]] = {}
 
     def _get_cache_file(self, key: str) -> Path:
         """Get the cache file path for a given key."""
         return self.cache_dir / f"{key}.json"
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         """Retrieve a cached summary if it exists and is not expired.
 
         Args:
@@ -72,7 +72,7 @@ class SummaryCache:
 
         return None
 
-    async def set(self, key: str, summary: str, metadata: Optional[Dict[str, Any]] = None):
+    async def set(self, key: str, summary: str, metadata: dict[str, Any] | None = None):
         """Store a summary in the cache.
 
         Args:
@@ -158,7 +158,7 @@ class SummaryCache:
                 # Corrupted or inaccessible file, remove it
                 cache_file.unlink(missing_ok=True)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics.
 
         Returns:

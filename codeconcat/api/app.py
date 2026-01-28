@@ -9,9 +9,10 @@ import logging
 import os
 import tempfile
 import uuid
+from collections.abc import Callable
 from contextvars import ContextVar
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -69,16 +70,14 @@ class CodeConcatRequest(BaseModel):
     # Source options
     # SECURITY: target_path disabled in production for security
     # Only enable in development/testing environments with explicit ENV flag
-    target_path: Optional[str] = Field(
+    target_path: str | None = Field(
         None, description="Local path to process (DISABLED in production for security)"
     )
-    source_url: Optional[str] = Field(
+    source_url: str | None = Field(
         None, description="GitHub repository URL or shorthand (username/repo)"
     )
-    source_ref: Optional[str] = Field(
-        None, description="Branch, tag, or commit hash for GitHub repos"
-    )
-    github_token: Optional[str] = Field(None, description="GitHub token for private repositories")
+    source_ref: str | None = Field(None, description="Branch, tag, or commit hash for GitHub repos")
+    github_token: str | None = Field(None, description="GitHub token for private repositories")
 
     # Output options
     format: str = Field("json", description="Output format: json, markdown, xml, or text")
@@ -129,10 +128,10 @@ class CodeConcatRequest(BaseModel):
     remove_empty_lines: bool = Field(False, description="Remove empty lines from code")
 
     # Include/exclude options
-    include_paths: Optional[List[str]] = Field(None, description="Glob patterns to include")
-    exclude_paths: Optional[List[str]] = Field(None, description="Glob patterns to exclude")
-    include_languages: Optional[List[str]] = Field(None, description="Languages to include")
-    exclude_languages: Optional[List[str]] = Field(None, description="Languages to exclude")
+    include_paths: list[str] | None = Field(None, description="Glob patterns to include")
+    exclude_paths: list[str] | None = Field(None, description="Glob patterns to exclude")
+    include_languages: list[str] | None = Field(None, description="Languages to include")
+    exclude_languages: list[str] | None = Field(None, description="Languages to exclude")
 
     # Compression options
     enable_compression: bool = Field(False, description="Enable intelligent code compression")
@@ -197,7 +196,7 @@ class CodeConcatErrorResponse(BaseModel):
     """Error response model for the CodeConCat API."""
 
     error: str = Field(..., description="Error message")
-    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
+    details: dict[str, Any] | None = Field(None, description="Additional error details")
 
 
 class CodeConcatSuccessResponse(BaseModel):
@@ -205,11 +204,11 @@ class CodeConcatSuccessResponse(BaseModel):
 
     message: str = Field(..., description="Success message")
     format: str = Field(..., description="Output format")
-    job_id: Optional[str] = Field(None, description="Job ID for async processing")
-    content: Optional[str] = Field(None, description="CodeConCat output content")
-    result: Optional[str] = Field(None, description="CodeConCat output result (alias for content)")
-    files_processed: Optional[int] = Field(None, description="Number of files processed")
-    stats: Optional[Dict[str, Any]] = Field(None, description="Processing statistics")
+    job_id: str | None = Field(None, description="Job ID for async processing")
+    content: str | None = Field(None, description="CodeConCat output content")
+    result: str | None = Field(None, description="CodeConCat output result (alias for content)")
+    files_processed: int | None = Field(None, description="Number of files processed")
+    stats: dict[str, Any] | None = Field(None, description="Processing statistics")
 
 
 # ────────────────────────────────────────────────────────────
