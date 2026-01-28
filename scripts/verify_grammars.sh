@@ -131,8 +131,10 @@ for lang in "${LANGUAGES_TO_CHECK[@]}"; do
   fi
 
   # Try to load the grammar using tree-sitter-language-pack
-  # Use python from activated environment (works in both local and CI)
-  if command -v python &> /dev/null; then
+  # Use poetry run if available (CI environment), otherwise direct python
+  if command -v poetry &> /dev/null && [ -f "pyproject.toml" ]; then
+    PYTHON_CMD="poetry run python"
+  elif command -v python &> /dev/null; then
     PYTHON_CMD="python"
   else
     PYTHON_CMD="python3"
