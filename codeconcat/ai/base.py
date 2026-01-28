@@ -76,11 +76,13 @@ class AIProvider(ABC):
     )
 
     _session: Optional["aiohttp.ClientSession"]
+    _session_lock: "asyncio.Lock"
 
     def __init__(self, config: AIProviderConfig):
         """Initialize the AI provider with configuration."""
         self.config = config
         self._session = None
+        self._session_lock = asyncio.Lock()
 
     @abstractmethod
     async def summarize_code(

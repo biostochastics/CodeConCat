@@ -72,16 +72,19 @@ class AnthropicProvider(AIProvider):
         )
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create an aiohttp session."""
+        """Get or create an aiohttp session (thread-safe)."""
         if self._session is None:
-            headers: dict[str, str] = {
-                "x-api-key": self.config.api_key or "",
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            }
-            headers.update(self.config.custom_headers or {})
-            timeout = aiohttp.ClientTimeout(total=self.config.timeout)
-            self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
+            async with self._session_lock:
+                # Double-check after acquiring lock
+                if self._session is None:
+                    headers: dict[str, str] = {
+                        "x-api-key": self.config.api_key or "",
+                        "anthropic-version": "2023-06-01",
+                        "Content-Type": "application/json",
+                    }
+                    headers.update(self.config.custom_headers or {})
+                    timeout = aiohttp.ClientTimeout(total=self.config.timeout)
+                    self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
         return self._session
 
     async def _make_api_call(self, messages: list, max_tokens: int | None = None) -> dict:

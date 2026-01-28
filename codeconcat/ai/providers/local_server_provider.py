@@ -102,15 +102,18 @@ class LocalServerProvider(AIProvider):
         self._last_error_message: str | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create an aiohttp session."""
+        """Get or create an aiohttp session (thread-safe)."""
         if self._session is None:
-            headers = {"Content-Type": "application/json"}
-            if self.config.api_key:
-                headers["Authorization"] = f"Bearer {self.config.api_key}"
-            headers.update(self.config.custom_headers)
+            async with self._session_lock:
+                # Double-check after acquiring lock
+                if self._session is None:
+                    headers = {"Content-Type": "application/json"}
+                    if self.config.api_key:
+                        headers["Authorization"] = f"Bearer {self.config.api_key}"
+                    headers.update(self.config.custom_headers)
 
-            timeout = aiohttp.ClientTimeout(total=self.config.timeout)
-            self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
+                    timeout = aiohttp.ClientTimeout(total=self.config.timeout)
+                    self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
         return self._session
 
     @staticmethod

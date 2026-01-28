@@ -68,15 +68,18 @@ class OpenAIProvider(AIProvider):
         )
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create an aiohttp session."""
+        """Get or create an aiohttp session (thread-safe)."""
         if self._session is None:
-            headers = {
-                "Authorization": f"Bearer {self.config.api_key}",
-                "Content-Type": "application/json",
-                **(self.config.custom_headers or {}),
-            }
-            timeout = aiohttp.ClientTimeout(total=self.config.timeout)
-            self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
+            async with self._session_lock:
+                # Double-check after acquiring lock
+                if self._session is None:
+                    headers = {
+                        "Authorization": f"Bearer {self.config.api_key}",
+                        "Content-Type": "application/json",
+                        **(self.config.custom_headers or {}),
+                    }
+                    timeout = aiohttp.ClientTimeout(total=self.config.timeout)
+                    self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
         return self._session
 
     async def _make_api_call(self, messages: list, max_tokens: int | None = None) -> dict:

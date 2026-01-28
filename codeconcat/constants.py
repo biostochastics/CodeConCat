@@ -476,10 +476,11 @@ LANGUAGE_CACHE_SIZE: int = 1024  # LRU cache size for language detection
 PARSER_CACHE_SIZE: int = 64  # LRU cache size for parser instances
 
 # Known ReDoS vulnerability patterns (static analysis)
+# These patterns detect common catastrophic backtracking scenarios
 REDOS_PATTERNS: list[str] = [
-    r"\(\.\+\)\+",  # Nested quantifiers like (.+)+
-    r"\(\[\.\*\]\+\)\+",  # Nested character class quantifiers
-    r"\(\.\*\)\+",  # (.*)+
-    r"\(\.\+\)\*",  # (.+)*
-    r"\(\?:.*\)\+\(\?:",  # Multiple nested non-capturing groups
+    r"\([^)]*[+*][^)]*\)[+*]",  # Nested quantifiers: (x+)+ or (x*)*
+    r"\(\?:[^)]*[+*][^)]*\)[+*]",  # Non-capturing with nested quantifiers
+    r"\[[^\]]+\][+*]\[[^\]]+\][+*]",  # Adjacent quantified character classes
+    r"[+*]\([^)]*[+*]",  # Quantifier before group with quantifier
+    r"\|[^)]*[+*][^|)]*\|",  # Alternation with quantifiers (overlapping)
 ]
