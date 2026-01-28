@@ -511,9 +511,9 @@ class OpenAIProvider(AIProvider):
             return False
 
         try:
-            # Try a minimal API call
+            # Try a minimal API call (use 10 tokens as minimum for newer models)
             messages = [{"role": "user", "content": "test"}]
-            response = await self._make_api_call(messages, max_tokens=1)
+            response = await self._make_api_call(messages, max_tokens=10)
             return "choices" in response
         except Exception:
             return False

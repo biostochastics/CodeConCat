@@ -54,6 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Zig parser: Fixed `Query | None` handling in query execution
   - Crystal parser: Fixed parent node reference in lib function extraction
   - Summarization processor: Added proper type annotation for `extra_params`
+- **OpenAI Provider Test**: Increased `max_tokens` from 1 to 10 in validation
+  - Newer OpenAI models (GPT-5, o-series) require minimum tokens for response
 
 ### Code Quality
 
