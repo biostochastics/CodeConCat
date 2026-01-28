@@ -25,7 +25,7 @@ from ...base_types import Declaration, ParseResult
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 

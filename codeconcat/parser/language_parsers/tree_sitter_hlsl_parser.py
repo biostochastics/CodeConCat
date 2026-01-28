@@ -19,7 +19,7 @@ from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
 
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[misc,assignment]
 

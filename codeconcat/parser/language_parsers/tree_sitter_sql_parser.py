@@ -22,7 +22,7 @@ from typing import Any
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore
 
