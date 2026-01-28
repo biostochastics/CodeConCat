@@ -6,6 +6,7 @@ or unsupported during processing, categorized by reason.
 
 import json
 import logging
+import threading
 from collections import defaultdict
 from pathlib import Path
 
@@ -186,25 +187,30 @@ class UnsupportedFilesReporter:
                 console.print(f"  [dim]... and {stats['total_skipped'] - 10} more[/dim]")
 
 
-# Global reporter instance
+# Global reporter instance with thread-safe initialization
 _reporter: UnsupportedFilesReporter | None = None
+_reporter_lock = threading.Lock()
 
 
 def get_reporter() -> UnsupportedFilesReporter:
-    """Get or create the global unsupported files reporter instance."""
+    """Get or create the global unsupported files reporter instance (thread-safe)."""
     global _reporter
     if _reporter is None:
-        _reporter = UnsupportedFilesReporter()
+        with _reporter_lock:
+            # Double-check after acquiring lock
+            if _reporter is None:
+                _reporter = UnsupportedFilesReporter()
     return _reporter
 
 
 def init_reporter(write_report: bool = False, report_path: Path | None = None):
-    """Initialize a new unsupported files reporter.
+    """Initialize a new unsupported files reporter (thread-safe).
 
     Args:
         write_report: Whether to write findings to file
         report_path: Path for report file
     """
     global _reporter
-    _reporter = UnsupportedFilesReporter(write_report, report_path)
+    with _reporter_lock:
+        _reporter = UnsupportedFilesReporter(write_report, report_path)
     return _reporter

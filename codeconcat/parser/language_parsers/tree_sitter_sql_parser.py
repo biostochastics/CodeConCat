@@ -279,14 +279,9 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return tables
 
         try:
-            # tree-sitter 0.25.x API: Use QueryCursor to execute queries
+            # Execute query using base class method (handles all tree-sitter versions)
             root_node = tree.root_node
-            if QueryCursor is not None:
-                # tree-sitter 0.25.x with QueryCursor
-                captures = self._execute_query_with_cursor(query, root_node)
-            else:
-                # Fallback (shouldn't reach here with 0.25.x)
-                raise RuntimeError("QueryCursor not available - incompatible tree-sitter version")
+            captures = self._execute_query_with_cursor(query, root_node)
 
             # Extract table information from captures
             table_defs = captures.get("table_def", [])
@@ -336,11 +331,8 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return views
 
         try:
-            # tree-sitter 0.25.x API: Use QueryCursor
-            if QueryCursor is not None:
-                captures = self._execute_query_with_cursor(query, tree.root_node)
-            else:
-                raise RuntimeError("QueryCursor not available")
+            # Execute query using base class method (handles all tree-sitter versions)
+            captures = self._execute_query_with_cursor(query, tree.root_node)
             view_defs = captures.get("view_def", [])
             view_names = captures.get("view_name", [])
 
@@ -392,11 +384,8 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return ctes
 
         try:
-            if QueryCursor is not None:
-                captures = self._execute_query_with_cursor(query, tree.root_node)
-            else:
-                raise RuntimeError("QueryCursor not available")
-
+            # Execute query using base class method (handles all tree-sitter versions)
+            captures = self._execute_query_with_cursor(query, tree.root_node)
             cte_defs = captures.get("cte_def", [])
             cte_names = captures.get("cte_name", [])
 
@@ -448,11 +437,8 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return window_funcs
 
         try:
-            if QueryCursor is not None:
-                captures = self._execute_query_with_cursor(query, tree.root_node)
-            else:
-                raise RuntimeError("QueryCursor not available")
-
+            # Execute query using base class method (handles all tree-sitter versions)
+            captures = self._execute_query_with_cursor(query, tree.root_node)
             window_func_nodes = captures.get("window_func", [])
 
             for func_node in window_func_nodes:

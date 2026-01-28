@@ -6,6 +6,7 @@ separating test file findings from production code findings.
 
 import json
 import logging
+import threading
 from collections import defaultdict
 from pathlib import Path
 
@@ -224,25 +225,30 @@ class SecurityReporter:
             console.print("\n[dim]Use -v flag for detailed security findings[/dim]")
 
 
-# Global reporter instance
+# Global reporter instance with thread-safe initialization
 _reporter: SecurityReporter | None = None
+_reporter_lock = threading.Lock()
 
 
 def get_reporter() -> SecurityReporter:
-    """Get or create the global security reporter instance."""
+    """Get or create the global security reporter instance (thread-safe)."""
     global _reporter
     if _reporter is None:
-        _reporter = SecurityReporter()
+        with _reporter_lock:
+            # Double-check after acquiring lock
+            if _reporter is None:
+                _reporter = SecurityReporter()
     return _reporter
 
 
 def init_reporter(write_test_report: bool = False, test_report_path: Path | None = None):
-    """Initialize a new security reporter.
+    """Initialize a new security reporter (thread-safe).
 
     Args:
         write_test_report: Whether to write test findings to file
         test_report_path: Path for test findings report
     """
     global _reporter
-    _reporter = SecurityReporter(write_test_report, test_report_path)
+    with _reporter_lock:
+        _reporter = SecurityReporter(write_test_report, test_report_path)
     return _reporter

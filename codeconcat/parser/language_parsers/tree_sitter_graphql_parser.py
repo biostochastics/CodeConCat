@@ -138,6 +138,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         # Cache for parsed tree (reused across extraction methods)
         self._current_tree = None
+        self._current_content_hash: int | None = None  # Track content to detect changes
 
         # Caches for extracted metadata
         self._cached_types: list[dict[Any, Any]] | None = None
@@ -145,6 +146,23 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         self._cached_fragments: list[dict[Any, Any]] | None = None
         self._type_relationships_cache: dict[str, list[str]] | None = None
         self._cached_directives: dict[str, list[dict[Any, Any]]] | None = None
+
+    def _invalidate_caches_if_content_changed(self, byte_content: bytes) -> None:
+        """Invalidate all caches if the content has changed.
+
+        Args:
+            byte_content: Current content to check against cached content
+        """
+        content_hash = hash(byte_content)
+        if self._current_content_hash != content_hash:
+            # Content has changed, invalidate all caches
+            self._current_tree = None
+            self._cached_types = None
+            self._cached_operations = None
+            self._cached_fragments = None
+            self._type_relationships_cache = None
+            self._cached_directives = None
+            self._current_content_hash = content_hash
 
     def get_queries(self) -> dict[str, str]:
         """Returns Tree-sitter query patterns for GraphQL.
@@ -179,6 +197,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(n) where n is number of type definitions
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._cached_types is not None:
             return self._cached_types
 
@@ -513,6 +534,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(d) where d is number of directives
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._cached_directives is not None:
             return self._cached_directives
 
@@ -687,6 +711,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(o) where o is number of operations
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._cached_operations is not None:
             return self._cached_operations
 
@@ -808,6 +835,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(f) where f is number of fragments
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._cached_fragments is not None:
             return self._cached_fragments
 
@@ -900,6 +930,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(t * f) where t is types and f is fields per type
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._type_relationships_cache is not None:
             return self._type_relationships_cache
 
@@ -1001,6 +1034,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(t * f) where t is types and f is fields per type
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         types = self.extract_type_definitions(byte_content)
 
         # First, categorize all types

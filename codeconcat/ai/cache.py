@@ -1,11 +1,12 @@
 """Caching system for AI summaries."""
 
+import asyncio
+import contextlib
 import hashlib
 import json
 import time
 from pathlib import Path
-from threading import Lock
-from typing import Any
+from typing import Any, cast
 
 
 class SummaryCache:
@@ -27,12 +28,26 @@ class SummaryCache:
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.ttl = ttl
-        self._lock = Lock()
+        self._lock = asyncio.Lock()
         self._memory_cache: dict[str, dict[str, Any]] = {}
 
     def _get_cache_file(self, key: str) -> Path:
         """Get the cache file path for a given key."""
         return self.cache_dir / f"{key}.json"
+
+    def _read_cache_file(self, cache_file: Path) -> dict[str, Any] | None:
+        """Read cache file synchronously (for use with asyncio.to_thread)."""
+        try:
+            with open(cache_file) as f:
+                data = json.load(f)
+                return cast(dict[str, Any], data)
+        except (OSError, json.JSONDecodeError, KeyError):
+            return None
+
+    def _delete_cache_file(self, cache_file: Path) -> None:
+        """Delete cache file synchronously (for use with asyncio.to_thread)."""
+        with contextlib.suppress(OSError):
+            cache_file.unlink(missing_ok=True)
 
     async def get(self, key: str) -> str | None:
         """Retrieve a cached summary if it exists and is not expired.
@@ -43,8 +58,8 @@ class SummaryCache:
         Returns:
             Cached summary or None if not found/expired
         """
-        # Check memory cache first
-        with self._lock:
+        # Check memory cache first (async lock)
+        async with self._lock:
             entry = self._memory_cache.get(key)
             if entry and time.time() - entry["timestamp"] < self.ttl:
                 return str(entry["summary"])
@@ -52,25 +67,35 @@ class SummaryCache:
                 # Expired, remove from memory cache
                 del self._memory_cache[key]
 
-        # Check file cache
+        # Check file cache (non-blocking file I/O)
         cache_file = self._get_cache_file(key)
         if cache_file.exists():
-            try:
-                with open(cache_file) as f:
-                    entry = json.load(f)
+            entry = await asyncio.to_thread(self._read_cache_file, cache_file)
 
-                if time.time() - entry["timestamp"] < self.ttl:
-                    # Load into memory cache
-                    self._memory_cache[key] = entry
-                    return str(entry["summary"])
-                else:
-                    # Expired, remove file
-                    cache_file.unlink()
-            except (OSError, json.JSONDecodeError, KeyError):
+            if entry is None:
                 # Corrupted cache file, remove it
-                cache_file.unlink(missing_ok=True)
+                await asyncio.to_thread(self._delete_cache_file, cache_file)
+                return None
+
+            if time.time() - entry["timestamp"] < self.ttl:
+                # Load into memory cache
+                async with self._lock:
+                    self._memory_cache[key] = entry
+                return str(entry["summary"])
+            else:
+                # Expired, remove file
+                await asyncio.to_thread(self._delete_cache_file, cache_file)
 
         return None
+
+    def _write_cache_file(self, cache_file: Path, entry: dict[str, Any]) -> None:
+        """Write cache file synchronously (for use with asyncio.to_thread)."""
+        try:
+            with open(cache_file, "w") as f:
+                json.dump(entry, f, indent=2)
+        except OSError:
+            # Failed to write cache file, continue without caching to disk
+            pass
 
     async def set(self, key: str, summary: str, metadata: dict[str, Any] | None = None):
         """Store a summary in the cache.
@@ -82,18 +107,13 @@ class SummaryCache:
         """
         entry = {"summary": summary, "timestamp": time.time(), "metadata": metadata or {}}
 
-        # Store in memory cache
-        with self._lock:
+        # Store in memory cache (async lock)
+        async with self._lock:
             self._memory_cache[key] = entry
 
-        # Store in file cache
+        # Store in file cache (non-blocking file I/O)
         cache_file = self._get_cache_file(key)
-        try:
-            with open(cache_file, "w") as f:
-                json.dump(entry, f, indent=2)
-        except OSError:
-            # Failed to write cache file, continue without caching to disk
-            pass
+        await asyncio.to_thread(self._write_cache_file, cache_file, entry)
 
     def generate_key(
         self, content: str, provider: str, model: str, operation: str, **kwargs
@@ -117,36 +137,29 @@ class SummaryCache:
             "operation": operation,
             **kwargs,
         }
-        key_str = json.dumps(key_data, sort_keys=True)
+        # Use default=str to handle non-JSON-serializable values (Path, datetime, etc.)
+        key_str = json.dumps(key_data, sort_keys=True, default=str)
         return hashlib.sha256(key_str.encode()).hexdigest()
 
-    async def clear(self):
-        """Clear all cached entries."""
-        with self._lock:
-            self._memory_cache.clear()
-
-        # Clear file cache
+    def _clear_all_cache_files(self) -> None:
+        """Clear all cache files synchronously (for use with asyncio.to_thread)."""
         import contextlib
 
         for cache_file in self.cache_dir.glob("*.json"):
             with contextlib.suppress(OSError):
                 cache_file.unlink()
 
-    async def clear_expired(self):
-        """Remove expired entries from the cache."""
+    async def clear(self):
+        """Clear all cached entries."""
+        async with self._lock:
+            self._memory_cache.clear()
+
+        # Clear file cache (non-blocking)
+        await asyncio.to_thread(self._clear_all_cache_files)
+
+    def _clear_expired_files(self) -> None:
+        """Clear expired cache files synchronously (for use with asyncio.to_thread)."""
         current_time = time.time()
-
-        # Clear expired from memory
-        with self._lock:
-            expired_keys = [
-                key
-                for key, entry in self._memory_cache.items()
-                if current_time - entry["timestamp"] >= self.ttl
-            ]
-            for key in expired_keys:
-                del self._memory_cache[key]
-
-        # Clear expired from disk
         for cache_file in self.cache_dir.glob("*.json"):
             try:
                 with open(cache_file) as f:
@@ -157,6 +170,23 @@ class SummaryCache:
             except (OSError, json.JSONDecodeError, KeyError):
                 # Corrupted or inaccessible file, remove it
                 cache_file.unlink(missing_ok=True)
+
+    async def clear_expired(self):
+        """Remove expired entries from the cache."""
+        current_time = time.time()
+
+        # Clear expired from memory (async lock)
+        async with self._lock:
+            expired_keys = [
+                key
+                for key, entry in self._memory_cache.items()
+                if current_time - entry["timestamp"] >= self.ttl
+            ]
+            for key in expired_keys:
+                del self._memory_cache[key]
+
+        # Clear expired from disk (non-blocking)
+        await asyncio.to_thread(self._clear_expired_files)
 
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics.

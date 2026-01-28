@@ -61,11 +61,17 @@ def verify_tree_sitter_dependencies() -> tuple[bool, list[str], list[str]]:
             # Try to dynamically import the parser module
             module_name = f"codeconcat.parser.language_parsers.tree_sitter_{language}_parser"
 
-            # Handle special cases
+            # Handle special cases where multiple languages share a parser module
             if language in ["javascript", "typescript"]:
                 module_name = "codeconcat.parser.language_parsers.tree_sitter_js_ts_parser"
             elif language in ["c", "cpp"]:
                 module_name = "codeconcat.parser.language_parsers.tree_sitter_cpp_parser"
+            elif language in ["shell"]:
+                module_name = "codeconcat.parser.language_parsers.tree_sitter_bash_parser"
+            elif language in ["terraform"]:
+                module_name = "codeconcat.parser.language_parsers.tree_sitter_hcl_parser"
+            elif language in ["wasm"]:
+                module_name = "codeconcat.parser.language_parsers.tree_sitter_wat_parser"
 
             # Import the module and class
             module = importlib.import_module(module_name)
