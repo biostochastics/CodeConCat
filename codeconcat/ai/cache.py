@@ -4,20 +4,66 @@ import asyncio
 import contextlib
 import hashlib
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any, cast
 
 
+def normalize_content_for_hash(content: str) -> str:
+    """Normalize content for cache key hashing to improve cache hit rate.
+
+    PERFORMANCE: This normalization ensures that whitespace-only or comment-only
+    changes don't invalidate the cache. The normalized content is only used for
+    hashing, not for the actual AI summarization.
+
+    Normalization steps:
+    1. Remove single-line comments (// and #)
+    2. Remove multi-line comments (/* ... */)
+    3. Collapse multiple whitespace to single space
+    4. Strip leading/trailing whitespace from lines
+    5. Remove empty lines
+
+    Args:
+        content: The original code content
+
+    Returns:
+        Normalized content string suitable for hashing
+    """
+    # Remove multi-line comments (/* ... */ and ''' ... ''' and \"\"\" ... \"\"\")
+    content = re.sub(r"/\*[\s\S]*?\*/", "", content)
+    content = re.sub(r"'''[\s\S]*?'''", "", content)
+    content = re.sub(r'"""[\s\S]*?"""', "", content)
+
+    # Remove single-line comments (// and #)
+    # Be careful not to remove # in strings or URLs
+    lines = content.split("\n")
+    normalized_lines = []
+    for line in lines:
+        # Simple heuristic: remove // and # comments at end of line
+        # This won't catch all edge cases but covers common patterns
+        line = re.sub(r"//.*$", "", line)
+        line = re.sub(r"#.*$", "", line)
+        # Strip whitespace and skip empty lines
+        line = line.strip()
+        if line:
+            # Collapse internal whitespace
+            line = re.sub(r"\s+", " ", line)
+            normalized_lines.append(line)
+
+    return "\n".join(normalized_lines)
+
+
 class SummaryCache:
     """Cache for AI-generated summaries to avoid redundant API calls."""
 
-    def __init__(self, cache_dir: Path | None = None, ttl: int = 3600):
+    def __init__(self, cache_dir: Path | None = None, ttl: int = 604800):
         """Initialize the cache.
 
         Args:
             cache_dir: Directory to store cache files (uses temp if None)
-            ttl: Time-to-live in seconds for cache entries
+            ttl: Time-to-live in seconds for cache entries (default: 7 days)
+                 PERFORMANCE: Increased from 1 hour to 7 days for better cache persistence
         """
         if cache_dir is None:
             import tempfile
@@ -120,6 +166,9 @@ class SummaryCache:
     ) -> str:
         """Generate a cache key based on content and parameters.
 
+        PERFORMANCE: Content is normalized before hashing to improve cache hit rate.
+        Whitespace-only and comment-only changes won't invalidate the cache.
+
         Args:
             content: The content being summarized
             provider: AI provider name
@@ -130,8 +179,12 @@ class SummaryCache:
         Returns:
             SHA256 hash as cache key
         """
+        # Normalize content for better cache hit rate
+        # This strips comments and normalizes whitespace so formatting changes
+        # don't invalidate the cache
+        normalized_content = normalize_content_for_hash(content)
         key_data = {
-            "content_hash": hashlib.sha256(content.encode()).hexdigest(),
+            "content_hash": hashlib.sha256(normalized_content.encode()).hexdigest(),
             "provider": provider,
             "model": model,
             "operation": operation,

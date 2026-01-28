@@ -205,7 +205,9 @@ class SummarizationProcessor:
             return files
 
         # Process files concurrently with a semaphore to limit concurrent requests
-        max_concurrent = getattr(self.config, "ai_max_concurrent", 5)
+        # PERFORMANCE: Increased from 5 to 25 - cloud AI APIs can handle higher concurrency
+        # and this significantly reduces total AI processing time for large codebases
+        max_concurrent = getattr(self.config, "ai_max_concurrent", 25)
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def process_with_semaphore(file_data):

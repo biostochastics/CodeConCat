@@ -433,9 +433,11 @@ class UnifiedPipeline:
         """
         logger.info(f"Starting unified parsing pipeline for {len(files_to_parse)} files")
 
-        # Use sequential processing for small batches (< 4 files)
-        # Multiprocessing overhead is not worth it for small batches
-        min_parallel_files = 4
+        # Use sequential processing for small batches (< 50 files)
+        # PERFORMANCE: Increased from 4 to 50 because multiprocessing startup overhead
+        # (500-1000ms per worker) plus config serialization makes parallel processing
+        # slower than sequential for small-to-medium codebases
+        min_parallel_files = 50
         if len(files_to_parse) < min_parallel_files:
             return self._parse_sequential(files_to_parse)
 
@@ -746,7 +748,9 @@ class UnifiedPipeline:
 
         # Minimum declarations threshold for early termination
         # If tree-sitter finds at least this many declarations, skip other parsers
-        early_termination_threshold = getattr(self.config, "parser_early_termination_threshold", 1)
+        # PERFORMANCE: Increased from 1 to 5 to reduce redundant parser runs while
+        # still ensuring adequate coverage for files with few declarations
+        early_termination_threshold = getattr(self.config, "parser_early_termination_threshold", 5)
 
         # Convert strategy name to enum
         strategy_map = {
@@ -806,8 +810,11 @@ class UnifiedPipeline:
                     if not parse_result.engine_used:
                         parse_result.engine_used = parser_name
 
+                    num_declarations = len(parse_result.declarations)
+                    has_useful_content = num_declarations > 0 or len(parse_result.imports) > 0
+
                     if not parse_result.error:
-                        num_declarations = len(parse_result.declarations)
+                        # Successful parse (no errors)
                         logger.debug(
                             f"{parser_name} parsing successful for {file_path}: "
                             f"{num_declarations} declarations"
@@ -819,6 +826,7 @@ class UnifiedPipeline:
 
                             # PERFORMANCE: Early termination for tree-sitter with good results
                             # Skip remaining parsers if tree-sitter produced sufficient declarations
+                            # NOTE: Only early-terminate on CLEAN parses (no errors)
                             if (
                                 early_termination
                                 and parser_type == "tree_sitter"
@@ -833,6 +841,19 @@ class UnifiedPipeline:
                         else:
                             # Legacy behavior: return first successful result
                             return parse_result
+
+                    elif has_useful_content and enable_result_merging:
+                        # Partial parse with errors but some useful content extracted
+                        # Include for merging but do NOT early-terminate - always run
+                        # fallback parsers to potentially capture what tree-sitter missed
+                        # (e.g., modern Swift syntax like nonisolated(unsafe))
+                        logger.debug(
+                            f"{parser_name} partial parse for {file_path}: "
+                            f"{num_declarations} declarations extracted despite errors, "
+                            f"continuing to fallback parsers for merging"
+                        )
+                        all_results.append(parse_result)
+                        # Continue to next parser (no early termination for partial results)
 
             except Exception as e:
                 logger.warning(

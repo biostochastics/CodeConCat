@@ -1,4 +1,6 @@
 import fnmatch
+import functools
+import hashlib
 import logging
 import os
 import re
@@ -798,8 +800,35 @@ def get_language_by_extension(file_path: str) -> str | None:
     return ext_map.get(filename.lower(), ext_map.get(ext_with_dot))
 
 
+# PERFORMANCE: LRU cache for guesslang detection results
+# Caches up to 512 content hashes to avoid repeated ML inference (~100-500ms per call)
+@functools.lru_cache(maxsize=512)
+def _cached_guesslang_detection(content_hash: str, content_sample: str) -> str | None:
+    """Internal cached guesslang detection using content hash as key.
+
+    Args:
+        content_hash: SHA256 hash of the content sample (used as cache key by LRU cache)
+        content_sample: The actual content to analyze (first 5KB)
+
+    Returns:
+        The language as a string if detected, None otherwise
+    """
+    # content_hash is used by @lru_cache for cache key, not in function body
+    _ = content_hash  # Silence unused argument warning
+    try:
+        language = get_language_guesslang(content_sample)
+        if language and language.lower() != "unknown":
+            return language
+    except (ValueError, AttributeError):
+        pass
+    return None
+
+
 def get_language_by_content(content: str, file_path: str = "", verbose: bool = False) -> str | None:
     """Get language by analyzing file content with guesslang (if available).
+
+    PERFORMANCE: Results are cached based on content hash to avoid repeated
+    ML inference which takes ~100-500ms per call.
 
     Args:
         content: The file content (or first ~5KB of it)
@@ -812,15 +841,22 @@ def get_language_by_content(content: str, file_path: str = "", verbose: bool = F
     if not GUESSLANG_AVAILABLE:
         return None
 
-    try:
-        language = get_language_guesslang(content[:5000] if len(content) > 5000 else content)
-        if language and language.lower() != "unknown":
-            if verbose:
-                logger.debug(f"Language detected by guesslang as '{language}' for {file_path}")
-            return language
-    except (ValueError, AttributeError) as e:
+    # Truncate to first 5KB for analysis
+    content_sample = content[:5000] if len(content) > 5000 else content
+
+    # Generate hash for cache key
+    content_hash = hashlib.sha256(content_sample.encode()).hexdigest()
+
+    # Use cached detection
+    language = _cached_guesslang_detection(content_hash, content_sample)
+
+    if language:
         if verbose:
-            logger.debug(f"guesslang check failed for {file_path}: {e}")
+            logger.debug(f"Language detected by guesslang as '{language}' for {file_path}")
+        return language
+
+    if verbose:
+        logger.debug(f"guesslang could not determine language for {file_path}")
     return None
 
 

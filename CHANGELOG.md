@@ -44,6 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Swift Parser Partial Results Merging**: Tree-sitter partial parse results now merge with regex parser
+  - When tree-sitter encounters unsupported syntax (e.g., Swift 5.10+ `nonisolated(unsafe)`), it now includes partial results for merging instead of discarding them
+  - Fallback regex parsers always run when tree-sitter has errors, ensuring modern language features are captured
+  - Improves parsing of codebases using cutting-edge Swift/language features not yet in tree-sitter grammars
+
 - **Multiprocessing Compatibility**: Fixed `_compile_and_test_regex` serialization
   - Moved local function to module level for Process target compatibility
   - Affects `CustomSecurityPattern.validate_regex` in `base_types.py`
@@ -56,6 +61,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unified Pipeline Merging Tests**: Disabled `parser_early_termination` in tests
   - Early termination was preventing result merging from occurring
   - Tests now properly verify merging behavior
+
+### Performance
+
+- **Parser Early Termination Threshold**: Increased from 1 to 5 declarations
+  - Reduces redundant parser fallback runs while ensuring adequate coverage
+  - Files with few declarations still get full parser cascade
+
+- **Parallel Processing Threshold**: Increased from 4 to 50 files
+  - Multiprocessing startup overhead (500-1000ms per worker) plus config serialization
+  - Sequential processing is faster for small-to-medium codebases
+
+- **AI Concurrency**: Increased default from 5 to 25 concurrent requests
+  - Cloud AI APIs handle higher concurrency efficiently
+  - Significantly reduces total AI processing time for large codebases
+
+- **AI Cache TTL**: Increased from 1 hour to 7 days
+  - Better cache persistence across development sessions
+  - Reduces redundant API calls for unchanged code
+
+- **AI Cache Content Normalization**: Improved cache hit rate
+  - Strips comments and normalizes whitespace before hashing
+  - Formatting-only changes no longer invalidate cached summaries
+
+- **Guesslang Detection Caching**: Added LRU cache (512 entries)
+  - Caches ML-based language detection results by content hash
+  - Avoids redundant guesslang inference for similar content
 
 - **Mypy Errors**: Fixed type checking issues
   - HLSL/GLSL parsers: aliased duplicate `get_language` imports
