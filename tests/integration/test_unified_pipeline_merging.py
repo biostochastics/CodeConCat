@@ -82,6 +82,7 @@ export function processData(data: string[]): string[] {
             target_path=str(test_python_file.parent),
             enable_result_merging=True,
             merge_strategy="confidence",
+            parser_early_termination=False,  # Disable to allow merging
         )
 
         pipeline = UnifiedPipeline(config)
@@ -154,6 +155,7 @@ export function processData(data: string[]): string[] {
             target_path=str(test_python_file.parent),
             enable_result_merging=True,
             merge_strategy="confidence",
+            parser_early_termination=False,  # Disable to allow merging
         )
 
         pipeline = UnifiedPipeline(config)
@@ -174,6 +176,7 @@ export function processData(data: string[]): string[] {
             target_path=str(test_python_file.parent),
             enable_result_merging=True,
             merge_strategy="best_of_breed",
+            parser_early_termination=False,  # Disable to allow merging
         )
 
         pipeline = UnifiedPipeline(config)

@@ -8,7 +8,7 @@
   <strong>Transform codebases into AI-ready formats with intelligent parsing, compression, and security analysis</strong>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.8.8-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![DeepWiki](https://img.shields.io/badge/DeepWiki-Documentation-purple)](https://deepwiki.com/biostochastics/CodeConCat) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![DeepWiki](https://img.shields.io/badge/DeepWiki-Documentation-purple)](https://deepwiki.com/biostochastics/CodeConCat) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
 
 ## Table of Contents
 
@@ -425,8 +425,9 @@ security_scan_severity_threshold: MEDIUM  # Options: LOW, MEDIUM, HIGH, CRITICAL
 
 # AI Features (optional)
 enable_ai_summary: false
-ai_provider: anthropic           # Options: openai, anthropic, openrouter, ollama,
-                                 #          local_server, vllm, lmstudio, llamacpp_server (llamacpp deprecated)
+ai_provider: anthropic           # Options: openai, anthropic, openrouter, google, deepseek,
+                                 #          minimax, qwen, zhipu, ollama, local_server, vllm,
+                                 #          lmstudio, llamacpp_server (llamacpp deprecated)
 ai_model: ""                     # Optional, uses provider defaults
 ai_meta_overview: false          # Generate project-wide overview
 ai_save_summaries: false         # Save summaries to disk for caching
@@ -459,6 +460,11 @@ export GITHUB_TOKEN=your_token_here
 export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-ant-...
 export OPENROUTER_API_KEY=sk-or-...
+export GOOGLE_API_KEY=...         # Google Gemini
+export DEEPSEEK_API_KEY=...       # DeepSeek
+export MINIMAX_API_KEY=...        # MiniMax
+export DASHSCOPE_API_KEY=...      # Qwen/DashScope
+export ZHIPUAI_API_KEY=...        # Zhipu GLM
 export LOCAL_LLM_API_KEY=""       # Optional: generic OpenAI-compatible local servers
 export VLLM_API_KEY=""            # Optional: vLLM preset
 export LMSTUDIO_API_KEY=""        # Optional: LM Studio preset
@@ -551,7 +557,7 @@ Process files and generate AI-optimized output.
 | Option | Description |
 |--------|-------------|
 | `--ai-summary` | Enable AI summarization |
-| `--ai-provider` | Provider: `openai`, `anthropic`, `openrouter`, `ollama`, `local_server`, `vllm`, `lmstudio`, `llamacpp_server`, `llamacpp` (deprecated) |
+| `--ai-provider` | Provider: `openai`, `anthropic`, `openrouter`, `google`, `deepseek`, `minimax`, `qwen`, `zhipu`, `ollama`, `local_server`, `vllm`, `lmstudio`, `llamacpp_server`, `llamacpp` (deprecated) |
 | `--ai-model` | Specific model (uses provider defaults if omitted) |
 | `--ai-meta-overview` | Generate project-wide meta-overview |
 | `--ai-save-summaries` | Save summaries to disk for caching |
@@ -700,6 +706,11 @@ Generate intelligent code summaries to enhance understanding and reduce context 
 | **OpenAI** | gpt-5-mini-2025-08-07 | gpt-5-2025-08-07 | Fast with reasoning capabilities |
 | **Anthropic** | claude-3-5-haiku-20241022 | claude-sonnet-4-5-20250929 | Fast with extended thinking |
 | **OpenRouter** | qwen/qwen3-coder | z-ai/glm-4.6 | Access to 100+ models |
+| **Google Gemini** | gemini-2.0-flash | gemini-2.5-pro | Free tier available, 1M+ context |
+| **DeepSeek** | deepseek-coder | deepseek-chat | Extremely cost-effective |
+| **MiniMax** | MiniMax-Text-01 | MiniMax-Text-01 | 1M context window |
+| **Qwen/DashScope** | qwen-coder-plus | qwen3-235b-instruct | Alibaba's code models |
+| **Zhipu GLM** | glm-4-flash | glm-4-plus | Strong multilingual support |
 | **Ollama** | llama3.2 | llama3.2 | Local, private, no API needed |
 
 #### Quick Start
@@ -753,35 +764,83 @@ codeconcat run --ai-summary --ai-save-summaries --ai-provider openai
 # └── meta_overview.json  # Project-wide overview
 ```
 
-#### API Key Setup
+#### API Key Configuration
+
+API keys are resolved in the following **priority order**:
+
+1. **CLI flag** (`--ai-api-key`) - Highest priority, overrides all others
+2. **Environment variable** - Provider-specific env vars (see table below)
+3. **Encrypted storage** - Keys stored via `codeconcat keys setup`
+4. **Config file** - Keys in `.codeconcat.yml` (not recommended for secrets)
 
 <details>
-<summary><strong>Interactive Setup (Recommended)</strong></summary>
+<summary><strong>Environment Variables (Recommended)</strong></summary>
+
+| Provider | Environment Variable | Notes |
+|----------|---------------------|-------|
+| OpenAI | `OPENAI_API_KEY` | GPT-4, GPT-5, o-series models |
+| Anthropic | `ANTHROPIC_API_KEY` | Claude models |
+| Google Gemini | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | Gemini 1.5/2.0/2.5 models |
+| OpenRouter | `OPENROUTER_API_KEY` | Multi-provider gateway |
+| DeepSeek | `DEEPSEEK_API_KEY` | DeepSeek Coder, Chat, Reasoner |
+| MiniMax | `MINIMAX_API_KEY` | MiniMax-Text-01, abab models |
+| Qwen/DashScope | `DASHSCOPE_API_KEY` | Qwen Coder models |
+| Zhipu GLM | `ZHIPUAI_API_KEY` or `ZHIPU_API_KEY` | GLM-4, CodeGeeX models |
+| Ollama | *(none required)* | Local, no API key needed |
+| vLLM | `VLLM_API_KEY` | Optional, for authenticated servers |
+| LM Studio | `LMSTUDIO_API_KEY` | Optional, usually not needed |
+| llama.cpp | `LLAMACPP_SERVER_API_KEY` | Optional, for authenticated servers |
+| Generic local | `LOCAL_LLM_API_KEY` | Fallback for any OpenAI-compatible server |
 
 ```bash
+# Example: Set up cloud providers
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GOOGLE_API_KEY="AIza..."
+export DEEPSEEK_API_KEY="sk-..."
+export DASHSCOPE_API_KEY="sk-..."
+export ZHIPUAI_API_KEY="..."
+```
+
+</details>
+
+<details>
+<summary><strong>Encrypted Storage (Interactive)</strong></summary>
+
+Store keys securely with password-protected encryption in `~/.codeconcat/`:
+
+```bash
+# Interactive setup wizard
 codeconcat keys setup
 
 # Prompts for:
 # 1. Master password (for encryption)
 # 2. Provider selection
 # 3. API key entry
+
+# Or set keys directly
+codeconcat keys set openai sk-...
+codeconcat keys set anthropic sk-ant-...
+codeconcat keys set google AIza...
+
+# List configured keys
+codeconcat keys list
+
+# Get a specific key
+codeconcat keys get openai
 ```
 
 </details>
 
 <details>
-<summary><strong>Environment Variables</strong></summary>
+<summary><strong>CLI Flag (Per-Command)</strong></summary>
 
 ```bash
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-export OPENROUTER_API_KEY="sk-or-..."
-export LOCAL_LLM_API_KEY=""       # Optional
-export VLLM_API_KEY=""            # Optional
-export LMSTUDIO_API_KEY=""        # Optional
-export LLAMACPP_SERVER_API_KEY="" # Optional
-# Ollama doesn't require an API key
+# Pass API key directly (useful for CI/CD or one-off runs)
+codeconcat run --ai-summary --ai-provider openai --ai-api-key "sk-..."
 ```
+
+**Note:** Avoid this method for interactive use as keys may appear in shell history.
 
 </details>
 
@@ -1294,7 +1353,7 @@ For detailed technical documentation of all fixes, see **[PARSER_FIXES_SUMMARY.m
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete version history and release notes.
 
-**Current Version:** 0.8.8
+**Current Version:** 0.9.0
 
 ### Troubleshooting
 

@@ -97,6 +97,11 @@ class APIKeyManager:
             "openai": lambda k: k.startswith(("sk-", "sess-")),
             "anthropic": lambda k: k.startswith("sk-ant-"),
             "openrouter": lambda k: k.startswith("sk-or-"),
+            "google": lambda k: k.startswith("AIza") or len(k) >= 30,
+            "deepseek": lambda k: k.startswith("sk-") or len(k) >= 30,
+            "minimax": lambda k: len(k) >= 30,
+            "qwen": lambda k: k.startswith("sk-") or len(k) >= 30,
+            "zhipu": lambda k: len(k) >= 30,
         }
 
         if provider in validations:
@@ -124,6 +129,11 @@ class APIKeyManager:
                 "openai": AIProviderType.OPENAI,
                 "anthropic": AIProviderType.ANTHROPIC,
                 "openrouter": AIProviderType.OPENROUTER,
+                "google": AIProviderType.GOOGLE,
+                "deepseek": AIProviderType.DEEPSEEK,
+                "minimax": AIProviderType.MINIMAX,
+                "qwen": AIProviderType.QWEN,
+                "zhipu": AIProviderType.ZHIPU,
                 "ollama": AIProviderType.OLLAMA,
             }
 
@@ -162,6 +172,11 @@ class APIKeyManager:
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
+            "google": "GOOGLE_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
+            "qwen": "DASHSCOPE_API_KEY",
+            "zhipu": "ZHIPUAI_API_KEY",
             "ollama": None,  # Ollama doesn't need API key
             "local_server": "LOCAL_LLM_API_KEY",
             "vllm": "VLLM_API_KEY",
@@ -360,6 +375,11 @@ class APIKeyManager:
             ("openai", "OPENAI_API_KEY"),
             ("anthropic", "ANTHROPIC_API_KEY"),
             ("openrouter", "OPENROUTER_API_KEY"),
+            ("google", "GOOGLE_API_KEY"),
+            ("deepseek", "DEEPSEEK_API_KEY"),
+            ("minimax", "MINIMAX_API_KEY"),
+            ("qwen", "DASHSCOPE_API_KEY"),
+            ("zhipu", "ZHIPUAI_API_KEY"),
         ]:
             if os.getenv(env_var):
                 providers.append(f"{provider} (env)")
@@ -399,6 +419,11 @@ async def setup_api_keys(interactive: bool = True) -> dict[str, str]:
         ("openai", "OpenAI", "sk-..."),
         ("anthropic", "Anthropic", "sk-ant-..."),
         ("openrouter", "OpenRouter", "sk-or-..."),
+        ("google", "Google Gemini", "AIza..."),
+        ("deepseek", "DeepSeek", "sk-..."),
+        ("minimax", "MiniMax", "(API key)"),
+        ("qwen", "Qwen/DashScope", "sk-..."),
+        ("zhipu", "Zhipu GLM", "(API key)"),
     ]
 
     for provider_id, provider_name, key_format in providers:

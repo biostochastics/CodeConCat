@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 from codeconcat.parser.language_parsers.tree_sitter_crystal_parser import TreeSitterCrystalParser
+from codeconcat.parser.error_handling import ParserInitializationError
 
 
 class TestTreeSitterCrystalParser:
@@ -14,7 +15,13 @@ class TestTreeSitterCrystalParser:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.parser = TreeSitterCrystalParser()
+        try:
+            self.parser = TreeSitterCrystalParser()
+        except ParserInitializationError as e:
+            # Crystal language version may be incompatible with tree-sitter version
+            if "Incompatible Language version" in str(e):
+                pytest.skip(f"Crystal parser incompatible with tree-sitter version: {e}")
+            raise
 
     def test_parser_initialization(self):
         """Test parser initializes correctly."""

@@ -75,6 +75,37 @@ SOLIDITY_QUERIES = {
     "syntactic_patterns": """
         ; Using statements for libraries
         (using_directive) @using_statement
+
+        ; Assembly blocks - require careful security review
+        (assembly_statement) @assembly_block
+
+        ; Deprecated suicide/selfdestruct calls
+        (call_expression
+            (expression (identifier) @func_name)
+            (#match? @func_name "^(suicide|selfdestruct)$")
+        ) @suicide_call
+
+        ; Delegatecall usage - potential security concern
+        (member_expression
+            (identifier) @method_name
+            (#match? @method_name "^delegatecall$")
+        ) @delegatecall_usage
+
+        ; External calls (.call, .send, .transfer) - potential reentrancy
+        (member_expression
+            (identifier) @call_method
+            (#match? @call_method "^(call|send|transfer)$")
+        ) @external_call
+
+        ; Struct expressions for .call{value: ...} pattern
+        (struct_expression
+            (expression
+                (member_expression
+                    (identifier) @struct_call_method
+                    (#match? @struct_call_method "^call$")
+                )
+            )
+        ) @external_call_with_value
     """,
 }
 
@@ -273,32 +304,35 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
         pattern_counts: dict[str, int] = {}
 
         for node, name in captures:
-            if name in [
+            # Normalize external_call_with_value to external_call for counting
+            normalized_name = "external_call" if name == "external_call_with_value" else name
+
+            if normalized_name in [
                 "assembly_block",
                 "delegatecall_usage",
                 "selfdestruct_call",
                 "suicide_call",
                 "external_call",
             ]:
-                pattern_counts[name] = pattern_counts.get(name, 0) + 1
+                pattern_counts[normalized_name] = pattern_counts.get(normalized_name, 0) + 1
 
                 # Add specific warnings for critical patterns
-                start_line, end_line = get_node_location(node)
-                if name == "selfdestruct_call":
+                start_line, _ = get_node_location(node)
+                if normalized_name == "selfdestruct_call":
                     self._pattern_warnings.add(f"CRITICAL: selfdestruct usage at line {start_line}")
-                elif name == "suicide_call":
+                elif normalized_name == "suicide_call":
                     self._pattern_warnings.add(
                         f"CRITICAL: deprecated suicide usage at line {start_line}"
                     )
-                elif name == "delegatecall_usage":
+                elif normalized_name == "delegatecall_usage":
                     self._pattern_warnings.add(
                         f"WARNING: delegatecall usage at line {start_line} - review for security"
                     )
-                elif name == "assembly_block":
+                elif normalized_name == "assembly_block":
                     self._pattern_warnings.add(
                         f"INFO: Assembly block at line {start_line} - requires careful review"
                     )
-                elif name == "external_call":
+                elif normalized_name == "external_call":
                     # Track external calls as potential security issues
                     result.security_issues.append(
                         {"type": "external_call", "line": start_line, "severity": "info"}

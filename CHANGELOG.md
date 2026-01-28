@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **5 New AI Providers for Code Summarization**:
+  - **Google Gemini**: Native SDK integration via `google-genai`
+    - Supports Gemini 2.5 Pro, Gemini 2.0 Flash, Gemini 1.5 Flash
+    - Both API key and Vertex AI (ADC) authentication
+    - Install: `pip install google-genai` or `poetry install -E google`
+  - **DeepSeek**: OpenAI-compatible API via LocalServerProvider
+    - Models: `deepseek-chat`, `deepseek-coder`, `deepseek-reasoner`
+    - Extremely cost-effective ($0.14/1M input tokens)
+  - **MiniMax**: OpenAI-compatible API via LocalServerProvider
+    - Models: `MiniMax-Text-01` (1M context), `abab6.5s-chat`
+  - **Qwen/DashScope**: OpenAI-compatible API via LocalServerProvider
+    - Models: `qwen-coder-plus`, `qwen-coder-turbo`, `qwen3-235b-instruct`
+  - **Zhipu GLM**: Native SDK integration via `zhipuai`
+    - Models: `glm-4`, `glm-4-plus`, `glm-4-flash`, `codegeex-4`
+    - Install: `pip install zhipuai` or `poetry install -E zhipu`
+
+- **New Optional Dependencies**: AI providers now available as extras
+  - `poetry install -E openai` - OpenAI provider
+  - `poetry install -E anthropic` - Anthropic provider
+  - `poetry install -E google` - Google Gemini provider
+  - `poetry install -E zhipu` - Zhipu GLM provider
+  - `poetry install -E all-ai` - All AI providers
+
 ### Changed
 
 - **Pydantic V2 Migration**: Modernized all Pydantic usage patterns

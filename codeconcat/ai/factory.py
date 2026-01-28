@@ -80,10 +80,23 @@ def get_ai_provider(config: AIProviderConfig) -> AIProvider:
         AIProviderType.VLLM,
         AIProviderType.LMSTUDIO,
         AIProviderType.LLAMACPP_SERVER,
+        AIProviderType.DEEPSEEK,
+        AIProviderType.MINIMAX,
+        AIProviderType.QWEN,
     }:
         from .providers.local_server_provider import LocalServerProvider
 
         return LocalServerProvider(config)
+
+    elif config.provider_type == AIProviderType.GOOGLE:
+        from .providers.google_provider import GoogleProvider
+
+        return GoogleProvider(config)
+
+    elif config.provider_type == AIProviderType.ZHIPU:
+        from .providers.zhipu_provider import ZhipuProvider
+
+        return ZhipuProvider(config)
 
     else:
         raise ValueError(f"Unsupported provider type: {config.provider_type}")
@@ -134,6 +147,20 @@ def list_available_providers() -> list[str]:
 
     # Local server presets are always available (uses standard HTTP)
     available.extend(["local_server", "vllm", "lmstudio", "llamacpp_server"])
+
+    # OpenAI-compatible cloud providers (use standard HTTP)
+    available.extend(["deepseek", "minimax", "qwen"])
+
+    # Check for Google Generative AI (requires google.genai module)
+    if (
+        importlib.util.find_spec("google") is not None
+        and importlib.util.find_spec("google.genai") is not None
+    ):
+        available.append("google")
+
+    # Check for Zhipu AI
+    if importlib.util.find_spec("zhipuai") is not None:
+        available.append("zhipu")
 
     return available
 
@@ -208,12 +235,13 @@ def get_provider_info(provider_name: str) -> dict[str, Any]:
             "name": "Google Gemini",
             "models": provider_models
             if provider_models
-            else ["gemini-2.5-pro", "gemini-1.5-flash"],
+            else ["gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"],
             "requires_api_key": True,
             "supports_streaming": True,
             "supports_function_calling": True,
-            "pip_install": "google-generativeai",
+            "pip_install": "google-genai",
             "env_var": "GOOGLE_API_KEY",
+            "notes": "Native Google Generative AI SDK; supports both API key and Vertex AI auth",
         },
         "llamacpp": {
             "name": "Llama.cpp",
@@ -264,6 +292,53 @@ def get_provider_info(provider_name: str) -> dict[str, Any]:
             "pip_install": None,
             "env_var": "LLAMACPP_SERVER_API_KEY",
             "notes": "Defaults to http://localhost:8080; uses LocalServerProvider",
+        },
+        # New cloud providers (2025)
+        "deepseek": {
+            "name": "DeepSeek",
+            "models": provider_models
+            if provider_models
+            else ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"],
+            "requires_api_key": True,
+            "supports_streaming": True,
+            "supports_function_calling": True,
+            "pip_install": None,
+            "env_var": "DEEPSEEK_API_KEY",
+            "notes": "OpenAI-compatible API; extremely cost-effective; excellent for code",
+        },
+        "minimax": {
+            "name": "MiniMax",
+            "models": provider_models if provider_models else ["MiniMax-Text-01", "abab6.5s-chat"],
+            "requires_api_key": True,
+            "supports_streaming": True,
+            "supports_function_calling": True,
+            "pip_install": None,
+            "env_var": "MINIMAX_API_KEY",
+            "notes": "OpenAI-compatible API; MiniMax-Text-01 has 1M context window",
+        },
+        "qwen": {
+            "name": "Qwen/DashScope",
+            "models": provider_models
+            if provider_models
+            else ["qwen-coder-plus", "qwen-coder-turbo", "qwen3-235b-a22b"],
+            "requires_api_key": True,
+            "supports_streaming": True,
+            "supports_function_calling": True,
+            "pip_install": None,
+            "env_var": "DASHSCOPE_API_KEY",
+            "notes": "Alibaba's Qwen models via DashScope; OpenAI-compatible API",
+        },
+        "zhipu": {
+            "name": "Zhipu GLM",
+            "models": provider_models
+            if provider_models
+            else ["glm-4", "glm-4-plus", "glm-4-flash", "codegeex-4"],
+            "requires_api_key": True,
+            "supports_streaming": True,
+            "supports_function_calling": True,
+            "pip_install": "zhipuai",
+            "env_var": "ZHIPUAI_API_KEY",
+            "notes": "Native Zhipu SDK; strong multilingual and code capabilities",
         },
     }
 

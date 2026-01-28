@@ -25,6 +25,12 @@ class AIProviderType(Enum):
     VLLM = "vllm"
     LMSTUDIO = "lmstudio"
     LLAMACPP_SERVER = "llamacpp_server"
+    # New providers (2025)
+    DEEPSEEK = "deepseek"  # OpenAI-compatible API
+    MINIMAX = "minimax"  # OpenAI-compatible API
+    QWEN = "qwen"  # DashScope OpenAI-compatible API
+    GOOGLE = "google"  # Native Google Gemini API
+    ZHIPU = "zhipu"  # Native Zhipu GLM API
 
 
 @dataclass

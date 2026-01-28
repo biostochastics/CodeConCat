@@ -78,9 +78,9 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
 
         # Fall back to tree_sitter_languages if available
         try:
-            from tree_sitter_languages import get_language
+            from tree_sitter_languages import get_language as get_lang_fallback
 
-            return get_language("hlsl")
+            return get_lang_fallback("hlsl")
         except ImportError:
             raise LanguageParserError(
                 "Failed to load HLSL language. Install tree-sitter-language-pack or tree-sitter-hlsl."
