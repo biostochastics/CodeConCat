@@ -176,12 +176,14 @@ class TestCrossPlatformAttacks:
             validate_safe_path("\\\\server\\share\\file.txt", base_path=base)
 
     def test_long_path_attack(self, tmp_path):
-        """Attempt attack with extremely long path."""
+        """Attempt attack with extremely long path exceeding filesystem limits."""
         base = tmp_path / "project"
         base.mkdir()
 
-        # Create path with 1000+ components
-        long_path = "/".join(["a"] * 1000)
+        # Create path that exceeds the 4096 byte limit enforced by path_security.py
+        # Each component "a" + "/" = 2 bytes, need > 4096 bytes = 2049+ components
+        # Or use longer component names to exceed the limit more reliably
+        long_path = "/".join(["aaa"] * 2000)  # 3*2000 + 1999 = ~8000 bytes
 
         with pytest.raises((PathTraversalError, OSError)):
             validate_safe_path(long_path, base_path=base)
