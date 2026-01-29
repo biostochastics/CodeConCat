@@ -347,6 +347,151 @@ def decorated_function():
         finally:
             path.unlink()
 
+    def test_swift_partial_parse_merging(self):
+        """Test that partial tree-sitter results merge with regex parser for Swift.
+
+        This tests the fix for modern Swift syntax (e.g., nonisolated(unsafe))
+        that tree-sitter doesn't support. Tree-sitter should return partial results
+        which then get merged with the regex parser results.
+        """
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".swift", delete=False) as f:
+            f.write(
+                """
+import SwiftUI
+import Foundation
+
+/// A file watcher for monitoring filesystem changes.
+@MainActor
+final class FileWatcher {
+    // nonisolated(unsafe) is Swift 5.10+ syntax - tree-sitter may not parse this
+    private nonisolated(unsafe) var streamRef: String?
+    private nonisolated(unsafe) var debounceTimer: Timer?
+
+    /// Callback type with MainActor annotation
+    typealias ChangeCallback = @MainActor (Set<String>) -> Void
+
+    private let isAlive = AtomicBool(true)
+
+    /// Initialize the file watcher.
+    init() {
+        self.streamRef = nil
+    }
+
+    /// Callback for file changes.
+    func callback() {
+        print("File changed")
+    }
+
+    /// Start watching for changes.
+    func startWatching() {
+        // Implementation
+    }
+}
+
+/// Settings manager with observable object.
+@MainActor
+final class SettingsManager: ObservableObject {
+    private enum Keys {
+        static let hoverDelay = "hoverDelay"
+        static let expandDelay = "expandDelay"
+    }
+
+    @Published var hoverDelay: Double = 0.5
+}
+"""
+            )
+            path = Path(f.name)
+
+        try:
+            config = CodeConCatConfig(
+                target_path=str(path.parent),
+                enable_result_merging=True,
+                merge_strategy="confidence",
+                # Do NOT disable tree-sitter - we want to test partial parse merging
+            )
+
+            pipeline = UnifiedPipeline(config)
+            result = pipeline._parse_with_fallbacks(path.read_text(), str(path), "swift")
+
+            # Should find classes despite tree-sitter having partial parse errors
+            classes = [d for d in result.declarations if d.kind == "class"]
+            class_names = {d.name for d in classes}
+            assert "FileWatcher" in class_names, f"FileWatcher not found in {class_names}"
+            assert "SettingsManager" in class_names, f"SettingsManager not found in {class_names}"
+
+            # Should find functions
+            funcs = [d for d in result.declarations if d.kind in ("function", "initializer")]
+            func_names = {d.name for d in funcs}
+            assert "callback" in func_names or "init" in func_names, (
+                f"Expected functions not found in {func_names}"
+            )
+
+            # Should find imports
+            assert len(result.imports) > 0, "Should have found imports"
+            import_str = " ".join(result.imports)
+            assert "SwiftUI" in import_str or "Foundation" in import_str, (
+                f"Expected imports not found in {result.imports}"
+            )
+
+            # The key test: If tree-sitter had errors (partial parse), merging should still
+            # produce good results by combining with regex parser
+            assert len(result.declarations) >= 2, (
+                f"Expected at least 2 declarations (classes), got {len(result.declarations)}"
+            )
+
+        finally:
+            path.unlink()
+
+    def test_partial_parse_includes_in_merge(self):
+        """Test that partial parse results are included in merge, not discarded."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".swift", delete=False) as f:
+            # Create a file that will definitely cause tree-sitter errors
+            # but still has parseable content
+            f.write(
+                """
+import Foundation
+
+// Valid class that tree-sitter can parse
+class ValidClass {
+    func validMethod() {
+        print("hello")
+    }
+}
+
+// This uses Swift 5.10+ syntax that tree-sitter may not understand
+class ModernSwiftClass {
+    nonisolated(unsafe) var unsafeProperty: Int = 0
+
+    func anotherMethod() {
+        print("world")
+    }
+}
+"""
+            )
+            path = Path(f.name)
+
+        try:
+            config = CodeConCatConfig(
+                target_path=str(path.parent),
+                enable_result_merging=True,
+                merge_strategy="union",  # Union should maximize coverage
+            )
+
+            pipeline = UnifiedPipeline(config)
+            result = pipeline._parse_with_fallbacks(path.read_text(), str(path), "swift")
+
+            # Should find both classes - ValidClass from tree-sitter (if it parses partially)
+            # and ModernSwiftClass from regex parser
+            classes = [d for d in result.declarations if d.kind == "class"]
+            class_names = {d.name for d in classes}
+
+            # At minimum, regex parser should find both
+            assert "ValidClass" in class_names, f"ValidClass not found in {class_names}"
+            assert "ModernSwiftClass" in class_names, f"ModernSwiftClass not found in {class_names}"
+
+        finally:
+            path.unlink()
+
     def test_go_file_with_generics(self):
         """Test Go file with generics (modern syntax)."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".go", delete=False) as f:
