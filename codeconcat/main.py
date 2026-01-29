@@ -13,10 +13,10 @@ import logging
 import os  # Ensure os is imported at the global scope
 import sys
 import warnings
+from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
-from typing import Literal
-
-from rich.progress import track
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from codeconcat.base_types import (
     AnnotatedFileData,
@@ -52,6 +52,36 @@ from codeconcat.writer.json_writer import write_json
 from codeconcat.writer.markdown_writer import write_markdown
 from codeconcat.writer.text_writer import write_text
 from codeconcat.writer.xml_writer import write_xml
+
+if TYPE_CHECKING:
+    from codeconcat.utils.cancellation import CancellationToken
+
+
+class ProgressCallback(Protocol):
+    """Protocol for progress callbacks from CLI dashboard."""
+
+    def start_stage(
+        self, name: str, total: int = 0, message: str = ""
+    ) -> "Callable[[int, int, str], None] | None":
+        """Start a processing stage. Returns optional callback for updates."""
+        ...
+
+    def update_progress(self, current: int, total: int, message: str = "") -> None:
+        """Update progress for the current stage."""
+        ...
+
+    def complete_stage(self, message: str = "") -> None:
+        """Mark the current stage as completed."""
+        ...
+
+    def fail_stage(self, message: str = "failed") -> None:
+        """Mark the current stage as failed."""
+        ...
+
+    def skip_stage(self, name: str, message: str = "skipped") -> None:
+        """Mark a stage as skipped."""
+        ...
+
 
 # Suppress HuggingFace warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -232,7 +262,15 @@ def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
     # This should not happen anymore since we set defaults in cli_entry_point,
     # but just in case...
     if not output_path:
-        output_path = f"codeconcat_output.{config.format}"
+        format_ext_map = {
+            "markdown": "md",
+            "json": "json",
+            "xml": "xml",
+            "text": "txt",
+        }
+        ext = format_ext_map.get(config.format, config.format)
+        date_stamp = datetime.now().strftime("%m%d%y")
+        output_path = f"ccc_codeconcat_{date_stamp}.{ext}"
         logger.warning(f"Output path was not set, using default: {output_path}")
 
     # Debug print the final output path
@@ -245,14 +283,8 @@ def _write_output_files(output_text: str, config: CodeConCatConfig) -> None:
         chunk_size = (len(lines) + parts - 1) // parts
         base, ext = local_os.path.splitext(output_path)
 
-        # Wrap loop with track for progress
-        write_iterator = track(
-            range(parts),
-            description="Writing output chunks",
-            disable=config.disable_progress_bar,
-            total=parts,
-        )
-        for idx in write_iterator:
+        # Write output in chunks
+        for idx in range(parts):
             chunk = "".join(lines[idx * chunk_size : (idx + 1) * chunk_size])
             chunk_file = f"{base}.part{idx + 1}{ext}"
             with open(chunk_file, "w", encoding="utf-8") as fh:
@@ -505,6 +537,16 @@ def cli_entry_point():
 
         # Only set default output filename if no output was specified
         if config.output is None or config.output == "":
+            # Map format names to file extensions
+            format_ext_map = {
+                "markdown": "md",
+                "json": "json",
+                "xml": "xml",
+                "text": "txt",
+            }
+            ext = format_ext_map.get(config.format, config.format)
+            date_stamp = datetime.now().strftime("%m%d%y")
+
             # Target_path could be a directory or file
             if hasattr(config, "target_path") and config.target_path:
                 # Normalize path and get base folder name
@@ -525,12 +567,12 @@ def cli_entry_point():
                 if not folder_name.strip():
                     folder_name = "codeconcat"
 
-                # Set the output path with the correct format extension
-                config.output = f"{folder_name}_ccc.{config.format}"
+                # Set the output path: ccc_{folder_name}_{mmddyy}.{ext}
+                config.output = f"ccc_{folder_name}_{date_stamp}.{ext}"
                 print(f"[Info] Using folder-based output name: {config.output}")
             else:
                 # Fallback if no target_path is available
-                config.output = f"codeconcat_output.{config.format}"
+                config.output = f"ccc_codeconcat_{date_stamp}.{ext}"
 
         # Print detailed configuration if requested
         if args.show_config_detail:
@@ -731,7 +773,11 @@ def generate_folder_tree(root_path: str, config: CodeConCatConfig) -> str:
     return "\n".join(lines)
 
 
-def run_codeconcat(config: CodeConCatConfig) -> str:
+def run_codeconcat(
+    config: CodeConCatConfig,
+    progress_callback: ProgressCallback | None = None,
+    cancel_token: "CancellationToken | None" = None,
+) -> str | None:
     """Runs the main CodeConCat processing pipeline and returns the output string.
 
     This function orchestrates the core steps:
@@ -745,15 +791,18 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
     Args:
         config: The fully resolved CodeConCatConfig object containing all settings.
+        progress_callback: Optional callback for progress updates (from CLI dashboard).
+        cancel_token: Optional cancellation token for graceful Ctrl+C handling.
 
     Returns:
-        The concatenated and processed output as a single string.
+        The concatenated and processed output as a single string, or None if cancelled.
 
     Raises:
         CodeConcatError: For general errors during processing.
         ConfigurationError: If the configuration is invalid.
         FileProcessingError: For errors related to reading or parsing files.
         OutputError: For errors during output generation.
+        CancelledException: If the operation was cancelled via cancel_token.
 
     Complexity:
         O(n*m) where n is number of files and m is average file size
@@ -768,6 +817,11 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         - Path validation performed during file collection
         - File size limits enforced (20 MB collection, 5 MB binary check)
     """
+
+    # Helper to check cancellation
+    def check_cancelled() -> bool:
+        return cancel_token is not None and cancel_token.is_cancelled()
+
     # Validate configuration
     try:
         validate_config_values(config)
@@ -785,7 +839,15 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         # Collect input files
         logger.info("Collecting input files...")
+        if progress_callback:
+            progress_callback.start_stage("Collecting", message="Scanning files...")
         files_to_process: list[ParsedFileData] = []
+
+        # Check for cancellation
+        if check_cancelled():
+            if progress_callback:
+                progress_callback.skip_stage("Collecting", "cancelled")
+            return None
 
         # Check if we're in diff mode
         diff_mode = (
@@ -857,6 +919,14 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         # Track initial collected file count for stats (before validation)
         initial_collected_count = len(files_to_process)
 
+        # Complete collection stage
+        if progress_callback:
+            progress_callback.complete_stage(f"{initial_collected_count} files found")
+
+        # Check for cancellation
+        if check_cancelled():
+            return None
+
         # Setup Semgrep if enabled
         if hasattr(config, "enable_semgrep") and config.enable_semgrep:
             logger.info("Setting up Semgrep for security scanning...")
@@ -891,6 +961,17 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
         # Parse code files (skip if in diff mode as files are already parsed)
         logger.debug("Starting file parsing.")
+
+        # Start parsing stage
+        if progress_callback:
+            progress_callback.start_stage("Parsing", total=len(files_to_process))
+
+        # Check for cancellation
+        if check_cancelled():
+            if progress_callback:
+                progress_callback.skip_stage("Parsing", "cancelled")
+            return None
+
         try:
             logger.info(
                 f"[CodeConCat] Found {len(files_to_process)} code files. Starting parsing..."
@@ -915,13 +996,23 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
 
             if not parsed_files:
                 logger.error("[CodeConCat] No files were successfully parsed.")
+                if progress_callback:
+                    progress_callback.fail_stage("No files parsed")
                 # Decide if this should be a fatal error or just a warning
                 raise FileProcessingError("No files were successfully parsed")
             else:
                 logger.info(f"[CodeConCat] Parsing complete. Parsed {len(parsed_files)} files.")
+                if progress_callback:
+                    progress_callback.complete_stage(f"{len(parsed_files)} files parsed")
 
         except (OSError, UnicodeDecodeError, AttributeError) as e:
+            if progress_callback:
+                progress_callback.fail_stage(str(e))
             raise FileProcessingError(f"Error parsing files: {str(e)}") from e
+
+        # Check for cancellation before annotation
+        if check_cancelled():
+            return None
 
         # Apply AI summarization if enabled
         logger.debug(f"[CodeConCat] AI summary enabled: {config.enable_ai_summary}")
@@ -979,13 +1070,29 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 logger.warning(f"Warning: Failed to extract documentation: {str(e)}")
 
         logger.info("[CodeConCat] Starting annotation of parsed files...")
+
+        # Start annotation stage
+        if progress_callback:
+            progress_callback.start_stage("Annotating", total=len(parsed_files))
+
+        # Check for cancellation
+        if check_cancelled():
+            if progress_callback:
+                progress_callback.skip_stage("Annotating", "cancelled")
+            return None
+
         # Annotate files if enabled (skip in diff mode as files are already annotated)
         annotated_files = []
         try:
             if diff_mode:
                 logger.info("Diff mode: files already annotated, skipping annotation step")
                 # Convert ParsedFileData with diff info to AnnotatedFileData
-                for parsed in parsed_files:
+                for idx, parsed in enumerate(parsed_files):
+                    # Check for cancellation periodically
+                    if idx % 50 == 0 and check_cancelled():
+                        if progress_callback:
+                            progress_callback.skip_stage("Annotating", "cancelled")
+                        return None
                     annotated = AnnotatedFileData(
                         file_path=parsed.file_path,
                         language=parsed.language or "unknown",
@@ -1000,15 +1107,17 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                         diff_metadata=getattr(parsed, "diff_metadata", None),
                     )
                     annotated_files.append(annotated)
+                    if progress_callback:
+                        progress_callback.update_progress(idx + 1, len(parsed_files))
             elif not config.disable_annotations:
-                # Wrap annotation loop with track
-                annotation_iterator = track(
-                    parsed_files,
-                    description="Annotating files",
-                    disable=config.disable_progress_bar,  # Use config flag
-                    total=len(parsed_files),
-                )
-                for file in annotation_iterator:
+                # Process files with progress updates (skip rich.track when we have dashboard)
+                total_files = len(parsed_files)
+                for idx, file in enumerate(parsed_files):
+                    # Check for cancellation periodically
+                    if idx % 20 == 0 and check_cancelled():
+                        if progress_callback:
+                            progress_callback.skip_stage("Annotating", "cancelled")
+                        return None
                     try:
                         annotated = annotate(file, config)
                         annotated_files.append(annotated)
@@ -1037,16 +1146,19 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                             )
                             # Skip appending if fallback also fails
 
+                    # Update progress
+                    if progress_callback:
+                        progress_callback.update_progress(idx + 1, total_files)
+
             else:
                 # Create basic annotations without AI analysis
-                # Wrap this loop too, for consistency, although it should be fast
-                basic_annotation_iterator = track(
-                    parsed_files,
-                    description="Preparing basic annotations",
-                    disable=config.disable_progress_bar,
-                    total=len(parsed_files),
-                )
-                for file in basic_annotation_iterator:
+                total_files = len(parsed_files)
+                for idx, file in enumerate(parsed_files):
+                    # Check for cancellation periodically
+                    if idx % 50 == 0 and check_cancelled():
+                        if progress_callback:
+                            progress_callback.skip_stage("Annotating", "cancelled")
+                        return None
                     annotated_files.append(
                         AnnotatedFileData(
                             file_path=file.file_path,
@@ -1057,8 +1169,21 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                             tags=[],
                         )
                     )
+                    if progress_callback:
+                        progress_callback.update_progress(idx + 1, total_files)
+
+            # Complete annotation stage
+            if progress_callback:
+                progress_callback.complete_stage(f"{len(annotated_files)} files annotated")
+
         except (OSError, AttributeError, TypeError) as e:
+            if progress_callback:
+                progress_callback.fail_stage(str(e))
             raise FileProcessingError(f"Error during annotation phase: {str(e)}") from e
+
+        # Check for cancellation before writing
+        if check_cancelled():
+            return None
 
         # --- Prepare list for polymorphic writers --- #
         items: list[WritableItem] = []
@@ -1249,6 +1374,16 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         print(f"\n[OutputFormat] Using: {config.format}")
         logger.info(f"[CodeConCat] Writing output in {config.format} format...")
 
+        # Start writing stage
+        if progress_callback:
+            progress_callback.start_stage("Writing", message=f"format: {config.format}")
+
+        # Check for cancellation before writing
+        if check_cancelled():
+            if progress_callback:
+                progress_callback.skip_stage("Writing", "cancelled")
+            return None
+
         # Write output in requested format
         try:
             output = None
@@ -1273,7 +1408,14 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                 logger.warning(f"Unrecognized format '{config.format}', defaulting to markdown")
                 config.format = "markdown"
                 output = write_markdown(items, config, folder_tree_str)
+
+            # Complete writing stage
+            if progress_callback:
+                progress_callback.complete_stage(f"output: {config.format}")
+
         except (OSError, AttributeError, KeyError, ValueError) as e:
+            if progress_callback:
+                progress_callback.fail_stage(f"write error: {str(e)[:50]}")
             raise OutputError(f"Error generating {config.format} output: {str(e)}") from e
 
         # --- Token stats summary (all files) ---
@@ -1358,7 +1500,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
         raise
 
 
-def run_codeconcat_in_memory(config: CodeConCatConfig) -> str:
+def run_codeconcat_in_memory(config: CodeConCatConfig) -> str | None:
     """Run CodeConCat and return the output as a string, suitable for programmatic use.
 
     This function acts as a high-level API for integrating CodeConCat into other

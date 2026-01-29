@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.1] - 2026-01-28
 
+### Changed
+
+- **Default output filename convention**: Output files now use `ccc_{folder_name}_{mmddyy}.{ext}` pattern (e.g., `ccc_myproject_012826.md`) instead of the old `{folder_name}_ccc.{format}` pattern. Format names are mapped to proper file extensions (`markdown` → `.md`, `text` → `.txt`). Date stamp is included for easy versioning.
+
 ### Added
+
+- **Graceful Interrupt Handling (Ctrl+C)**: Full cooperative cancellation support
+  - First Ctrl+C triggers graceful cancellation with progress preservation
+  - Second Ctrl+C within 2 seconds forces immediate exit
+  - Thread-safe `CancellationToken` for cooperative task cancellation
+  - `SignalHandler` class with context manager support
+  - Cancellation checks throughout the processing pipeline
+  - New module: `codeconcat/utils/cancellation.py`
+
+- **Unified Progress Dashboard**: Flicker-free Rich Live panel display
+  - Single persistent dashboard showing all 4 processing stages (Collecting → Parsing → Annotating → Writing)
+  - Visual progress bars with percentage and item counts
+  - Stage status icons: ○ pending, ● in progress, ✓ completed, ✗ failed
+  - Elapsed time tracking per stage and total
+  - TTY detection with automatic fallback to `SimpleProgress` for non-interactive environments
+  - Refresh rate limiting (10 Hz) to reduce CPU usage and flicker
+  - New module: `codeconcat/cli/progress.py`
 
 - **5 New AI Providers for Code Summarization**:
   - **Google Gemini**: Native SDK integration via `google-genai`
@@ -44,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Reconstruction Parsing Hardening**: Improved markdown section parsing (supports paths with spaces), robust fenced code extraction, and diff-only block handling.
+  - Added strict parsing mode by default (with optional lenient repairs) for JSON/XML inputs
+  - XML reconstruction now prefers `defusedxml` when available for safer parsing
+
 - **Swift Parser Partial Results Merging**: Tree-sitter partial parse results now merge with regex parser
   - When tree-sitter encounters unsupported syntax (e.g., Swift 5.10+ `nonisolated(unsafe)`), it now includes partial results for merging instead of discarding them
   - Fallback regex parsers always run when tree-sitter has errors, ensuring modern language features are captured
@@ -76,6 +101,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `_get_issue_attr()` helper function across all writer modules for defensive attribute access
   - Handles both enum values (with `.value`/`.name`) and string severity values
   - Affected files: `markdown_writer.py`, `json_writer.py`, `xml_writer.py`, `rendering_adapters.py`
+
+- **Parallel Processing Dataclass Reconstruction**: Fixed `'dict' object has no attribute 'kind'` error in summarization processor when processing large codebases (50+ files)
+  - Root cause: `dataclasses.asdict()` in parallel processing worker converted nested `Declaration`, `TokenStats`, `SecurityIssue`, and `DiffMetadata` objects to plain dictionaries
+  - When `ParsedFileData(**result_dict)` reconstructed the object, nested dataclasses remained as dicts instead of being converted back to their proper types
+  - Added `_reconstruct_parsed_file_data()` and `_reconstruct_declaration()` helper functions in `unified_pipeline.py` to properly reconstruct all nested dataclass objects
+  - Handles recursive `Declaration.children` reconstruction and `modifiers` set/list conversion
+  - Affected file: `codeconcat/parser/unified_pipeline.py`
 
 ### Performance
 

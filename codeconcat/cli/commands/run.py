@@ -9,23 +9,21 @@ from typing import Annotated, Any
 
 import typer
 from rich.panel import Panel
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TaskProgressColumn,
-    TextColumn,
-    TimeRemainingColumn,
-)
 from rich.table import Table
 
 from codeconcat.config.config_builder import ConfigBuilder
 from codeconcat.errors import CodeConcatError
 from codeconcat.main import _write_output_files, run_codeconcat
+from codeconcat.utils.cancellation import (
+    CancelledException,
+    get_cancellation_token,
+    setup_signal_handler,
+)
 from codeconcat.validation.security_reporter import init_reporter
 from codeconcat.validation.unsupported_reporter import init_reporter as init_unsupported_reporter
 
 from ..config import get_state
+from ..progress import create_progress
 from ..utils import (
     console,
     is_github_url_or_shorthand,
@@ -809,24 +807,57 @@ def run_command(
             process_source = config.source_url if config.source_url else config.target_path
             console.print(f"\n[bold cyan]Processing files from:[/bold cyan] {process_source}\n")
 
-        with Progress(
-            SpinnerColumn(spinner_name="dots", style="cyan"),
-            TextColumn("[bold blue]{task.description}"),
-            BarColumn(bar_width=40, style="cyan", complete_style="green"),
-            TaskProgressColumn(),
-            TimeRemainingColumn(),
+        # Setup cancellation token and signal handler for graceful Ctrl+C
+        cancel_token = get_cancellation_token()
+        progress_display = create_progress(
             console=console,
-            disable=disable_progress or state.quiet,
-            refresh_per_second=4,
-        ) as progress:
-            task = progress.add_task("[cyan]Processing files...", total=None)
+            quiet=state.quiet,
+            force_simple=disable_progress,
+        )
+
+        # Track if we cancelled gracefully for proper exit messaging
+        was_cancelled = False
+
+        with progress_display as dashboard:
+            # Setup signal handler - keep callback minimal for signal safety
+            def on_cancel():
+                nonlocal was_cancelled
+                was_cancelled = True
+                # Don't do Rich UI work in signal handler - defer to main flow
+
+            signal_handler = setup_signal_handler(
+                token=cancel_token,
+                on_cancel=on_cancel,
+                quiet=state.quiet,
+            )
 
             try:
-                output_content = run_codeconcat(config)
-                progress.update(task, completed=100)
+                output_content = run_codeconcat(
+                    config,
+                    progress_callback=dashboard,
+                    cancel_token=cancel_token,
+                )
+                # Check if cancelled during execution (returns None on cancel)
+                if output_content is None and cancel_token.is_cancelled():
+                    was_cancelled = True
+            except CancelledException:
+                was_cancelled = True
+                output_content = None
             except CodeConcatError as e:
+                if hasattr(dashboard, "fail_stage"):
+                    dashboard.fail_stage(str(e))
                 print_error(f"Processing failed: {e}")
                 raise typer.Exit(1) from e
+            finally:
+                signal_handler.uninstall()
+                # Update dashboard after signal handler is uninstalled (safe context)
+                if was_cancelled and hasattr(dashboard, "skip_remaining"):
+                    dashboard.skip_remaining("cancelled")
+
+        # Handle cancellation exit
+        if was_cancelled:
+            print_warning("Operation cancelled by user")
+            raise typer.Exit(130)
 
         # Write output
         if output_content:
@@ -880,14 +911,16 @@ def run_command(
                     stats_table.add_row("Total lines", f"{stats.get('total_lines', 0):,}")
                     stats_table.add_row("Total bytes", f"{stats.get('total_bytes', 0):,}")
 
-                if hasattr(config, "files_processed"):
-                    stats_table.add_row("Files processed", str(len(config.target_path)))
-
                 console.print("\n", stats_table)
         else:
             print_warning("No output generated")
 
     except KeyboardInterrupt:
+        # This can still trigger if signal handler wasn't installed yet
+        print_warning("Operation cancelled by user")
+        raise typer.Exit(130) from None
+    except CancelledException:
+        # Graceful cancellation via token
         print_warning("Operation cancelled by user")
         raise typer.Exit(130) from None
     except Exception as e:

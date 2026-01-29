@@ -363,14 +363,11 @@ class ConfigBuilder:
 
         # Only set default output path if it wasn't provided by any source
         # Don't override CLI or YAML specified output paths
-        if (
-            self._sources.get("output") == ConfigSource.DEFAULT
-            and self._config_dict.get("output") == "code_concat_output.md"
-        ):
-            # Update to use correct format extension
-            format_value = self._config_dict.get("format", "markdown")
-            output_path = f"code_concat_output.{format_value}"
-            self._config_dict["output"] = output_path
+        if self._sources.get("output") == ConfigSource.DEFAULT and self._config_dict.get(
+            "output"
+        ) in ("code_concat_output.md", ""):
+            # Clear to empty so main.py generates the dated default name
+            self._config_dict["output"] = ""
             self._sources["output"] = ConfigSource.COMPUTED
 
         # Apply default exclude patterns if not overridden

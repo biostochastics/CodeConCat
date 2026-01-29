@@ -32,7 +32,17 @@ from rich.progress import (
     track,
 )
 
-from ..base_types import CodeConCatConfig, EnhancedParserInterface, ParsedFileData, ParseResult
+from ..base_types import (
+    CodeConCatConfig,
+    Declaration,
+    DiffMetadata,
+    EnhancedParserInterface,
+    ParsedFileData,
+    ParseResult,
+    SecurityIssue,
+    SecuritySeverity,
+    TokenStats,
+)
 from ..errors import (
     FileProcessingError,
     ParserError,
@@ -90,6 +100,131 @@ ALLOWED_LANGUAGES = {
     "wat",
     "wasm",
 }
+
+
+def _reconstruct_declaration(data: dict | Declaration) -> Declaration:
+    """Reconstruct a Declaration object from a dictionary.
+
+    Handles nested children declarations recursively.
+
+    Args:
+        data: Dictionary representation of Declaration or existing Declaration object
+
+    Returns:
+        Declaration object
+    """
+    if isinstance(data, Declaration):
+        return data
+
+    # Recursively reconstruct children
+    children = [_reconstruct_declaration(child) for child in data.get("children", [])]
+
+    # Handle modifiers - could be list from JSON serialization
+    modifiers = data.get("modifiers", set())
+    if isinstance(modifiers, list):
+        modifiers = set(modifiers)
+
+    return Declaration(
+        kind=data["kind"],
+        name=data["name"],
+        start_line=data["start_line"],
+        end_line=data["end_line"],
+        modifiers=modifiers,
+        docstring=data.get("docstring", ""),
+        signature=data.get("signature", ""),
+        children=children,
+        ai_summary=data.get("ai_summary"),
+    )
+
+
+def _reconstruct_parsed_file_data(result_dict: dict) -> ParsedFileData:
+    """Reconstruct ParsedFileData from a dictionary with proper nested object reconstruction.
+
+    This is needed because dataclasses.asdict() in parallel processing converts
+    nested dataclass objects (Declaration, TokenStats, SecurityIssue, DiffMetadata)
+    to plain dictionaries. This function properly reconstructs them.
+
+    Args:
+        result_dict: Dictionary from dataclasses.asdict(ParsedFileData)
+
+    Returns:
+        ParsedFileData with properly reconstructed nested objects
+    """
+    # Reconstruct declarations
+    declarations = [_reconstruct_declaration(d) for d in result_dict.get("declarations", [])]
+
+    # Reconstruct token_stats
+    token_stats = None
+    if result_dict.get("token_stats"):
+        ts_data = result_dict["token_stats"]
+        if isinstance(ts_data, dict):
+            token_stats = TokenStats(
+                gpt4_tokens=ts_data["gpt4_tokens"],
+                claude_tokens=ts_data["claude_tokens"],
+            )
+        else:
+            token_stats = ts_data
+
+    # Reconstruct security_issues
+    security_issues = []
+    for issue in result_dict.get("security_issues", []):
+        if isinstance(issue, dict):
+            # Handle severity - could be string or SecuritySeverity enum
+            severity = issue["severity"]
+            if isinstance(severity, str):
+                normalized = severity.strip().upper()
+                try:
+                    severity = SecuritySeverity[normalized]
+                except KeyError:
+                    try:
+                        severity = SecuritySeverity(int(severity))
+                    except (ValueError, TypeError):
+                        severity = SecuritySeverity.INFO
+            security_issues.append(
+                SecurityIssue(
+                    rule_id=issue["rule_id"],
+                    description=issue["description"],
+                    file_path=issue["file_path"],
+                    line_number=issue["line_number"],
+                    severity=severity,
+                    context=issue.get("context", ""),
+                )
+            )
+        else:
+            security_issues.append(issue)
+
+    # Reconstruct diff_metadata
+    diff_metadata = None
+    if result_dict.get("diff_metadata"):
+        dm_data = result_dict["diff_metadata"]
+        if isinstance(dm_data, dict):
+            diff_metadata = DiffMetadata(
+                from_ref=dm_data["from_ref"],
+                to_ref=dm_data["to_ref"],
+                change_type=dm_data["change_type"],
+                additions=dm_data["additions"],
+                deletions=dm_data["deletions"],
+                binary=dm_data["binary"],
+                old_path=dm_data.get("old_path"),
+                similarity=dm_data.get("similarity"),
+            )
+        else:
+            diff_metadata = dm_data
+
+    return ParsedFileData(
+        file_path=result_dict["file_path"],
+        content=result_dict.get("content"),
+        language=result_dict.get("language"),
+        declarations=declarations,
+        imports=result_dict.get("imports", []),
+        token_stats=token_stats,
+        security_issues=security_issues,
+        parse_result=result_dict.get("parse_result"),
+        ai_summary=result_dict.get("ai_summary"),
+        ai_metadata=result_dict.get("ai_metadata"),
+        diff_content=result_dict.get("diff_content"),
+        diff_metadata=diff_metadata,
+    )
 
 
 def _is_valid_language_input(language: str) -> bool:
@@ -563,8 +698,9 @@ class UnifiedPipeline:
                                 )
                             )
                         elif result_dict:
-                            # Reconstruct ParsedFileData from dict
-                            parsed_file = ParsedFileData(**result_dict)
+                            # Reconstruct ParsedFileData from dict with proper nested object reconstruction
+                            # This handles Declaration, TokenStats, SecurityIssue, DiffMetadata
+                            parsed_file = _reconstruct_parsed_file_data(result_dict)
                             parsed_files_output.append(parsed_file)
 
                     except TimeoutError:

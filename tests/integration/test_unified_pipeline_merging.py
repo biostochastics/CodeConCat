@@ -545,3 +545,122 @@ type Person struct {
 
         finally:
             path.unlink()
+
+    def test_parallel_processing_dataclass_reconstruction(self):
+        """Test that parallel processing correctly reconstructs Declaration objects.
+
+        This tests the fix for the bug where dataclasses.asdict() in parallel processing
+        converts nested Declaration objects to plain dictionaries, and then the
+        reconstruction fails because ParsedFileData(**result_dict) doesn't convert
+        them back to Declaration objects.
+
+        The summarization processor then fails with:
+        'dict' object has no attribute 'kind'
+        """
+        import dataclasses
+
+        from codeconcat.base_types import Declaration, ParsedFileData
+        from codeconcat.parser.unified_pipeline import _reconstruct_parsed_file_data
+
+        # Create a ParsedFileData with nested Declarations (including children)
+        parent_decl = Declaration(
+            kind="class",
+            name="ParentClass",
+            start_line=1,
+            end_line=20,
+            modifiers={"public"},
+            docstring="Parent class documentation",
+            signature="class ParentClass",
+            children=[
+                Declaration(
+                    kind="method",
+                    name="child_method",
+                    start_line=5,
+                    end_line=10,
+                    modifiers={"private"},
+                    docstring="Child method documentation",
+                    signature="def child_method(self)",
+                    children=[],
+                )
+            ],
+        )
+
+        original = ParsedFileData(
+            file_path="/test/file.py",
+            content="test content",
+            language="python",
+            declarations=[parent_decl],
+            imports=["import os", "from typing import List"],
+        )
+
+        # Simulate what parallel processing does: convert to dict
+        result_dict = dataclasses.asdict(original)
+
+        # Verify that asdict converts Declaration objects to dicts
+        assert isinstance(result_dict["declarations"][0], dict)
+        assert isinstance(result_dict["declarations"][0]["children"][0], dict)
+        # Note: dataclasses.asdict preserves sets (doesn't convert to list)
+
+        # Now test the reconstruction
+        reconstructed = _reconstruct_parsed_file_data(result_dict)
+
+        # Verify reconstruction worked correctly
+        assert isinstance(reconstructed, ParsedFileData)
+        assert reconstructed.file_path == "/test/file.py"
+        assert reconstructed.language == "python"
+        assert len(reconstructed.declarations) == 1
+
+        # Verify Declaration objects are properly reconstructed
+        decl = reconstructed.declarations[0]
+        assert isinstance(decl, Declaration)
+        assert decl.kind == "class"
+        assert decl.name == "ParentClass"
+        assert decl.start_line == 1
+        assert decl.end_line == 20
+        assert decl.docstring == "Parent class documentation"
+        assert decl.signature == "class ParentClass"
+        # Modifiers should be a set again
+        assert isinstance(decl.modifiers, set)
+        assert "public" in decl.modifiers
+
+        # Verify nested children are properly reconstructed
+        assert len(decl.children) == 1
+        child = decl.children[0]
+        assert isinstance(child, Declaration)
+        assert child.kind == "method"
+        assert child.name == "child_method"
+        assert isinstance(child.modifiers, set)
+        assert "private" in child.modifiers
+
+        # Verify imports are preserved
+        assert "import os" in reconstructed.imports
+        assert "from typing import List" in reconstructed.imports
+
+    def test_dataclass_reconstruction_handles_list_modifiers(self):
+        """Test that reconstruction handles modifiers as list (from JSON serialization).
+
+        When data is serialized to JSON and back, sets become lists. The
+        reconstruction function should handle this case.
+        """
+        from codeconcat.base_types import Declaration
+        from codeconcat.parser.unified_pipeline import _reconstruct_declaration
+
+        # Simulate JSON serialized data where sets became lists
+        decl_dict = {
+            "kind": "function",
+            "name": "test_func",
+            "start_line": 1,
+            "end_line": 5,
+            "modifiers": ["async", "static"],  # list instead of set
+            "docstring": "Test function",
+            "signature": "async def test_func()",
+            "children": [],
+            "ai_summary": None,
+        }
+
+        reconstructed = _reconstruct_declaration(decl_dict)
+
+        assert isinstance(reconstructed, Declaration)
+        assert isinstance(reconstructed.modifiers, set)
+        assert "async" in reconstructed.modifiers
+        assert "static" in reconstructed.modifiers
