@@ -16,85 +16,15 @@ This parser provides comprehensive support for Zig language features:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from tree_sitter import Node, Query
-
-# QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
-try:
-    from tree_sitter import QueryCursor
-except ImportError:
-    QueryCursor = None  # type: ignore[assignment,misc]
+from tree_sitter import Node
 
 from ...base_types import Declaration, ParseResult
 from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
-
-# Comprehensive Tree-sitter queries for Zig - Using correct syntax
-ZIG_QUERIES = {
-    "imports": """
-        (builtin_function
-            (builtin_identifier) @builtin
-            (arguments (string) @import_path)?
-        ) @import_call
-
-        (variable_declaration
-            (identifier) @import_name
-            (builtin_function) @import_func
-        ) @import_decl
-    """,
-    "declarations": """
-        (function_declaration) @function
-
-        (test_declaration) @test_block
-
-        (variable_declaration) @variable
-    """,
-    "comptime": """
-        (comptime_declaration) @comptime_block
-
-        (comptime_expression) @comptime_expr
-
-        (for_expression) @for_loop
-
-        (while_expression) @while_loop
-    """,
-    "async_patterns": """
-        (async_expression) @async_expr
-
-        (nosuspend_expression) @nosuspend
-
-        (nosuspend_statement) @nosuspend_stmt
-
-        (suspend_statement) @suspend_stmt
-
-        (resume_expression) @resume_expr
-    """,
-    "error_handling": """
-        (error_union_type) @error_union
-
-        (try_expression) @try_expr
-
-        (catch_expression) @catch_expr
-
-        (defer_statement) @defer_stmt
-
-        (errdefer_statement) @errdefer_stmt
-    """,
-    "allocator_patterns": """
-        (field_expression) @field_expr
-
-        (parameter) @param
-    """,
-    "builtin_functions": """
-        (builtin_function) @builtin_call
-    """,
-    "comments": """
-        (comment) @comment
-    """,
-}
 
 
 class TreeSitterZigParser(BaseTreeSitterParser):
@@ -103,24 +33,27 @@ class TreeSitterZigParser(BaseTreeSitterParser):
     def __init__(self):
         """Initialize the Zig parser with tree-sitter-zig language."""
         super().__init__("zig")
-        self._setup_queries()
 
         # Track Zig-specific features
-        self.comptime_blocks: List[Dict[str, Any]] = []
-        self.async_functions: List[Dict[str, Any]] = []
-        self.error_handlers: List[Dict[str, Any]] = []
-        self.allocator_usage: List[Dict[str, Any]] = []
-        self.test_blocks: List[Dict[str, Any]] = []
-        self.builtin_calls: List[Dict[str, Any]] = []
+        self.comptime_blocks: list[dict[str, Any]] = []
+        self.async_functions: list[dict[str, Any]] = []
+        self.error_handlers: list[dict[str, Any]] = []
+        self.allocator_usage: list[dict[str, Any]] = []
+        self.test_blocks: list[dict[str, Any]] = []
+        self.builtin_calls: list[dict[str, Any]] = []
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """
         Returns a dictionary of Tree-sitter queries for Zig.
 
+        Note: The tree-sitter-zig grammar from tree_sitter_language_pack uses
+        non-standard node types (Decl, FnProto, VarDecl, etc.) that don't work
+        with standard queries. We use tree traversal instead.
+
         Returns:
-            Dict mapping query names to Tree-sitter S-expression query strings.
+            Empty dict - we use tree traversal for this grammar.
         """
-        return ZIG_QUERIES
+        return {}
 
     def _load_language(self):
         """Load the Zig language grammar.
@@ -131,7 +64,15 @@ class TreeSitterZigParser(BaseTreeSitterParser):
         Raises:
             LanguageParserError: If the language cannot be loaded.
         """
-        # Try to use the standalone tree-sitter-zig package
+        # Try tree_sitter_language_pack first (preferred)
+        try:
+            from tree_sitter_language_pack import get_language
+
+            return get_language("zig")
+        except ImportError:
+            pass
+
+        # Try the standalone tree-sitter-zig package
         try:
             import tree_sitter_zig as ts_zig
             from tree_sitter import Language
@@ -144,7 +85,7 @@ class TreeSitterZigParser(BaseTreeSitterParser):
 
             raise LanguageParserError(
                 f"Failed to load Zig language grammar: {e}. "
-                "Please install with: pip install tree-sitter-zig"
+                "Please install with: pip install tree-sitter-language-pack or tree-sitter-zig"
             ) from e
 
     def _create_parser(self):
@@ -166,41 +107,6 @@ class TreeSitterZigParser(BaseTreeSitterParser):
             from ...errors import LanguageParserError
 
             raise LanguageParserError(f"Failed to create Zig parser: {e}") from e
-
-    def _setup_queries(self):
-        """Set up tree-sitter queries for Zig syntax."""
-        self.queries = {}
-        for name, query_str in ZIG_QUERIES.items():
-            try:
-                # Use modern Query() constructor
-                query = Query(self.ts_language, query_str)
-                self.queries[name] = query
-                logger.debug(f"Successfully compiled query '{name}'")
-            except Exception as e:
-                logger.warning(f"Failed to create query '{name}': {e}")
-                self.queries[name] = None
-
-    def _execute_query_captures(self, query: Query, root: Node) -> Dict[str, List[Node]]:
-        """Execute a query and get captures, handling both old and new tree-sitter API.
-
-        Args:
-            query: Compiled Query object
-            root: Root node to query against
-
-        Returns:
-            Dictionary mapping capture names to lists of nodes
-        """
-        try:
-            if QueryCursor is not None:
-                # Old API: Use QueryCursor
-                cursor = QueryCursor(query)
-                return cursor.captures(root)  # type: ignore[no-any-return]
-            else:
-                # New API (tree-sitter >= 0.24.0): Query.captures() directly
-                return query.captures(root)  # type: ignore[no-any-return]
-        except Exception as e:
-            logger.debug(f"Error executing query captures: {e}")
-            return {}
 
     def parse(self, content: str, file_path: str = "") -> ParseResult:  # noqa: ARG002
         """
@@ -228,89 +134,50 @@ class TreeSitterZigParser(BaseTreeSitterParser):
         self.test_blocks = []
         self.builtin_calls = []
 
-        # Process queries to extract features
-        self._process_queries(tree.root_node, content)
-
         # Walk the tree and extract declarations
         declarations = self._walk_tree(tree.root_node, content)
 
         return ParseResult(declarations=declarations, imports=[])
 
-    def _process_queries(self, root: Node, source: str):
-        """Process tree-sitter queries to extract Zig-specific features."""
-        # Process declarations query
-        if self.queries.get("declarations"):
-            captures_dict = self._execute_query_captures(self.queries["declarations"], root)
-            for capture_name, nodes in captures_dict.items():
-                for node in nodes:
-                    logger.debug(f"Found declaration: {capture_name} - {node.type}")
+    def _walk_tree(self, node: Node, source: str) -> list[Declaration]:
+        """Walk the AST and extract declarations.
 
-        # Process comptime features
-        if self.queries.get("comptime"):
-            captures_dict = self._execute_query_captures(self.queries["comptime"], root)
-            for capture_name, nodes in captures_dict.items():
-                if "comptime" in capture_name:
-                    for node in nodes:
-                        self.comptime_blocks.append(
-                            {"type": capture_name, "location": get_node_location(node)}
-                        )
+        The tree-sitter-zig grammar from tree_sitter_language_pack uses
+        these node types:
+        - Decl: General declaration (contains FnProto, VarDecl, etc.)
+        - FnProto: Function prototype
+        - VarDecl: Variable/const declaration
+        - TestDecl: Test block
+        - ComptimeDecl: Comptime block
+        - IDENTIFIER: Identifier tokens
+        - Block: Code blocks
+        """
+        declarations: list[Declaration] = []
 
-        # Process async patterns
-        if self.queries.get("async_patterns"):
-            captures_dict = self._execute_query_captures(self.queries["async_patterns"], root)
-            for capture_name, nodes in captures_dict.items():
-                # All async_patterns query captures are async-related
-                for node in nodes:
-                    self.async_functions.append(
-                        {"type": capture_name, "location": get_node_location(node)}
-                    )
-
-        # Process error handling
-        if self.queries.get("error_handling"):
-            captures_dict = self._execute_query_captures(self.queries["error_handling"], root)
-            for capture_name, nodes in captures_dict.items():
-                for node in nodes:
-                    self.error_handlers.append(
-                        {"type": capture_name, "location": get_node_location(node)}
-                    )
-
-        # Process builtin functions
-        if self.queries.get("builtin_functions"):
-            captures_dict = self._execute_query_captures(self.queries["builtin_functions"], root)
-            for _capture_name, nodes in captures_dict.items():
-                for node in nodes:
-                    # Extract builtin name
-                    for child in node.children:
-                        if child.type == "builtin_identifier":
-                            self.builtin_calls.append(
-                                {
-                                    "name": source[child.start_byte : child.end_byte],
-                                    "location": get_node_location(node),
-                                }
-                            )
-                            break
-
-    def _walk_tree(self, node: Node, source: str) -> List[Declaration]:
-        """Walk the AST and extract declarations."""
-        declarations = []
-
-        def visit_node(node: Node, depth: int = 0):
+        def visit_node(node: Node, depth: int = 0, is_pub: bool = False):
             # Debug: log node types we encounter
             if depth <= 2:  # Only log top-level nodes
                 logger.debug(f"Node type at depth {depth}: {node.type}")
 
-            # Extract declarations based on node type
-            if node.type == "function_declaration":
-                decl = self._create_function_declaration(node, source)
-                if decl:
-                    declarations.append(decl)
-                    # Check for async modifier
-                    if self._is_async_function(node, source):
-                        self.async_functions.append(
-                            {"name": decl.name, "location": (decl.start_line, decl.end_line)}
-                        )
+            # Track pub modifier for declarations
+            current_is_pub = is_pub
+            if node.type == "pub":
+                current_is_pub = True
 
-            elif node.type == "test_declaration":
+            # Handle general Decl node - look inside for specific declaration types
+            if node.type == "Decl":
+                # Check children for the actual declaration type
+                for child in node.children:
+                    if child.type == "FnProto":
+                        decl = self._create_function_declaration(node, child, source, is_pub)
+                        if decl:
+                            declarations.append(decl)
+                    elif child.type == "VarDecl":
+                        decl = self._create_var_declaration(node, child, source, is_pub)
+                        if decl:
+                            declarations.append(decl)
+
+            elif node.type == "TestDecl":
                 decl = self._create_test_declaration(node, source)
                 if decl:
                     declarations.append(decl)
@@ -318,109 +185,97 @@ class TreeSitterZigParser(BaseTreeSitterParser):
                         {"name": decl.name, "location": (decl.start_line, decl.end_line)}
                     )
 
-            elif node.type == "variable_declaration":
-                # Check if it's a struct/enum/union definition
-                decl = self._create_type_or_var_declaration(node, source)
-                if decl:
-                    declarations.append(decl)
-
-            elif node.type == "comptime_declaration":
+            elif node.type == "ComptimeDecl":
                 # Track comptime blocks
                 self.comptime_blocks.append(
                     {"type": "comptime_block", "location": get_node_location(node)}
                 )
 
-            elif node.type == "comptime_expression":
-                # Track comptime expressions
-                self.comptime_blocks.append(
-                    {"type": "comptime_expression", "location": get_node_location(node)}
+            # Track builtin calls (like @import)
+            elif node.type == "BUILTINIDENTIFIER":
+                builtin_name = source[node.start_byte : node.end_byte]
+                self.builtin_calls.append(
+                    {"name": builtin_name, "location": get_node_location(node)}
                 )
 
-            elif node.type in ["try_expression", "catch_expression", "error_union_type"]:
-                # Track error handling
+            # Track async keyword (may appear in ERROR nodes due to grammar limitations)
+            elif node.type == "async":
+                self.async_functions.append({"type": "async", "location": get_node_location(node)})
+
+            # Track error handling keywords
+            elif node.type in ["try", "catch", "defer", "errdefer"]:
                 self.error_handlers.append({"type": node.type, "location": get_node_location(node)})
 
-            elif node.type in ["defer_statement", "errdefer_statement"]:
-                # Track defer/errdefer
-                self.error_handlers.append({"type": node.type, "location": get_node_location(node)})
-
-            elif node.type == "builtin_function":
-                # Track builtin function calls
-                builtin_name = None
-                for child in node.children:
-                    if child.type == "builtin_identifier":
-                        builtin_name = source[child.start_byte : child.end_byte]
-                        break
-                if builtin_name:
-                    self.builtin_calls.append(
-                        {"name": builtin_name, "location": get_node_location(node)}
+            # Track allocator patterns by looking for "allocator" identifiers
+            elif node.type == "IDENTIFIER":
+                ident_text = source[node.start_byte : node.end_byte]
+                if "allocator" in ident_text.lower():
+                    self.allocator_usage.append(
+                        {"type": "allocator_ref", "location": get_node_location(node)}
                     )
 
-            # Check for allocator patterns in field expressions
-            if node.type == "field_expression":
-                for child in node.children:
-                    if child.type == "identifier":
-                        field_name = source[child.start_byte : child.end_byte]
-                        if "allocator" in field_name.lower():
-                            self.allocator_usage.append(
-                                {"type": "field_access", "location": get_node_location(node)}
-                            )
-                            break
+            # Track inline keyword for comptime iteration
+            elif node.type == "inline":
+                self.comptime_blocks.append({"type": "inline", "location": get_node_location(node)})
 
-            # Check for comptime parameters
-            if node.type == "parameter":
-                for child in node.children:
-                    if child.type == "comptime":
-                        self.comptime_blocks.append(
-                            {"type": "comptime_parameter", "location": get_node_location(node)}
-                        )
-                        break
+            # Track suspend/resume for async
+            elif node.type in ["suspend", "resume"]:
+                self.async_functions.append(
+                    {"type": node.type, "location": get_node_location(node)}
+                )
 
-            # Check for inline for loops (comptime iteration)
-            if node.type == "for_statement":
-                for child in node.children:
-                    if child.type == "inline":
-                        self.comptime_blocks.append(
-                            {"type": "inline_for", "location": get_node_location(node)}
-                        )
-                        break
-
-            # Recurse to children
+            # Recurse to children, passing pub modifier state
             for child in node.children:
-                visit_node(child, depth + 1)
+                visit_node(child, depth + 1, current_is_pub)
 
         visit_node(node)
         return declarations
 
-    def _create_function_declaration(self, node: Node, source: str) -> Optional[Declaration]:
-        """Create a Declaration object for a function."""
+    def _create_function_declaration(
+        self, decl_node: Node, fn_proto: Node, source: str, is_pub: bool
+    ) -> Declaration | None:
+        """Create a Declaration object for a function.
+
+        Args:
+            decl_node: The Decl parent node (for line numbers)
+            fn_proto: The FnProto child node
+            source: Source code
+            is_pub: Whether the function is public
+
+        Returns:
+            Declaration object or None if name not found
+        """
         name = None
-        is_pub = False
+        params = []
         return_type = None
 
-        for child in node.children:
-            if (
-                child.type == "identifier" and not name
-            ):  # Only set once to avoid overwriting with return type
+        for child in fn_proto.children:
+            if child.type == "IDENTIFIER" and not name:
                 name = source[child.start_byte : child.end_byte]
-            elif child.type == "pub":
-                is_pub = True
-            elif child.type in ["builtin_type", "error_union_type", "optional_type"]:
-                return_type = source[child.start_byte : child.end_byte]
+            elif child.type == "ParamDeclList":
+                # Extract parameter info
+                for param_child in child.children:
+                    if param_child.type == "ParamDecl":
+                        param_text = source[param_child.start_byte : param_child.end_byte]
+                        params.append(param_text.strip())
+            elif child.type == "ErrorUnionExpr" or child.type == "SuffixExpr":
+                # Return type
+                return_type = source[child.start_byte : child.end_byte].strip()
 
         if not name:
             return None
 
-        start_line, end_line = get_node_location(node)
+        start_line, end_line = get_node_location(decl_node)
 
         # Build signature
         signature = "pub " if is_pub else ""
-        signature += f"fn {name}()"
+        param_str = ", ".join(p for p in params if p and p not in ["(", ")", ","])
+        signature += f"fn {name}({param_str})"
         if return_type:
             signature += f" {return_type}"
 
         # Extract doc comments
-        doc_comments = self._extract_doc_comments(node, source)
+        doc_comments = self._extract_doc_comments(decl_node, source)
 
         return Declaration(
             kind="function",
@@ -431,14 +286,82 @@ class TreeSitterZigParser(BaseTreeSitterParser):
             end_line=end_line,
         )
 
-    def _create_test_declaration(self, node: Node, source: str) -> Optional[Declaration]:
+    def _create_var_declaration(
+        self, decl_node: Node, var_decl: Node, source: str, is_pub: bool
+    ) -> Declaration | None:
+        """Create a Declaration for variable/const or type definitions.
+
+        Args:
+            decl_node: The Decl parent node (for line numbers)
+            var_decl: The VarDecl child node
+            source: Source code
+            is_pub: Whether the declaration is public
+
+        Returns:
+            Declaration object or None if name not found
+        """
+        name = None
+        var_type = "const"
+        is_type_def = False
+        type_kind = "variable"
+
+        for child in var_decl.children:
+            if child.type == "IDENTIFIER":
+                name = source[child.start_byte : child.end_byte]
+            elif child.type == "const":
+                var_type = "const"
+            elif child.type == "var":
+                var_type = "var"
+            elif child.type == "ErrorUnionExpr":
+                # Check if this is a type definition (struct, enum, union)
+                for sub in child.children:
+                    if sub.type == "SuffixExpr":
+                        for inner in sub.children:
+                            if inner.type == "ContainerDecl":
+                                # Determine container type (check for packed/extern variants)
+                                container_text = source[inner.start_byte : inner.end_byte]
+                                if "struct" in container_text.split("{")[0]:
+                                    is_type_def = True
+                                    type_kind = "struct"
+                                elif "enum" in container_text.split("{")[0]:
+                                    is_type_def = True
+                                    type_kind = "enum"
+                                elif "union" in container_text.split("{")[0]:
+                                    is_type_def = True
+                                    type_kind = "union"
+
+        if not name:
+            return None
+
+        start_line, end_line = get_node_location(decl_node)
+
+        # Build signature
+        signature = "pub " if is_pub else ""
+        if is_type_def:
+            signature += f"{type_kind} {name}"
+        else:
+            signature += f"{var_type} {name}"
+
+        # Extract doc comments
+        doc_comments = self._extract_doc_comments(decl_node, source)
+
+        return Declaration(
+            kind=type_kind if is_type_def else "variable",
+            name=name,
+            signature=signature,
+            docstring="\n".join(doc_comments),
+            start_line=start_line,
+            end_line=end_line,
+        )
+
+    def _create_test_declaration(self, node: Node, source: str) -> Declaration | None:
         """Create a Declaration object for a test block."""
         name = "test"
 
-        # Extract test name if present
+        # Extract test name if present (in STRINGLITERALSINGLE node)
         for child in node.children:
-            if child.type == "string":
-                # Remove quotes from string
+            if child.type == "STRINGLITERALSINGLE":
+                # Get the string content (including quotes)
                 test_name = source[child.start_byte : child.end_byte]
                 name = f"test {test_name}"
                 break
@@ -454,83 +377,28 @@ class TreeSitterZigParser(BaseTreeSitterParser):
             end_line=end_line,
         )
 
-    def _create_type_or_var_declaration(self, node: Node, source: str) -> Optional[Declaration]:
-        """Create a Declaration for variable/const or type definitions."""
-        name = None
-        var_type = "const"
-        is_pub = False
-        is_type_def = False
-        type_kind = "variable"
-
-        for child in node.children:
-            if child.type == "identifier":
-                name = source[child.start_byte : child.end_byte]
-            elif child.type in ["const", "var"]:
-                var_type = child.type
-            elif child.type == "pub":
-                is_pub = True
-            elif child.type == "struct_declaration":
-                is_type_def = True
-                type_kind = "struct"
-            elif child.type == "enum_declaration":
-                is_type_def = True
-                type_kind = "enum"
-            elif child.type == "union_declaration":
-                is_type_def = True
-                type_kind = "union"
-
-        if not name:
-            return None
-
-        start_line, end_line = get_node_location(node)
-
-        # Build signature
-        signature = "pub " if is_pub else ""
-        signature += f"{var_type} {name}"
-        if is_type_def:
-            signature = f"{type_kind} {name}"
-
-        # Extract doc comments
-        doc_comments = self._extract_doc_comments(node, source)
-
-        return Declaration(
-            kind=type_kind if is_type_def else "variable",
-            name=name,
-            signature=signature,
-            docstring="\n".join(doc_comments),
-            start_line=start_line,
-            end_line=end_line,
-        )
-
-    def _is_async_function(self, node: Node, source: str) -> bool:
-        """Check if a function has async modifier."""
-        # Check if there's an async keyword in the parent context
-        parent = node.parent
-        if parent and parent.type == "async_expression":
-            return True
-
-        # Check for 'async' keyword in children
-        return any(source[child.start_byte : child.end_byte] == "async" for child in node.children)
-
-    def _extract_doc_comments(self, node: Node, source: str) -> List[str]:
+    def _extract_doc_comments(self, node: Node, source: str) -> list[str]:
         """Extract doc comments for a node."""
-        doc_comments: List[str] = []
+        doc_comments: list[str] = []
 
-        # Look for preceding comments (Zig uses 'comment' node type, not 'line_comment')
-        if node.prev_sibling:
-            sibling = node.prev_sibling
-            while sibling and sibling.type == "comment":  # Fixed: was checking for 'line_comment'
+        # Look for preceding comment nodes
+        sibling: Node | None = node.prev_sibling
+        while sibling is not None:
+            # Check for doc comment or line comment types
+            if sibling.type in ["doc_comment", "line_comment", "LINECOMMENT"]:
                 comment = source[sibling.start_byte : sibling.end_byte]
                 # Check for doc comments (///)
                 if comment.startswith("///") or comment.startswith("//!"):
                     doc_comments.insert(0, comment[3:].strip())
                 else:
                     break  # Stop at first non-doc comment
-                sibling = sibling.prev_sibling
+            elif sibling.type not in ["pub"]:  # Skip past pub modifier
+                break
+            sibling = sibling.prev_sibling
 
         return doc_comments
 
-    def get_language_features(self) -> Dict[str, Any]:
+    def get_language_features(self) -> dict[str, Any]:
         """
         Get Zig-specific language features detected in the parsed code.
 

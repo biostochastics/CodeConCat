@@ -18,7 +18,7 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 from codeconcat.utils.path_security import PathTraversalError, validate_safe_path
 
@@ -36,7 +36,7 @@ class CodeConcatReconstructor:
         self.errors = 0
         self.verbose = verbose
 
-    def reconstruct(self, input_file: str, format_type: Optional[str] = None) -> Dict[str, int]:
+    def reconstruct(self, input_file: str, format_type: str | None = None) -> dict[str, int]:
         """
         Reconstruct files from a CodeConCat output file.
 
@@ -91,7 +91,7 @@ class CodeConcatReconstructor:
             "errors": self.errors,
         }
 
-    def _parse_markdown(self, input_path: Path) -> Dict[str, str]:
+    def _parse_markdown(self, input_path: Path) -> dict[str, str]:
         """Parse markdown output and extract files.
 
         Supports current format (v2.0):
@@ -160,7 +160,7 @@ class CodeConcatReconstructor:
 
             # Try multiple code block patterns
             # 1. Standard code blocks with language
-            code_match: Optional[re.Match[str]] = re.search(
+            code_match: re.Match[str] | None = re.search(
                 r"```[\w-]*\n(.*?)\n```", file_content_with_meta, re.DOTALL
             )
             if not code_match:
@@ -232,7 +232,7 @@ class CodeConcatReconstructor:
 
         return files
 
-    def _parse_xml(self, input_path: Path) -> Dict[str, str]:
+    def _parse_xml(self, input_path: Path) -> dict[str, str]:
         """Parse XML output and extract files.
 
         Supports current format (v2.0):
@@ -295,7 +295,7 @@ class CodeConcatReconstructor:
             # Process all found file elements
             for file_elem in file_elements:
                 # Try to get path - first from nested element (current format)
-                file_path: Optional[str] = None
+                file_path: str | None = None
 
                 # Current format (v2.0): <file_metadata><path>
                 path_elem = file_elem.find(".//file_metadata/path")
@@ -314,7 +314,7 @@ class CodeConcatReconstructor:
                     continue
 
                 # Look for content in different ways
-                content: Optional[str] = None
+                content: str | None = None
 
                 # 1. Current format (v2.0): <file_content> element
                 content_elem = file_elem.find(".//file_content")
@@ -369,7 +369,7 @@ class CodeConcatReconstructor:
             self.errors += 1
             return files
 
-    def _parse_json(self, input_path: Path) -> Dict[str, str]:
+    def _parse_json(self, input_path: Path) -> dict[str, str]:
         """Parse JSON output and extract files.
 
         Supports current format (v2.0):
@@ -412,7 +412,7 @@ class CodeConcatReconstructor:
 
                 for file_data in file_array:
                     # Different file path keys (prioritize current format)
-                    file_path: Optional[str] = None
+                    file_path: str | None = None
                     # Current format (v2.0): "file_path"
                     # Legacy formats: "path", "filepath", "name", "filename"
                     for key in ["file_path", "path", "filepath", "name", "filename"]:
@@ -421,7 +421,7 @@ class CodeConcatReconstructor:
                             break
 
                     # Different content keys
-                    file_content: Optional[str] = None
+                    file_content: str | None = None
                     for key in ["content", "code", "text", "source"]:
                         if key in file_data:
                             file_content = file_data[key]
@@ -462,7 +462,7 @@ class CodeConcatReconstructor:
                             logger.debug(f"Parsed file from dictionary: {file_path}")
 
             # Approach 3: Direct file content mapping at root level
-            elif len(data) > 0 and all(isinstance(v, (str, dict)) for v in data.values()):
+            elif len(data) > 0 and all(isinstance(v, str | dict) for v in data.values()):
                 # This might be a direct mapping of file paths to content
                 for file_path, value in data.items():
                     # Cast to ensure type safety - JSON keys are always strings
@@ -492,7 +492,7 @@ class CodeConcatReconstructor:
             self.errors += 1
             return files
 
-    def _find_files_in_nested_json(self, data: Any, files: Dict[str, str]) -> None:
+    def _find_files_in_nested_json(self, data: Any, files: dict[str, str]) -> None:
         """Recursively search for files in nested JSON structures."""
         if isinstance(data, dict):
             # Check if this object looks like a file
@@ -605,9 +605,9 @@ class CodeConcatReconstructor:
 def reconstruct_from_file(
     input_file: str,
     output_dir: str = "./reconstructed",
-    format_type: Optional[str] = None,
+    format_type: str | None = None,
     verbose: bool = False,
-) -> Dict:
+) -> dict:
     """
     Reconstruct files from a CodeConCat output file.
 

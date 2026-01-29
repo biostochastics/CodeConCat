@@ -18,7 +18,6 @@ Supports Ruby 2.7+ and Ruby 3.x with features including:
 """
 
 import logging
-from typing import Dict, List, Optional, Set
 
 from tree_sitter import Node
 
@@ -26,7 +25,7 @@ from ...base_types import Declaration, ParseResult
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
@@ -251,9 +250,9 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
         """Initialize the Ruby parser with the tree-sitter-ruby grammar."""
         super().__init__("ruby")
         self._init_queries()
-        self._visibility_context: Dict[str, str] = {}  # Track method visibility
-        self._class_hierarchy: Dict[str, Optional[str]] = {}  # Track class inheritance
-        self._reopened_classes: Set[str] = set()  # Track which classes have been reopened
+        self._visibility_context: dict[str, str] = {}  # Track method visibility
+        self._class_hierarchy: dict[str, str | None] = {}  # Track class inheritance
+        self._reopened_classes: set[str] = set()  # Track which classes have been reopened
 
     def parse(self, content: str, file_path: str = "") -> ParseResult:
         """Parse Ruby source code and extract declarations.
@@ -272,7 +271,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
         # Delegate to parent class for actual parsing
         return super().parse(content, file_path)
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns Tree-sitter query patterns for Ruby.
 
         Returns:
@@ -300,7 +299,7 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs Ruby-specific queries and extracts declarations and imports.
 
         Args:
@@ -311,8 +310,8 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
             Tuple of (declarations list, imports list)
         """
         code = byte_content.decode("utf-8", errors="replace")
-        declarations: List[Declaration] = []
-        imports: List[str] = []
+        declarations: list[Declaration] = []
+        imports: list[str] = []
 
         try:
             # Extract standard declarations
@@ -339,9 +338,9 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
 
         return declarations, imports
 
-    def _extract_methods(self, root_node: Node, code: str) -> List[Declaration]:
+    def _extract_methods(self, root_node: Node, code: str) -> list[Declaration]:
         """Extract method definitions from Ruby code."""
-        declarations: List[Declaration] = []
+        declarations: list[Declaration] = []
 
         if not hasattr(self, "_declarations_query"):
             return declarations
@@ -361,16 +360,12 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
                     # Fallback
                     captures_dict = {}
 
-                if "method_def" in captures_dict:
-                    method_node = (
-                        captures_dict["method_def"][0]
-                        if "method_def" in captures_dict and captures_dict["method_def"]
-                        else None
-                    )
+                if "method_def" in captures_dict and captures_dict["method_def"]:
+                    method_node = captures_dict["method_def"][0]
                     name_nodes = captures_dict.get("name", [])
                     name = name_nodes[0].text.decode("utf8") if name_nodes else None
 
-                    if name:
+                    if name and method_node:
                         params = ""
                         if "params" in captures_dict and captures_dict["params"]:
                             params = (
@@ -430,9 +425,9 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _extract_classes(self, root_node: Node, code: str) -> List[Declaration]:
+    def _extract_classes(self, root_node: Node, code: str) -> list[Declaration]:
         """Extract class definitions from Ruby code."""
-        declarations: List[Declaration] = []
+        declarations: list[Declaration] = []
 
         if not hasattr(self, "_declarations_query"):
             return declarations
@@ -451,16 +446,12 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
                     # Fallback
                     captures_dict = {}
 
-                if "class_def" in captures_dict:
-                    class_node = (
-                        captures_dict["class_def"][0]
-                        if "class_def" in captures_dict and captures_dict["class_def"]
-                        else None
-                    )
+                if "class_def" in captures_dict and captures_dict["class_def"]:
+                    class_node = captures_dict["class_def"][0]
                     name_nodes = captures_dict.get("name", [])
                     name = name_nodes[0].text.decode("utf8") if name_nodes else None
 
-                    if name:
+                    if name and class_node:
                         # Track if this is a reopening
                         if name in self._class_hierarchy:
                             self._reopened_classes.add(name)
@@ -493,9 +484,9 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _extract_modules(self, root_node: Node, code: str) -> List[Declaration]:
+    def _extract_modules(self, root_node: Node, code: str) -> list[Declaration]:
         """Extract module definitions from Ruby code."""
-        declarations: List[Declaration] = []
+        declarations: list[Declaration] = []
 
         if not hasattr(self, "_declarations_query"):
             return declarations
@@ -514,16 +505,12 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
                     # Fallback
                     captures_dict = {}
 
-                if "module_def" in captures_dict:
-                    module_node = (
-                        captures_dict["module_def"][0]
-                        if "module_def" in captures_dict and captures_dict["module_def"]
-                        else None
-                    )
+                if "module_def" in captures_dict and captures_dict["module_def"]:
+                    module_node = captures_dict["module_def"][0]
                     name_nodes = captures_dict.get("name", [])
                     name = name_nodes[0].text.decode("utf8") if name_nodes else None
 
-                    if name:
+                    if name and module_node:
                         doc = self._extract_documentation(module_node, code)
 
                         declaration = Declaration(
@@ -541,9 +528,9 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _extract_attributes(self, root_node: Node, code: str) -> List[Declaration]:  # noqa: ARG002
+    def _extract_attributes(self, root_node: Node, code: str) -> list[Declaration]:  # noqa: ARG002
         """Extract attribute accessors from Ruby code."""
-        declarations: List[Declaration] = []
+        declarations: list[Declaration] = []
 
         if not hasattr(self, "_declarations_query"):
             return declarations
@@ -600,9 +587,9 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _extract_blocks(self, root_node: Node, code: str) -> List[Declaration]:  # noqa: ARG002
+    def _extract_blocks(self, root_node: Node, code: str) -> list[Declaration]:  # noqa: ARG002
         """Extract block definitions (do/end, braces, lambdas, procs)."""
-        declarations: List[Declaration] = []
+        declarations: list[Declaration] = []
 
         if not hasattr(self, "_blocks_query"):
             return declarations
@@ -682,9 +669,9 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _extract_metaprogramming(self, root_node: Node, code: str) -> List[Declaration]:  # noqa: ARG002
+    def _extract_metaprogramming(self, root_node: Node, code: str) -> list[Declaration]:  # noqa: ARG002
         """Extract metaprogramming constructs."""
-        declarations: List[Declaration] = []
+        declarations: list[Declaration] = []
 
         if not hasattr(self, "_metaprogramming_query"):
             return declarations
@@ -747,9 +734,9 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _extract_dsl_patterns(self, root_node: Node, code: str) -> List[Declaration]:  # noqa: ARG002
+    def _extract_dsl_patterns(self, root_node: Node, code: str) -> list[Declaration]:  # noqa: ARG002
         """Extract DSL patterns from frameworks like RSpec and Rails."""
-        declarations: List[Declaration] = []
+        declarations: list[Declaration] = []
 
         if not hasattr(self, "_dsl_patterns_query"):
             return declarations
@@ -831,21 +818,22 @@ class TreeSitterRubyParser(BaseTreeSitterParser):
     def _extract_documentation(self, node: Node, code: str) -> str:  # noqa: ARG002
         """Extract documentation comments for a node."""
         # Look for comments immediately preceding the node
-        if node.prev_sibling and node.prev_sibling.type == "comment":
-            comment_text = node.prev_sibling.text.decode("utf8")
+        sibling = node.prev_sibling
+        if sibling and sibling.type == "comment" and sibling.text:
+            comment_text = sibling.text.decode("utf8")
             # Handle YARD-style documentation
             if comment_text.startswith("#"):
-                lines: List[str] = []
-                current = node.prev_sibling
-                while current and current.type == "comment":
+                lines: list[str] = []
+                current: Node | None = sibling
+                while current and current.type == "comment" and current.text:
                     lines.insert(0, current.text.decode("utf8").lstrip("#").strip())
                     current = current.prev_sibling
                 return "\n".join(lines)
         return ""
 
-    def extract_imports(self, code: str) -> List[str]:
+    def extract_imports(self, code: str) -> list[str]:
         """Extract import statements from Ruby code."""
-        imports: List[str] = []
+        imports: list[str] = []
 
         try:
             tree = self.parser.parse(bytes(code, "utf8"))

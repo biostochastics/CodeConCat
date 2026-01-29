@@ -19,11 +19,10 @@ Based on JoranHonig/tree-sitter-solidity grammar.
 """
 
 import logging
-from typing import Dict, List, Set
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
@@ -76,6 +75,37 @@ SOLIDITY_QUERIES = {
     "syntactic_patterns": """
         ; Using statements for libraries
         (using_directive) @using_statement
+
+        ; Assembly blocks - require careful security review
+        (assembly_statement) @assembly_block
+
+        ; Deprecated suicide/selfdestruct calls
+        (call_expression
+            (expression (identifier) @func_name)
+            (#match? @func_name "^(suicide|selfdestruct)$")
+        ) @suicide_call
+
+        ; Delegatecall usage - potential security concern
+        (member_expression
+            (identifier) @method_name
+            (#match? @method_name "^delegatecall$")
+        ) @delegatecall_usage
+
+        ; External calls (.call, .send, .transfer) - potential reentrancy
+        (member_expression
+            (identifier) @call_method
+            (#match? @call_method "^(call|send|transfer)$")
+        ) @external_call
+
+        ; Struct expressions for .call{value: ...} pattern
+        (struct_expression
+            (expression
+                (member_expression
+                    (identifier) @struct_call_method
+                    (#match? @struct_call_method "^call$")
+                )
+            )
+        ) @external_call_with_value
     """,
 }
 
@@ -97,9 +127,9 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
     def __init__(self):
         """Initialize the Solidity parser with the tree-sitter-solidity grammar."""
         super().__init__("solidity")
-        self._pattern_warnings: Set[str] = set()
+        self._pattern_warnings: set[str] = set()
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Return Solidity-specific tree-sitter queries.
 
         Returns:
@@ -168,7 +198,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
 
         return result
 
-    def _process_imports(self, captures: List[tuple]) -> List[str]:
+    def _process_imports(self, captures: list[tuple]) -> list[str]:
         """Process import statement captures.
 
         Args:
@@ -195,7 +225,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
 
         return imports
 
-    def _process_declarations(self, captures: List[tuple], content: str) -> List[Declaration]:  # noqa: ARG002
+    def _process_declarations(self, captures: list[tuple], content: str) -> list[Declaration]:  # noqa: ARG002
         """Process declaration captures into Declaration objects.
 
         Args:
@@ -263,7 +293,7 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _process_patterns(self, captures: List[tuple], content: str, result: "ParseResult"):  # noqa: ARG002, F821
+    def _process_patterns(self, captures: list[tuple], content: str, result: "ParseResult"):  # noqa: ARG002, F821
         """Process syntactic patterns that may be of security interest.
 
         Args:
@@ -271,35 +301,38 @@ class TreeSitterSolidityParser(BaseTreeSitterParser):
             content: Original source code
             result: ParseResult to add warnings to
         """
-        pattern_counts: Dict[str, int] = {}
+        pattern_counts: dict[str, int] = {}
 
         for node, name in captures:
-            if name in [
+            # Normalize external_call_with_value to external_call for counting
+            normalized_name = "external_call" if name == "external_call_with_value" else name
+
+            if normalized_name in [
                 "assembly_block",
                 "delegatecall_usage",
                 "selfdestruct_call",
                 "suicide_call",
                 "external_call",
             ]:
-                pattern_counts[name] = pattern_counts.get(name, 0) + 1
+                pattern_counts[normalized_name] = pattern_counts.get(normalized_name, 0) + 1
 
                 # Add specific warnings for critical patterns
-                start_line, end_line = get_node_location(node)
-                if name == "selfdestruct_call":
+                start_line, _ = get_node_location(node)
+                if normalized_name == "selfdestruct_call":
                     self._pattern_warnings.add(f"CRITICAL: selfdestruct usage at line {start_line}")
-                elif name == "suicide_call":
+                elif normalized_name == "suicide_call":
                     self._pattern_warnings.add(
                         f"CRITICAL: deprecated suicide usage at line {start_line}"
                     )
-                elif name == "delegatecall_usage":
+                elif normalized_name == "delegatecall_usage":
                     self._pattern_warnings.add(
                         f"WARNING: delegatecall usage at line {start_line} - review for security"
                     )
-                elif name == "assembly_block":
+                elif normalized_name == "assembly_block":
                     self._pattern_warnings.add(
                         f"INFO: Assembly block at line {start_line} - requires careful review"
                     )
-                elif name == "external_call":
+                elif normalized_name == "external_call":
                     # Track external calls as potential security issues
                     result.security_issues.append(
                         {"type": "external_call", "line": start_line, "severity": "info"}

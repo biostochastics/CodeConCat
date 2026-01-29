@@ -9,7 +9,6 @@ uniformly.
 import logging
 import re
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ class DocstringExtractor:
     """
 
     # Language-specific docstring patterns
-    LANGUAGE_PATTERNS: Dict[str, List[Tuple[DocstringStyle, re.Pattern]]] = {
+    LANGUAGE_PATTERNS: dict[str, list[tuple[DocstringStyle, re.Pattern]]] = {
         "python": [
             (DocstringStyle.PYTHON_TRIPLE, re.compile(r'"""(.*?)"""', re.DOTALL)),
             (DocstringStyle.PYTHON_TRIPLE, re.compile(r"'''(.*?)'''", re.DOTALL)),
@@ -120,7 +119,7 @@ class DocstringExtractor:
     }
 
     # Fallback patterns for unknown languages
-    FALLBACK_PATTERNS: List[Tuple[DocstringStyle, re.Pattern]] = [
+    FALLBACK_PATTERNS: list[tuple[DocstringStyle, re.Pattern]] = [
         (DocstringStyle.PYTHON_TRIPLE, re.compile(r'"""(.*?)"""', re.DOTALL)),
         (DocstringStyle.PYTHON_TRIPLE, re.compile(r"'''(.*?)'''", re.DOTALL)),
         (DocstringStyle.JAVADOC, re.compile(r"/\*\*(.*?)\*/", re.DOTALL)),
@@ -141,7 +140,7 @@ class DocstringExtractor:
         self.patterns = self.LANGUAGE_PATTERNS.get(self.language, self.FALLBACK_PATTERNS)
 
     def extract_docstring(
-        self, content: str, start_line: int, end_line: int, declaration_name: Optional[str] = None
+        self, content: str, start_line: int, end_line: int, declaration_name: str | None = None
     ) -> str:
         """
         Extract docstring for a declaration from the given content.
@@ -174,7 +173,7 @@ class DocstringExtractor:
 
         return self._clean_docstring(docstring)
 
-    def extract_all_docstrings(self, content: str) -> List[Tuple[int, int, str]]:
+    def extract_all_docstrings(self, content: str) -> list[tuple[int, int, str]]:
         """
         Extract all docstrings from the content.
 
@@ -203,7 +202,7 @@ class DocstringExtractor:
         return docstrings
 
     def _extract_preceding_docstring(
-        self, lines: List[str], start_idx: int, _declaration_name: Optional[str] = None
+        self, lines: list[str], start_idx: int, _declaration_name: str | None = None
     ) -> str:
         """
         Extract docstring that precedes a declaration.
@@ -217,7 +216,7 @@ class DocstringExtractor:
             Extracted docstring or empty string
         """
         # Look backwards from the declaration start
-        search_lines: List[str] = []
+        search_lines: list[str] = []
         search_start = start_idx - 1
 
         # Collect lines before the declaration
@@ -243,7 +242,7 @@ class DocstringExtractor:
 
         return ""
 
-    def _extract_following_docstring(self, lines: List[str], _start_idx: int, end_idx: int) -> str:
+    def _extract_following_docstring(self, lines: list[str], _start_idx: int, end_idx: int) -> str:
         """
         Extract docstring that follows a declaration (for some languages).
 
@@ -280,7 +279,7 @@ class DocstringExtractor:
 
         return ""
 
-    def _extract_internal_docstring(self, lines: List[str], start_idx: int, end_idx: int) -> str:
+    def _extract_internal_docstring(self, lines: list[str], start_idx: int, end_idx: int) -> str:
         """
         Extract docstring that is inside a declaration (e.g., Python function docstrings).
 
@@ -379,7 +378,7 @@ def extract_docstring(
     language: str,
     start_line: int,
     end_line: int,
-    declaration_name: Optional[str] = None,
+    declaration_name: str | None = None,
 ) -> str:
     """
     Convenience function to extract a docstring.

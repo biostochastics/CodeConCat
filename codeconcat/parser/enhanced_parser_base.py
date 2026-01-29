@@ -9,7 +9,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Pattern
+from re import Pattern
 
 from codeconcat.base_types import Declaration, ParseResult
 
@@ -60,7 +60,7 @@ class EnhancedBaseParser(ABC):
         self.deduplicator = create_efficient_deduplicator()
 
         # Pattern cache
-        self._pattern_cache: Optional[Dict[str, Pattern]] = {} if config.cache_patterns else None
+        self._pattern_cache: dict[str, Pattern] | None = {} if config.cache_patterns else None
 
         # Initialize patterns
         self._init_patterns()
@@ -71,7 +71,7 @@ class EnhancedBaseParser(ABC):
         pass
 
     @abstractmethod
-    def get_language_patterns(self) -> Dict[str, str]:
+    def get_language_patterns(self) -> dict[str, str]:
         """
         Get language-specific regex patterns.
 
@@ -80,7 +80,7 @@ class EnhancedBaseParser(ABC):
         """
         pass
 
-    def _get_compiled_pattern(self, pattern_name: str) -> Optional[Pattern]:
+    def _get_compiled_pattern(self, pattern_name: str) -> Pattern | None:
         """
         Get a compiled pattern with caching.
 
@@ -172,7 +172,7 @@ class EnhancedBaseParser(ABC):
                 f"Parse error: {e}", file_path, context={"exception_type": type(e).__name__}
             )
 
-    def _extract_imports(self, content: str, _file_path: str) -> List[str]:
+    def _extract_imports(self, content: str, _file_path: str) -> list[str]:
         """
         Extract import statements from content.
 
@@ -214,7 +214,7 @@ class EnhancedBaseParser(ABC):
 
         return imports
 
-    def _extract_declarations(self, content: str, file_path: str) -> List[Declaration]:
+    def _extract_declarations(self, content: str, file_path: str) -> list[Declaration]:
         """
         Extract declarations from content.
 
@@ -251,7 +251,7 @@ class EnhancedBaseParser(ABC):
 
         return declarations
 
-    def _get_declaration_patterns(self) -> Dict[str, Pattern]:
+    def _get_declaration_patterns(self) -> dict[str, Pattern]:
         """
         Get declaration patterns for the language.
 
@@ -282,7 +282,7 @@ class EnhancedBaseParser(ABC):
 
     def _create_declaration_from_match(
         self, match: re.Match, pattern_name: str, line_num: int, content: str, _file_path: str
-    ) -> Optional[Declaration]:
+    ) -> Declaration | None:
         """
         Create a Declaration object from a regex match.
 
@@ -348,7 +348,7 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
     semicolons, and similar syntax.
     """
 
-    def _find_block_end(self, lines: List[str], start: int) -> int:
+    def _find_block_end(self, lines: list[str], start: int) -> int:
         """
         Find the end of a block started at the given line.
 
@@ -409,7 +409,7 @@ class EnhancedIndentationParser(EnhancedBaseParser):
     to define blocks rather than braces.
     """
 
-    def _find_block_end(self, lines: List[str], start: int) -> int:
+    def _find_block_end(self, lines: list[str], start: int) -> int:
         """
         Find the end of an indented block.
 

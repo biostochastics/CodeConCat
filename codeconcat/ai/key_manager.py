@@ -6,7 +6,6 @@ import json
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -25,7 +24,7 @@ class KeyStorage(Enum):
 class APIKeyManager:
     """Manages API keys securely for AI providers."""
 
-    _fernet: Optional[Fernet]
+    _fernet: Fernet | None
 
     def __init__(self, storage_method: KeyStorage = KeyStorage.ENCRYPTED_FILE):
         """Initialize the key manager.
@@ -39,7 +38,7 @@ class APIKeyManager:
         self.keys_file = self.config_dir / "api_keys.enc"
         self.salt_file = self.config_dir / "salt"
         self._fernet = None
-        self._keys_cache: Dict[str, str] = {}
+        self._keys_cache: dict[str, str] = {}
 
     def _get_or_create_salt(self) -> bytes:
         """Get or create a salt for key derivation."""
@@ -61,7 +60,7 @@ class APIKeyManager:
                 raise ValueError("Passwords do not match")
         return password
 
-    def _get_fernet(self, password: Optional[str] = None) -> Fernet:
+    def _get_fernet(self, password: str | None = None) -> Fernet:
         """Get Fernet instance for encryption/decryption."""
         if self._fernet is not None:
             return self._fernet
@@ -98,6 +97,11 @@ class APIKeyManager:
             "openai": lambda k: k.startswith(("sk-", "sess-")),
             "anthropic": lambda k: k.startswith("sk-ant-"),
             "openrouter": lambda k: k.startswith("sk-or-"),
+            "google": lambda k: k.startswith("AIza") or len(k) >= 30,
+            "deepseek": lambda k: k.startswith("sk-") or len(k) >= 30,
+            "minimax": lambda k: len(k) >= 30,
+            "qwen": lambda k: k.startswith("sk-") or len(k) >= 30,
+            "zhipu": lambda k: len(k) >= 30,
         }
 
         if provider in validations:
@@ -125,6 +129,11 @@ class APIKeyManager:
                 "openai": AIProviderType.OPENAI,
                 "anthropic": AIProviderType.ANTHROPIC,
                 "openrouter": AIProviderType.OPENROUTER,
+                "google": AIProviderType.GOOGLE,
+                "deepseek": AIProviderType.DEEPSEEK,
+                "minimax": AIProviderType.MINIMAX,
+                "qwen": AIProviderType.QWEN,
+                "zhipu": AIProviderType.ZHIPU,
                 "ollama": AIProviderType.OLLAMA,
             }
 
@@ -145,7 +154,7 @@ class APIKeyManager:
         except Exception:
             return False
 
-    def get_key(self, provider: str) -> Optional[str]:
+    def get_key(self, provider: str) -> str | None:
         """Get API key for a provider.
 
         Args:
@@ -163,6 +172,11 @@ class APIKeyManager:
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
+            "google": "GOOGLE_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
+            "qwen": "DASHSCOPE_API_KEY",
+            "zhipu": "ZHIPUAI_API_KEY",
             "ollama": None,  # Ollama doesn't need API key
             "local_server": "LOCAL_LLM_API_KEY",
             "vllm": "VLLM_API_KEY",
@@ -188,7 +202,7 @@ class APIKeyManager:
 
         return None
 
-    def _get_key_from_encrypted_file(self, provider: str) -> Optional[str]:
+    def _get_key_from_encrypted_file(self, provider: str) -> str | None:
         """Get key from encrypted file storage."""
         if not self.keys_file.exists():
             return None
@@ -208,7 +222,7 @@ class APIKeyManager:
         except Exception:
             return None
 
-    def _get_key_from_keyring(self, provider: str) -> Optional[str]:
+    def _get_key_from_keyring(self, provider: str) -> str | None:
         """Get key from system keyring."""
         try:
             import keyring
@@ -361,6 +375,11 @@ class APIKeyManager:
             ("openai", "OPENAI_API_KEY"),
             ("anthropic", "ANTHROPIC_API_KEY"),
             ("openrouter", "OPENROUTER_API_KEY"),
+            ("google", "GOOGLE_API_KEY"),
+            ("deepseek", "DEEPSEEK_API_KEY"),
+            ("minimax", "MINIMAX_API_KEY"),
+            ("qwen", "DASHSCOPE_API_KEY"),
+            ("zhipu", "ZHIPUAI_API_KEY"),
         ]:
             if os.getenv(env_var):
                 providers.append(f"{provider} (env)")
@@ -381,7 +400,7 @@ class APIKeyManager:
         return providers
 
 
-async def setup_api_keys(interactive: bool = True) -> Dict[str, str]:
+async def setup_api_keys(interactive: bool = True) -> dict[str, str]:
     """Interactive setup for API keys.
 
     Args:
@@ -400,6 +419,11 @@ async def setup_api_keys(interactive: bool = True) -> Dict[str, str]:
         ("openai", "OpenAI", "sk-..."),
         ("anthropic", "Anthropic", "sk-ant-..."),
         ("openrouter", "OpenRouter", "sk-or-..."),
+        ("google", "Google Gemini", "AIza..."),
+        ("deepseek", "DeepSeek", "sk-..."),
+        ("minimax", "MiniMax", "(API key)"),
+        ("qwen", "Qwen/DashScope", "sk-..."),
+        ("zhipu", "Zhipu GLM", "(API key)"),
     ]
 
     for provider_id, provider_name, key_format in providers:

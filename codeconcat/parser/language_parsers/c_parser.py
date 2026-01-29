@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import List
 
 from codeconcat.base_types import ParseResult
 from codeconcat.errors import LanguageParserError
@@ -88,7 +87,7 @@ class CParser(BaseParser):
             - ParseResult: A structured result containing the file path, language, original content, and parsed declarations as a list of code symbols.
         """
         lines = content.split("\n")
-        symbols: List[CodeSymbol] = []
+        symbols: list[CodeSymbol] = []
         line_count = len(lines)
         i = 0
 
@@ -136,7 +135,7 @@ class CParser(BaseParser):
             file_path=file_path, language="c", content=content, declarations=declarations
         )
 
-    def _find_block_end(self, lines: List[str], start: int) -> int:
+    def _find_block_end(self, lines: list[str], start: int) -> int:
         """
         Naive approach: if we see '{', we try to find matching '}'.
         If not found, return start.

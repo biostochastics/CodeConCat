@@ -4,7 +4,7 @@ import asyncio
 import os
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ..base import AIProvider, AIProviderConfig, SummarizationResult
 from ..cache import SummaryCache
@@ -91,7 +91,7 @@ class LlamaCppProvider(AIProvider):
         except Exception as e:
             raise RuntimeError(f"Failed to load model: {e}") from e
 
-    async def _generate(self, prompt: str, max_tokens: Optional[int] = None) -> str:
+    async def _generate(self, prompt: str, max_tokens: int | None = None) -> str:
         """Generate text using the local model."""
         if not self._llm:
             raise RuntimeError("Model not initialized")
@@ -115,8 +115,8 @@ class LlamaCppProvider(AIProvider):
         self,
         code: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
-        max_length: Optional[int] = None,
+        context: dict[str, Any] | None = None,
+        max_length: int | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a code file using local Llama model."""
         # Check cache first
@@ -193,7 +193,7 @@ class LlamaCppProvider(AIProvider):
         function_code: str,
         function_name: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a specific function using local Llama model."""
         # Check cache first
@@ -268,7 +268,7 @@ class LlamaCppProvider(AIProvider):
                 provider="llamacpp",
             )
 
-    async def get_model_info(self) -> Dict[str, Any]:
+    async def get_model_info(self) -> dict[str, Any]:
         """Get information about the current local model."""
         model_name = Path(self.config.model).name if self.config.model else "unknown"
 

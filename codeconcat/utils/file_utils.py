@@ -11,7 +11,6 @@ This module provides common file operations including:
 
 import logging
 import os
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +24,9 @@ class FileSizeConfig:
     convenient size unit constants.
 
     Attributes:
-        DEFAULT_MAX_FILE_SIZE: 5MB limit for general file processing
+        DEFAULT_MAX_FILE_SIZE: 10MB limit for general file processing
         DEFAULT_MAX_COLLECTION_SIZE: 20MB limit for collection phase
-        DEFAULT_MAX_BINARY_CHECK_SIZE: 5MB limit for binary detection
+        DEFAULT_MAX_BINARY_CHECK_SIZE: 10MB limit for binary detection
         KB, MB, GB: Size unit constants for calculations
 
     Usage:
@@ -36,9 +35,9 @@ class FileSizeConfig:
     """
 
     # Default size limits in bytes
-    DEFAULT_MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB for general processing
+    DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB for general processing
     DEFAULT_MAX_COLLECTION_SIZE = 20 * 1024 * 1024  # 20MB for collection phase
-    DEFAULT_MAX_BINARY_CHECK_SIZE = 5 * 1024 * 1024  # 5MB for binary checking
+    DEFAULT_MAX_BINARY_CHECK_SIZE = 10 * 1024 * 1024  # 10MB for binary checking
 
     # Size units for convenience
     KB = 1024
@@ -47,8 +46,8 @@ class FileSizeConfig:
 
 
 def check_file_size(
-    file_path: str, max_size: Optional[int] = None, context: str = "processing"
-) -> Tuple[bool, int]:
+    file_path: str, max_size: int | None = None, context: str = "processing"
+) -> tuple[bool, int]:
     """
     Check if a file exceeds the specified size limit.
 
@@ -58,7 +57,7 @@ def check_file_size(
 
     Args:
         file_path: Path to the file to check
-        max_size: Maximum allowed size in bytes (defaults to 5MB)
+        max_size: Maximum allowed size in bytes (defaults to 10MB)
         context: Context string for logging (e.g., "collection", "parsing")
 
     Returns:
@@ -100,7 +99,7 @@ def check_file_size(
         raise
 
 
-def is_file_too_large_for_collection(file_path: str, max_size: Optional[int] = None) -> bool:
+def is_file_too_large_for_collection(file_path: str, max_size: int | None = None) -> bool:
     """
     Check if a file is too large for the collection phase.
 
@@ -142,17 +141,17 @@ def is_file_too_large_for_collection(file_path: str, max_size: Optional[int] = N
         return True
 
 
-def is_file_too_large_for_binary_check(file_path: str, max_size: Optional[int] = None) -> bool:
+def is_file_too_large_for_binary_check(file_path: str, max_size: int | None = None) -> bool:
     """
     Check if a file is too large for binary content checking.
 
     Determines if a file should skip binary detection to avoid
-    reading large files unnecessarily. Uses a lower threshold (5MB)
+    reading large files unnecessarily. Uses a threshold (10MB)
     since binary detection only needs to read the first 8KB.
 
     Args:
         file_path: Path to the file to check
-        max_size: Maximum size in bytes (defaults to 5MB)
+        max_size: Maximum size in bytes (defaults to 10MB)
 
     Returns:
         True if file is too large for binary checking, False otherwise
@@ -220,7 +219,7 @@ def format_file_size(size_bytes: int) -> str:
         return f"{size_bytes / FileSizeConfig.GB:.2f} GB"
 
 
-def get_file_size_info(file_path: str) -> Optional[str]:
+def get_file_size_info(file_path: str) -> str | None:
     """
     Get formatted file size information for logging.
 

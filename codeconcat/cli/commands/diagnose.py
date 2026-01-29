@@ -3,12 +3,11 @@ Diagnose command - Diagnostic and verification tools.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Annotated
 
 import typer
 from rich.panel import Panel
 from rich.table import Table
-from typing_extensions import Annotated
 
 from codeconcat.diagnostics import diagnose_parser, verify_tree_sitter_dependencies
 
@@ -86,7 +85,7 @@ def diagnose_parser_command(
         ),
     ],
     test_file: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--test-file",
             "-f",

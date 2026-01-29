@@ -6,9 +6,7 @@ Holds data classes and typed structures used throughout CodeConCat.
 
 from __future__ import annotations
 
-import abc
 import re
-import threading
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -38,6 +36,33 @@ PROGRAMMING_QUOTES = [
 ]
 
 VALID_FORMATS = {"markdown", "json", "xml", "text"}
+
+
+# --- Module-level helper for multiprocessing (must be picklable) ---
+
+
+def _compile_and_test_regex(pattern: str, result_queue: Any) -> None:
+    """Compile regex and test with backtracking-prone strings.
+
+    This function is defined at module level to be picklable for multiprocessing.
+    Used by CustomSecurityPattern.validate_regex for ReDoS-safe validation.
+
+    Args:
+        pattern: The regex pattern to compile and test.
+        result_queue: A multiprocessing Queue to put the result into.
+    """
+    try:
+        compiled = re.compile(pattern)
+        # Test with potential backtracking triggers
+        test_strings = ["a" * 50, "ab" * 25, "x" * 30 + "y"]
+        for test_str in test_strings:
+            compiled.search(test_str)
+        result_queue.put((True, pattern))
+    except re.error as e:
+        result_queue.put((False, f"Invalid regex: {e}"))
+    except Exception as e:
+        result_queue.put((False, f"Validation error: {e}"))
+
 
 # --- Content Segment and Compression Types ---
 
@@ -154,14 +179,19 @@ class CustomSecurityPattern(BaseModel):
     severity: str  # User-provided severity (e.g., "HIGH", "MEDIUM")
 
     @field_validator("severity")
-    def validate_severity(cls, value):
+    @classmethod
+    def validate_severity(cls, value: str) -> str:
         """Validate if the given severity value corresponds to a valid `SecuritySeverity` enum.
-        Parameters:
-            - value (str): The severity level to validate.
+
+        Args:
+            value: The severity level to validate.
+
         Returns:
-            - str: The valid severity level from the `SecuritySeverity` enum.
+            The valid severity level from the `SecuritySeverity` enum.
+
         Raises:
-            - ValueError: If the given value is not a valid severity level."""
+            ValueError: If the given value is not a valid severity level.
+        """
         try:
             # Ensure severity is uppercase and exists in the enum
             return SecuritySeverity[value.upper()].name
@@ -172,65 +202,66 @@ class CustomSecurityPattern(BaseModel):
             ) from e
 
     @field_validator("regex")
-    def validate_regex(cls, value):
-        """Validate regex pattern with timeout protection against ReDoS attacks.
+    @classmethod
+    def validate_regex(cls, value: str) -> str:
+        """Validate regex pattern with proper ReDoS protection.
 
-        Uses a separate thread with a 2-second timeout to prevent malicious
-        or overly complex regex patterns from causing resource exhaustion.
+        Uses multiprocessing for true isolation (can actually kill runaway processes)
+        combined with static analysis of known ReDoS patterns.
+
+        Security features:
+            - Pattern length limitation (max 1000 chars)
+            - Static analysis for known ReDoS vulnerability patterns
+            - Multiprocessing-based timeout that can actually terminate
+            - Test validation with backtracking-prone strings
         """
-        import queue
+        from multiprocessing import Process
+        from multiprocessing import Queue as MPQueue
 
-        result_queue: queue.Queue = queue.Queue()
+        from codeconcat.constants import (
+            MAX_REGEX_LENGTH,
+            REDOS_PATTERNS,
+            REDOS_TIMEOUT_SECONDS,
+        )
 
-        def compile_regex():
-            """Compile and validate a regex pattern.
-            Parameters:
-                - value (str): Regex pattern to be compiled.
-                - result_queue (queue.Queue): A queue object to store the result of the regex compilation and validation.
-            Returns:
-                - None: Results are communicated via the result_queue, which contains a tuple with a boolean indicating success or failure, and a message or the validated pattern.
-            """
-            try:
-                # Limit regex length as additional protection
-                if len(value) > 1000:
-                    result_queue.put((False, "Regex pattern too long (max 1000 chars)"))
-                    return
+        # Length limit check (fast, no process needed)
+        if len(value) > MAX_REGEX_LENGTH:
+            raise ValueError(f"Regex pattern too long (max {MAX_REGEX_LENGTH} chars)")
 
-                # Compile the regex
-                compiled = re.compile(value)
+        # Static analysis for known ReDoS patterns (fast, no process needed)
+        for indicator in REDOS_PATTERNS:
+            if re.search(indicator, value):
+                raise ValueError(
+                    "Regex pattern contains potential ReDoS vulnerability: "
+                    "nested quantifiers detected"
+                )
 
-                # Test with a simple string to catch immediate issues
-                test_str = "test_string_for_validation"
-                try:
-                    compiled.search(test_str)
-                except Exception:
-                    # If search fails on simple string, pattern is problematic
-                    result_queue.put((False, "Regex pattern failed basic validation"))
-                    return
+        # Use multiprocessing for actual timeout enforcement
+        # Note: _compile_and_test_regex is defined at module level to be picklable
+        result_queue: MPQueue = MPQueue()
 
-                result_queue.put((True, value))
-            except re.error as e:
-                result_queue.put((False, f"Invalid regex pattern: {e}"))
-            except Exception as e:
-                result_queue.put((False, f"Regex validation error: {e}"))
+        process = Process(
+            target=_compile_and_test_regex,
+            args=(value, result_queue),
+            daemon=True,
+        )
+        process.start()
+        process.join(timeout=REDOS_TIMEOUT_SECONDS)
 
-        # Run compilation in separate thread with timeout
-        thread = threading.Thread(target=compile_regex, daemon=True)
-        thread.start()
-        thread.join(timeout=2.0)  # 2 second timeout
-
-        if thread.is_alive():
-            # Thread is still running after timeout
-            raise ValueError("Regex pattern compilation timed out (possible ReDoS pattern)")
+        if process.is_alive():
+            process.terminate()  # Actually kills the process
+            process.join(timeout=0.5)
+            if process.is_alive():
+                process.kill()  # Force kill if terminate didn't work
+            raise ValueError("Regex compilation timed out (possible ReDoS pattern)")
 
         try:
             success, result = result_queue.get_nowait()
             if success:
-                return result
-            else:
-                raise ValueError(result)
-        except queue.Empty as e:
-            raise ValueError("Regex validation failed unexpectedly") from e
+                return str(result)  # result is the validated regex pattern
+            raise ValueError(result)
+        except Exception:
+            raise ValueError("Regex validation failed unexpectedly") from None
 
 
 # --- Data Structures for Parsing & Processing ---
@@ -471,10 +502,10 @@ class AnnotatedFileData(WritableItem):
 
 
 # New Parser Interface
-class ParserInterface(abc.ABC):
+class ParserInterface(ABC):
     """Abstract Base Class defining the interface for language parsers."""
 
-    @abc.abstractmethod
+    @abstractmethod
     def parse(self, content: str, file_path: str) -> ParseResult:
         """Parse the given code content.
 
@@ -615,6 +646,21 @@ class CodeConCatConfig(BaseModel):
         description="Strategy for merging parse results: 'confidence' (weight by confidence), "
         "'union' (combine all features), 'fast_fail' (first high-confidence wins), "
         "'best_of_breed' (pick best parser per feature type).",
+        validate_default=True,
+    )
+
+    parser_early_termination: bool = Field(
+        True,
+        description="Enable early termination of parser fallback chain when tree-sitter succeeds. "
+        "When True, skips enhanced and standard parsers if tree-sitter produces sufficient results. "
+        "Set to False to always run all parsers for maximum coverage (slower).",
+        validate_default=True,
+    )
+
+    parser_early_termination_threshold: int = Field(
+        1,
+        description="Minimum number of declarations tree-sitter must find to trigger early termination. "
+        "Higher values ensure more thorough parsing at the cost of speed.",
         validate_default=True,
     )
     # --- End added fields ---
@@ -882,5 +928,35 @@ class CodeConCatConfig(BaseModel):
         "codeconcat_summaries",
         description="Directory for saving AI summaries (relative to output or absolute path)",
     )
+    ai_timeout: int = Field(
+        600,
+        description="Timeout in seconds for AI operations (default: 600 = 10 minutes)",
+    )
 
-    # ... rest of the code remains the same ...
+    # --- Local LLM Performance Options (llama.cpp) ---
+    llama_gpu_layers: int | None = Field(
+        None,
+        description="Number of layers to offload to GPU for llama.cpp (0=CPU only, None=auto)",
+    )
+    llama_context_size: int | None = Field(
+        None,
+        description="Context window size for llama.cpp (default: 2048)",
+    )
+    llama_threads: int | None = Field(
+        None,
+        description="Number of CPU threads for llama.cpp inference",
+    )
+    llama_batch_size: int | None = Field(
+        None,
+        description="Batch size for llama.cpp prompt processing",
+    )
+
+    # --- Report Generation Options ---
+    write_test_security_report: bool = Field(
+        False,
+        description="Write test file security findings to a separate report file",
+    )
+    write_unsupported_report: bool = Field(
+        False,
+        description="Write unsupported/skipped files report to a JSON file",
+    )

@@ -1,7 +1,6 @@
 """CLI commands for managing API keys."""
 
 import asyncio
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -123,9 +122,7 @@ def set_key(
     provider: str = typer.Argument(
         ..., help="Provider name: openai, anthropic, openrouter, ollama"
     ),
-    api_key: Optional[str] = typer.Argument(
-        None, help="API key value (will prompt if not provided)"
-    ),
+    api_key: str | None = typer.Argument(None, help="API key value (will prompt if not provided)"),
     validate: bool = typer.Option(True, "--validate/--no-validate", help="Validate API key format"),
 ):
     """Set or update an API key for a specific provider."""
@@ -312,7 +309,6 @@ def test_key(
 def change_password():
     """Change the master password for encrypted key storage."""
     from getpass import getpass
-    from typing import Dict
 
     console.print("[bold cyan]🔐 Change Master Password[/bold cyan]")
     console.print("=" * 50)
@@ -322,7 +318,7 @@ def change_password():
 
     # Check if any keys exist
     providers = ["openai", "anthropic", "openrouter", "ollama"]
-    stored_keys: Dict[str, str] = {}
+    stored_keys: dict[str, str] = {}
 
     # Get current password and load keys
     console.print("[cyan]Enter current master password to load existing keys[/cyan]")
@@ -389,12 +385,12 @@ def export_keys(
 ):
     """Export API keys configuration (for backup or migration)."""
     import json
-    from typing import Any, Dict
+    from typing import Any
 
     manager = APIKeyManager(storage_method=_get_storage_method())
 
     providers = ["openai", "anthropic", "openrouter", "ollama"]
-    export_data: Dict[str, Any] = {"version": "1.0", "keys": {}}
+    export_data: dict[str, Any] = {"version": "1.0", "keys": {}}
 
     for provider in providers:
         key = manager.get_key(provider)

@@ -14,7 +14,7 @@ import os
 import sys
 import tempfile
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from codeconcat.base_types import CodeConCatConfig, Declaration, ParseResult
 from codeconcat.parser.enable_debug import enable_all_parser_debug_logging
@@ -58,22 +58,22 @@ class ParserComparisonResult:
 
     language: str
     file_path: str
-    basic_result: Optional[ParseResult] = None
-    enhanced_result: Optional[ParseResult] = None
-    tree_sitter_result: Optional[ParseResult] = None
+    basic_result: ParseResult | None = None
+    enhanced_result: ParseResult | None = None
+    tree_sitter_result: ParseResult | None = None
 
     # Metrics
-    basic_metrics: Dict[str, Any] = field(default_factory=dict)
-    enhanced_metrics: Dict[str, Any] = field(default_factory=dict)
-    tree_sitter_metrics: Dict[str, Any] = field(default_factory=dict)
+    basic_metrics: dict[str, Any] = field(default_factory=dict)
+    enhanced_metrics: dict[str, Any] = field(default_factory=dict)
+    tree_sitter_metrics: dict[str, Any] = field(default_factory=dict)
 
     # Analysis
-    declaration_diffs: List[str] = field(default_factory=list)
-    import_diffs: List[str] = field(default_factory=list)
-    nested_structure_diffs: List[str] = field(default_factory=list)
+    declaration_diffs: list[str] = field(default_factory=list)
+    import_diffs: list[str] = field(default_factory=list)
+    nested_structure_diffs: list[str] = field(default_factory=list)
 
 
-def compute_declaration_metrics(declarations: List[Declaration]) -> Dict[str, Any]:
+def compute_declaration_metrics(declarations: list[Declaration]) -> dict[str, Any]:
     """
     Compute metrics about declarations found by a parser.
 
@@ -99,7 +99,7 @@ def compute_declaration_metrics(declarations: List[Declaration]) -> Dict[str, An
         Returns:
             - Dict[str, int]: A dictionary where keys are declaration types and values are the counts of those types.
         """
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for decl in decl_list:
             kind = decl.kind
             counts[kind] = counts.get(kind, 0) + 1
@@ -169,7 +169,7 @@ def compare_parsers_for_file(file_path: str) -> ParserComparisonResult:
         if (
             isinstance(ext, str)
             and ext == file_ext
-            or isinstance(ext, (list, tuple))
+            or isinstance(ext, list | tuple)
             and file_ext in ext
         ):
             language = lang
@@ -381,7 +381,7 @@ def print_parser_comparison_report(result: ParserComparisonResult):
     print(f"\n{'=' * 80}\n")
 
 
-def create_minimal_test_file(language: str, output_dir: Optional[str] = None) -> str:
+def create_minimal_test_file(language: str, output_dir: str | None = None) -> str:
     """
     Create a minimal test file with representative features for a given language.
 
@@ -398,7 +398,7 @@ def create_minimal_test_file(language: str, output_dir: Optional[str] = None) ->
 
     # Get file extension for language
     ext = SUPPORTED_LANGUAGES[language]
-    if isinstance(ext, (list, tuple)):
+    if isinstance(ext, list | tuple):
         ext = ext[0]
 
     # Create sample code based on language
@@ -639,7 +639,7 @@ function testFunction() {{
         return ""
 
 
-def create_test_files_for_all_languages(output_dir: Optional[str] = None) -> Dict[str, str]:
+def create_test_files_for_all_languages(output_dir: str | None = None) -> dict[str, str]:
     """
     Create test files for all supported languages.
 
@@ -675,7 +675,7 @@ def run_parser_comparison(file_path: str):
     print_parser_comparison_report(result)
 
 
-def run_parser_comparison_for_all_languages(output_dir: Optional[str] = None):
+def run_parser_comparison_for_all_languages(output_dir: str | None = None):
     """
     Create test files for all languages and run parser comparison on them.
 

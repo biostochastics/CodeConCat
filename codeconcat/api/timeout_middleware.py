@@ -4,7 +4,6 @@ import asyncio
 import contextlib
 import logging
 import time
-from typing import Dict, Optional, Set
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
@@ -30,8 +29,8 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         default_timeout: float = 30.0,  # 30 seconds default
         read_timeout: float = 10.0,  # 10 seconds to read request body
         write_timeout: float = 10.0,  # 10 seconds to write response
-        endpoint_timeouts: Optional[Dict[str, float]] = None,
-        skip_timeout_paths: Optional[Set[str]] = None,
+        endpoint_timeouts: dict[str, float] | None = None,
+        skip_timeout_paths: set[str] | None = None,
     ):
         """
         Initialize the timeout middleware.
@@ -229,7 +228,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
 
                 if len(pattern_parts) == len(path_parts):
                     match = True
-                    for pp, p in zip(pattern_parts, path_parts):
+                    for pp, p in zip(pattern_parts, path_parts, strict=False):
                         if "{" not in pp and "}" not in pp and pp != p:
                             match = False
                             break
@@ -245,8 +244,8 @@ def add_timeout_middleware(
     default_timeout: float = 30.0,
     read_timeout: float = 10.0,
     write_timeout: float = 10.0,
-    endpoint_timeouts: Optional[Dict[str, float]] = None,
-    skip_timeout_paths: Optional[Set[str]] = None,
+    endpoint_timeouts: dict[str, float] | None = None,
+    skip_timeout_paths: set[str] | None = None,
 ) -> None:
     """
     Add timeout middleware to a FastAPI application.

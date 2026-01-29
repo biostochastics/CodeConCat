@@ -7,7 +7,6 @@ for consumers of parser output.
 """
 
 from enum import Enum
-from typing import Dict, List, Optional, Set
 
 
 class DeclarationType(Enum):
@@ -56,7 +55,7 @@ class TypeMapper:
     """
 
     # Language-specific type mappings to standardized types
-    LANGUAGE_TYPE_MAPPINGS: Dict[str, Dict[str, DeclarationType]] = {
+    LANGUAGE_TYPE_MAPPINGS: dict[str, dict[str, DeclarationType]] = {
         "python": {
             "function": DeclarationType.FUNCTION,
             "method": DeclarationType.METHOD,
@@ -300,7 +299,7 @@ class TypeMapper:
     }
 
     # Reverse mapping for lookup
-    _reverse_mappings: Optional[Dict[str, Dict[DeclarationType, Set[str]]]] = None
+    _reverse_mappings: dict[str, dict[DeclarationType, set[str]]] | None = None
 
     @classmethod
     def get_standard_type(cls, language: str, raw_type: str) -> DeclarationType:
@@ -324,7 +323,7 @@ class TypeMapper:
         return lang_mapping.get(raw_type, DeclarationType.UNKNOWN)
 
     @classmethod
-    def get_all_types_for_language(cls, language: str) -> Set[DeclarationType]:
+    def get_all_types_for_language(cls, language: str) -> set[DeclarationType]:
         """
         Get all standardized types available for a language.
 
@@ -341,7 +340,7 @@ class TypeMapper:
     @classmethod
     def get_raw_types_for_standard_type(
         cls, language: str, standard_type: DeclarationType
-    ) -> Set[str]:
+    ) -> set[str]:
         """
         Get all raw type strings that map to a standard type in a language.
 
@@ -367,7 +366,7 @@ class TypeMapper:
         cls._reverse_mappings = {}
 
         for language, type_mapping in cls.LANGUAGE_TYPE_MAPPINGS.items():
-            reverse_mapping: Dict[DeclarationType, Set[str]] = {}
+            reverse_mapping: dict[DeclarationType, set[str]] = {}
 
             for raw_type, standard_type in type_mapping.items():
                 if standard_type not in reverse_mapping:
@@ -441,7 +440,7 @@ class TypeMapper:
         }
 
     @classmethod
-    def get_type_hierarchy(cls) -> Dict[DeclarationType, List[DeclarationType]]:
+    def get_type_hierarchy(cls) -> dict[DeclarationType, list[DeclarationType]]:
         """
         Get a hierarchy of types for organizing declarations.
 

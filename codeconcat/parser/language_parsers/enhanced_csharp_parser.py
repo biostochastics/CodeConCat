@@ -9,7 +9,6 @@ with C#-specific patterns and functionality.
 
 import logging
 import re
-from typing import Dict, List, Optional
 
 from codeconcat.parser.language_parsers.enhanced_c_family_parser import EnhancedCFamilyParser
 from codeconcat.parser.language_parsers.pattern_library import C_FAMILY_MODIFIERS
@@ -84,7 +83,7 @@ class EnhancedCSharpParser(EnhancedCFamilyParser):
             r"^\s*using\s+(?:static\s+)?(?P<name>[\w.]+)(?:\s*=\s*[\w.]+)?;", re.MULTILINE
         )
 
-    def _process_imports(self, line: str, imports: List[str]) -> bool:
+    def _process_imports(self, line: str, imports: list[str]) -> bool:
         """
         Process C# using statements and add them to the imports list.
 
@@ -104,7 +103,7 @@ class EnhancedCSharpParser(EnhancedCFamilyParser):
                 return True
         return False
 
-    def extract_docstring(self, lines: List[str], start: int, end: int) -> Optional[str]:
+    def extract_docstring(self, lines: list[str], start: int, end: int) -> str | None:
         """
         Extract C# docstring from lines, with special handling for XML comments.
 
@@ -136,7 +135,7 @@ class EnhancedCSharpParser(EnhancedCFamilyParser):
         # Otherwise, try standard C-family comment extraction
         return super().extract_docstring(lines, start, end)
 
-    def get_capabilities(self) -> Dict[str, bool]:
+    def get_capabilities(self) -> dict[str, bool]:
         """Return the capabilities of this parser."""
         capabilities = super().get_capabilities()
         capabilities.update(

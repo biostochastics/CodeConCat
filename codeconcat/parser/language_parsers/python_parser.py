@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import List
 
 # Moved imports back to top
 from codeconcat.base_types import Declaration, ParseResult
@@ -284,6 +283,6 @@ class PythonParser(BaseParser):
                 original_exception=e,
             ) from e
 
-    def _find_end_of_block(self, lines: List[str], start_line: int) -> int:
+    def _find_end_of_block(self, lines: list[str], start_line: int) -> int:
         """Helper to find the end line of a Python code block based on indentation."""
         raise NotImplementedError("This method is not implemented in base parser")

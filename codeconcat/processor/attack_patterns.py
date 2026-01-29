@@ -9,7 +9,8 @@ and JavaScript/TypeScript.
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Pattern
+from re import Pattern
+from typing import Any
 
 
 class Severity(Enum):
@@ -30,8 +31,8 @@ class SecurityPattern:
     pattern: Pattern[str]
     severity: Severity
     message: str
-    languages: List[str]
-    cwe_id: Optional[str] = None
+    languages: list[str]
+    cwe_id: str | None = None
 
 
 # C/C++ Attack Patterns
@@ -464,7 +465,7 @@ CROSS_LANGUAGE_PATTERNS = [
 ]
 
 # Combine all patterns
-ALL_PATTERNS: List[SecurityPattern] = (
+ALL_PATTERNS: list[SecurityPattern] = (
     C_PATTERNS
     + PYTHON_PATTERNS
     + R_PATTERNS
@@ -477,7 +478,7 @@ ALL_PATTERNS: List[SecurityPattern] = (
 )
 
 # Language mapping for pattern selection
-LANGUAGE_PATTERN_MAP: Dict[str, List[SecurityPattern]] = {
+LANGUAGE_PATTERN_MAP: dict[str, list[SecurityPattern]] = {
     "c": C_PATTERNS + CROSS_LANGUAGE_PATTERNS,
     "cpp": C_PATTERNS + CROSS_LANGUAGE_PATTERNS,
     "python": PYTHON_PATTERNS + CROSS_LANGUAGE_PATTERNS,
@@ -491,13 +492,13 @@ LANGUAGE_PATTERN_MAP: Dict[str, List[SecurityPattern]] = {
 }
 
 
-def get_patterns_for_language(language: str) -> List[SecurityPattern]:
+def get_patterns_for_language(language: str) -> list[SecurityPattern]:
     """Get security patterns applicable to a specific language."""
     language_lower = language.lower()
     return LANGUAGE_PATTERN_MAP.get(language_lower, CROSS_LANGUAGE_PATTERNS)
 
 
-def scan_content(content: str, language: str) -> List[Dict[str, Any]]:
+def scan_content(content: str, language: str) -> list[dict[str, Any]]:
     """
     Scan content for security patterns based on language.
 

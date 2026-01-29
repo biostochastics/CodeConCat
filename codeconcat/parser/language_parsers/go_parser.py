@@ -1,7 +1,6 @@
 # file: codeconcat/parser/language_parsers/go_parser.py
 import logging
 import re
-from typing import List, Set
 
 from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
@@ -41,9 +40,9 @@ class GoParser(BaseParser):
             A ParseResult object containing declarations and imports.
         """
         declarations = []
-        imports: Set[str] = set()
+        imports: set[str] = set()
         lines = content.split("\n")
-        doc_buffer: List[str] = []
+        doc_buffer: list[str] = []
 
         try:
             logger.debug(f"Starting GoParser.parse (Regex) for file: {file_path}")

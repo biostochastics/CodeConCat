@@ -12,7 +12,6 @@ Supports HLSL shader constructs including:
 """
 
 import logging
-from typing import Dict, List, Optional
 
 from tree_sitter import Node
 
@@ -20,9 +19,9 @@ from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
 
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
-    QueryCursor = None
+    QueryCursor = None  # type: ignore[misc,assignment]
 
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
@@ -51,14 +50,23 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
     def __init__(self):
         """Initialize the HLSL parser."""
         super().__init__("hlsl")
-        self.shader_stage: Optional[str] = None
+        self.shader_stage: str | None = None
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns Tree-sitter queries for HLSL."""
         return HLSL_QUERIES
 
     def _load_language(self):
         """Load the HLSL language grammar."""
+        # Try tree_sitter_language_pack first (preferred)
+        try:
+            from tree_sitter_language_pack import get_language
+
+            return get_language("hlsl")
+        except ImportError:
+            pass
+
+        # Try the standalone tree-sitter-hlsl package
         try:
             import tree_sitter_hlsl
             from tree_sitter import Language
@@ -68,13 +76,14 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
         except ImportError:
             pass
 
+        # Fall back to tree_sitter_languages if available
         try:
-            from tree_sitter_languages import get_language
+            from tree_sitter_languages import get_language as get_lang_fallback
 
-            return get_language("hlsl")
+            return get_lang_fallback("hlsl")
         except ImportError:
             raise LanguageParserError(
-                "Failed to load HLSL language. Install tree-sitter-hlsl package."
+                "Failed to load HLSL language. Install tree-sitter-language-pack or tree-sitter-hlsl."
             ) from None
 
     def parse(self, source_code: str, file_path: str = "unknown") -> ParseResult:  # noqa: ARG002
@@ -82,8 +91,8 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
         tree = self.parser.parse(bytes(source_code, "utf8"))
         root_node = tree.root_node
 
-        declarations: List[Declaration] = []
-        imports: List[str] = []
+        declarations: list[Declaration] = []
+        imports: list[str] = []
 
         # Extract declarations using tree traversal
         self._traverse_hlsl_declarations(root_node, source_code, declarations)
@@ -95,7 +104,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
         return ParseResult(declarations=declarations, imports=imports)
 
     def _traverse_hlsl_declarations(
-        self, node: Node, source_code: str, declarations: List[Declaration]
+        self, node: Node, source_code: str, declarations: list[Declaration]
     ) -> None:
         """Traverse tree to find HLSL-specific declarations."""
         if node.type == "type_definition":
@@ -186,7 +195,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
         for child in node.children:
             self._traverse_hlsl_declarations(child, source_code, declarations)
 
-    def _classify_hlsl_type(self, type_name: str) -> Optional[str]:
+    def _classify_hlsl_type(self, type_name: str) -> str | None:
         """Classify HLSL type into declaration kind."""
         type_lower = type_name.lower()
 
@@ -207,7 +216,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
             return None
 
     def _extract_functions(
-        self, root_node: Node, source_code: str, declarations: List[Declaration]
+        self, root_node: Node, source_code: str, declarations: list[Declaration]
     ) -> None:
         """Extract function definitions using queries."""
         query = self._get_compiled_query("functions")
@@ -267,7 +276,7 @@ class TreeSitterHlslParser(BaseTreeSitterParser):
             logger.debug(f"Error extracting HLSL functions: {e}")
 
     def _extract_structs(
-        self, root_node: Node, source_code: str, declarations: List[Declaration]
+        self, root_node: Node, source_code: str, declarations: list[Declaration]
     ) -> None:
         """Extract struct definitions using queries."""
         query = self._get_compiled_query("structs")

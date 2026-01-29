@@ -8,9 +8,10 @@ and improved pattern matching.
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Pattern, Set
+from re import Pattern
 
 from codeconcat.base_types import Declaration, ParseResult
 
@@ -36,8 +37,8 @@ class MatchContext:
     """Context information for pattern matching."""
 
     line_number: int
-    previous_line: Optional[str] = None
-    next_line: Optional[str] = None
+    previous_line: str | None = None
+    next_line: str | None = None
     indentation_level: int = 0
     in_string: bool = False
     in_comment: bool = False
@@ -61,7 +62,7 @@ class MultiLinePatternMatcher:
             max_lines: Maximum number of lines to consider for multi-line patterns
         """
         self.max_lines = max_lines
-        self._compiled_patterns: Dict[str, Pattern] = {}
+        self._compiled_patterns: dict[str, Pattern] = {}
 
     def add_pattern(self, name: str, pattern: str, flags: int = re.MULTILINE) -> None:
         """
@@ -79,11 +80,11 @@ class MultiLinePatternMatcher:
 
     def match_multi_line(
         self,
-        lines: List[str],
+        lines: list[str],
         start_line: int,
         pattern_name: str,
-        _context: Optional[MatchContext] = None,
-    ) -> Optional[re.Match]:
+        _context: MatchContext | None = None,
+    ) -> re.Match | None:
         """
         Match a multi-line pattern starting at the given line.
 
@@ -133,7 +134,7 @@ class ErrorRecoveryParser:
         self.error_handler = ErrorHandler(language)
         self._recovery_strategies = self._init_recovery_strategies()
 
-    def _init_recovery_strategies(self) -> Dict[str, Callable]:
+    def _init_recovery_strategies(self) -> dict[str, Callable]:
         """
         Initialize error recovery strategies.
 
@@ -148,7 +149,7 @@ class ErrorRecoveryParser:
         }
 
     def _skip_to_next_declaration(
-        self, lines: List[str], current_line: int, patterns: Dict[str, Pattern]
+        self, lines: list[str], current_line: int, patterns: dict[str, Pattern]
     ) -> int:
         """
         Skip to the next declaration line.
@@ -171,7 +172,7 @@ class ErrorRecoveryParser:
 
         return len(lines) - 1
 
-    def _skip_to_next_line(self, lines: List[str], current_line: int) -> int:
+    def _skip_to_next_line(self, lines: list[str], current_line: int) -> int:
         """
         Skip to the next line.
 
@@ -184,7 +185,7 @@ class ErrorRecoveryParser:
         """
         return min(current_line + 1, len(lines) - 1)
 
-    def _skip_to_matching_brace(self, lines: List[str], current_line: int) -> int:
+    def _skip_to_matching_brace(self, lines: list[str], current_line: int) -> int:
         """
         Skip to the line with a matching closing brace.
 
@@ -210,7 +211,7 @@ class ErrorRecoveryParser:
 
         return len(lines) - 1
 
-    def _skip_to_matching_indent(self, lines: List[str], current_line: int) -> int:
+    def _skip_to_matching_indent(self, lines: list[str], current_line: int) -> int:
         """
         Skip to the line with matching indentation.
 
@@ -262,7 +263,7 @@ class ContextAwareParser:
         self.language = language
         self.error_handler = ErrorHandler(language)
 
-    def _build_context(self, lines: List[str], line_index: int) -> MatchContext:
+    def _build_context(self, lines: list[str], line_index: int) -> MatchContext:
         """
         Build context information for a line.
 
@@ -409,7 +410,7 @@ class ImprovedStandardParser:
                 f"Parse error: {e}", file_path, context={"exception_type": type(e).__name__}
             )
 
-    def _extract_imports_enhanced(self, lines: List[str], _file_path: str) -> List[str]:
+    def _extract_imports_enhanced(self, lines: list[str], _file_path: str) -> list[str]:
         """
         Extract imports with enhanced pattern matching.
 
@@ -441,7 +442,7 @@ class ImprovedStandardParser:
 
         return imports
 
-    def _extract_declarations_enhanced(self, lines: List[str], file_path: str) -> List[Declaration]:
+    def _extract_declarations_enhanced(self, lines: list[str], file_path: str) -> list[Declaration]:
         """
         Extract declarations with enhanced pattern matching and error recovery.
 
@@ -501,7 +502,7 @@ class ImprovedStandardParser:
 
         return declarations
 
-    def _get_import_patterns(self) -> Dict[str, Pattern]:
+    def _get_import_patterns(self) -> dict[str, Pattern]:
         """
         Get import patterns for the language.
 
@@ -513,7 +514,7 @@ class ImprovedStandardParser:
         """
         raise NotImplementedError("Subclasses must implement _get_import_patterns()")
 
-    def _get_declaration_patterns(self) -> Dict[str, Pattern]:
+    def _get_declaration_patterns(self) -> dict[str, Pattern]:
         """
         Get declaration patterns for the language.
 
@@ -530,10 +531,10 @@ class ImprovedStandardParser:
         match: re.Match,
         pattern_name: str,
         line_num: int,
-        lines: List[str],
+        lines: list[str],
         _file_path: str,
         context: MatchContext,
-    ) -> Optional[Declaration]:
+    ) -> Declaration | None:
         """
         Create a Declaration object from a regex match with enhanced context.
 
@@ -587,7 +588,7 @@ class ImprovedStandardParser:
             logger.debug(f"Error creating declaration from match: {e}")
             return None
 
-    def _extract_modifiers_enhanced(self, match: re.Match, context: MatchContext) -> Set[str]:
+    def _extract_modifiers_enhanced(self, match: re.Match, context: MatchContext) -> set[str]:
         """
         Extract modifiers with enhanced context awareness.
 

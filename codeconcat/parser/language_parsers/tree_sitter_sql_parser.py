@@ -17,14 +17,9 @@ Supports:
 import logging
 import re
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .base_tree_sitter_parser import BaseTreeSitterParser
-
-try:
-    from tree_sitter import QueryCursor
-except ImportError:
-    QueryCursor = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +115,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
         - Dialect detection: O(n) single pass through content
     """
 
-    def __init__(self, dialect: Optional[SqlDialect] = None, content: Optional[str] = None):
+    def __init__(self, dialect: SqlDialect | None = None, content: str | None = None):
         """Initialize the SQL parser.
 
         Args:
@@ -144,7 +139,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         logger.info(f"Initialized SQL parser with dialect: {self.dialect.name}")
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns the SQL-specific tree-sitter queries.
 
         Returns:
@@ -251,7 +246,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
         else:
             return "UNKNOWN"
 
-    def extract_tables(self, byte_content: bytes) -> List[Dict]:
+    def extract_tables(self, byte_content: bytes) -> list[dict]:
         """Extract table definitions from parsed SQL.
 
         Args:
@@ -267,7 +262,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         Complexity: O(m) where m is number of CREATE TABLE statements
         """
-        tables: List[Dict[str, Any]] = []
+        tables: list[dict[str, Any]] = []
 
         # Parse SQL content (thread-safe - uses local variable)
         tree = self.parser.parse(byte_content)
@@ -279,14 +274,9 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return tables
 
         try:
-            # tree-sitter 0.25.x API: Use QueryCursor to execute queries
+            # Execute query using base class method (handles all tree-sitter versions)
             root_node = tree.root_node
-            if QueryCursor is not None:
-                # tree-sitter 0.25.x with QueryCursor
-                captures = self._execute_query_with_cursor(query, root_node)
-            else:
-                # Fallback (shouldn't reach here with 0.25.x)
-                raise RuntimeError("QueryCursor not available - incompatible tree-sitter version")
+            captures = self._execute_query_with_cursor(query, root_node)
 
             # Extract table information from captures
             table_defs = captures.get("table_def", [])
@@ -315,7 +305,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         return tables
 
-    def extract_views(self, byte_content: bytes) -> List[Dict]:
+    def extract_views(self, byte_content: bytes) -> list[dict]:
         """Extract view definitions from parsed SQL.
 
         Args:
@@ -326,7 +316,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         Complexity: O(m) where m is number of CREATE VIEW statements
         """
-        views: List[Dict[str, Any]] = []
+        views: list[dict[str, Any]] = []
 
         # Parse SQL content (thread-safe - uses local variable)
         tree = self.parser.parse(byte_content)
@@ -336,11 +326,8 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return views
 
         try:
-            # tree-sitter 0.25.x API: Use QueryCursor
-            if QueryCursor is not None:
-                captures = self._execute_query_with_cursor(query, tree.root_node)
-            else:
-                raise RuntimeError("QueryCursor not available")
+            # Execute query using base class method (handles all tree-sitter versions)
+            captures = self._execute_query_with_cursor(query, tree.root_node)
             view_defs = captures.get("view_def", [])
             view_names = captures.get("view_name", [])
 
@@ -366,7 +353,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         return views
 
-    def extract_ctes(self, byte_content: bytes) -> List[Dict]:
+    def extract_ctes(self, byte_content: bytes) -> list[dict]:
         """Extract Common Table Expressions (CTEs) from parsed SQL.
 
         Args:
@@ -382,7 +369,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         Complexity: O(m) where m is number of WITH clauses
         """
-        ctes: List[Dict[str, Any]] = []
+        ctes: list[dict[str, Any]] = []
 
         # Parse SQL content (thread-safe - uses local variable)
         tree = self.parser.parse(byte_content)
@@ -392,11 +379,8 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return ctes
 
         try:
-            if QueryCursor is not None:
-                captures = self._execute_query_with_cursor(query, tree.root_node)
-            else:
-                raise RuntimeError("QueryCursor not available")
-
+            # Execute query using base class method (handles all tree-sitter versions)
+            captures = self._execute_query_with_cursor(query, tree.root_node)
             cte_defs = captures.get("cte_def", [])
             cte_names = captures.get("cte_name", [])
 
@@ -422,7 +406,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         return ctes
 
-    def extract_window_functions(self, byte_content: bytes) -> List[Dict]:
+    def extract_window_functions(self, byte_content: bytes) -> list[dict]:
         """Extract window function usage from parsed SQL.
 
         Args:
@@ -438,7 +422,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         Complexity: O(m) where m is number of window functions
         """
-        window_funcs: List[Dict[str, Any]] = []
+        window_funcs: list[dict[str, Any]] = []
 
         # Parse SQL content (thread-safe - uses local variable)
         tree = self.parser.parse(byte_content)
@@ -448,11 +432,8 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return window_funcs
 
         try:
-            if QueryCursor is not None:
-                captures = self._execute_query_with_cursor(query, tree.root_node)
-            else:
-                raise RuntimeError("QueryCursor not available")
-
+            # Execute query using base class method (handles all tree-sitter versions)
+            captures = self._execute_query_with_cursor(query, tree.root_node)
             window_func_nodes = captures.get("window_func", [])
 
             for func_node in window_func_nodes:
@@ -490,7 +471,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         return window_funcs
 
-    def extract_stored_procedures(self, byte_content: bytes) -> List[Dict]:
+    def extract_stored_procedures(self, byte_content: bytes) -> list[dict]:
         """Extract stored procedure/function definitions from parsed SQL.
 
         Note: SQLite does not support stored procedures, so this will return
@@ -509,7 +490,7 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
 
         Complexity: O(m) where m is number of CREATE FUNCTION/PROCEDURE statements
         """
-        procedures: List[Dict[str, Any]] = []
+        procedures: list[dict[str, Any]] = []
 
         # SQLite doesn't support stored procedures
         if self.dialect == SqlDialect.SQLITE:
@@ -524,11 +505,8 @@ class TreeSitterSqlParser(BaseTreeSitterParser):
             return procedures
 
         try:
-            if QueryCursor is not None:
-                captures = self._execute_query_with_cursor(query, tree.root_node)
-            else:
-                raise RuntimeError("QueryCursor not available")
-
+            # Execute query using base class method (handles all tree-sitter versions)
+            captures = self._execute_query_with_cursor(query, tree.root_node)
             proc_defs = captures.get("proc_def", [])
             proc_names = captures.get("proc_name", [])
 

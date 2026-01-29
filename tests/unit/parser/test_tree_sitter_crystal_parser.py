@@ -6,6 +6,7 @@ import pytest
 import tempfile
 from pathlib import Path
 
+from codeconcat.parser.error_handling import ParserInitializationError
 from codeconcat.parser.language_parsers.tree_sitter_crystal_parser import TreeSitterCrystalParser
 
 
@@ -14,7 +15,12 @@ class TestTreeSitterCrystalParser:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.parser = TreeSitterCrystalParser()
+        try:
+            self.parser = TreeSitterCrystalParser()
+        except ParserInitializationError as e:
+            # Crystal grammar may not be available in CI environments
+            # where it needs to be built from source (requires git clone)
+            pytest.skip(f"Crystal parser unavailable: {e}")
 
     def test_parser_initialization(self):
         """Test parser initializes correctly."""

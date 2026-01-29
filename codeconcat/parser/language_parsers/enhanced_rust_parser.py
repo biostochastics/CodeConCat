@@ -23,7 +23,6 @@ For production use, prefer tree_sitter_rust_parser.py which provides:
 
 import logging
 import re
-from typing import Dict, List, Optional
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
@@ -216,13 +215,13 @@ class EnhancedRustParser(EnhancedBaseParser):
 
     def _process_block(
         self,
-        lines: List[str],
+        lines: list[str],
         start: int,
         end: int,
-        declarations: List[Declaration],
-        imports: List[str],
-        errors: List[str],
-        parent_declaration: Optional[Declaration] = None,
+        declarations: list[Declaration],
+        imports: list[str],
+        errors: list[str],
+        parent_declaration: Declaration | None = None,
         max_nesting_depth: int = MAX_NESTING_DEPTH,
         current_depth: int = 1,  # Track current nesting depth
     ) -> int:
@@ -566,7 +565,7 @@ class EnhancedRustParser(EnhancedBaseParser):
         return (in_string, in_char, in_raw_string, string_delimiter)
 
     def _skip_block_comment(
-        self, lines: List[str], start_line: int, start_col: int, max_end_line: int
+        self, lines: list[str], start_line: int, start_col: int, max_end_line: int
     ) -> tuple[int, int]:
         """
         Skip over a block comment /* ... */.
@@ -606,7 +605,7 @@ class EnhancedRustParser(EnhancedBaseParser):
 
     def _find_block_end_improved(
         self,
-        lines: List[str],
+        lines: list[str],
         start: int,
         open_char: str = "{",
         close_char: str = "}",
@@ -742,7 +741,7 @@ class EnhancedRustParser(EnhancedBaseParser):
         logger.warning(f"Could not find matching {close_char} for {open_char} at line {start + 1}")
         return min(start + 50, len(lines) - 1)
 
-    def _process_imports(self, line: str, imports: List[str]) -> bool:
+    def _process_imports(self, line: str, imports: list[str]) -> bool:
         """
         Process Rust use statements and add them to the imports list.
 
@@ -780,7 +779,7 @@ class EnhancedRustParser(EnhancedBaseParser):
                 return True
         return False
 
-    def _extract_rust_docstring(self, lines: List[str], current_line: int) -> str:
+    def _extract_rust_docstring(self, lines: list[str], current_line: int) -> str:
         """
         Extract Rust docstring comments (///, //!) before a declaration.
 
@@ -834,7 +833,7 @@ class EnhancedRustParser(EnhancedBaseParser):
         # Direct set intersection is much faster than individual regex searches
         return words.intersection(self.modifiers)
 
-    def get_capabilities(self) -> Dict[str, bool]:
+    def get_capabilities(self) -> dict[str, bool]:
         """Return the capabilities of this parser."""
         return {
             "can_parse_functions": True,

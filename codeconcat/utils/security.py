@@ -13,7 +13,6 @@ import secrets
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +54,8 @@ class PathValidator:
     @classmethod
     def validate_path(
         cls,
-        base_path: Union[str, Path],
-        requested_path: Union[str, Path],
+        base_path: str | Path,
+        requested_path: str | Path,
         allow_symlinks: bool = False,
     ) -> Path:
         """
@@ -176,7 +175,7 @@ class InputSanitizer:
         return arg
 
     @staticmethod
-    def sanitize_url(url: str) -> Optional[str]:
+    def sanitize_url(url: str) -> str | None:
         """
         Sanitize and validate a URL.
 
@@ -244,7 +243,7 @@ class RateLimiter:
     """
 
     def __init__(
-        self, max_requests: int = 100, window_seconds: int = 60, burst_size: Optional[int] = None
+        self, max_requests: int = 100, window_seconds: int = 60, burst_size: int | None = None
     ):
         """
         Initialize rate limiter.
@@ -259,13 +258,13 @@ class RateLimiter:
         self.burst_size = burst_size or max_requests
 
         # Store request timestamps per identifier
-        self.requests: Dict[str, deque] = defaultdict(lambda: deque())
+        self.requests: dict[str, deque] = defaultdict(lambda: deque())
 
         # Store burst tokens per identifier
-        self.burst_tokens: Dict[str, int] = defaultdict(lambda: self.burst_size)
-        self.last_refill: Dict[str, datetime] = {}
+        self.burst_tokens: dict[str, int] = defaultdict(lambda: self.burst_size)
+        self.last_refill: dict[str, datetime] = {}
 
-    def check_rate_limit(self, identifier: str, cost: int = 1) -> tuple[bool, Optional[float]]:
+    def check_rate_limit(self, identifier: str, cost: int = 1) -> tuple[bool, float | None]:
         """
         Check if request is within rate limit.
 
@@ -334,7 +333,7 @@ class RateLimiter:
             )
             self.last_refill[identifier] = now
 
-    def reset(self, identifier: Optional[str] = None):
+    def reset(self, identifier: str | None = None):
         """
         Reset rate limit for an identifier or all identifiers.
 
@@ -358,7 +357,7 @@ class SecureHash:
     """
 
     @staticmethod
-    def hash_password(password: str, salt: Optional[bytes] = None) -> tuple[str, str]:
+    def hash_password(password: str, salt: bytes | None = None) -> tuple[str, str]:
         """
         Hash a password using PBKDF2.
 
@@ -413,12 +412,12 @@ class SecureHash:
 _global_rate_limiter = RateLimiter()
 
 
-def check_rate_limit(identifier: str, cost: int = 1) -> tuple[bool, Optional[float]]:
+def check_rate_limit(identifier: str, cost: int = 1) -> tuple[bool, float | None]:
     """Check global rate limit."""
     return _global_rate_limiter.check_rate_limit(identifier, cost)
 
 
-def validate_path(base_path: Union[str, Path], requested_path: Union[str, Path]) -> Path:
+def validate_path(base_path: str | Path, requested_path: str | Path) -> Path:
     """Validate a path against traversal attacks."""
     return PathValidator.validate_path(base_path, requested_path)
 

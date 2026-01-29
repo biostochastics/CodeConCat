@@ -9,7 +9,7 @@ consistency in parsing across different languages.
 """
 
 import re
-from typing import Dict, List, Optional, Pattern, Tuple
+from re import Pattern
 
 from codeconcat.base_types import ParseResult
 from codeconcat.parser.language_parsers.base_parser import BaseParser
@@ -45,7 +45,7 @@ class EnhancedBaseParser(BaseParser):
 
         # Common patterns (override in subclasses as needed)
         # Initialize with empty dict, subclasses will populate
-        self.patterns: Dict[str, Pattern[str]] = {}
+        self.patterns: dict[str, Pattern[str]] = {}
 
         # Common modifiers recognized by this parser
         self.modifiers = set()  # Set in subclasses
@@ -70,7 +70,7 @@ class EnhancedBaseParser(BaseParser):
             error=None,
         )
 
-    def extract_docstring(self, lines: List[str], start: int, end: int) -> Optional[str]:
+    def extract_docstring(self, lines: list[str], start: int, end: int) -> str | None:
         """
         Enhanced docstring extraction that works across languages.
 
@@ -123,10 +123,10 @@ class EnhancedBaseParser(BaseParser):
     def _find_pattern_in_content(
         self,
         pattern_name: str,
-        lines: List[str],
+        lines: list[str],
         start_line: int = 0,
-        end_line: Optional[int] = None,
-    ) -> List[Tuple[int, re.Match]]:
+        end_line: int | None = None,
+    ) -> list[tuple[int, re.Match]]:
         """
         Find all matches for a named pattern in the content.
 
@@ -156,7 +156,7 @@ class EnhancedBaseParser(BaseParser):
 
     def _find_block_end_improved(
         self,
-        lines: List[str],
+        lines: list[str],
         start: int,
         open_char: str = "{",
         close_char: str = "}",
@@ -181,7 +181,7 @@ class EnhancedBaseParser(BaseParser):
         return self._find_block_end_by_braces(lines, start, open_char, close_char)
 
     def _find_block_end_by_braces(
-        self, lines: List[str], start: int, open_char: str = "{", close_char: str = "}"
+        self, lines: list[str], start: int, open_char: str = "{", close_char: str = "}"
     ) -> int:
         """
         Find the end of a code block using brace counting.
@@ -219,7 +219,7 @@ class EnhancedBaseParser(BaseParser):
 
         return len(lines) - 1
 
-    def _find_block_end_by_indent(self, lines: List[str], start: int) -> int:
+    def _find_block_end_by_indent(self, lines: list[str], start: int) -> int:
         """
         Find the end of a code block using indentation (e.g., Python).
 
@@ -253,7 +253,7 @@ class EnhancedBaseParser(BaseParser):
 
         return len(lines) - 1
 
-    def get_capabilities(self) -> Dict[str, bool]:
+    def get_capabilities(self) -> dict[str, bool]:
         """
         Return the capabilities of this parser.
 
@@ -277,7 +277,7 @@ class EnhancedBaseParser(BaseParser):
         # At minimum, the parser should have a language set
         return bool(self.language and self.language != "generic")
 
-    def _count_total_declarations(self, declarations: List) -> int:
+    def _count_total_declarations(self, declarations: list) -> int:
         """Count the total number of declarations including all nested ones.
 
         Args:
@@ -294,7 +294,7 @@ class EnhancedBaseParser(BaseParser):
                 total += self._count_total_declarations(decl.children)
         return total
 
-    def _calculate_max_nesting_depth(self, declarations: List, current_depth: int = 1) -> int:
+    def _calculate_max_nesting_depth(self, declarations: list, current_depth: int = 1) -> int:
         """Calculate the maximum nesting depth in the declaration tree.
 
         Args:

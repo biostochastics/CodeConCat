@@ -4,7 +4,6 @@ import contextlib
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
@@ -65,7 +64,7 @@ class DiffCollector:
         if not is_valid:
             raise ValueError(error_msg)
 
-    def validate_refs(self) -> Tuple[bool, str]:
+    def validate_refs(self) -> tuple[bool, str]:
         """Validate that both Git refs exist and are accessible.
 
         Returns:
@@ -83,7 +82,7 @@ class DiffCollector:
 
         return True, ""
 
-    def collect_diffs(self) -> List[AnnotatedFileData]:
+    def collect_diffs(self) -> list[AnnotatedFileData]:
         """Collect all diffs between the two refs.
 
         Returns:
@@ -131,7 +130,7 @@ class DiffCollector:
         logger.info(f"Collected {len(annotated_files)} file diffs")
         return annotated_files
 
-    def _process_diff_item(self, diff_item, from_commit, to_commit) -> Optional[AnnotatedFileData]:
+    def _process_diff_item(self, diff_item, from_commit, to_commit) -> AnnotatedFileData | None:
         """Process a single diff item into AnnotatedFileData.
 
         Args:
@@ -279,7 +278,7 @@ class DiffCollector:
 
     def _create_binary_file_entry(
         self, diff_item, from_commit, to_commit
-    ) -> Optional[AnnotatedFileData]:
+    ) -> AnnotatedFileData | None:
         """Create an entry for a binary file with metadata only.
 
         Args:
@@ -454,7 +453,7 @@ class DiffCollector:
 
         return "unknown"
 
-    def get_changed_files(self) -> List[str]:
+    def get_changed_files(self) -> list[str]:
         """Get a list of all changed file paths between refs.
 
         Returns:

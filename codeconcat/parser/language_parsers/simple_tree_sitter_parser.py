@@ -4,7 +4,6 @@ instead of using complex queries.
 """
 
 import logging
-from typing import Dict, List, Optional, Set
 
 from tree_sitter import Node
 
@@ -17,7 +16,7 @@ logger = logging.getLogger(__name__)
 class SimpleTreeSitterParser(BaseTreeSitterParser):
     """Simplified tree-sitter parser that directly walks the AST."""
 
-    def __init__(self, language_name: str, node_types: Dict[str, List[str]]):
+    def __init__(self, language_name: str, node_types: dict[str, list[str]]):
         """Initialize with language and node type mappings.
 
         Args:
@@ -28,11 +27,11 @@ class SimpleTreeSitterParser(BaseTreeSitterParser):
         super().__init__(language_name=language_name)
         self.node_types = node_types
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Return empty queries as we don't use them in simple mode."""
         return {}
 
-    def _extract_node_name(self, node: Node, byte_content: bytes) -> Optional[str]:
+    def _extract_node_name(self, node: Node, byte_content: bytes) -> str | None:
         """Extract the name from a declaration node."""
         # Common patterns for finding names in AST nodes
         for child in node.named_children:
@@ -42,7 +41,7 @@ class SimpleTreeSitterParser(BaseTreeSitterParser):
                 )
         return None
 
-    def _extract_imports(self, node: Node, byte_content: bytes, imports: Set[str]):
+    def _extract_imports(self, node: Node, byte_content: bytes, imports: set[str]):
         """Extract import statements from the AST."""
         if "import" in node.type:
             # Extract the import path/module
@@ -61,7 +60,7 @@ class SimpleTreeSitterParser(BaseTreeSitterParser):
             self._extract_imports(child, byte_content, imports)
 
     def _extract_declarations(
-        self, node: Node, byte_content: bytes, declarations: List[Declaration], depth: int = 0
+        self, node: Node, byte_content: bytes, declarations: list[Declaration], depth: int = 0
     ):
         """Recursively extract declarations from the AST."""
         # Check if this node matches any of our declaration types

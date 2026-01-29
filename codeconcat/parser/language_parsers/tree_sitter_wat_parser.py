@@ -13,11 +13,10 @@ Supports:
 """
 
 import logging
-from typing import Dict, List, Optional
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
@@ -136,7 +135,7 @@ class TreeSitterWatParser(BaseTreeSitterParser):
             logger.error(f"Failed to create WAT parser: {e}")
             raise LanguageParserError(f"Failed to create parser for WAT: {e}") from e
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Return WAT-specific tree-sitter queries.
 
         Returns:
@@ -186,7 +185,7 @@ class TreeSitterWatParser(BaseTreeSitterParser):
 
         return result
 
-    def _extract_import_from_node(self, node) -> Optional[str]:
+    def _extract_import_from_node(self, node) -> str | None:
         """Extract import string from an import statement node.
 
         Args:
@@ -220,7 +219,7 @@ class TreeSitterWatParser(BaseTreeSitterParser):
             return f"{module_text}.{import_text}"
         return None
 
-    def _process_imports(self, captures: Dict | List) -> List[str]:
+    def _process_imports(self, captures: dict | list) -> list[str]:
         """Process import statement captures.
 
         Args:
@@ -249,7 +248,7 @@ class TreeSitterWatParser(BaseTreeSitterParser):
 
         return imports
 
-    def _process_exports(self, captures: Dict | List, result: ParseResult):
+    def _process_exports(self, captures: dict | list, result: ParseResult):
         """Process export statement captures.
 
         Args:
@@ -308,7 +307,7 @@ class TreeSitterWatParser(BaseTreeSitterParser):
                         )
                         result.declarations.append(declaration)
 
-    def _process_declarations(self, captures: Dict | List, content: str) -> List[Declaration]:  # noqa: ARG002
+    def _process_declarations(self, captures: dict | list, content: str) -> list[Declaration]:  # noqa: ARG002
         """Process declaration captures into Declaration objects.
 
         Args:
@@ -337,7 +336,7 @@ class TreeSitterWatParser(BaseTreeSitterParser):
 
         return declarations
 
-    def _create_declaration(self, node, capture_name: str) -> Optional[Declaration]:
+    def _create_declaration(self, node, capture_name: str) -> Declaration | None:
         """Create a Declaration object from a captured node.
 
         Args:

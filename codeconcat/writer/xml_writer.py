@@ -1,7 +1,6 @@
 """Optimized XML writer for LLM ingestion with semantic navigation."""
 
 import xml.etree.ElementTree as ET
-from typing import List
 from xml.dom import minidom
 
 from codeconcat.base_types import CodeConCatConfig, WritableItem
@@ -9,7 +8,7 @@ from codeconcat.writer.compression_helper import CompressionHelper
 
 
 def write_xml(
-    items: List[WritableItem],
+    items: list[WritableItem],
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
@@ -217,7 +216,7 @@ def write_xml(
     return xml_str
 
 
-def _calculate_diff_statistics(items: List[WritableItem]) -> dict:
+def _calculate_diff_statistics(items: list[WritableItem]) -> dict:
     """Calculate statistics for diff mode.
 
     Aggregates change statistics across all items with diff metadata to provide
@@ -263,6 +262,7 @@ def _calculate_diff_statistics(items: List[WritableItem]) -> dict:
 
 def _add_cdata_sections_optimized(xml_str: str) -> str:
     """Add CDATA sections to elements that need content preservation."""
+    import html
     import re
 
     # Elements that should have CDATA-wrapped content
@@ -282,6 +282,9 @@ def _add_cdata_sections_optimized(xml_str: str) -> str:
             content = match.group(1)
             if content.strip().startswith("<![CDATA["):
                 return match.group(0)
+            # Unescape XML entities before wrapping in CDATA since CDATA
+            # preserves content literally (so &quot; would stay as &quot;)
+            content = html.unescape(content)
             return f"<{elem_name}><![CDATA[{content}]]></{elem_name}>"
 
         xml_str = re.sub(pattern, replace_with_cdata, xml_str, flags=re.DOTALL)

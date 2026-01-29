@@ -6,9 +6,9 @@ or unsupported during processing, categorized by reason.
 
 import json
 import logging
+import threading
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from rich.console import Console
 from rich.table import Table
@@ -20,21 +20,21 @@ console = Console()
 class UnsupportedFilesReporter:
     """Collects and reports unsupported/skipped files in a structured format."""
 
-    def __init__(self, write_report: bool = False, report_path: Optional[Path] = None):
+    def __init__(self, write_report: bool = False, report_path: Path | None = None):
         """Initialize the unsupported files reporter.
 
         Args:
             write_report: Whether to write findings to a JSON file
             report_path: Path for the report file
         """
-        self.skipped_files: Dict[str, List[Dict]] = defaultdict(list)
+        self.skipped_files: dict[str, list[dict]] = defaultdict(list)
         self.write_report = write_report
         self.report_path = report_path or Path(".codeconcat_unsupported_files.json")
         self.total_files_processed = 0
-        self.categories: Dict[str, int] = defaultdict(int)
+        self.categories: dict[str, int] = defaultdict(int)
 
     def add_skipped_file(
-        self, file_path: Path, reason: str, category: str = "unknown", details: Optional[str] = None
+        self, file_path: Path, reason: str, category: str = "unknown", details: str | None = None
     ) -> None:
         """Add a skipped/unsupported file entry.
 
@@ -66,7 +66,7 @@ class UnsupportedFilesReporter:
         """Increment the total files processed counter."""
         self.total_files_processed += 1
 
-    def get_summary_stats(self) -> Dict:
+    def get_summary_stats(self) -> dict:
         """Get summary statistics of skipped files.
 
         Returns:
@@ -187,25 +187,30 @@ class UnsupportedFilesReporter:
                 console.print(f"  [dim]... and {stats['total_skipped'] - 10} more[/dim]")
 
 
-# Global reporter instance
-_reporter: Optional[UnsupportedFilesReporter] = None
+# Global reporter instance with thread-safe initialization
+_reporter: UnsupportedFilesReporter | None = None
+_reporter_lock = threading.Lock()
 
 
 def get_reporter() -> UnsupportedFilesReporter:
-    """Get or create the global unsupported files reporter instance."""
+    """Get or create the global unsupported files reporter instance (thread-safe)."""
     global _reporter
     if _reporter is None:
-        _reporter = UnsupportedFilesReporter()
+        with _reporter_lock:
+            # Double-check after acquiring lock
+            if _reporter is None:
+                _reporter = UnsupportedFilesReporter()
     return _reporter
 
 
-def init_reporter(write_report: bool = False, report_path: Optional[Path] = None):
-    """Initialize a new unsupported files reporter.
+def init_reporter(write_report: bool = False, report_path: Path | None = None):
+    """Initialize a new unsupported files reporter (thread-safe).
 
     Args:
         write_report: Whether to write findings to file
         report_path: Path for report file
     """
     global _reporter
-    _reporter = UnsupportedFilesReporter(write_report, report_path)
+    with _reporter_lock:
+        _reporter = UnsupportedFilesReporter(write_report, report_path)
     return _reporter

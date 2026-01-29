@@ -8,10 +8,11 @@ features and fixes, allowing for safe deployment and easy rollback.
 import json
 import logging
 import os
+from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ class FeatureFlags:
         },
     }
 
-    def __init__(self, config_file: Optional[Path] = None):
+    def __init__(self, config_file: Path | None = None):
         """
         Initialize feature flags.
 
@@ -105,8 +106,8 @@ class FeatureFlags:
         """
         self._flags = self._defaults.copy()
         self._config_file = config_file
-        self._overrides: Dict[str, bool] = {}
-        self._canary_cache: Dict[str, bool] = {}
+        self._overrides: dict[str, bool] = {}
+        self._canary_cache: dict[str, bool] = {}
 
         # Load from config file if provided
         if config_file and config_file.exists():
@@ -143,7 +144,7 @@ class FeatureFlags:
                         self._flags[flag_name] = bool(value.strip())
                     logger.debug(f"Override flag {flag_name} from env: {self._flags[flag_name]}")
 
-    def is_enabled(self, flag_name: str, context: Optional[Dict] = None) -> bool:
+    def is_enabled(self, flag_name: str, context: dict | None = None) -> bool:
         """
         Check if a feature flag is enabled.
 
@@ -175,13 +176,13 @@ class FeatureFlags:
                 return self._check_canary(flag_name, context)
             elif value == "partial":
                 return self._check_partial(flag_name, context)
-        elif isinstance(value, (int, float)):
+        elif isinstance(value, int | float):
             # Percentage-based rollout
             return self._check_percentage(flag_name, value, context)
 
         return bool(value)
 
-    def _check_canary(self, flag_name: str, context: Optional[Dict]) -> bool:
+    def _check_canary(self, flag_name: str, context: dict | None) -> bool:
         """Check if canary testing should enable this flag."""
         if not context:
             return False
@@ -196,7 +197,7 @@ class FeatureFlags:
         percentage_val = metadata.get("rollout_percentage", 0)
         # Ensure percentage is a number
         try:
-            if isinstance(percentage_val, (int, float, str)):
+            if isinstance(percentage_val, int | float | str):
                 percentage = float(percentage_val)
             else:
                 percentage = 0.0
@@ -219,7 +220,7 @@ class FeatureFlags:
         self._canary_cache[cache_key] = is_canary
         return is_canary
 
-    def _check_partial(self, flag_name: str, context: Optional[Dict]) -> bool:
+    def _check_partial(self, flag_name: str, context: dict | None) -> bool:
         """Check if partial rollout conditions are met."""
         if not context:
             return False
@@ -235,7 +236,7 @@ class FeatureFlags:
         result = all(context.get(key) == expected for key, expected in conditions.items())
         return bool(result)
 
-    def _check_percentage(self, flag_name: str, percentage: float, context: Optional[Dict]) -> bool:
+    def _check_percentage(self, flag_name: str, percentage: float, context: dict | None) -> bool:
         """Check percentage-based rollout."""
         if context and context.get("user_id"):
             # Consistent for users
@@ -268,13 +269,13 @@ class FeatureFlags:
             del self._overrides[flag_name]
             logger.info(f"Override cleared for {flag_name}")
 
-    def get_all_flags(self) -> Dict[str, Any]:
+    def get_all_flags(self) -> dict[str, Any]:
         """Get all current flag values."""
         result = self._flags.copy()
         result.update(self._overrides)
         return result
 
-    def get_metadata(self, flag_name: str) -> Dict[str, Any]:
+    def get_metadata(self, flag_name: str) -> dict[str, Any]:
         """Get metadata for a specific flag."""
         return self._metadata.get(flag_name, {})
 
@@ -320,7 +321,7 @@ class FeatureFlags:
         return decorator
 
     def choose(
-        self, flag_name: str, if_enabled: Any, if_disabled: Any, context: Optional[Dict] = None
+        self, flag_name: str, if_enabled: Any, if_disabled: Any, context: dict | None = None
     ) -> Any:
         """
         Choose a value based on feature flag state.
@@ -345,7 +346,7 @@ _flags = FeatureFlags()
 
 
 # Convenience functions
-def is_enabled(flag_name: str, context: Optional[Dict] = None) -> bool:
+def is_enabled(flag_name: str, context: dict | None = None) -> bool:
     """Check if a feature flag is enabled."""
     return _flags.is_enabled(flag_name, context)
 
@@ -365,9 +366,7 @@ def with_flag(flag_name: str, enabled: bool = True):
     return _flags.with_flag(flag_name, enabled)
 
 
-def choose(
-    flag_name: str, if_enabled: Any, if_disabled: Any, context: Optional[Dict] = None
-) -> Any:
+def choose(flag_name: str, if_enabled: Any, if_disabled: Any, context: dict | None = None) -> Any:
     """Choose a value based on feature flag state."""
     return _flags.choose(flag_name, if_enabled, if_disabled, context)
 

@@ -14,7 +14,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from ..errors import ValidationError
 
@@ -87,7 +86,7 @@ def install_semgrep():
         return False
 
 
-def install_apiiro_ruleset(target_dir: Optional[str] = None):
+def install_apiiro_ruleset(target_dir: str | None = None):
     """
     Install the Apiiro malicious code ruleset.
 

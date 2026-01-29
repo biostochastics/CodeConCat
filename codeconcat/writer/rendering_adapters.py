@@ -602,7 +602,9 @@ class XmlRenderAdapter:
                 if segment.metadata:
                     metadata_elem = ET.SubElement(segment_elem, "metadata")
                     for key, value in segment.metadata.items():
-                        if key != "original_content" and isinstance(value, (str, int, float, bool)):
+                        if key != "original_content" and isinstance(
+                            value, str | int | float | bool
+                        ):
                             meta_item = ET.SubElement(metadata_elem, "item", {"key": key})
                             meta_item.text = str(value)
 

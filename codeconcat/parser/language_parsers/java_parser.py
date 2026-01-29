@@ -1,6 +1,5 @@
 import logging
 import re
-from typing import List, Set
 
 from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
@@ -42,10 +41,10 @@ class JavaParser(BaseParser):
             A ParseResult object containing declarations and imports.
         """
         declarations = []
-        imports: Set[str] = set()
+        imports: set[str] = set()
         lines = content.split("\n")
         in_multiline_comment = False
-        docstring_buffer: List[str] = []
+        docstring_buffer: list[str] = []
 
         # Add error handling from the old parse_java function
         try:

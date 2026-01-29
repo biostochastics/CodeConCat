@@ -1,6 +1,6 @@
 # codeconcat/language_map.py
 import logging
-from typing import Optional, cast
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ except ImportError:
     )
 
 
-def get_language_guesslang(content: str) -> Optional[str]:
+def get_language_guesslang(content: str) -> str | None:
     """Detect language using guesslang if available."""
     if not GUESSLANG_AVAILABLE or guesslang_instance is None:
         return None

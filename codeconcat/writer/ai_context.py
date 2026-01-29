@@ -2,7 +2,6 @@
 
 import logging
 import os
-from typing import List
 
 from codeconcat.base_types import AnnotatedFileData, ParsedDocData, WritableItem
 
@@ -10,13 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 def generate_ai_preamble(
-    items: List[WritableItem],
+    items: list[WritableItem],
 ) -> str:
     """Generate an AI-friendly preamble that explains the codebase structure and contents."""
 
     # --- Filter items into specific types --- #
-    code_files: List[AnnotatedFileData] = []
-    doc_files: List[ParsedDocData] = []
+    code_files: list[AnnotatedFileData] = []
+    doc_files: list[ParsedDocData] = []
     for item in items:
         if isinstance(item, AnnotatedFileData):
             code_files.append(item)

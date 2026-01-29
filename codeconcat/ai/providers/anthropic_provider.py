@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiohttp
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class AnthropicProvider(AIProvider):
     """Anthropic API provider for code summarization."""
 
-    _session: Optional[aiohttp.ClientSession]
+    _session: aiohttp.ClientSession | None
 
     def __init__(self, config: AIProviderConfig):
         """Initialize Anthropic provider."""
@@ -72,19 +72,22 @@ class AnthropicProvider(AIProvider):
         )
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create an aiohttp session."""
+        """Get or create an aiohttp session (thread-safe)."""
         if self._session is None:
-            headers: Dict[str, str] = {
-                "x-api-key": self.config.api_key or "",
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            }
-            headers.update(self.config.custom_headers or {})
-            timeout = aiohttp.ClientTimeout(total=self.config.timeout)
-            self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
+            async with self._session_lock:
+                # Double-check after acquiring lock
+                if self._session is None:
+                    headers: dict[str, str] = {
+                        "x-api-key": self.config.api_key or "",
+                        "anthropic-version": "2023-06-01",
+                        "Content-Type": "application/json",
+                    }
+                    headers.update(self.config.custom_headers or {})
+                    timeout = aiohttp.ClientTimeout(total=self.config.timeout)
+                    self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
         return self._session
 
-    async def _make_api_call(self, messages: list, max_tokens: Optional[int] = None) -> dict:
+    async def _make_api_call(self, messages: list, max_tokens: int | None = None) -> dict:
         """Make an API call to Anthropic with rate limiting and concurrency control."""
         # Use semaphore to limit concurrent requests
         async with self._concurrent_limit:
@@ -135,8 +138,8 @@ class AnthropicProvider(AIProvider):
         self,
         code: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
-        max_length: Optional[int] = None,
+        context: dict[str, Any] | None = None,
+        max_length: int | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a code file using Anthropic."""
         # Check cache first
@@ -209,7 +212,7 @@ class AnthropicProvider(AIProvider):
         function_code: str,
         function_name: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a specific function using Anthropic."""
         # Check cache first
@@ -289,11 +292,11 @@ class AnthropicProvider(AIProvider):
 
     async def generate_meta_overview(
         self,
-        file_summaries: Dict[str, Any],
-        custom_prompt: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        tree_structure: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        file_summaries: dict[str, Any],
+        custom_prompt: str | None = None,
+        max_tokens: int | None = None,
+        tree_structure: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
         """Generate meta-overview using higher-tier Claude Sonnet 4.5 with extended thinking.
 
@@ -462,7 +465,7 @@ class AnthropicProvider(AIProvider):
                 # Ignore any errors during config restoration
                 pass
 
-    async def get_model_info(self) -> Dict[str, Any]:
+    async def get_model_info(self) -> dict[str, Any]:
         """Get information about the current Anthropic model."""
         model_info = {
             "claude-3-opus-20240229": {

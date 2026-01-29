@@ -1,14 +1,14 @@
 """Token counting utilities for accurate cost estimation."""
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 import tiktoken
 
 logger = logging.getLogger(__name__)
 
 # Cache for tokenizers to avoid re-initialization
-_tokenizer_cache: Dict[str, Any] = {}
+_tokenizer_cache: dict[str, Any] = {}
 
 
 class TokenCounter:
@@ -155,7 +155,7 @@ class TokenCounter:
         cost_per_1k_input: float,
         cost_per_1k_output: float,
         max_output_tokens: int = 500,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Estimate cost for processing text.
 
         Args:
@@ -244,7 +244,7 @@ class TokenTracker:
         self.total_output_tokens = 0
         self.total_cost = 0.0
         self.requests = 0
-        self.by_model: Dict[str, Dict[str, float]] = {}
+        self.by_model: dict[str, dict[str, float]] = {}
 
     def track(self, model: str, input_tokens: int, output_tokens: int, cost: float):
         """Track token usage for a request.
@@ -273,7 +273,7 @@ class TokenTracker:
         self.by_model[model]["cost"] += cost
         self.by_model[model]["requests"] += 1
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get usage summary.
 
         Returns:

@@ -10,10 +10,11 @@ import logging
 import time
 import weakref
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
 from threading import Lock
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +27,10 @@ class PerformanceMetrics:
     start_time: float
     end_time: float
     duration_ms: float
-    memory_usage_mb: Optional[float] = None
-    nodes_processed: Optional[int] = None
-    cache_hits: Optional[int] = None
-    cache_misses: Optional[int] = None
+    memory_usage_mb: float | None = None
+    nodes_processed: int | None = None
+    cache_hits: int | None = None
+    cache_misses: int | None = None
 
 
 class PerformanceMonitor:
@@ -43,7 +44,7 @@ class PerformanceMonitor:
             max_metrics: Maximum number of metrics to store
         """
         self.max_metrics = max_metrics
-        self.metrics: List[PerformanceMetrics] = []
+        self.metrics: list[PerformanceMetrics] = []
         self._lock = Lock()
 
     def record_metric(
@@ -51,10 +52,10 @@ class PerformanceMonitor:
         operation: str,
         start_time: float,
         end_time: float,
-        memory_usage_mb: Optional[float] = None,
-        nodes_processed: Optional[int] = None,
-        cache_hits: Optional[int] = None,
-        cache_misses: Optional[int] = None,
+        memory_usage_mb: float | None = None,
+        nodes_processed: int | None = None,
+        cache_hits: int | None = None,
+        cache_misses: int | None = None,
     ) -> None:
         """
         Record a performance metric.
@@ -86,7 +87,7 @@ class PerformanceMonitor:
             if len(self.metrics) > self.max_metrics:
                 self.metrics = self.metrics[-self.max_metrics :]
 
-    def get_average_duration(self, operation: Optional[str] = None) -> float:
+    def get_average_duration(self, operation: str | None = None) -> float:
         """
         Get average duration for an operation.
 
@@ -106,7 +107,7 @@ class PerformanceMonitor:
 
             return sum(m.duration_ms for m in filtered_metrics) / len(filtered_metrics)
 
-    def get_slow_operations(self, threshold_ms: float = 100.0) -> List[PerformanceMetrics]:
+    def get_slow_operations(self, threshold_ms: float = 100.0) -> list[PerformanceMetrics]:
         """
         Get operations that exceed the duration threshold.
 
@@ -119,7 +120,7 @@ class PerformanceMonitor:
         with self._lock:
             return [m for m in self.metrics if m.duration_ms > threshold_ms]
 
-    def get_cache_efficiency(self, operation: Optional[str] = None) -> float:
+    def get_cache_efficiency(self, operation: str | None = None) -> float:
         """
         Get cache efficiency ratio.
 
@@ -205,7 +206,7 @@ class StringInterner:
             max_size: Maximum number of strings to cache
         """
         self.max_size = max_size
-        self._cache: Dict[str, str] = {}
+        self._cache: dict[str, str] = {}
         self._access_order: OrderedDict[str, None] = OrderedDict()  # O(1) LRU tracking
         self._lock = Lock()
 
@@ -287,8 +288,8 @@ class BatchProcessor:
         self.batch_size = batch_size
 
     def process_batches(
-        self, items: List[Any], processor: Callable[[List[Any]], List[Any]]
-    ) -> List[Any]:
+        self, items: list[Any], processor: Callable[[list[Any]], list[Any]]
+    ) -> list[Any]:
         """
         Process items in batches.
 
@@ -318,10 +319,10 @@ class WeakValueCache:
 
     def __init__(self):
         """Initialize the weak value cache."""
-        self._cache: Dict[Any, Union[weakref.ref, Callable[[], Any]]] = {}
+        self._cache: dict[Any, weakref.ref | Callable[[], Any]] = {}
         self._lock = Lock()
 
-    def get(self, key: Any) -> Optional[Any]:
+    def get(self, key: Any) -> Any | None:
         """
         Get a value from the cache.
 
@@ -383,7 +384,7 @@ def optimize_string_operations(text: str) -> str:
     return text
 
 
-def create_efficient_deduplicator() -> Callable[[List[Any]], List[Any]]:
+def create_efficient_deduplicator() -> Callable[[list[Any]], list[Any]]:
     """
     Create an efficient deduplicator function.
 
@@ -391,7 +392,7 @@ def create_efficient_deduplicator() -> Callable[[List[Any]], List[Any]]:
         A function that deduplicates a list while preserving order
     """
 
-    def deduplicate(items: List[Any]) -> List[Any]:
+    def deduplicate(items: list[Any]) -> list[Any]:
         """Deduplicate items while preserving order."""
         if not items:
             return []
@@ -417,7 +418,7 @@ def create_efficient_deduplicator() -> Callable[[List[Any]], List[Any]]:
                 # Try to create a unique key for comparison
                 try:
                     # For Declaration objects
-                    key: Union[tuple[Any, Any, Any], str]
+                    key: tuple[Any, Any, Any] | str
                     if (
                         hasattr(item, "name")
                         and hasattr(item, "kind")

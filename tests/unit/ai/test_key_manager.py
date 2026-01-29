@@ -238,8 +238,11 @@ class TestSetupAPIKeys:
         mock_manager = MagicMock()
         mock_manager_class.return_value = mock_manager
 
-        # Simulate user interaction
-        mock_input.side_effect = ["y", "n", "y", "n"]  # Configure OpenAI and OpenRouter
+        # Simulate user interaction for 8 providers:
+        # openai (y), anthropic (n), openrouter (y), google (n),
+        # deepseek (n), minimax (n), qwen (n), zhipu (n)
+        # Note: testing is automatic, not prompted
+        mock_input.side_effect = ["y", "n", "y", "n", "n", "n", "n", "n"]
         mock_getpass.side_effect = ["sk-test-openai-key", "sk-or-test-router-key"]
 
         # Mock validation and testing
@@ -264,8 +267,17 @@ class TestSetupAPIKeys:
         mock_manager = MagicMock()
         mock_manager_class.return_value = mock_manager
 
-        # Simulate existing keys
-        mock_manager.get_key.side_effect = ["sk-existing-openai", None, None, None]
+        # Simulate existing keys for 8 providers (only openai has a key)
+        mock_manager.get_key.side_effect = [
+            "sk-existing-openai",  # openai
+            None,  # anthropic
+            None,  # openrouter
+            None,  # google
+            None,  # deepseek
+            None,  # minimax
+            None,  # qwen
+            None,  # zhipu
+        ]
 
         # Run setup
         result = await setup_api_keys(interactive=False)
@@ -286,8 +298,8 @@ class TestSetupAPIKeys:
         mock_manager = MagicMock()
         mock_manager_class.return_value = mock_manager
 
-        # User wants to configure OpenAI
-        mock_input.side_effect = ["y", "n", "n", "n"]
+        # User wants to configure OpenAI only, skip all others (8 providers)
+        mock_input.side_effect = ["y", "n", "n", "n", "n", "n", "n", "n"]
         mock_getpass.return_value = "invalid-key"
 
         # Mock validation failure
@@ -310,8 +322,8 @@ class TestSetupAPIKeys:
         mock_manager = MagicMock()
         mock_manager_class.return_value = mock_manager
 
-        # User wants to configure OpenAI
-        mock_input.side_effect = ["y", "n", "n", "n"]
+        # User wants to configure OpenAI only, skip all others (8 providers)
+        mock_input.side_effect = ["y", "n", "n", "n", "n", "n", "n", "n"]
         mock_getpass.return_value = "sk-test-key-but-invalid"
 
         # Mock validation success but test failure

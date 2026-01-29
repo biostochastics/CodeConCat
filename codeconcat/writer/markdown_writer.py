@@ -2,13 +2,12 @@
 
 import os
 import re
-from typing import List
 
 from codeconcat.base_types import CodeConCatConfig, Declaration, WritableItem
 
 
 def write_markdown(
-    items: List[WritableItem],
+    items: list[WritableItem],
     config: CodeConCatConfig,
     folder_tree_str: str = "",
 ) -> str:
@@ -324,7 +323,7 @@ def _get_timestamp() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _calculate_statistics(items: List[WritableItem]) -> dict:
+def _calculate_statistics(items: list[WritableItem]) -> dict:
     """Calculate summary statistics."""
     stats = {
         "Total Files": len(items),
@@ -339,7 +338,7 @@ def _calculate_statistics(items: List[WritableItem]) -> dict:
     return stats
 
 
-def _categorize_files(items: List[WritableItem]) -> dict:
+def _categorize_files(items: list[WritableItem]) -> dict:
     """Categorize files by type."""
     categories: dict[str, list] = {
         "Source Code": [],
@@ -390,7 +389,7 @@ def _count_lines(item: WritableItem) -> int:
     return len(content.splitlines())
 
 
-def _render_declarations_tree(declarations: List[Declaration], indent: int = 0) -> str:
+def _render_declarations_tree(declarations: list[Declaration], indent: int = 0) -> str:
     """Render declarations as a tree."""
     result = []
     for decl in declarations:

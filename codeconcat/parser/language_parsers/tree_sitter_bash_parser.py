@@ -1,7 +1,7 @@
 """Tree-sitter based parser for Bash/Shell scripts."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from tree_sitter import Node
 
@@ -20,7 +20,7 @@ class TreeSitterBashParser(BaseTreeSitterParser):
         # Use BaseTreeSitterParser's initialization for consistency
         super().__init__(language_name="bash")
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Get the tree-sitter queries for Bash.
 
         Returns queries for:
@@ -76,8 +76,8 @@ class TreeSitterBashParser(BaseTreeSitterParser):
         tree = self.parser.parse(byte_content)
         root_node = tree.root_node
 
-        declarations: List[Declaration] = []
-        imports: List[str] = []
+        declarations: list[Declaration] = []
+        imports: list[str] = []
 
         # Extract functions
         self._extract_functions(root_node, byte_content, declarations)
@@ -93,7 +93,7 @@ class TreeSitterBashParser(BaseTreeSitterParser):
 
         return self._create_parse_result(declarations, imports)
 
-    def _extract_functions(self, node: Node, byte_content: bytes, declarations: List[Declaration]):
+    def _extract_functions(self, node: Node, byte_content: bytes, declarations: list[Declaration]):
         """Extract function declarations from the AST."""
         if node.type == "function_definition":
             # Find the function name
@@ -117,7 +117,7 @@ class TreeSitterBashParser(BaseTreeSitterParser):
         for child in node.children:
             self._extract_functions(child, byte_content, declarations)
 
-    def _extract_variables(self, node: Node, byte_content: bytes, declarations: List[Declaration]):
+    def _extract_variables(self, node: Node, byte_content: bytes, declarations: list[Declaration]):
         """Extract variable declarations from the AST."""
         if node.type == "variable_assignment":
             # Find the variable name
@@ -146,7 +146,7 @@ class TreeSitterBashParser(BaseTreeSitterParser):
         for child in node.children:
             self._extract_variables(child, byte_content, declarations)
 
-    def _extract_imports(self, node: Node, byte_content: bytes, imports: List[str]):
+    def _extract_imports(self, node: Node, byte_content: bytes, imports: list[str]):
         """Extract source/include statements from the AST."""
         if node.type == "command":
             # Check if it's a source or . command
@@ -180,7 +180,7 @@ class TreeSitterBashParser(BaseTreeSitterParser):
         for child in node.children:
             self._extract_imports(child, byte_content, imports)
 
-    def _extract_aliases(self, node: Node, byte_content: bytes, declarations: List[Declaration]):
+    def _extract_aliases(self, node: Node, byte_content: bytes, declarations: list[Declaration]):
         """Extract alias declarations from the AST."""
         if node.type == "command":
             # Check if it's an alias command
@@ -219,7 +219,7 @@ class TreeSitterBashParser(BaseTreeSitterParser):
         for child in node.children:
             self._extract_aliases(child, byte_content, declarations)
 
-    def _create_parse_result(self, declarations: List[Declaration], imports: List[str]) -> Any:
+    def _create_parse_result(self, declarations: list[Declaration], imports: list[str]) -> Any:
         """Create a parse result object."""
         from ...base_types import ParseResult
 

@@ -18,7 +18,6 @@ Supports Elixir 1.12+ with features including:
 """
 
 import logging
-from typing import Dict, List, Optional, Set
 
 from tree_sitter import Node
 
@@ -26,7 +25,7 @@ from ...base_types import Declaration, ParseResult
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
@@ -89,20 +88,20 @@ class TreeSitterElixirParser(BaseTreeSitterParser):
         """Initialize the Elixir parser."""
         super().__init__("elixir")
         # Language-specific tracking (not part of ParseResult)
-        self._genserver_callbacks: Set[str] = set()
-        self._liveview_callbacks: Set[str] = set()
+        self._genserver_callbacks: set[str] = set()
+        self._liveview_callbacks: set[str] = set()
         self._pattern_matches: int = 0
         self._pipe_operations: int = 0
-        self._behaviors: Set[str] = set()
-        self._protocols: Set[str] = set()
-        self._macros: Set[str] = set()
+        self._behaviors: set[str] = set()
+        self._protocols: set[str] = set()
+        self._macros: set[str] = set()
         self._supervisor_trees: int = 0
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Get the tree-sitter queries for Elixir."""
         return ELIXIR_QUERIES
 
-    def parse(self, content: str, file_path: Optional[str] = None) -> ParseResult:
+    def parse(self, content: str, file_path: str | None = None) -> ParseResult:
         """
         Parse Elixir source code and extract structured information.
 
@@ -133,7 +132,7 @@ class TreeSitterElixirParser(BaseTreeSitterParser):
         return result
 
     def _track_language_features(
-        self, root_node: Node, declarations: List[Declaration], content: str
+        self, root_node: Node, declarations: list[Declaration], content: str
     ) -> None:
         """
         Analyze the AST to track Elixir-specific language features.

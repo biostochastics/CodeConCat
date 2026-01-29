@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
 
 
 class ModelTier(Enum):
@@ -29,8 +28,8 @@ class ModelConfig:
     supports_functions: bool = False
     supports_vision: bool = False
     supports_streaming: bool = True
-    tokenizer: Optional[str] = None  # tiktoken model or custom
-    notes: Optional[str] = None
+    tokenizer: str | None = None  # tiktoken model or custom
+    notes: str | None = None
 
 
 # Current model configurations (as of 2025)
@@ -330,6 +329,209 @@ MODEL_CONFIGS = {
         tokenizer="llama",
         notes="Local model, no API costs",
     ),
+    # DeepSeek Models (2025) - OpenAI-compatible API
+    "deepseek-chat": ModelConfig(
+        provider="deepseek",
+        model_id="deepseek-chat",
+        display_name="DeepSeek Chat",
+        tier=ModelTier.BUDGET,
+        context_window=64000,
+        max_output=8192,
+        cost_per_1k_input=0.00014,
+        cost_per_1k_output=0.00028,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="DeepSeek's general-purpose chat model - extremely cost-effective",
+    ),
+    "deepseek-coder": ModelConfig(
+        provider="deepseek",
+        model_id="deepseek-coder",
+        display_name="DeepSeek Coder",
+        tier=ModelTier.BUDGET,
+        context_window=64000,
+        max_output=8192,
+        cost_per_1k_input=0.00014,
+        cost_per_1k_output=0.00028,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="DeepSeek's code-specialized model - excellent for code tasks",
+    ),
+    "deepseek-reasoner": ModelConfig(
+        provider="deepseek",
+        model_id="deepseek-reasoner",
+        display_name="DeepSeek Reasoner",
+        tier=ModelTier.STANDARD,
+        context_window=64000,
+        max_output=8192,
+        cost_per_1k_input=0.00055,
+        cost_per_1k_output=0.00219,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="DeepSeek R1 reasoning model - chain-of-thought capabilities",
+    ),
+    # MiniMax Models (2025) - OpenAI-compatible API
+    "minimax-m2": ModelConfig(
+        provider="minimax",
+        model_id="MiniMax-Text-01",
+        display_name="MiniMax M2",
+        tier=ModelTier.STANDARD,
+        context_window=1000000,
+        max_output=16384,
+        cost_per_1k_input=0.0004,
+        cost_per_1k_output=0.0016,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="MiniMax's flagship model with 1M context window",
+    ),
+    "minimax-m1": ModelConfig(
+        provider="minimax",
+        model_id="abab6.5s-chat",
+        display_name="MiniMax M1",
+        tier=ModelTier.BUDGET,
+        context_window=245760,
+        max_output=8192,
+        cost_per_1k_input=0.0001,
+        cost_per_1k_output=0.0001,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="MiniMax's efficient model - good balance of cost and quality",
+    ),
+    # Qwen/DashScope Models (2025) - OpenAI-compatible API
+    "qwen-coder-plus": ModelConfig(
+        provider="qwen",
+        model_id="qwen-coder-plus",
+        display_name="Qwen Coder Plus",
+        tier=ModelTier.STANDARD,
+        context_window=131072,
+        max_output=16384,
+        cost_per_1k_input=0.0008,
+        cost_per_1k_output=0.0024,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="Qwen's premium code model - excellent for complex code tasks",
+    ),
+    "qwen-coder-turbo": ModelConfig(
+        provider="qwen",
+        model_id="qwen-coder-turbo",
+        display_name="Qwen Coder Turbo",
+        tier=ModelTier.BUDGET,
+        context_window=131072,
+        max_output=16384,
+        cost_per_1k_input=0.0002,
+        cost_per_1k_output=0.0006,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="Qwen's fast code model - good for quick tasks",
+    ),
+    "qwen3-235b-instruct": ModelConfig(
+        provider="qwen",
+        model_id="qwen3-235b-a22b",
+        display_name="Qwen3 235B Instruct",
+        tier=ModelTier.FLAGSHIP,
+        context_window=131072,
+        max_output=16384,
+        cost_per_1k_input=0.002,
+        cost_per_1k_output=0.006,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="Qwen's flagship model - MoE architecture with top performance",
+    ),
+    # Google Gemini Models (direct API - 2025)
+    "gemini-2.5-pro": ModelConfig(
+        provider="google",
+        model_id="gemini-2.5-pro-preview-05-06",
+        display_name="Gemini 2.5 Pro",
+        tier=ModelTier.STANDARD,
+        context_window=1048576,
+        max_output=65536,
+        cost_per_1k_input=0.00125,
+        cost_per_1k_output=0.005,
+        supports_functions=True,
+        supports_vision=True,
+        tokenizer="gemini",
+        notes="Google's latest Pro model with thinking capabilities (direct API)",
+    ),
+    "gemini-2.0-flash": ModelConfig(
+        provider="google",
+        model_id="gemini-2.0-flash",
+        display_name="Gemini 2.0 Flash",
+        tier=ModelTier.BUDGET,
+        context_window=1048576,
+        max_output=8192,
+        cost_per_1k_input=0.0,  # Free tier available
+        cost_per_1k_output=0.0,
+        supports_functions=True,
+        supports_vision=True,
+        tokenizer="gemini",
+        notes="Google's fast model - free tier available (direct API)",
+    ),
+    "gemini-1.5-flash": ModelConfig(
+        provider="google",
+        model_id="gemini-1.5-flash",
+        display_name="Gemini 1.5 Flash",
+        tier=ModelTier.BUDGET,
+        context_window=1048576,
+        max_output=8192,
+        cost_per_1k_input=0.000075,
+        cost_per_1k_output=0.0003,
+        supports_functions=True,
+        supports_vision=True,
+        tokenizer="gemini",
+        notes="Google's efficient 1.5 model (direct API)",
+    ),
+    # Zhipu GLM Models (2025) - Native API
+    "glm-4": ModelConfig(
+        provider="zhipu",
+        model_id="glm-4",
+        display_name="GLM-4",
+        tier=ModelTier.STANDARD,
+        context_window=128000,
+        max_output=4096,
+        cost_per_1k_input=0.0014,
+        cost_per_1k_output=0.0014,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="Zhipu's flagship model - strong multilingual capabilities",
+    ),
+    "glm-4-plus": ModelConfig(
+        provider="zhipu",
+        model_id="glm-4-plus",
+        display_name="GLM-4 Plus",
+        tier=ModelTier.PREMIUM,
+        context_window=128000,
+        max_output=4096,
+        cost_per_1k_input=0.007,
+        cost_per_1k_output=0.007,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="Zhipu's premium model with extended thinking",
+    ),
+    "glm-4-flash": ModelConfig(
+        provider="zhipu",
+        model_id="glm-4-flash",
+        display_name="GLM-4 Flash",
+        tier=ModelTier.BUDGET,
+        context_window=128000,
+        max_output=4096,
+        cost_per_1k_input=0.0001,
+        cost_per_1k_output=0.0001,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="Zhipu's efficient model - excellent cost-performance ratio",
+    ),
+    "codegeex-4": ModelConfig(
+        provider="zhipu",
+        model_id="codegeex-4",
+        display_name="CodeGeeX-4",
+        tier=ModelTier.BUDGET,
+        context_window=128000,
+        max_output=4096,
+        cost_per_1k_input=0.0001,
+        cost_per_1k_output=0.0001,
+        supports_functions=True,
+        tokenizer="gpt2",
+        notes="Zhipu's code-specialized model - free for developers",
+    ),
 }
 
 
@@ -338,29 +540,41 @@ DEFAULT_MODELS = {
     "budget": [
         "gpt-5-nano-2025-08-07",  # OpenAI latest budget (Aug 2025)
         "claude-3-5-haiku-latest",  # Anthropic latest Haiku
-        "google/gemini-2.5-flash",  # Google cheapest (2025)
-        "z-ai/glm-4.5",  # Z-AI multilingual
+        "gemini-2.0-flash",  # Google free tier (direct API)
+        "deepseek-coder",  # DeepSeek extremely cheap
+        "qwen-coder-turbo",  # Qwen fast and cheap
+        "glm-4-flash",  # Zhipu efficient
     ],
     "standard": [
         "claude-sonnet-4.1",  # Best balance (2025)
         "gpt-4o",  # OpenAI standard
-        "google/gemini-2.5-pro",  # Google standard (2025)
-        "qwen/qwq-32b-preview",  # Qwen reasoning (2025)
+        "gemini-2.5-pro",  # Google standard (direct API)
+        "qwen-coder-plus",  # Qwen code specialist
+        "glm-4",  # Zhipu standard
+        "minimax-m2",  # MiniMax 1M context
     ],
     "premium": [
         "gpt-5",  # OpenAI flagship (2025)
         "claude-3-opus-20240229",  # Claude most capable
-        "google/gemini-2.5-pro",  # Google premium
+        "qwen3-235b-instruct",  # Qwen flagship
+        "glm-4-plus",  # Zhipu premium
     ],
     "free": [
-        "gemini-2.0-flash-exp",  # Free experimental
+        "gemini-2.0-flash",  # Google free tier
         "openrouter/mistralai/mistral-7b-instruct",  # Free tier
         "ollama/llama3.2",  # Local
+        "codegeex-4",  # Zhipu code model (free for devs)
+    ],
+    "code_review": [
+        "deepseek-coder",  # Excellent for code, very cheap
+        "qwen-coder-plus",  # Premium code model
+        "codegeex-4",  # Zhipu code specialist
+        "gemini-2.0-flash",  # Free with good code understanding
     ],
 }
 
 
-def get_model_config(model_id: str) -> Optional[ModelConfig]:
+def get_model_config(model_id: str) -> ModelConfig | None:
     """Get configuration for a specific model.
 
     Args:
@@ -380,9 +594,7 @@ def get_model_config(model_id: str) -> Optional[ModelConfig]:
     return None
 
 
-def get_cheapest_model(
-    provider: Optional[str] = None, min_context: int = 16000
-) -> Optional[ModelConfig]:
+def get_cheapest_model(provider: str | None = None, min_context: int = 16000) -> ModelConfig | None:
     """Get the cheapest available model.
 
     Args:
@@ -409,7 +621,7 @@ def get_cheapest_model(
     return None
 
 
-def get_models_by_tier(tier: ModelTier) -> List[ModelConfig]:
+def get_models_by_tier(tier: ModelTier) -> list[ModelConfig]:
     """Get all models in a specific tier.
 
     Args:

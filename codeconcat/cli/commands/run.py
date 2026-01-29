@@ -5,7 +5,7 @@ Run command - Main processing functionality.
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any
 
 import typer
 from rich.panel import Panel
@@ -18,7 +18,6 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 from rich.table import Table
-from typing_extensions import Annotated
 
 from codeconcat.config.config_builder import ConfigBuilder
 from codeconcat.errors import CodeConcatError
@@ -83,7 +82,7 @@ def validate_security_threshold(value: str) -> str:
     return value.upper()
 
 
-def complete_provider(incomplete: str) -> List[str]:
+def complete_provider(incomplete: str) -> list[str]:
     """Autocompletion for AI provider names."""
     providers = [
         "openai",
@@ -99,7 +98,7 @@ def complete_provider(incomplete: str) -> List[str]:
     return [p for p in providers if p.startswith(incomplete.lower())]
 
 
-def complete_language(incomplete: str) -> List[str]:
+def complete_language(incomplete: str) -> list[str]:
     """Autocompletion for programming languages."""
     languages = [
         "python",
@@ -125,7 +124,7 @@ def complete_language(incomplete: str) -> List[str]:
     return [lang for lang in languages if lang.startswith(incomplete.lower())]
 
 
-def _get_api_key_for_provider(provider: Optional[str]) -> Optional[str]:
+def _get_api_key_for_provider(provider: str | None) -> str | None:
     """Get API key from environment based on provider type.
 
     Args:
@@ -157,14 +156,14 @@ def _get_api_key_for_provider(provider: Optional[str]) -> Optional[str]:
 
 def run_command(
     target: Annotated[
-        Optional[str],
+        str | None,
         typer.Argument(
             help="Target directory, file, or GitHub URL/shorthand (e.g., owner/repo)",
         ),
     ] = None,
     # Output options
     output: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--output",
             "-o",
@@ -184,7 +183,7 @@ def run_command(
         ),
     ] = OutputFormat.MARKDOWN,
     preset: Annotated[
-        Optional[OutputPreset],
+        OutputPreset | None,
         typer.Option(
             "--preset",
             "-p",
@@ -194,7 +193,7 @@ def run_command(
     ] = None,
     # Source options
     source_url: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--source-url",
             help="URL or owner/repo shorthand for remote repositories",
@@ -202,7 +201,7 @@ def run_command(
         ),
     ] = None,
     github_token: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--github-token",
             help="GitHub PAT for private repositories",
@@ -211,7 +210,7 @@ def run_command(
         ),
     ] = None,
     source_ref: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--source-ref",
             help="Branch, tag, or commit hash for Git source",
@@ -220,7 +219,7 @@ def run_command(
     ] = None,
     # Diff mode options
     diff_from: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--diff-from",
             help="Starting Git ref for diff mode (branch, tag, or commit)",
@@ -228,7 +227,7 @@ def run_command(
         ),
     ] = None,
     diff_to: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--diff-to",
             help="Ending Git ref for diff mode (branch, tag, or commit)",
@@ -237,7 +236,7 @@ def run_command(
     ] = None,
     # Filtering options
     include_paths: Annotated[
-        Optional[List[str]],
+        list[str] | None,
         typer.Option(
             "--include-path",
             "-ip",
@@ -246,7 +245,7 @@ def run_command(
         ),
     ] = None,
     exclude_paths: Annotated[
-        Optional[List[str]],
+        list[str] | None,
         typer.Option(
             "--exclude-path",
             "-ep",
@@ -255,7 +254,7 @@ def run_command(
         ),
     ] = None,
     include_languages: Annotated[
-        Optional[List[str]],
+        list[str] | None,
         typer.Option(
             "--include-language",
             "-il",
@@ -265,7 +264,7 @@ def run_command(
         ),
     ] = None,
     exclude_languages: Annotated[
-        Optional[List[str]],
+        list[str] | None,
         typer.Option(
             "--exclude-language",
             "-el",
@@ -292,7 +291,7 @@ def run_command(
     ] = True,
     # Processing options
     parser_engine: Annotated[
-        Optional[ParserEngine],
+        ParserEngine | None,
         typer.Option(
             "--parser-engine",
             help="Parser engine to use",
@@ -377,7 +376,7 @@ def run_command(
         ),
     ] = False,
     ai_provider: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--ai-provider",
             help=(
@@ -389,7 +388,7 @@ def run_command(
         ),
     ] = None,
     ai_model: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--ai-model",
             help="Specific AI model to use (e.g., gpt-3.5-turbo, claude-3-haiku)",
@@ -397,7 +396,7 @@ def run_command(
         ),
     ] = None,
     ai_api_key: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--ai-api-key",
             help="API key for AI provider (or set OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)",
@@ -405,7 +404,7 @@ def run_command(
         ),
     ] = None,
     ai_api_base: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--ai-api-base",
             help="Override the API base URL for the selected AI provider",
@@ -429,7 +428,7 @@ def run_command(
         ),
     ] = False,
     ai_meta_overview_prompt: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--ai-meta-prompt",
             help="Custom prompt for meta-overview generation",
@@ -445,7 +444,7 @@ def run_command(
         ),
     ] = True,
     ai_meta_overview_model: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--ai-meta-model",
             help="Override model for meta-overview generation",
@@ -461,7 +460,7 @@ def run_command(
         ),
     ] = False,
     ai_summaries_dir: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--ai-summaries-dir",
             help="Directory for saving AI summaries (relative to output or absolute)",
@@ -470,7 +469,7 @@ def run_command(
     ] = None,
     # Local LLM Performance Options (llama.cpp)
     llama_gpu_layers: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             "--llama-gpu-layers",
             help="Number of layers to offload to GPU for llama.cpp (0=CPU only)",
@@ -478,7 +477,7 @@ def run_command(
         ),
     ] = None,
     llama_context_size: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             "--llama-context",
             help="Context window size for llama.cpp (default: 2048)",
@@ -486,7 +485,7 @@ def run_command(
         ),
     ] = None,
     llama_threads: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             "--llama-threads",
             help="Number of CPU threads for llama.cpp",
@@ -494,7 +493,7 @@ def run_command(
         ),
     ] = None,
     llama_batch_size: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             "--llama-batch",
             help="Batch size for llama.cpp prompt processing",
@@ -553,7 +552,7 @@ def run_command(
         ),
     ] = False,
     xml_processing_instructions: Annotated[
-        Optional[bool],
+        bool | None,
         typer.Option(
             "--xml-pi/--no-xml-pi",
             help="Include AI processing instructions in XML output",
@@ -561,7 +560,7 @@ def run_command(
         ),
     ] = None,
     prompt_file: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--prompt-file",
             help="Custom prompt file for codebase review",
@@ -571,7 +570,7 @@ def run_command(
         ),
     ] = None,
     prompt_var: Annotated[
-        Optional[List[str]],
+        list[str] | None,
         typer.Option(
             "--prompt-var",
             help="Prompt variables (format: KEY=value)",
@@ -619,7 +618,7 @@ def run_command(
             show_quote()
 
         # Detect if target is a URL or local path
-        actual_target: Optional[str] = target or "."
+        actual_target: str | None = target or "."
         actual_source_url = source_url
 
         # Check if target is a GitHub URL or shorthand
@@ -673,7 +672,7 @@ def run_command(
 
             # Apply CLI arguments
             # Important: Only set target_path if we're not using source_url
-            cli_args: Dict[str, Any] = {}
+            cli_args: dict[str, Any] = {}
 
             # Only add target_path if we're processing locally (no source URL)
             if actual_source_url:

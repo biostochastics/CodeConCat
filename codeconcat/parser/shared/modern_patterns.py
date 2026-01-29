@@ -17,10 +17,10 @@ Usage:
 """
 
 import re
-from typing import Dict, Pattern
+from re import Pattern
 
 # TypeScript 5.0+ Modern Features
-TYPESCRIPT_MODERN_PATTERNS: Dict[str, Pattern] = {
+TYPESCRIPT_MODERN_PATTERNS: dict[str, Pattern] = {
     # TypeScript 5.0: satisfies operator for type checking without widening
     # Example: const config = { ... } satisfies Config;
     "satisfies": re.compile(
@@ -46,7 +46,7 @@ TYPESCRIPT_MODERN_PATTERNS: Dict[str, Pattern] = {
 }
 
 # Python 3.11+ Modern Features
-PYTHON_MODERN_PATTERNS: Dict[str, Pattern] = {
+PYTHON_MODERN_PATTERNS: dict[str, Pattern] = {
     # Pattern matching (match/case) - PEP 634 (Python 3.10+)
     # Example: match value:
     #              case 1:
@@ -79,7 +79,7 @@ PYTHON_MODERN_PATTERNS: Dict[str, Pattern] = {
 }
 
 # Go 1.18+ Modern Features (Generics)
-GO_MODERN_PATTERNS: Dict[str, Pattern] = {
+GO_MODERN_PATTERNS: dict[str, Pattern] = {
     # Generic function declarations
     # Example: func Foo[T any](x T) T { ... }
     "generic_function": re.compile(
@@ -101,7 +101,7 @@ GO_MODERN_PATTERNS: Dict[str, Pattern] = {
 }
 
 # Rust Modern Features
-RUST_MODERN_PATTERNS: Dict[str, Pattern] = {
+RUST_MODERN_PATTERNS: dict[str, Pattern] = {
     # Async functions
     "async_function": re.compile(r"^\s*(?:pub\s+)?async\s+fn\s+(?P<name>\w+)", re.MULTILINE),
     # Impl Trait syntax
@@ -118,7 +118,7 @@ RUST_MODERN_PATTERNS: Dict[str, Pattern] = {
 }
 
 # PHP Modern Features (PHP 8.0+)
-PHP_MODERN_PATTERNS: Dict[str, Pattern] = {
+PHP_MODERN_PATTERNS: dict[str, Pattern] = {
     # Named arguments (PHP 8.0+)
     # Example: foo(param: 'value')
     "named_arguments": re.compile(r"(?P<name>\w+):\s*(?P<value>[^,)]+)", re.MULTILINE),
@@ -143,7 +143,7 @@ PHP_MODERN_PATTERNS: Dict[str, Pattern] = {
 }
 
 # JavaScript/TypeScript Common Modern Features
-JS_TS_MODERN_PATTERNS: Dict[str, Pattern] = {
+JS_TS_MODERN_PATTERNS: dict[str, Pattern] = {
     # Optional chaining (?.)
     # Example: obj?.prop?.method?.()
     "optional_chaining": re.compile(r"(?P<object>\w+)\?\.", re.MULTILINE),
@@ -160,7 +160,7 @@ JS_TS_MODERN_PATTERNS: Dict[str, Pattern] = {
 }
 
 # Master pattern registry
-MODERN_PATTERNS: Dict[str, Dict[str, Pattern]] = {
+MODERN_PATTERNS: dict[str, dict[str, Pattern]] = {
     "typescript": {**TYPESCRIPT_MODERN_PATTERNS, **JS_TS_MODERN_PATTERNS},
     "javascript": JS_TS_MODERN_PATTERNS,
     "python": PYTHON_MODERN_PATTERNS,
@@ -170,7 +170,7 @@ MODERN_PATTERNS: Dict[str, Dict[str, Pattern]] = {
 }
 
 
-def get_modern_patterns(language: str) -> Dict[str, Pattern]:
+def get_modern_patterns(language: str) -> dict[str, Pattern]:
     """Get modern syntax patterns for a specific language.
 
     Args:
@@ -187,7 +187,7 @@ def get_modern_patterns(language: str) -> Dict[str, Pattern]:
     return MODERN_PATTERNS.get(language.lower(), {})
 
 
-def check_modern_syntax(code: str, language: str) -> Dict[str, int]:
+def check_modern_syntax(code: str, language: str) -> dict[str, int]:
     """Check which modern syntax features are present in code.
 
     Args:

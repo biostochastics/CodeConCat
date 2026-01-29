@@ -2,13 +2,12 @@
 
 import logging
 import re
-from typing import Dict, List, Set
 
 from tree_sitter import Node, Query
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
@@ -221,7 +220,7 @@ R_QUERIES = {
 
 
 # Patterns to clean R comments
-def _clean_r_doc_comment(comment_block: List[str]) -> str:
+def _clean_r_doc_comment(comment_block: list[str]) -> str:
     """Cleans R doc comments using shared doc_comment_utils.
 
     Handles both Roxygen comments (#') and regular comments (#) consistently
@@ -250,17 +249,17 @@ class TreeSitterRParser(BaseTreeSitterParser):
         """Initializes the R Tree-sitter parser."""
         super().__init__(language_name="r")
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns the predefined Tree-sitter queries for R."""
         return R_QUERIES
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs R-specific queries and extracts declarations and imports."""
         queries = self.get_queries()
         declarations = []
-        imports: Set[str] = set()
+        imports: set[str] = set()
         doc_comment_map = {}  # end_line -> List[str]
 
         # --- Pass 1: Extract Comments (potential docstrings) --- #
@@ -269,7 +268,7 @@ class TreeSitterRParser(BaseTreeSitterParser):
             doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
             doc_captures = self._execute_query_with_cursor(doc_query, root_node)
             last_comment_line = -2
-            current_doc_block: List[str] = []
+            current_doc_block: list[str] = []
 
             # doc_captures is a dict: {capture_name: [list of nodes]}
             for _capture_name, nodes in doc_captures.items():

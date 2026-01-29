@@ -14,7 +14,6 @@ Provides multiple merge strategies:
 import logging
 from dataclasses import replace
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
 
 from codeconcat.base_types import Declaration, ParseResult
 
@@ -43,9 +42,9 @@ class ResultMerger:
 
     @staticmethod
     def merge_parse_results(
-        results: List[ParseResult],
+        results: list[ParseResult],
         strategy: MergeStrategy = MergeStrategy.CONFIDENCE_WEIGHTED,
-        language: Optional[str] = None,
+        language: str | None = None,
     ) -> ParseResult:
         """Merge multiple parse results using the specified strategy.
 
@@ -86,8 +85,8 @@ class ResultMerger:
 
     @staticmethod
     def _merge_confidence_weighted(
-        results: List[ParseResult],
-        language: Optional[str] = None,  # noqa: ARG004
+        results: list[ParseResult],
+        language: str | None = None,  # noqa: ARG004
     ) -> ParseResult:
         """Merge results weighted by confidence scores.
 
@@ -175,7 +174,7 @@ class ResultMerger:
         return merged
 
     @staticmethod
-    def _merge_feature_union(results: List[ParseResult]) -> ParseResult:
+    def _merge_feature_union(results: list[ParseResult]) -> ParseResult:
         """Merge results by taking union of all features.
 
         This strategy maximizes coverage by including declarations from
@@ -194,7 +193,7 @@ class ResultMerger:
         all_declarations = []
         all_imports = []
         all_security_issues = []
-        seen_signatures: Set[str] = set()
+        seen_signatures: set[str] = set()
 
         # Collect all unique declarations
         for result in results:
@@ -237,7 +236,7 @@ class ResultMerger:
         return merged
 
     @staticmethod
-    def _merge_fast_fail(results: List[ParseResult]) -> ParseResult:
+    def _merge_fast_fail(results: list[ParseResult]) -> ParseResult:
         """Legacy fast-fail strategy: first high-confidence result wins.
 
         This replicates the old pipeline behavior but with confidence awareness.
@@ -263,7 +262,7 @@ class ResultMerger:
         return best
 
     @staticmethod
-    def _merge_best_of_breed(results: List[ParseResult]) -> ParseResult:
+    def _merge_best_of_breed(results: list[ParseResult]) -> ParseResult:
         """Pick best parser for each feature type.
 
         Example: tree-sitter for functions, enhanced for complex class hierarchies
@@ -275,7 +274,7 @@ class ResultMerger:
             Merged result combining best features from each parser
         """
         # Group declarations by kind
-        decls_by_kind: Dict[str, List[Tuple[Declaration, str]]] = {}
+        decls_by_kind: dict[str, list[tuple[Declaration, str]]] = {}
 
         for result in results:
             parser_id = result.parser_type or result.engine_used
@@ -287,7 +286,7 @@ class ResultMerger:
 
         # For each kind, pick the most complete declarations
         best_declarations = []
-        seen_signatures: Set[str] = set()
+        seen_signatures: set[str] = set()
 
         for _kind, decl_list in decls_by_kind.items():
             # Sort by completeness (has docstring, signature, modifiers, etc.)

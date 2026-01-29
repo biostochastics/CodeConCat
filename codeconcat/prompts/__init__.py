@@ -8,7 +8,6 @@ prompts used for LLM-based codebase analysis.
 import os
 import re
 from pathlib import Path
-from typing import Dict, Optional
 
 
 class PromptManager:
@@ -22,7 +21,7 @@ class PromptManager:
         self.prompts_dir = Path(__file__).parent
         self.default_prompt_path = self.prompts_dir / self.DEFAULT_PROMPT_FILE
 
-    def load_prompt(self, prompt_file: Optional[str] = None) -> str:
+    def load_prompt(self, prompt_file: str | None = None) -> str:
         """
         Load a prompt from file.
 
@@ -70,7 +69,7 @@ class PromptManager:
 
         return content
 
-    def substitute_variables(self, prompt: str, variables: Dict[str, str]) -> str:
+    def substitute_variables(self, prompt: str, variables: dict[str, str]) -> str:
         """
         Substitute variables in the prompt.
 
@@ -152,7 +151,7 @@ class PromptManager:
         return self.load_prompt()
 
     def prepare_prompt(
-        self, prompt_file: Optional[str] = None, variables: Optional[Dict[str, str]] = None
+        self, prompt_file: str | None = None, variables: dict[str, str] | None = None
     ) -> str:
         """
         Load and prepare a prompt with variable substitution.
@@ -173,7 +172,7 @@ class PromptManager:
 
 
 # Convenience function
-def get_review_prompt(custom_file: Optional[str] = None, **kwargs) -> str:
+def get_review_prompt(custom_file: str | None = None, **kwargs) -> str:
     """
     Get a codebase review prompt.
 

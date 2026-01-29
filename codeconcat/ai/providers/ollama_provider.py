@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiohttp
 
@@ -13,7 +13,7 @@ from ..cache import SummaryCache
 class OllamaProvider(AIProvider):
     """Ollama provider for local model code summarization."""
 
-    _session: Optional[aiohttp.ClientSession]
+    _session: aiohttp.ClientSession | None
 
     def __init__(self, config: AIProviderConfig):
         """Initialize Ollama provider with auto-discovery."""
@@ -33,7 +33,7 @@ class OllamaProvider(AIProvider):
 
         self.cache = SummaryCache() if config.cache_enabled else None
 
-    async def _auto_discover_model(self) -> Optional[str]:
+    async def _auto_discover_model(self) -> str | None:
         """Auto-discover the best available model for code summarization."""
         try:
             # Create a temporary session for discovery
@@ -92,14 +92,17 @@ class OllamaProvider(AIProvider):
             return None
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create an aiohttp session."""
+        """Get or create an aiohttp session (thread-safe)."""
         if self._session is None:
-            headers = {"Content-Type": "application/json", **self.config.custom_headers}
-            timeout = aiohttp.ClientTimeout(total=self.config.timeout)
-            self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
+            async with self._session_lock:
+                # Double-check after acquiring lock
+                if self._session is None:
+                    headers = {"Content-Type": "application/json", **self.config.custom_headers}
+                    timeout = aiohttp.ClientTimeout(total=self.config.timeout)
+                    self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
         return self._session
 
-    async def _make_api_call(self, prompt: str, max_tokens: Optional[int] = None) -> dict:
+    async def _make_api_call(self, prompt: str, max_tokens: int | None = None) -> dict:
         """Make an API call to Ollama."""
         session = await self._get_session()
 
@@ -128,8 +131,8 @@ class OllamaProvider(AIProvider):
         self,
         code: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
-        max_length: Optional[int] = None,
+        context: dict[str, Any] | None = None,
+        max_length: int | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a code file using Ollama."""
         # Check cache first
@@ -202,7 +205,7 @@ class OllamaProvider(AIProvider):
         function_code: str,
         function_name: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a specific function using Ollama."""
         # Check cache first
@@ -279,7 +282,7 @@ class OllamaProvider(AIProvider):
                 summary="", error=str(e), model_used=self.config.model, provider="ollama"
             )
 
-    async def get_model_info(self) -> Dict[str, Any]:
+    async def get_model_info(self) -> dict[str, Any]:
         """Get information about the current Ollama model."""
         info = {
             "provider": "ollama",

@@ -10,17 +10,16 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 from ..base_types import CodeConCatConfig, SecurityIssue, SecuritySeverity
 
 
 def run_semgrep_scan(
     file_path: str | Path,
-    config: Optional[CodeConCatConfig] = None,  # noqa: ARG001
+    config: CodeConCatConfig | None = None,  # noqa: ARG001
     semgrep_path: str = "semgrep",
-    rules: Optional[str] = "p/ci",  # Default to Semgrep's community ruleset
-) -> List[SecurityIssue]:
+    rules: str | None = "p/ci",  # Default to Semgrep's community ruleset
+) -> list[SecurityIssue]:
     """Run Semgrep on the given file and return SecurityIssue objects.
 
     Args:

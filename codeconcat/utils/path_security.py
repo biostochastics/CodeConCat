@@ -15,7 +15,6 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from typing import Optional, Union
 from urllib.parse import unquote
 
 
@@ -26,8 +25,8 @@ class PathTraversalError(Exception):
 
 
 def validate_safe_path(
-    path: Union[str, Path],
-    base_path: Optional[Union[str, Path]] = None,
+    path: str | Path,
+    base_path: str | Path | None = None,
     allow_symlinks: bool = False,
 ) -> Path:
     """

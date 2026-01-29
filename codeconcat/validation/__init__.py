@@ -8,7 +8,7 @@ configuration, and API inputs.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any
 from urllib.parse import urlparse
 
 from ..errors import ValidationError
@@ -100,7 +100,7 @@ class InputValidator:
 
     @staticmethod
     def validate_file_path(
-        file_path: Union[str, Path], check_exists: bool = True, base_dir: Optional[Path] = None
+        file_path: str | Path, check_exists: bool = True, base_dir: Path | None = None
     ) -> Path:
         """
         Validate a file path.
@@ -153,7 +153,7 @@ class InputValidator:
 
     @staticmethod
     def validate_file_size(
-        file_path: Union[str, Path], max_size: int = MAX_FILE_SIZE, base_dir: Optional[Path] = None
+        file_path: str | Path, max_size: int = MAX_FILE_SIZE, base_dir: Path | None = None
     ) -> bool:
         """
         Check if a file's size is within the allowed limit.
@@ -180,9 +180,9 @@ class InputValidator:
 
     @staticmethod
     def validate_file_extension(
-        file_path: Union[str, Path],
-        allowed_extensions: Optional[Set[str]] = None,
-        base_dir: Optional[Path] = None,
+        file_path: str | Path,
+        allowed_extensions: set[str] | None = None,
+        base_dir: Path | None = None,
     ) -> bool:
         """
         Validate a file's extension against a set of allowed extensions.
@@ -219,7 +219,7 @@ class InputValidator:
 
     @staticmethod
     def validate_file_content(
-        file_path: Union[str, Path], check_binary: bool = True, base_dir: Optional[Path] = None
+        file_path: str | Path, check_binary: bool = True, base_dir: Path | None = None
     ) -> bool:
         """
         Validate the content of a file.
@@ -248,7 +248,7 @@ class InputValidator:
 
     @staticmethod
     def validate_directory_path(
-        directory_path: Union[str, Path], check_exists: bool = True, base_dir: Optional[Path] = None
+        directory_path: str | Path, check_exists: bool = True, base_dir: Path | None = None
     ) -> Path:
         """
         Validate a directory path.
@@ -278,7 +278,7 @@ class InputValidator:
         return path
 
     @staticmethod
-    def validate_url(url: str, allowed_domains: Optional[Set[str]] = None) -> str:
+    def validate_url(url: str, allowed_domains: set[str] | None = None) -> str:
         """
         Validate a URL.
 
@@ -328,9 +328,7 @@ class InputValidator:
             raise ValidationError(f"Invalid URL: {url}") from e
 
     @staticmethod
-    def validate_config(
-        config: Dict[str, Any], required_fields: Optional[List[str]] = None
-    ) -> bool:
+    def validate_config(config: dict[str, Any], required_fields: list[str] | None = None) -> bool:
         """
         Validate a configuration dictionary.
 

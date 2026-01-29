@@ -2,7 +2,7 @@
 
 import os
 import re
-from typing import Any, List, Optional
+from typing import Any
 
 from ..base_types import CodeConCatConfig, ParsedFileData
 
@@ -37,7 +37,7 @@ def remove_comments(content: str) -> str:
     lines = content.split("\n")
     processed_lines = []
     in_multiline_string = False
-    multiline_delimiter: Optional[str] = None
+    multiline_delimiter: str | None = None
 
     for line in lines:
         # Check for multiline string continuation
@@ -573,7 +573,7 @@ def generate_file_summary(file_data: ParsedFileData, config: CodeConCatConfig) -
     return "\n".join(summary)
 
 
-def generate_directory_structure(file_paths: List[str]) -> str:
+def generate_directory_structure(file_paths: list[str]) -> str:
     """
     Generate a tree-like directory structure representation from file paths.
 
@@ -611,7 +611,7 @@ def generate_directory_structure(file_paths: List[str]) -> str:
             current = current[part]
         current[parts[-1]] = None
 
-    def print_tree(node: dict, prefix: str = "", is_last: bool = True) -> List[str]:  # noqa: ARG001
+    def print_tree(node: dict, prefix: str = "", is_last: bool = True) -> list[str]:  # noqa: ARG001
         """Prints a tree-like structure of a nested dictionary.
         Parameters:
             - node (dict): The input dictionary representing the tree structure.

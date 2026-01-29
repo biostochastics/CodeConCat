@@ -1,9 +1,7 @@
 """Constants and shared configuration values for CodeConcat."""
 
-from typing import List
-
 # Default file patterns to exclude from processing
-DEFAULT_EXCLUDE_PATTERNS: List[str] = [
+DEFAULT_EXCLUDE_PATTERNS: list[str] = [
     # Version Control
     ".git/",  # Match the .git directory itself
     ".git/**",  # Match contents of .git directory
@@ -226,19 +224,84 @@ DEFAULT_EXCLUDE_PATTERNS: List[str] = [
     # Common large directories
     "**/libs/**",
     "**/third_party/**",
-    # Hidden files and directories (aggressive)
-    "**/.*",  # All hidden files and directories
-    "**/.*/",  # All hidden directories
-    "**/.*/***",  # Contents of hidden directories
+    # Hidden directories (specific exclusions - NOT all hidden files)
+    # Version control directories are already excluded above
+    ".secrets/",
+    "**/.secrets/",
+    "**/.secrets/**",
     # Security and secrets
     "*.pem",
     "*.key",
     "*.cert",
     "*.crt",
-    ".secrets/",
     "secrets.yml",
     "secrets.json",
 ]
+
+# Hidden config files that should be INCLUDED (whitelist)
+# These are valuable configuration files that are often hidden
+HIDDEN_CONFIG_WHITELIST = frozenset(
+    {
+        # JavaScript/TypeScript tooling
+        ".eslintrc",
+        ".eslintrc.js",
+        ".eslintrc.cjs",
+        ".eslintrc.json",
+        ".eslintrc.yml",
+        ".eslintrc.yaml",
+        ".prettierrc",
+        ".prettierrc.js",
+        ".prettierrc.cjs",
+        ".prettierrc.json",
+        ".prettierrc.yml",
+        ".prettierrc.yaml",
+        ".babelrc",
+        ".babelrc.js",
+        ".babelrc.json",
+        ".swcrc",
+        ".npmrc",
+        ".nvmrc",
+        ".yarnrc",
+        ".yarnrc.yml",
+        # Editor configuration
+        ".editorconfig",
+        # Python tooling
+        ".flake8",
+        ".pylintrc",
+        ".python-version",
+        ".pre-commit-config.yaml",
+        ".isort.cfg",
+        ".style.yapf",
+        ".coveragerc",
+        # Docker
+        ".dockerignore",
+        # Templates and examples (not actual secrets)
+        ".env.example",
+        ".env.template",
+        ".env.sample",
+        # Ruby
+        ".rubocop.yml",
+        ".ruby-version",
+        # Other tools
+        ".browserslistrc",
+        ".commitlintrc",
+        ".commitlintrc.js",
+        ".commitlintrc.json",
+        ".lintstagedrc",
+        ".lintstagedrc.js",
+        ".lintstagedrc.json",
+        ".huskyrc",
+        ".huskyrc.js",
+        ".huskyrc.json",
+        ".markdownlint.json",
+        ".markdownlintrc",
+        ".prettierignore",
+        ".eslintignore",
+        ".stylelintrc",
+        ".stylelintrc.json",
+        ".stylelintrc.js",
+    }
+)
 
 # File extensions considered as source code
 SOURCE_CODE_EXTENSIONS = {
@@ -299,15 +362,45 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 # Maximum total project size (in bytes)
 MAX_PROJECT_SIZE = 100 * 1024 * 1024  # 100 MB
 
-# Token limits for different models
+# Token limits for different models (updated January 2026)
 TOKEN_LIMITS = {
-    "gpt-3.5-turbo": 16385,
+    # OpenAI GPT models (2026)
+    "gpt-5": 500000,
+    "gpt-5.1": 500000,
+    "gpt-5.2": 1000000,
+    "gpt-5-mini": 256000,
+    "gpt-4.5": 256000,
+    "gpt-4o": 128000,
+    "gpt-4o-mini": 128000,
+    "gpt-4-turbo": 128000,
     "gpt-4": 8192,
-    "gpt-4-32k": 32768,
+    "o1": 200000,
+    "o1-mini": 128000,
+    "o3": 500000,
+    "o3-mini": 256000,
+    # Anthropic Claude models (2026)
+    "claude-opus-4.5": 500000,
+    "claude-opus-4": 500000,
+    "claude-sonnet-4": 400000,
+    "claude-sonnet-4.5": 400000,
+    "claude-haiku-4": 256000,
+    "claude-3.5-sonnet": 200000,
+    "claude-3.5-haiku": 200000,
+    "claude-3-opus": 200000,
+    "claude-3-sonnet": 200000,
+    "claude-3-haiku": 200000,
+    "claude-2.1": 200000,
     "claude": 100000,
-    "claude-2": 100000,
-    "claude-3": 200000,
-    "text-davinci-003": 4097,
+    # Google Gemini models (2026)
+    "gemini-3-preview": 2000000,
+    "gemini-2.5-pro": 2000000,
+    "gemini-2.5-flash": 1000000,
+    "gemini-2.0-pro": 2000000,
+    "gemini-2.0-flash": 1000000,
+    "gemini-1.5-pro": 1000000,
+    "gemini-1.5-flash": 1000000,
+    # Default fallback
+    "default": 200000,
 }
 
 # Compression levels and their settings
@@ -366,3 +459,28 @@ SECURITY_PATTERNS = {
         "ecb",
     ],
 }
+
+# --- Processing Constants ---
+
+# Timeout settings (in seconds)
+REDOS_TIMEOUT_SECONDS: float = 2.0  # Timeout for regex validation
+FILE_PROCESSING_TIMEOUT_SECONDS: int = 30  # Timeout for processing single file
+
+# Size limits
+MAX_REGEX_LENGTH: int = 1000  # Maximum allowed regex pattern length
+BINARY_CHECK_SAMPLE_BYTES: int = 4096  # Bytes to read for binary detection
+GUESSLANG_SAMPLE_CHARS: int = 5000  # Characters to sample for language detection
+
+# Cache sizes
+LANGUAGE_CACHE_SIZE: int = 1024  # LRU cache size for language detection
+PARSER_CACHE_SIZE: int = 64  # LRU cache size for parser instances
+
+# Known ReDoS vulnerability patterns (static analysis)
+# These patterns detect common catastrophic backtracking scenarios
+REDOS_PATTERNS: list[str] = [
+    r"\([^)]*[+*][^)]*\)[+*]",  # Nested quantifiers: (x+)+ or (x*)*
+    r"\(\?:[^)]*[+*][^)]*\)[+*]",  # Non-capturing with nested quantifiers
+    r"\[[^\]]+\][+*]\[[^\]]+\][+*]",  # Adjacent quantified character classes
+    r"[+*]\([^)]*[+*]",  # Quantifier before group with quantifier
+    r"\|[^)]*[+*][^|)]*\|",  # Alternation with quantifiers (overlapping)
+]

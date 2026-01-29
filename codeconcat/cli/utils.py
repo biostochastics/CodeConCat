@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -175,7 +175,7 @@ def create_progress_spinner(_description: str) -> Progress:
     )
 
 
-def print_file_stats(stats: Dict[str, Any]) -> None:
+def print_file_stats(stats: dict[str, Any]) -> None:
     """Print file processing statistics in a nice table."""
     table = Table(title="Processing Statistics", show_header=True, header_style="bold cyan")
     table.add_column("Metric", style="cyan")
@@ -191,7 +191,7 @@ def print_file_stats(stats: Dict[str, Any]) -> None:
     console.print(table)
 
 
-def is_github_url_or_shorthand(target: str) -> Tuple[bool, str]:
+def is_github_url_or_shorthand(target: str) -> tuple[bool, str]:
     """
     Detect if a target string is a GitHub URL or shorthand notation.
 

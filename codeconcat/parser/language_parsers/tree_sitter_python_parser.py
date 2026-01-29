@@ -1,13 +1,12 @@
 # file: codeconcat/parser/language_parsers/tree_sitter_python_parser.py
 
 import logging
-from typing import Dict, List
 
 from tree_sitter import Node
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
@@ -115,13 +114,13 @@ class TreeSitterPythonParser(BaseTreeSitterParser):
         """Initializes the Python Tree-sitter parser."""
         super().__init__(language_name="python")
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns the predefined Tree-sitter queries for Python."""
         return PYTHON_QUERIES
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs Python-specific queries and extracts declarations and imports."""
         declarations = []
         imports = set()

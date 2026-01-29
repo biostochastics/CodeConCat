@@ -11,7 +11,6 @@ import logging
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 from ..errors import ValidationError
 from ..utils.path_security import validate_safe_path
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 class AsyncSemgrepValidator:
     """Async validator that uses semgrep to scan code for security issues."""
 
-    def __init__(self, ruleset_path: Optional[str] = None):
+    def __init__(self, ruleset_path: str | None = None):
         """
         Initialize the async semgrep validator.
 
@@ -50,9 +49,7 @@ class AsyncSemgrepValidator:
         """Check if semgrep is available."""
         return self.semgrep_path is not None
 
-    async def scan_file(
-        self, file_path: Union[str, Path], language: Optional[str] = None
-    ) -> List[Dict]:
+    async def scan_file(self, file_path: str | Path, language: str | None = None) -> list[dict]:
         """
         Scan a file for security issues using semgrep asynchronously.
 
@@ -163,8 +160,8 @@ class AsyncSemgrepValidator:
                 raise ValidationError(f"Failed to scan file with semgrep: {e}") from e
 
     async def scan_directory(
-        self, directory: Union[str, Path], languages: Optional[List[str]] = None
-    ) -> Dict[str, List[Dict]]:
+        self, directory: str | Path, languages: list[str] | None = None
+    ) -> dict[str, list[dict]]:
         """
         Scan a directory for security issues asynchronously.
 
@@ -239,7 +236,7 @@ class AsyncSemgrepValidator:
                         scan_results = json.load(f)
 
                     # Group findings by file
-                    findings_by_file: Dict[str, List[Dict]] = {}
+                    findings_by_file: dict[str, list[dict]] = {}
                     for result in scan_results.get("results", []):
                         file_path = result.get("path", "unknown")
                         if file_path not in findings_by_file:
@@ -265,7 +262,7 @@ class AsyncSemgrepValidator:
                 logger.error(f"Error running semgrep: {e}")
                 raise ValidationError(f"Failed to scan directory with semgrep: {e}") from e
 
-    def _detect_language(self, file_path: Path) -> Optional[str]:
+    def _detect_language(self, file_path: Path) -> str | None:
         """
         Detect the language of a file based on its extension.
 

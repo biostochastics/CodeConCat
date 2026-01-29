@@ -1,5 +1,4 @@
 import random
-from typing import Optional
 
 # Programming quotes and their catified versions - Refined collection of 50 pairs
 QUOTES = [
@@ -212,7 +211,7 @@ QUOTES = [
 ]
 
 
-def get_random_quote(catify: Optional[bool] = None) -> str:
+def get_random_quote(catify: bool | None = None) -> str:
     """
     Returns a random programming quote or its catified version.
     If catify is None, randomly chooses normal or cat version.

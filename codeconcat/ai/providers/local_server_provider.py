@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import aiohttp
 from aiohttp import ClientConnectorError
@@ -11,7 +11,7 @@ from aiohttp import ClientConnectorError
 from ..base import AIProvider, AIProviderConfig, AIProviderType, SummarizationResult
 from ..cache import SummaryCache
 
-_SERVER_PRESETS: Dict[AIProviderType, Dict[str, Optional[str]]] = {
+_SERVER_PRESETS: dict[AIProviderType, dict[str, str | None]] = {
     AIProviderType.LOCAL_SERVER: {
         "name": "local server",
         "api_base": "http://localhost:8000",
@@ -40,10 +40,35 @@ _SERVER_PRESETS: Dict[AIProviderType, Dict[str, Optional[str]]] = {
         "api_key_env": "LLAMACPP_SERVER_API_KEY",
         "model_env": "LLAMACPP_SERVER_MODEL",
     },
+    # Cloud providers with OpenAI-compatible APIs
+    AIProviderType.DEEPSEEK: {
+        "name": "DeepSeek",
+        "api_base": "https://api.deepseek.com",
+        "api_base_env": "DEEPSEEK_API_BASE",
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "model_env": "DEEPSEEK_MODEL",
+        "default_model": "deepseek-coder",
+    },
+    AIProviderType.MINIMAX: {
+        "name": "MiniMax",
+        "api_base": "https://api.minimax.chat/v1",
+        "api_base_env": "MINIMAX_API_BASE",
+        "api_key_env": "MINIMAX_API_KEY",
+        "model_env": "MINIMAX_MODEL",
+        "default_model": "MiniMax-Text-01",
+    },
+    AIProviderType.QWEN: {
+        "name": "Qwen/DashScope",
+        "api_base": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "api_base_env": "DASHSCOPE_API_BASE",
+        "api_key_env": "DASHSCOPE_API_KEY",
+        "model_env": "QWEN_MODEL",
+        "default_model": "qwen-coder-plus",
+    },
 }
 
 
-def _first_non_empty_env(*env_names: Optional[str]) -> Optional[str]:
+def _first_non_empty_env(*env_names: str | None) -> str | None:
     """Return the first environment variable with a non-empty value."""
 
     for env_name in env_names:
@@ -61,7 +86,7 @@ logger = logging.getLogger(__name__)
 class LocalServerProvider(AIProvider):
     """Provider for OpenAI-compatible local inference servers (vLLM, TGI, LocalAI, etc.)."""
 
-    _session: Optional[aiohttp.ClientSession]
+    _session: aiohttp.ClientSession | None
 
     def __init__(self, config: AIProviderConfig):
         """Initialize local server provider."""
@@ -75,20 +100,41 @@ class LocalServerProvider(AIProvider):
         extra_server_kind = config.extra_params.get("server_kind", None)
         self.server_kind = extra_server_kind or preset.get("name") or "local server"
 
+        # Check if this is a cloud provider (has costs) vs local server (free)
+        self._is_cloud_provider = config.provider_type in {
+            AIProviderType.DEEPSEEK,
+            AIProviderType.MINIMAX,
+            AIProviderType.QWEN,
+        }
+
         # Resolve API base precedence: explicit config > provider-specific env > generic env > preset default
         api_base_from_env = _first_non_empty_env(preset.get("api_base_env"), "LOCAL_LLM_API_BASE")
         config.api_base = config.api_base or api_base_from_env or preset.get("api_base")
 
-        # Default to environment model if provided; otherwise mark for auto-discovery
+        # Default to environment model if provided; otherwise check preset default; then mark for auto-discovery
         model_from_env = _first_non_empty_env(preset.get("model_env"), "LOCAL_LLM_MODEL")
         if model_from_env and not config.model:
             config.model = model_from_env
+        elif not config.model and preset.get("default_model"):
+            config.model = str(preset.get("default_model"))
 
-        # Local models have no cost
-        config.cost_per_1k_input_tokens = 0
-        config.cost_per_1k_output_tokens = 0
+        # Set costs based on provider type
+        if self._is_cloud_provider:
+            # Cloud providers have costs - get from models_config if not specified
+            if config.cost_per_1k_input_tokens == 0:
+                from ..models_config import get_model_config
+
+                model_cfg = get_model_config(config.model)
+                if model_cfg:
+                    config.cost_per_1k_input_tokens = model_cfg.cost_per_1k_input
+                    config.cost_per_1k_output_tokens = model_cfg.cost_per_1k_output
+        else:
+            # Local models have no cost
+            config.cost_per_1k_input_tokens = 0
+            config.cost_per_1k_output_tokens = 0
 
         # Some local servers may require an API key (e.g., for auth)
+        # Cloud providers always require an API key
         api_key_from_env = _first_non_empty_env(preset.get("api_key_env"), "LOCAL_LLM_API_KEY")
         if not config.api_key and api_key_from_env:
             config.api_key = api_key_from_env
@@ -98,26 +144,29 @@ class LocalServerProvider(AIProvider):
         self.cache = SummaryCache() if config.cache_enabled else None
         self._auto_discovery_needed = not bool(config.model)
         self._model_autodiscovery_attempted = False
-        self._auto_discovered_model: Optional[str] = None
-        self._last_error_message: Optional[str] = None
+        self._auto_discovered_model: str | None = None
+        self._last_error_message: str | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create an aiohttp session."""
+        """Get or create an aiohttp session (thread-safe)."""
         if self._session is None:
-            headers = {"Content-Type": "application/json"}
-            if self.config.api_key:
-                headers["Authorization"] = f"Bearer {self.config.api_key}"
-            headers.update(self.config.custom_headers)
+            async with self._session_lock:
+                # Double-check after acquiring lock
+                if self._session is None:
+                    headers = {"Content-Type": "application/json"}
+                    if self.config.api_key:
+                        headers["Authorization"] = f"Bearer {self.config.api_key}"
+                    headers.update(self.config.custom_headers)
 
-            timeout = aiohttp.ClientTimeout(total=self.config.timeout)
-            self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
+                    timeout = aiohttp.ClientTimeout(total=self.config.timeout)
+                    self._session = aiohttp.ClientSession(headers=headers, timeout=timeout)
         return self._session
 
     @staticmethod
-    def _parse_models_response(data: Any) -> List[str]:
+    def _parse_models_response(data: Any) -> list[str]:
         """Extract model names from a variety of OpenAI-compatible responses."""
 
-        models: List[str] = []
+        models: list[str] = []
 
         if isinstance(data, dict):
             if isinstance(data.get("data"), list):
@@ -198,7 +247,7 @@ class LocalServerProvider(AIProvider):
             )
             raise RuntimeError(self._last_error_message)
 
-    async def _make_api_call(self, messages: list, max_tokens: Optional[int] = None) -> dict:
+    async def _make_api_call(self, messages: list, max_tokens: int | None = None) -> dict:
         """Make an OpenAI-compatible API call to the local server."""
         session = await self._get_session()
         await self._ensure_model()
@@ -246,8 +295,8 @@ class LocalServerProvider(AIProvider):
         self,
         code: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
-        max_length: Optional[int] = None,
+        context: dict[str, Any] | None = None,
+        max_length: int | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a code file using local server."""
         # Check cache first
@@ -290,8 +339,11 @@ class LocalServerProvider(AIProvider):
             completion_tokens = usage.get("completion_tokens", 0)
             tokens_used = usage.get("total_tokens", prompt_tokens + completion_tokens)
 
-            # Local models have no cost
-            cost = 0.0
+            # Calculate cost (0 for local servers, actual cost for cloud providers)
+            cost = self._calculate_cost(prompt_tokens, completion_tokens)
+
+            # Determine provider name for reporting
+            provider_name = self.server_kind.lower().replace(" ", "_").replace("/", "_")
 
             # Cache the result
             if self.cache and cache_key:
@@ -304,7 +356,7 @@ class LocalServerProvider(AIProvider):
                 tokens_used=tokens_used,
                 cost_estimate=cost,
                 model_used=self.config.model,
-                provider="local_server",
+                provider=provider_name,
                 cached=False,
                 metadata={
                     "input_tokens": prompt_tokens,
@@ -312,13 +364,15 @@ class LocalServerProvider(AIProvider):
                     "api_base": self.config.api_base,
                     "server_kind": self.server_kind,
                     "auto_discovered_model": self._auto_discovered_model,
+                    "is_cloud_provider": self._is_cloud_provider,
                 },
             )
 
         except Exception as e:
             self._last_error_message = str(e)
+            provider_name = self.server_kind.lower().replace(" ", "_").replace("/", "_")
             return SummarizationResult(
-                summary="", error=str(e), model_used=self.config.model, provider="local_server"
+                summary="", error=str(e), model_used=self.config.model, provider=provider_name
             )
 
     async def summarize_function(
@@ -326,7 +380,7 @@ class LocalServerProvider(AIProvider):
         function_code: str,
         function_name: str,
         language: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
         """Generate a summary for a specific function using local server."""
         # Check cache first
@@ -379,8 +433,11 @@ class LocalServerProvider(AIProvider):
             completion_tokens = usage.get("completion_tokens", 0)
             tokens_used = usage.get("total_tokens", prompt_tokens + completion_tokens)
 
-            # Local models have no cost
-            cost = 0.0
+            # Calculate cost (0 for local servers, actual cost for cloud providers)
+            cost = self._calculate_cost(prompt_tokens, completion_tokens)
+
+            # Determine provider name for reporting
+            provider_name = self.server_kind.lower().replace(" ", "_").replace("/", "_")
 
             # Cache the result
             if self.cache and cache_key:
@@ -393,7 +450,7 @@ class LocalServerProvider(AIProvider):
                 tokens_used=tokens_used,
                 cost_estimate=cost,
                 model_used=self.config.model,
-                provider="local_server",
+                provider=provider_name,
                 cached=False,
                 metadata={
                     "input_tokens": prompt_tokens,
@@ -401,26 +458,38 @@ class LocalServerProvider(AIProvider):
                     "api_base": self.config.api_base,
                     "server_kind": self.server_kind,
                     "auto_discovered_model": self._auto_discovered_model,
+                    "is_cloud_provider": self._is_cloud_provider,
                 },
             )
 
         except Exception as e:
             self._last_error_message = str(e)
+            provider_name = self.server_kind.lower().replace(" ", "_").replace("/", "_")
             return SummarizationResult(
-                summary="", error=str(e), model_used=self.config.model, provider="local_server"
+                summary="", error=str(e), model_used=self.config.model, provider=provider_name
             )
 
-    async def get_model_info(self) -> Dict[str, Any]:
+    async def get_model_info(self) -> dict[str, Any]:
         """Get information about the current local server model."""
+        provider_name = self.server_kind.lower().replace(" ", "_").replace("/", "_")
+
         info = {
-            "provider": "local_server",
+            "provider": provider_name,
             "model": self.config.model,
             "api_base": self.config.api_base,
             "temperature": self.config.temperature,
-            "cost_per_1k_input": 0,
-            "cost_per_1k_output": 0,
-            "note": "OpenAI-compatible local inference server",
-            "supported_servers": [
+            "cost_per_1k_input": self.config.cost_per_1k_input_tokens,
+            "cost_per_1k_output": self.config.cost_per_1k_output_tokens,
+            "is_cloud_provider": self._is_cloud_provider,
+            "server_kind": self.server_kind,
+            "auto_discovered_model": self._auto_discovered_model,
+        }
+
+        if self._is_cloud_provider:
+            info["note"] = f"{self.server_kind} - OpenAI-compatible cloud API"
+        else:
+            info["note"] = "OpenAI-compatible local inference server"
+            info["supported_servers"] = [
                 "vLLM",
                 "LM Studio",
                 "llama.cpp server",
@@ -428,10 +497,7 @@ class LocalServerProvider(AIProvider):
                 "LocalAI",
                 "FastChat",
                 "Oobabooga",
-            ],
-            "server_kind": self.server_kind,
-            "auto_discovered_model": self._auto_discovered_model,
-        }
+            ]
 
         # Try to get server info if available
         try:
@@ -559,7 +625,7 @@ class LocalServerProvider(AIProvider):
         return False
 
     @property
-    def last_error(self) -> Optional[str]:
+    def last_error(self) -> str | None:
         """Return the most recent error message from the provider, if any."""
 
         return self._last_error_message

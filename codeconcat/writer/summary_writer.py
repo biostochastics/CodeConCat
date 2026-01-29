@@ -5,7 +5,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ..base_types import CodeConCatConfig, ParsedFileData
 
@@ -68,8 +68,8 @@ class SummaryWriter:
         self,
         file_data: ParsedFileData,
         summary: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Path]:
+        metadata: dict[str, Any] | None = None,
+    ) -> Path | None:
         """Save an individual file summary to disk.
 
         Args:
@@ -122,9 +122,9 @@ class SummaryWriter:
         self,
         meta_overview: str,
         files_summarized: int,
-        metadata: Optional[Dict[str, Any]] = None,
-        tree_structure: Optional[str] = None,
-    ) -> Optional[Path]:
+        metadata: dict[str, Any] | None = None,
+        tree_structure: str | None = None,
+    ) -> Path | None:
         """Save the meta-overview to disk.
 
         Args:
@@ -168,7 +168,7 @@ class SummaryWriter:
             logger.error(f"Failed to save meta-overview: {e}")
             return None
 
-    def load_individual_summary(self, file_path: str) -> Optional[Dict[str, Any]]:
+    def load_individual_summary(self, file_path: str) -> dict[str, Any] | None:
         """Load a previously saved individual summary.
 
         Args:
@@ -185,14 +185,14 @@ class SummaryWriter:
                 return None
 
             with open(summary_path, encoding="utf-8") as f:
-                data: Dict[str, Any] = json.load(f)
+                data: dict[str, Any] = json.load(f)
                 return data
 
         except Exception as e:
             logger.warning(f"Failed to load summary for {file_path}: {e}")
             return None
 
-    def load_meta_overview(self) -> Optional[Dict[str, Any]]:
+    def load_meta_overview(self) -> dict[str, Any] | None:
         """Load a previously saved meta-overview.
 
         Returns:
@@ -205,7 +205,7 @@ class SummaryWriter:
                 return None
 
             with open(meta_path, encoding="utf-8") as f:
-                data: Dict[str, Any] = json.load(f)
+                data: dict[str, Any] = json.load(f)
                 return data
 
         except Exception as e:

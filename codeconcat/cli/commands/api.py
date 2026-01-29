@@ -3,11 +3,11 @@ API command - Start the CodeConCat API server.
 """
 
 import asyncio
+from typing import Annotated
 
 import typer
 import uvicorn
 from rich.panel import Panel
-from typing_extensions import Annotated
 
 from ..utils import console, print_error, print_info
 

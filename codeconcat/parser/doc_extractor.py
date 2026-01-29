@@ -1,11 +1,10 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
 
 from codeconcat.base_types import CodeConCatConfig, ParsedDocData
 
 
-def extract_docs(file_paths: List[str], config: CodeConCatConfig) -> List[ParsedDocData]:
+def extract_docs(file_paths: list[str], config: CodeConCatConfig) -> list[ParsedDocData]:
     doc_paths = [fp for fp in file_paths if is_doc_file(fp, config.doc_extensions)]
 
     with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
@@ -13,7 +12,7 @@ def extract_docs(file_paths: List[str], config: CodeConCatConfig) -> List[Parsed
     return results
 
 
-def is_doc_file(file_path: str, doc_exts: List[str]) -> bool:
+def is_doc_file(file_path: str, doc_exts: list[str]) -> bool:
     ext = os.path.splitext(file_path)[1].lower()
     return ext in doc_exts
 

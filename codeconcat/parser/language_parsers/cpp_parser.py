@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import List, Set
 
 from ...base_types import Declaration, ParseResult
 from ...errors import LanguageParserError
@@ -94,13 +93,13 @@ class CppParser(ParserInterface):
             A ParseResult object containing declarations and imports.
         """
         declarations = []
-        imports: Set[str] = set()
+        imports: set[str] = set()
         lines = content.split("\n")
-        doc_buffer: List[str] = []
+        doc_buffer: list[str] = []
         in_block_comment = False
         in_doc_comment = False
-        current_namespace_stack: List[str] = []
-        current_class_stack: List[str] = []  # For nested classes/structs
+        current_namespace_stack: list[str] = []
+        current_class_stack: list[str] = []  # For nested classes/structs
         bracket_level = 0  # Basic brace tracking for scope
 
         try:

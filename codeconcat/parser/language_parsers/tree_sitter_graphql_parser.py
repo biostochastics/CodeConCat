@@ -17,7 +17,7 @@ Supports GraphQL Schema Definition Language (SDL) and operations with features i
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
@@ -29,7 +29,7 @@ except ImportError:
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
@@ -138,15 +138,33 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         # Cache for parsed tree (reused across extraction methods)
         self._current_tree = None
+        self._current_content_hash: int | None = None  # Track content to detect changes
 
         # Caches for extracted metadata
-        self._cached_types: Optional[List[Dict[Any, Any]]] = None
-        self._cached_operations: Optional[List[Dict[Any, Any]]] = None
-        self._cached_fragments: Optional[List[Dict[Any, Any]]] = None
-        self._type_relationships_cache: Optional[Dict[str, List[str]]] = None
-        self._cached_directives: Optional[Dict[str, List[Dict[Any, Any]]]] = None
+        self._cached_types: list[dict[Any, Any]] | None = None
+        self._cached_operations: list[dict[Any, Any]] | None = None
+        self._cached_fragments: list[dict[Any, Any]] | None = None
+        self._type_relationships_cache: dict[str, list[str]] | None = None
+        self._cached_directives: dict[str, list[dict[Any, Any]]] | None = None
 
-    def get_queries(self) -> Dict[str, str]:
+    def _invalidate_caches_if_content_changed(self, byte_content: bytes) -> None:
+        """Invalidate all caches if the content has changed.
+
+        Args:
+            byte_content: Current content to check against cached content
+        """
+        content_hash = hash(byte_content)
+        if self._current_content_hash != content_hash:
+            # Content has changed, invalidate all caches
+            self._current_tree = None
+            self._cached_types = None
+            self._cached_operations = None
+            self._cached_fragments = None
+            self._type_relationships_cache = None
+            self._cached_directives = None
+            self._current_content_hash = content_hash
+
+    def get_queries(self) -> dict[str, str]:
         """Returns Tree-sitter query patterns for GraphQL.
 
         Returns:
@@ -158,7 +176,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         """
         return GRAPHQL_QUERIES
 
-    def extract_type_definitions(self, byte_content: bytes) -> List[Dict[Any, Any]]:
+    def extract_type_definitions(self, byte_content: bytes) -> list[dict[Any, Any]]:
         """Extract all GraphQL type definitions from SDL.
 
         Extracts object types, interface types, union types, enum types,
@@ -179,6 +197,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(n) where n is number of type definitions
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._cached_types is not None:
             return self._cached_types
 
@@ -224,9 +245,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         self._cached_types = type_defs
         return type_defs
 
-    def _extract_type_definition(
-        self, node: "Node", kind: str, byte_content: bytes
-    ) -> Optional[Dict]:
+    def _extract_type_definition(self, node: "Node", kind: str, byte_content: bytes) -> dict | None:
         """Extract details from a single type definition node.
 
         Args:
@@ -280,7 +299,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
             logger.warning(f"Failed to extract type definition: {e}")
             return None
 
-    def _extract_fields(self, type_node: "Node", byte_content: bytes) -> List[Dict]:
+    def _extract_fields(self, type_node: "Node", byte_content: bytes) -> list[dict]:
         """Extract field definitions from object/interface/input types.
 
         Args:
@@ -315,7 +334,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
     def _extract_input_value_as_field(
         self, input_val_node: "Node", byte_content: bytes
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """Extract input value definition as a field.
 
         Args:
@@ -346,7 +365,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
             logger.warning(f"Failed to extract input value definition: {e}")
             return None
 
-    def _extract_field_definition(self, field_node: "Node", byte_content: bytes) -> Optional[Dict]:
+    def _extract_field_definition(self, field_node: "Node", byte_content: bytes) -> dict | None:
         """Extract details from a single field definition.
 
         Args:
@@ -394,7 +413,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         """
         return byte_content[type_node.start_byte : type_node.end_byte].decode("utf-8")
 
-    def _extract_arguments(self, args_node: "Node", byte_content: bytes) -> List[Dict]:
+    def _extract_arguments(self, args_node: "Node", byte_content: bytes) -> list[dict]:
         """Extract argument definitions from a field or directive.
 
         Args:
@@ -426,7 +445,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         return arguments
 
-    def _extract_enum_values(self, enum_node: "Node", byte_content: bytes) -> List[str]:
+    def _extract_enum_values(self, enum_node: "Node", byte_content: bytes) -> list[str]:
         """Extract enum value names from an enum type definition.
 
         Args:
@@ -453,7 +472,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         return values
 
-    def _extract_union_types(self, union_node: "Node", byte_content: bytes) -> List[str]:
+    def _extract_union_types(self, union_node: "Node", byte_content: bytes) -> list[str]:
         """Extract member type names from a union type definition.
 
         Union member types are nested recursively in the AST, so we need
@@ -468,7 +487,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(t) where t is number of union types
         """
-        types: List[str] = []
+        types: list[str] = []
 
         for child in union_node.children:
             if child.type == "union_member_types":
@@ -478,7 +497,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         return types
 
     def _extract_union_types_recursive(
-        self, node: "Node", byte_content: bytes, types: List[str]
+        self, node: "Node", byte_content: bytes, types: list[str]
     ) -> None:
         """Recursively extract union member types from nested structure.
 
@@ -502,7 +521,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
                 # Recursively process nested union_member_types
                 self._extract_union_types_recursive(child, byte_content, types)
 
-    def extract_directives(self, byte_content: bytes) -> Dict[str, List[Dict[Any, Any]]]:
+    def extract_directives(self, byte_content: bytes) -> dict[str, list[dict[Any, Any]]]:
         """Extract directive definitions and usage from GraphQL schema.
 
         Args:
@@ -515,6 +534,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(d) where d is number of directives
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._cached_directives is not None:
             return self._cached_directives
 
@@ -522,8 +544,8 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         if self._current_tree is None:
             self._current_tree = self.parser.parse(byte_content)
 
-        directive_defs: List[Dict[Any, Any]] = []
-        directive_usages: List[Dict[Any, Any]] = []
+        directive_defs: list[dict[Any, Any]] = []
+        directive_usages: list[dict[Any, Any]] = []
 
         self._extract_directives_recursive(
             self._current_tree.root_node, byte_content, directive_defs, directive_usages
@@ -537,8 +559,8 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         self,
         node: "Node",
         byte_content: bytes,
-        definitions: List[Dict],
-        usages: List[Dict],
+        definitions: list[dict],
+        usages: list[dict],
     ) -> None:
         """Recursively extract directives from AST.
 
@@ -566,7 +588,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         for child in node.children:
             self._extract_directives_recursive(child, byte_content, definitions, usages)
 
-    def _extract_directive_definition(self, node: "Node", byte_content: bytes) -> Optional[Dict]:
+    def _extract_directive_definition(self, node: "Node", byte_content: bytes) -> dict | None:
         """Extract details from a directive definition.
 
         Args:
@@ -581,7 +603,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         try:
             directive_name = None
             arguments = []
-            locations: List[str] = []
+            locations: list[str] = []
 
             for child in node.children:
                 if child.type == "name":
@@ -608,7 +630,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
             return None
 
     def _extract_directive_locations_recursive(
-        self, node: "Node", byte_content: bytes, locations: List[str]
+        self, node: "Node", byte_content: bytes, locations: list[str]
     ) -> None:
         """Recursively extract directive locations from nested structure.
 
@@ -640,7 +662,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
                 # Recursively process nested directive_locations
                 self._extract_directive_locations_recursive(child, byte_content, locations)
 
-    def _extract_directive_usage(self, node: "Node", byte_content: bytes) -> Optional[Dict]:
+    def _extract_directive_usage(self, node: "Node", byte_content: bytes) -> dict | None:
         """Extract details from a directive usage.
 
         Args:
@@ -673,7 +695,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
             logger.warning(f"Failed to extract directive usage: {e}")
             return None
 
-    def extract_operations(self, byte_content: bytes) -> List[Dict[Any, Any]]:
+    def extract_operations(self, byte_content: bytes) -> list[dict[Any, Any]]:
         """Extract GraphQL operations (query, mutation, subscription).
 
         Args:
@@ -689,6 +711,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(o) where o is number of operations
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._cached_operations is not None:
             return self._cached_operations
 
@@ -716,7 +741,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         self._cached_operations = operations
         return operations
 
-    def _extract_operation_definition(self, op_node: "Node", byte_content: bytes) -> Optional[Dict]:
+    def _extract_operation_definition(self, op_node: "Node", byte_content: bytes) -> dict | None:
         """Extract details from an operation definition.
 
         Args:
@@ -760,7 +785,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
             logger.warning(f"Failed to extract operation definition: {e}")
             return None
 
-    def _extract_variables(self, vars_node: "Node", byte_content: bytes) -> List[Dict]:
+    def _extract_variables(self, vars_node: "Node", byte_content: bytes) -> list[dict]:
         """Extract variable definitions from an operation.
 
         Args:
@@ -795,7 +820,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         return variables
 
-    def extract_fragments(self, byte_content: bytes) -> List[Dict[Any, Any]]:
+    def extract_fragments(self, byte_content: bytes) -> list[dict[Any, Any]]:
         """Extract fragment definitions from GraphQL documents.
 
         Args:
@@ -810,6 +835,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(f) where f is number of fragments
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._cached_fragments is not None:
             return self._cached_fragments
 
@@ -837,9 +865,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         self._cached_fragments = fragments
         return fragments
 
-    def _extract_fragment_definition(
-        self, frag_node: "Node", byte_content: bytes
-    ) -> Optional[Dict]:
+    def _extract_fragment_definition(self, frag_node: "Node", byte_content: bytes) -> dict | None:
         """Extract details from a fragment definition.
 
         Args:
@@ -889,7 +915,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
             logger.warning(f"Failed to extract fragment definition: {e}")
             return None
 
-    def extract_type_relationships(self, byte_content: bytes) -> Dict[str, List[str]]:
+    def extract_type_relationships(self, byte_content: bytes) -> dict[str, list[str]]:
         """Extract type-to-type relationships from schema.
 
         Analyzes which types reference other types through their fields.
@@ -904,6 +930,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(t * f) where t is types and f is fields per type
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         if self._type_relationships_cache is not None:
             return self._type_relationships_cache
 
@@ -942,7 +971,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         self._type_relationships_cache = relationships
         return relationships
 
-    def _extract_base_type_name(self, type_str: str) -> Optional[str]:
+    def _extract_base_type_name(self, type_str: str) -> str | None:
         """Extract base type name from a GraphQL type string.
 
         Strips list wrappers ([]) and non-null markers (!) to get the base type.
@@ -990,7 +1019,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         }
         return type_name in builtin_types
 
-    def extract_resolver_requirements(self, byte_content: bytes) -> Dict[str, List[Dict]]:
+    def extract_resolver_requirements(self, byte_content: bytes) -> dict[str, list[dict]]:
         """Identify fields that require custom resolvers.
 
         Fields returning object types (not scalars/enums) typically need resolvers
@@ -1005,6 +1034,9 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         Complexity: O(t * f) where t is types and f is fields per type
         """
+        # Invalidate caches if content has changed
+        self._invalidate_caches_if_content_changed(byte_content)
+
         types = self.extract_type_definitions(byte_content)
 
         # First, categorize all types
@@ -1059,7 +1091,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
         return resolver_requirements
 
-    def get_metadata(self, byte_content: bytes) -> Dict:
+    def get_metadata(self, byte_content: bytes) -> dict:
         """Extract comprehensive GraphQL metadata in a unified interface.
 
         This is the primary method for accessing all GraphQL parser functionality.
@@ -1089,12 +1121,12 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         resolver_reqs = self.extract_resolver_requirements(byte_content)
 
         # Calculate statistics
-        type_counts: Dict[str, int] = {}
+        type_counts: dict[str, int] = {}
         for type_def in types:
             kind = type_def["kind"]
             type_counts[kind] = type_counts.get(kind, 0) + 1
 
-        operation_counts: Dict[str, int] = {}
+        operation_counts: dict[str, int] = {}
         for op in operations:
             op_type = op["type"]
             operation_counts[op_type] = operation_counts.get(op_type, 0) + 1
@@ -1125,7 +1157,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
     # Convenience methods for common queries
 
-    def get_type_by_name(self, byte_content: bytes, type_name: str) -> Optional[Dict]:
+    def get_type_by_name(self, byte_content: bytes, type_name: str) -> dict | None:
         """Get a specific type definition by name.
 
         Args:
@@ -1143,7 +1175,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
                 return type_def
         return None
 
-    def get_types_by_kind(self, byte_content: bytes, kind: str) -> List[Dict]:
+    def get_types_by_kind(self, byte_content: bytes, kind: str) -> list[dict]:
         """Get all types of a specific kind.
 
         Args:
@@ -1158,7 +1190,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         types = self.extract_type_definitions(byte_content)
         return [t for t in types if t["kind"] == kind]
 
-    def get_operation_by_name(self, byte_content: bytes, operation_name: str) -> Optional[Dict]:
+    def get_operation_by_name(self, byte_content: bytes, operation_name: str) -> dict | None:
         """Get a specific operation by name.
 
         Args:
@@ -1176,7 +1208,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
                 return op
         return None
 
-    def get_fragment_by_name(self, byte_content: bytes, fragment_name: str) -> Optional[Dict]:
+    def get_fragment_by_name(self, byte_content: bytes, fragment_name: str) -> dict | None:
         """Get a specific fragment by name.
 
         Args:
@@ -1196,7 +1228,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
 
     def get_types_implementing_interface(
         self, _byte_content: bytes, _interface_name: str
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Get all types that implement a specific interface.
 
         Note: This requires parsing the implements clause which is not yet
@@ -1215,7 +1247,7 @@ class TreeSitterGraphqlParser(BaseTreeSitterParser):
         # This requires extracting the "implements" clause from type definitions
         return []
 
-    def get_types_referencing_type(self, byte_content: bytes, target_type: str) -> List[str]:
+    def get_types_referencing_type(self, byte_content: bytes, target_type: str) -> list[str]:
         """Get all types that reference a specific type.
 
         Args:

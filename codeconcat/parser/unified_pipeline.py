@@ -19,10 +19,18 @@ import logging
 import os
 import traceback
 import unicodedata
+from concurrent.futures import ProcessPoolExecutor, TimeoutError, as_completed
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
-from rich.progress import track
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    track,
+)
 
 from ..base_types import CodeConCatConfig, EnhancedParserInterface, ParsedFileData, ParseResult
 from ..errors import (
@@ -128,14 +136,18 @@ def _is_valid_language_input(language: str) -> bool:
     return language.lower() in ALLOWED_LANGUAGES
 
 
-def _try_tree_sitter_parser(language: str) -> Optional[Any]:
+@functools.lru_cache(maxsize=64)
+def _try_tree_sitter_parser(language: str) -> Any | None:
     """Try to load a tree-sitter parser for the language.
+
+    PERFORMANCE: Results are cached per language to avoid repeated module imports
+    and parser instantiation.
 
     Args:
         language: Language identifier
 
     Returns:
-        Tree-sitter parser instance or None
+        Tree-sitter parser instance or None (cached)
     """
     try:
         # Map language to tree-sitter parser module name
@@ -214,15 +226,19 @@ def _try_tree_sitter_parser(language: str) -> Optional[Any]:
     return None
 
 
-def _try_enhanced_regex_parser(language: str, use_enhanced: bool = True) -> Optional[Any]:
+@functools.lru_cache(maxsize=64)
+def _try_enhanced_regex_parser(language: str, use_enhanced: bool = True) -> Any | None:
     """Try to load an enhanced regex parser for the language.
+
+    PERFORMANCE: Results are cached per (language, use_enhanced) to avoid repeated
+    module imports and parser instantiation.
 
     Args:
         language: Language identifier
         use_enhanced: Whether to use enhanced parsers
 
     Returns:
-        Enhanced parser instance or None
+        Enhanced parser instance or None (cached)
     """
     if not use_enhanced:
         return None
@@ -268,14 +284,18 @@ def _try_enhanced_regex_parser(language: str, use_enhanced: bool = True) -> Opti
     return None
 
 
-def _try_standard_regex_parser(language: str) -> Optional[Any]:
+@functools.lru_cache(maxsize=64)
+def _try_standard_regex_parser(language: str) -> Any | None:
     """Try to load a standard regex parser for the language.
+
+    PERFORMANCE: Results are cached per language to avoid repeated module imports
+    and parser instantiation.
 
     Args:
         language: Language identifier
 
     Returns:
-        Standard parser instance or None
+        Standard parser instance or None (cached)
     """
     try:
         # Map language to standard parser module name
@@ -325,6 +345,55 @@ def _try_standard_regex_parser(language: str) -> Optional[Any]:
     return None
 
 
+# Module-level worker function for parallel processing (must be picklable)
+def _process_file_worker(file_data_dict: dict, config_dict: dict) -> tuple[dict | None, str | None]:
+    """Process a single file in a worker process.
+
+    This function is called by ProcessPoolExecutor workers. It creates a minimal
+    pipeline instance to process a single file and returns serializable results.
+
+    Args:
+        file_data_dict: Dictionary representation of ParsedFileData
+        config_dict: Dictionary representation of CodeConCatConfig
+
+    Returns:
+        Tuple of (result_dict, error_message) where:
+        - result_dict is a dictionary with parsed file data, or None on error
+        - error_message is an error string, or None on success
+    """
+    import dataclasses
+
+    try:
+        # Reconstruct objects from dictionaries
+        file_data = ParsedFileData(**file_data_dict)
+        config = CodeConCatConfig(**config_dict)
+
+        # Create a minimal pipeline instance
+        pipeline = UnifiedPipeline(config)
+
+        # Process the file
+        result = pipeline._process_file(file_data)
+
+        if result:
+            # Clear unpicklable tree_sitter Node before serialization
+            if result.parse_result and hasattr(result.parse_result, "ast_root"):
+                result.parse_result.ast_root = None
+
+            # Convert result to dictionary using dataclasses.asdict for recursive conversion
+            if dataclasses.is_dataclass(result) and not isinstance(result, type):
+                result_dict = dataclasses.asdict(result)
+            elif hasattr(result, "model_dump"):
+                result_dict = result.model_dump()
+            else:
+                result_dict = dict(result.__dict__)
+
+            return result_dict, None
+        return None, None
+
+    except Exception as e:
+        return None, f"Error processing {file_data_dict.get('file_path', 'unknown')}: {str(e)}"
+
+
 class UnifiedPipeline:
     """Unified parsing pipeline with plugin-based architecture."""
 
@@ -338,8 +407,8 @@ class UnifiedPipeline:
         self.unsupported_reporter = get_unsupported_reporter()
 
     def parse(
-        self, files_to_parse: List[ParsedFileData]
-    ) -> Tuple[List[ParsedFileData], List[ParserError]]:
+        self, files_to_parse: list[ParsedFileData]
+    ) -> tuple[list[ParsedFileData], list[ParserError]]:
         """
         Main parsing pipeline entry point with progressive fallbacks.
 
@@ -349,6 +418,10 @@ class UnifiedPipeline:
         3. Standard regex parsers (fallback)
 
         It accumulates partial results and provides detailed error information.
+
+        PERFORMANCE: Uses ProcessPoolExecutor for parallel parsing when there are
+        4+ files. Sequential processing is used for small batches to avoid
+        multiprocessing overhead.
 
         Args:
             files_to_parse: List of ParsedFileData objects to process
@@ -360,8 +433,30 @@ class UnifiedPipeline:
         """
         logger.info(f"Starting unified parsing pipeline for {len(files_to_parse)} files")
 
-        parsed_files_output: List[ParsedFileData] = []
-        errors: List[ParserError] = []
+        # Use sequential processing for small batches (< 50 files)
+        # PERFORMANCE: Increased from 4 to 50 because multiprocessing startup overhead
+        # (500-1000ms per worker) plus config serialization makes parallel processing
+        # slower than sequential for small-to-medium codebases
+        min_parallel_files = 50
+        if len(files_to_parse) < min_parallel_files:
+            return self._parse_sequential(files_to_parse)
+
+        # Use parallel processing for larger batches
+        return self._parse_parallel(files_to_parse)
+
+    def _parse_sequential(
+        self, files_to_parse: list[ParsedFileData]
+    ) -> tuple[list[ParsedFileData], list[ParserError]]:
+        """Parse files sequentially (for small batches).
+
+        Args:
+            files_to_parse: List of ParsedFileData objects to process
+
+        Returns:
+            Tuple of (parsed_files, errors)
+        """
+        parsed_files_output: list[ParsedFileData] = []
+        errors: list[ParserError] = []
 
         # Use progress tracking if enabled
         progress_iterator = self._process_with_progress(
@@ -392,7 +487,125 @@ class UnifiedPipeline:
 
         return parsed_files_output, errors
 
-    def _process_file(self, file_data: ParsedFileData) -> Optional[ParsedFileData]:
+    def _parse_parallel(
+        self, files_to_parse: list[ParsedFileData]
+    ) -> tuple[list[ParsedFileData], list[ParserError]]:
+        """Parse files in parallel using ProcessPoolExecutor.
+
+        PERFORMANCE: CPU-bound parsing work benefits from multiprocessing
+        which avoids Python's GIL limitations.
+
+        Args:
+            files_to_parse: List of ParsedFileData objects to process
+
+        Returns:
+            Tuple of (parsed_files, errors)
+        """
+        parsed_files_output: list[ParsedFileData] = []
+        errors: list[ParserError] = []
+
+        # Determine number of workers
+        max_workers = (
+            self.config.max_workers
+            if hasattr(self.config, "max_workers")
+            and self.config.max_workers
+            and self.config.max_workers > 0
+            else min(os.cpu_count() or 1, 8)  # Cap at 8 workers for parsing
+        )
+        logger.info(f"Using {max_workers} workers for parallel parsing")
+
+        # Per-file timeout to prevent hanging on problematic files
+        timeout_seconds = 60
+
+        # Convert config to dict for serialization
+        config_dict = (
+            self.config.model_dump() if hasattr(self.config, "model_dump") else self.config.__dict__
+        )
+
+        # Submit all files to the executor
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            future_to_file = {}
+            for file_data in files_to_parse:
+                # Convert file_data to dict for serialization
+                file_data_dict = (
+                    file_data.model_dump()
+                    if hasattr(file_data, "model_dump")
+                    else file_data.__dict__
+                )
+                future = executor.submit(_process_file_worker, file_data_dict, config_dict)
+                future_to_file[future] = file_data
+
+            # Process results as they complete with progress tracking
+            completed = 0
+            total = len(future_to_file)
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold blue]Parsing files"),
+                BarColumn(),
+                TaskProgressColumn(),
+                "[progress.percentage]{task.percentage:>3.0f}%",
+                disable=self.config.disable_progress_bar,
+            ) as progress:
+                task = progress.add_task("Parsing", total=total)
+
+                for future in as_completed(future_to_file):
+                    file_data = future_to_file[future]
+                    try:
+                        result_dict, error_msg = future.result(timeout=timeout_seconds)
+
+                        if error_msg:
+                            logger.error(error_msg)
+                            errors.append(
+                                FileProcessingError(  # type: ignore[arg-type]
+                                    error_msg,
+                                    file_path=file_data.file_path,
+                                )
+                            )
+                        elif result_dict:
+                            # Reconstruct ParsedFileData from dict
+                            parsed_file = ParsedFileData(**result_dict)
+                            parsed_files_output.append(parsed_file)
+
+                    except TimeoutError:
+                        logger.warning(
+                            f"Timeout parsing {file_data.file_path} after {timeout_seconds}s"
+                        )
+                        errors.append(
+                            FileProcessingError(  # type: ignore[arg-type]
+                                f"Parsing timeout after {timeout_seconds}s",
+                                file_path=file_data.file_path,
+                            )
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Error processing {file_data.file_path} in worker: {e}",
+                            exc_info=True,
+                        )
+                        errors.append(
+                            FileProcessingError(  # type: ignore[arg-type]
+                                f"Worker error: {str(e)}",
+                                file_path=file_data.file_path,
+                            )
+                        )
+                    finally:
+                        completed += 1
+                        progress.update(task, advance=1)
+
+                        # Periodic progress logging
+                        if completed % 50 == 0 or completed == total:
+                            logger.info(
+                                f"Parsed {completed}/{total} files ({completed / total * 100:.1f}%)"
+                            )
+
+        logger.info(
+            f"Unified parsing pipeline completed: {len(parsed_files_output)} succeeded, "
+            f"{len(errors)} failed"
+        )
+
+        return parsed_files_output, errors
+
+    def _process_file(self, file_data: ParsedFileData) -> ParsedFileData | None:
         """Process a single file through the parsing pipeline.
 
         Args:
@@ -513,7 +726,7 @@ class UnifiedPipeline:
 
     def _parse_with_fallbacks(
         self, content: str, file_path: str, language: str
-    ) -> Optional[ParseResult]:
+    ) -> ParseResult | None:
         """Parse content with progressive fallback chain.
 
         Args:
@@ -527,6 +740,17 @@ class UnifiedPipeline:
         # Check if result merging is enabled (default: True for improved results)
         enable_result_merging = getattr(self.config, "enable_result_merging", True)
         merge_strategy_name = getattr(self.config, "merge_strategy", "confidence")
+
+        # PERFORMANCE: Early termination when primary parser (tree-sitter) succeeds
+        # Default: True - skip additional parsers when tree-sitter produces good results
+        # Set to False to always run all parsers for maximum coverage (slower)
+        early_termination = getattr(self.config, "parser_early_termination", True)
+
+        # Minimum declarations threshold for early termination
+        # If tree-sitter finds at least this many declarations, skip other parsers
+        # PERFORMANCE: Increased from 1 to 5 to reduce redundant parser runs while
+        # still ensuring adequate coverage for files with few declarations
+        early_termination_threshold = getattr(self.config, "parser_early_termination_threshold", 5)
 
         # Convert strategy name to enum
         strategy_map = {
@@ -551,7 +775,7 @@ class UnifiedPipeline:
         fallback_chain.append(("standard", "Standard regex"))
 
         # Collect results from all parsers if merging is enabled
-        all_results: List[ParseResult] = []
+        all_results: list[ParseResult] = []
 
         # Try each parser in the fallback chain
         for parser_type, parser_name in fallback_chain:
@@ -586,18 +810,50 @@ class UnifiedPipeline:
                     if not parse_result.engine_used:
                         parse_result.engine_used = parser_name
 
+                    num_declarations = len(parse_result.declarations)
+                    has_useful_content = num_declarations > 0 or len(parse_result.imports) > 0
+
                     if not parse_result.error:
+                        # Successful parse (no errors)
                         logger.debug(
                             f"{parser_name} parsing successful for {file_path}: "
-                            f"{len(parse_result.declarations)} declarations"
+                            f"{num_declarations} declarations"
                         )
 
                         if enable_result_merging:
                             # Collect result for merging
                             all_results.append(parse_result)
+
+                            # PERFORMANCE: Early termination for tree-sitter with good results
+                            # Skip remaining parsers if tree-sitter produced sufficient declarations
+                            # NOTE: Only early-terminate on CLEAN parses (no errors)
+                            if (
+                                early_termination
+                                and parser_type == "tree_sitter"
+                                and num_declarations >= early_termination_threshold
+                            ):
+                                logger.debug(
+                                    f"Early termination: tree-sitter found {num_declarations} "
+                                    f"declarations (threshold: {early_termination_threshold}), "
+                                    f"skipping remaining parsers for {file_path}"
+                                )
+                                break  # Exit the parser loop early
                         else:
                             # Legacy behavior: return first successful result
                             return parse_result
+
+                    elif has_useful_content and enable_result_merging:
+                        # Partial parse with errors but some useful content extracted
+                        # Include for merging but do NOT early-terminate - always run
+                        # fallback parsers to potentially capture what tree-sitter missed
+                        # (e.g., modern Swift syntax like nonisolated(unsafe))
+                        logger.debug(
+                            f"{parser_name} partial parse for {file_path}: "
+                            f"{num_declarations} declarations extracted despite errors, "
+                            f"continuing to fallback parsers for merging"
+                        )
+                        all_results.append(parse_result)
+                        # Continue to next parser (no early termination for partial results)
 
             except Exception as e:
                 logger.warning(
@@ -717,7 +973,7 @@ class UnifiedPipeline:
 
     @staticmethod
     def _process_with_progress(
-        items: List[Any], description: str = "Processing", disable_progress: bool = False
+        items: list[Any], description: str = "Processing", disable_progress: bool = False
     ) -> Any:
         """Wrap a list with Rich progress reporting.
 
@@ -734,8 +990,8 @@ class UnifiedPipeline:
 
 # Import parser helper functions from file_parser to maintain compatibility
 def get_language_parser(
-    language: str, config: CodeConCatConfig, parser_type: Optional[str] = None
-) -> Optional[Any]:
+    language: str, config: CodeConCatConfig, parser_type: str | None = None
+) -> Any | None:
     """Get the appropriate parser instance based on language and type.
 
     This function provides backward compatibility for code that directly
@@ -772,8 +1028,8 @@ def get_language_parser(
     return parser
 
 
-@functools.lru_cache(maxsize=None)
-def determine_language(file_path: str) -> Optional[str]:
+@functools.lru_cache(maxsize=1024)  # Bounded cache to prevent memory leaks
+def determine_language(file_path: str) -> str | None:
     """
     Determine the programming language of a file based on its extension.
     This function is cached to improve performance.
@@ -797,7 +1053,7 @@ def determine_language(file_path: str) -> Optional[str]:
         4. Standard programming languages by extension
 
     Features:
-        - LRU cache for performance (unlimited size)
+        - LRU cache for performance (bounded to 1024 entries)
         - Case-insensitive extension matching
         - Special handling for R package files
         - Groups config and docs into special categories
@@ -937,8 +1193,8 @@ def normalize_unicode_content(content: str, file_path: str) -> str:
 
 # Main entry point function for backward compatibility
 def parse_code_files(
-    files_to_parse: List[ParsedFileData], config: CodeConCatConfig
-) -> Tuple[List[ParsedFileData], List[ParserError]]:
+    files_to_parse: list[ParsedFileData], config: CodeConCatConfig
+) -> tuple[list[ParsedFileData], list[ParserError]]:
     """
     Parse multiple code files using the unified pipeline.
 

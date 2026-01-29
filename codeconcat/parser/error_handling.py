@@ -7,7 +7,7 @@ recovery mechanisms, and debugging information.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from codeconcat.base_types import Declaration, ParseResult
 
@@ -20,10 +20,10 @@ class ParserError(Exception):
     def __init__(
         self,
         message: str,
-        parser_name: Optional[str] = None,
-        file_path: Optional[str] = None,
-        line_number: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None,
+        parser_name: str | None = None,
+        file_path: str | None = None,
+        line_number: int | None = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.parser_name = parser_name
@@ -72,15 +72,15 @@ class ErrorHandler:
             parser_name: Name of the parser using this handler
         """
         self.parser_name = parser_name
-        self.errors: List[ParserError] = []
-        self.warnings: List[str] = []
+        self.errors: list[ParserError] = []
+        self.warnings: list[str] = []
 
     def handle_error(
         self,
-        error: Union[Exception, str],
-        file_path: Optional[str] = None,
-        line_number: Optional[int] = None,
-        context: Optional[Dict[str, Any]] = None,
+        error: Exception | str,
+        file_path: str | None = None,
+        line_number: int | None = None,
+        context: dict[str, Any] | None = None,
         _recover: bool = False,
     ) -> ParseResult:
         """
@@ -164,14 +164,14 @@ class ErrorHandler:
 
     def handle_partial_parse(
         self,
-        declarations: List[Declaration],
-        imports: List[str],
+        declarations: list[Declaration],
+        imports: list[str],
         error_message: str,
-        file_path: Optional[str] = None,
-        line_number: Optional[int] = None,
-        context: Optional[Dict[str, Any]] = None,
-        missed_features: Optional[List[str]] = None,
-        ast_root: Optional[Any] = None,
+        file_path: str | None = None,
+        line_number: int | None = None,
+        context: dict[str, Any] | None = None,
+        missed_features: list[str] | None = None,
+        ast_root: Any | None = None,
     ) -> ParseResult:
         """
         Handle a partial parse result (some data extracted but with errors).
@@ -221,9 +221,9 @@ class ErrorHandler:
     def handle_warning(
         self,
         warning_message: str,
-        file_path: Optional[str] = None,
-        _line_number: Optional[int] = None,
-        context: Optional[Dict[str, Any]] = None,
+        file_path: str | None = None,
+        _line_number: int | None = None,
+        context: dict[str, Any] | None = None,
     ) -> None:
         """
         Handle a non-critical warning during parsing.
@@ -245,11 +245,11 @@ class ErrorHandler:
 
     def create_success_result(
         self,
-        declarations: List[Declaration],
-        imports: List[str],
-        file_path: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        ast_root: Optional[Any] = None,
+        declarations: list[Declaration],
+        imports: list[str],
+        file_path: str | None = None,
+        context: dict[str, Any] | None = None,
+        ast_root: Any | None = None,
     ) -> ParseResult:
         """
         Create a successful parse result.
@@ -282,7 +282,7 @@ class ErrorHandler:
             ast_root=ast_root,
         )
 
-    def get_error_summary(self) -> Dict[str, Any]:
+    def get_error_summary(self) -> dict[str, Any]:
         """
         Get a summary of all errors and warnings.
 
@@ -327,8 +327,8 @@ def create_standard_error_handler(parser_name: str) -> ErrorHandler:
 def handle_security_error(
     error_message: str,
     parser_name: str,
-    file_path: Optional[str] = None,
-    _context: Optional[Dict[str, Any]] = None,
+    file_path: str | None = None,
+    _context: dict[str, Any] | None = None,
 ) -> ParseResult:
     """
     Handle a security validation error.

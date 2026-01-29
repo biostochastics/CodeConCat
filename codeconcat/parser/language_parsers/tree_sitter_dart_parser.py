@@ -21,13 +21,12 @@ Supports Dart 3.x with features including:
 """
 
 import logging
-from typing import Dict, List, Set
 
 from tree_sitter import Node, Query
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
-    from tree_sitter import QueryCursor
+    from tree_sitter import QueryCursor  # type: ignore[attr-defined]
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
@@ -134,7 +133,7 @@ class TreeSitterDartParser(BaseTreeSitterParser):
         super().__init__("dart")
         logger.debug("TreeSitterDartParser initialized")
 
-    def get_queries(self) -> Dict[str, str]:
+    def get_queries(self) -> dict[str, str]:
         """Returns Tree-sitter query patterns for Dart.
 
         Returns:
@@ -147,7 +146,7 @@ class TreeSitterDartParser(BaseTreeSitterParser):
 
     def _run_queries(
         self, root_node: Node, byte_content: bytes
-    ) -> tuple[List[Declaration], List[str]]:
+    ) -> tuple[list[Declaration], list[str]]:
         """Runs Dart-specific queries and extracts declarations and imports.
 
         Performs multi-pass extraction:
@@ -164,7 +163,7 @@ class TreeSitterDartParser(BaseTreeSitterParser):
         """
         queries = self.get_queries()
         declarations = []
-        imports: Set[str] = set()
+        imports: set[str] = set()
         doc_map = {}  # line_before_declaration -> doc_text
 
         # --- Pass 1: Extract Documentation Comments --- #
@@ -465,7 +464,7 @@ class TreeSitterDartParser(BaseTreeSitterParser):
             logger.debug(f"Failed to extract Dart signature: {e}")
             return ""
 
-    def _extract_dart_modifiers(self, node: Node, byte_content: bytes) -> Set[str]:
+    def _extract_dart_modifiers(self, node: Node, byte_content: bytes) -> set[str]:
         """Extract modifiers from a declaration node.
 
         Extracts Dart modifiers such as:

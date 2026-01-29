@@ -9,7 +9,6 @@ that shares common functionality while allowing language-specific customization.
 
 import logging
 import re
-from typing import Dict, List, Optional, Set
 
 from codeconcat.base_types import Declaration, ParseResult
 from codeconcat.parser.language_parsers.enhanced_base_parser import EnhancedBaseParser
@@ -99,13 +98,13 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
 
     def _process_block(
         self,
-        lines: List[str],
+        lines: list[str],
         start: int,
         end: int,
-        declarations: List[Declaration],
-        imports: List[str],
-        errors: List[str],
-        parent_declaration: Optional[Declaration] = None,
+        declarations: list[Declaration],
+        imports: list[str],
+        errors: list[str],
+        parent_declaration: Declaration | None = None,
     ) -> int:
         """
         Process a C-family code block and extract declarations and imports.
@@ -250,7 +249,7 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
 
         return i
 
-    def _extract_modifiers(self, line: str) -> Set[str]:
+    def _extract_modifiers(self, line: str) -> set[str]:
         """
         Extract modifiers from a declaration line.
 
@@ -267,7 +266,7 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
                 found_modifiers.add(mod)
         return found_modifiers
 
-    def extract_docstring(self, lines: List[str], start: int, end: int) -> Optional[str]:
+    def extract_docstring(self, lines: list[str], start: int, end: int) -> str | None:
         """
         Extract C-family docstring from lines.
 
@@ -338,7 +337,7 @@ class EnhancedCFamilyParser(EnhancedBaseParser):
 
         return None
 
-    def get_capabilities(self) -> Dict[str, bool]:
+    def get_capabilities(self) -> dict[str, bool]:
         """Return the capabilities of this parser."""
         return {
             "can_parse_functions": True,
