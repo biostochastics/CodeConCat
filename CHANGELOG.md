@@ -62,6 +62,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Early termination was preventing result merging from occurring
   - Tests now properly verify merging behavior
 
+- **Verbose Debug Logging During Annotation Failures**: Removed debug code that dumped entire `ParsedFileData` objects (including full file contents) to stderr when annotation exceptions occurred
+  - Previously, `repr(file)` was logged which could output megabytes of content for large files
+  - Now logs only the file path and exception message
+
+- **Declaration Attribute Access in Writers**: Fixed `'dict' object has no attribute 'kind'` errors
+  - Declarations may be stored as either `Declaration` objects or dict representations
+  - Added `_get_decl_attr()` helper function across all writer modules for defensive attribute access
+  - Affected files: `annotator.py`, `markdown_writer.py`, `json_writer.py`, `xml_writer.py`, `rendering_adapters.py`
+
+- **Security Issue Attribute Access in Writers**: Fixed `'dict' object has no attribute 'severity'` errors
+  - Security issues may be stored as either `SecurityIssue` objects or dict representations
+  - Added `_get_issue_attr()` helper function across all writer modules for defensive attribute access
+  - Handles both enum values (with `.value`/`.name`) and string severity values
+  - Affected files: `markdown_writer.py`, `json_writer.py`, `xml_writer.py`, `rendering_adapters.py`
+
 ### Performance
 
 - **Parser Early Termination Threshold**: Increased from 1 to 5 declarations

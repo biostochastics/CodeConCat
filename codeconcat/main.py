@@ -1013,10 +1013,7 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                         annotated = annotate(file, config)
                         annotated_files.append(annotated)
                     except Exception as e:
-                        # DEBUG: Log type and value of 'file' before using file.file_path
-                        logger.error(
-                            f"DEBUG: Annotation exception for file object. Type: {type(file)}, Value: {repr(file)}"
-                        )
+                        # Get file path safely for error logging
                         try:
                             file_path_debug = file.file_path
                         except Exception as path_exc:
@@ -1036,9 +1033,9 @@ def run_codeconcat(config: CodeConCatConfig) -> str:
                             )
                         except Exception as fallback_exc:
                             logger.error(
-                                f"DEBUG: Fallback AnnotatedFileData creation failed: {fallback_exc}"
+                                f"Fallback annotation creation failed for {file_path_debug}: {fallback_exc}"
                             )
-                            # Optionally, skip appending if fallback also fails
+                            # Skip appending if fallback also fails
 
             else:
                 # Create basic annotations without AI analysis

@@ -28,6 +28,20 @@ from codeconcat.base_types import (
 logger = logging.getLogger(__name__)
 
 
+def _get_decl_attr(decl, attr: str, default=None):
+    """Safely get attribute from declaration (handles both dict and object)."""
+    if isinstance(decl, dict):
+        return decl.get(attr, default)
+    return getattr(decl, attr, default)
+
+
+def _get_issue_attr(issue, attr: str, default=None):
+    """Safely get attribute from security issue (handles both dict and object)."""
+    if isinstance(issue, dict):
+        return issue.get(attr, default)
+    return getattr(issue, attr, default)
+
+
 class MarkdownRenderAdapter:
     """Adapter for rendering structured data to Markdown format."""
 
@@ -51,23 +65,30 @@ class MarkdownRenderAdapter:
                 - None: The function modifies a global result list by appending a formatted string representation of the declaration and its children.
             """
             indent_str = "  " * indent
-            kind_display = f"{decl.kind.capitalize()}"
+            kind = _get_decl_attr(decl, "kind", "unknown")
+            name = _get_decl_attr(decl, "name", "unnamed")
+            start_line = _get_decl_attr(decl, "start_line", 0)
+            end_line = _get_decl_attr(decl, "end_line", 0)
+            modifiers = _get_decl_attr(decl, "modifiers", set())
+            children = _get_decl_attr(decl, "children", [])
+
+            kind_display = f"{kind.capitalize()}"
 
             # Format the declaration line
-            decl_line = f"{indent_str}- **{kind_display}**: `{decl.name}`"
+            decl_line = f"{indent_str}- **{kind_display}**: `{name}`"
 
             # Add line range
-            decl_line += f" (lines {decl.start_line}-{decl.end_line})"
+            decl_line += f" (lines {start_line}-{end_line})"
 
             # Add modifiers if present
-            if decl.modifiers:
-                mods = ", ".join(decl.modifiers)
+            if modifiers:
+                mods = ", ".join(modifiers)
                 decl_line += f" [{mods}]"
 
             result.append(decl_line)
 
             # Process children with increased indentation
-            for child in decl.children:
+            for child in children:
                 add_declaration_with_children(child, indent + 1)
 
         # Process top-level declarations
@@ -93,29 +114,52 @@ class MarkdownRenderAdapter:
         if not issues:
             return ""
 
-        # Sort issues by severity (most severe first)
-        sorted_issues = sorted(issues, key=lambda x: x.severity, reverse=True)
+        # Sort issues by severity (most severe first) - handle both objects and dicts
+        def get_severity_sort_key(issue):
+            severity = _get_issue_attr(issue, "severity", SecuritySeverity.INFO)
+            if isinstance(severity, str):
+                # Convert string to enum for sorting
+                try:
+                    return SecuritySeverity[severity.upper()]
+                except KeyError:
+                    return SecuritySeverity.INFO
+            return severity
+
+        sorted_issues = sorted(issues, key=get_severity_sort_key, reverse=True)
 
         result = ["### Security Issues\n"]
         result.append("| Severity | Rule | Line | Description |")
         result.append("|----------|------|------|-------------|")
 
         for issue in sorted_issues:
+            # Get attributes defensively
+            severity = _get_issue_attr(issue, "severity", SecuritySeverity.INFO)
+            rule_id = _get_issue_attr(issue, "rule_id", "")
+            line_number = _get_issue_attr(issue, "line_number", 0)
+            description = _get_issue_attr(issue, "description", "")
+
+            # Normalize severity for comparison
+            if isinstance(severity, str):
+                severity_str = severity.upper()
+            elif hasattr(severity, "name"):
+                # Enum - use .name to get string like "CRITICAL", not .value which is numeric
+                severity_str = severity.name.upper()
+            else:
+                severity_str = str(severity).upper()
+
             # Format severity with color indicators
-            if issue.severity == SecuritySeverity.CRITICAL:
+            if severity_str == "CRITICAL":
                 severity_display = "🔴 CRITICAL"
-            elif issue.severity == SecuritySeverity.HIGH:
+            elif severity_str == "HIGH":
                 severity_display = "🟠 HIGH"
-            elif issue.severity == SecuritySeverity.MEDIUM:
+            elif severity_str == "MEDIUM":
                 severity_display = "🟡 MEDIUM"
-            elif issue.severity == SecuritySeverity.LOW:
+            elif severity_str == "LOW":
                 severity_display = "🟢 LOW"
             else:  # INFO
                 severity_display = "ℹ️ INFO"
 
-            result.append(
-                f"| {severity_display} | {issue.rule_id} | {issue.line_number} | {issue.description} |"
-            )
+            result.append(f"| {severity_display} | {rule_id} | {line_number} | {description} |")
 
         return "\n".join(result)
 
@@ -339,25 +383,30 @@ class JsonRenderAdapter:
     @staticmethod
     def declaration_to_dict(decl: Declaration) -> dict[str, Any]:
         """Convert a Declaration object to a dictionary for JSON serialization."""
+        modifiers = _get_decl_attr(decl, "modifiers", set())
+        children = _get_decl_attr(decl, "children", [])
         return {
-            "kind": decl.kind,
-            "name": decl.name,
-            "start_line": decl.start_line,
-            "end_line": decl.end_line,
-            "modifiers": list(decl.modifiers),
-            "docstring": decl.docstring,
-            "children": [JsonRenderAdapter.declaration_to_dict(child) for child in decl.children],
+            "kind": _get_decl_attr(decl, "kind", "unknown"),
+            "name": _get_decl_attr(decl, "name", "unnamed"),
+            "start_line": _get_decl_attr(decl, "start_line", 0),
+            "end_line": _get_decl_attr(decl, "end_line", 0),
+            "modifiers": list(modifiers) if modifiers else [],
+            "docstring": _get_decl_attr(decl, "docstring", ""),
+            "children": [JsonRenderAdapter.declaration_to_dict(child) for child in children],
         }
 
     @staticmethod
     def security_issue_to_dict(issue: SecurityIssue) -> dict[str, Any]:
         """Convert a SecurityIssue object to a dictionary for JSON serialization."""
+        severity = _get_issue_attr(issue, "severity", "INFO")
+        # Handle enum with .name attribute
+        severity_str = severity.name if hasattr(severity, "name") else str(severity)
         return {
-            "rule_id": issue.rule_id,
-            "description": issue.description,
-            "line_number": issue.line_number,
-            "severity": issue.severity.name,
-            "context": issue.context,
+            "rule_id": _get_issue_attr(issue, "rule_id", ""),
+            "description": _get_issue_attr(issue, "description", ""),
+            "line_number": _get_issue_attr(issue, "line_number", 0),
+            "severity": severity_str,
+            "context": _get_issue_attr(issue, "context", ""),
         }
 
     @staticmethod
@@ -473,45 +522,53 @@ class XmlRenderAdapter:
     def add_declaration_to_element(parent: ET.Element, decl: Declaration):
         """Add a Declaration object as an XML element to a parent element."""
         decl_elem = ET.SubElement(parent, "declaration")
-        decl_elem.set("kind", decl.kind)
-        decl_elem.set("name", decl.name)
-        decl_elem.set("start_line", str(decl.start_line))
-        decl_elem.set("end_line", str(decl.end_line))
+        decl_elem.set("kind", _get_decl_attr(decl, "kind", "unknown"))
+        decl_elem.set("name", _get_decl_attr(decl, "name", "unnamed"))
+        decl_elem.set("start_line", str(_get_decl_attr(decl, "start_line", 0)))
+        decl_elem.set("end_line", str(_get_decl_attr(decl, "end_line", 0)))
 
         # Add modifiers
-        if decl.modifiers:
+        modifiers = _get_decl_attr(decl, "modifiers", set())
+        if modifiers:
             mods_elem = ET.SubElement(decl_elem, "modifiers")
-            for mod in decl.modifiers:
+            for mod in modifiers:
                 mod_elem = ET.SubElement(mods_elem, "modifier")
                 mod_elem.text = mod
 
         # Add docstring
-        if decl.docstring:
+        docstring = _get_decl_attr(decl, "docstring", "")
+        if docstring:
             doc_elem = ET.SubElement(decl_elem, "docstring")
-            doc_elem.text = decl.docstring
+            doc_elem.text = docstring
 
         # Add children recursively
-        if decl.children:
+        children = _get_decl_attr(decl, "children", [])
+        if children:
             children_elem = ET.SubElement(decl_elem, "children")
-            for child in decl.children:
+            for child in children:
                 XmlRenderAdapter.add_declaration_to_element(children_elem, child)
 
     @staticmethod
     def add_security_issue_to_element(parent: ET.Element, issue: SecurityIssue):
         """Add a SecurityIssue object as an XML element to a parent element."""
         issue_elem = ET.SubElement(parent, "security_issue")
-        issue_elem.set("rule_id", issue.rule_id)
-        issue_elem.set("line_number", str(issue.line_number))
-        issue_elem.set("severity", str(issue.severity.value))
+        issue_elem.set("rule_id", _get_issue_attr(issue, "rule_id", ""))
+        issue_elem.set("line_number", str(_get_issue_attr(issue, "line_number", 0)))
+
+        # Handle severity (may be enum or string)
+        severity = _get_issue_attr(issue, "severity", "INFO")
+        severity_str = str(severity.value) if hasattr(severity, "value") else str(severity)
+        issue_elem.set("severity", severity_str)
 
         # Add description
         desc_elem = ET.SubElement(issue_elem, "description")
-        desc_elem.text = issue.description
+        desc_elem.text = _get_issue_attr(issue, "description", "")
 
         # Add context if present
-        if issue.context:
+        context = _get_issue_attr(issue, "context", "")
+        if context:
             ctx_elem = ET.SubElement(issue_elem, "context")
-            ctx_elem.text = issue.context
+            ctx_elem.text = context
 
     @staticmethod
     def add_token_stats_to_element(parent: ET.Element, token_stats: TokenStats):
@@ -668,23 +725,30 @@ class TextRenderAdapter:
                 - None: This function appends formatted declaration lines to a global result list and does not return a value.
             """
             indent_str = "  " * indent
-            kind_display = f"{decl.kind.capitalize()}"
+            kind = _get_decl_attr(decl, "kind", "unknown")
+            name = _get_decl_attr(decl, "name", "unnamed")
+            start_line = _get_decl_attr(decl, "start_line", 0)
+            end_line = _get_decl_attr(decl, "end_line", 0)
+            modifiers = _get_decl_attr(decl, "modifiers", set())
+            children = _get_decl_attr(decl, "children", [])
+
+            kind_display = f"{kind.capitalize()}"
 
             # Format the declaration line
-            decl_line = f"{indent_str}{kind_display}: {decl.name}"
+            decl_line = f"{indent_str}{kind_display}: {name}"
 
             # Add line range
-            decl_line += f" (lines {decl.start_line}-{decl.end_line})"
+            decl_line += f" (lines {start_line}-{end_line})"
 
             # Add modifiers if present
-            if decl.modifiers:
-                mods = ", ".join(decl.modifiers)
+            if modifiers:
+                mods = ", ".join(modifiers)
                 decl_line += f" [{mods}]"
 
             result.append(decl_line)
 
             # Process children with increased indentation
-            for child in decl.children:
+            for child in children:
                 add_declaration_with_children(child, indent + 1)
 
         # Process top-level declarations
@@ -710,15 +774,30 @@ class TextRenderAdapter:
         if not issues:
             return []
 
-        # Sort issues by severity (most severe first)
-        sorted_issues = sorted(issues, key=lambda x: x.severity, reverse=True)
+        # Sort issues by severity (most severe first) - handle both objects and dicts
+        def get_severity_sort_key(issue):
+            severity = _get_issue_attr(issue, "severity", SecuritySeverity.INFO)
+            if isinstance(severity, str):
+                # Convert string to enum for sorting
+                try:
+                    return SecuritySeverity[severity.upper()]
+                except KeyError:
+                    return SecuritySeverity.INFO
+            return severity
+
+        sorted_issues = sorted(issues, key=get_severity_sort_key, reverse=True)
 
         result = ["=== SECURITY ISSUES ==="]
 
         for issue in sorted_issues:
-            result.append(
-                f"[{issue.severity.name}] {issue.rule_id} - Line {issue.line_number}: {issue.description}"
-            )
+            # Get attributes defensively
+            severity = _get_issue_attr(issue, "severity", "INFO")
+            # Handle enum with .name attribute
+            severity_name = severity.name if hasattr(severity, "name") else str(severity).upper()
+            rule_id = _get_issue_attr(issue, "rule_id", "")
+            line_number = _get_issue_attr(issue, "line_number", 0)
+            description = _get_issue_attr(issue, "description", "")
+            result.append(f"[{severity_name}] {rule_id} - Line {line_number}: {description}")
 
         return result
 

@@ -8,6 +8,27 @@ from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedDoc
 from codeconcat.writer.compression_helper import CompressionHelper
 
 
+def _get_decl_attr(decl, attr: str, default=None):
+    """Safely get attribute from declaration (handles both dict and object)."""
+    if isinstance(decl, dict):
+        return decl.get(attr, default)
+    return getattr(decl, attr, default)
+
+
+def _get_issue_attr(issue, attr: str, default=None):
+    """Safely get attribute from security issue (handles both dict and object)."""
+    if isinstance(issue, dict):
+        return issue.get(attr, default)
+    return getattr(issue, attr, default)
+
+
+def _get_severity_str(severity) -> str:
+    """Get severity as string (handles both enum and string)."""
+    if hasattr(severity, "value"):
+        return str(severity.value)
+    return str(severity)
+
+
 def write_json(
     items: list[AnnotatedFileData | ParsedDocData],
     config: CodeConCatConfig,
@@ -137,10 +158,13 @@ def write_json(
                 "declaration_count": len(item.declarations),
                 "declarations": [
                     {
-                        "name": d.name,
-                        "type": d.kind,
-                        "line_range": [d.start_line, d.end_line],
-                        "children_count": len(d.children) if d.children else 0,
+                        "name": _get_decl_attr(d, "name", "unnamed"),
+                        "type": _get_decl_attr(d, "kind", "unknown"),
+                        "line_range": [
+                            _get_decl_attr(d, "start_line", 0),
+                            _get_decl_attr(d, "end_line", 0),
+                        ],
+                        "children_count": len(_get_decl_attr(d, "children", []) or []),
                     }
                     for d in item.declarations
                 ],
@@ -154,10 +178,10 @@ def write_json(
                 "by_severity": _group_by_severity(item.security_issues),
                 "issues": [
                     {
-                        "rule": issue.rule_id,
-                        "severity": issue.severity.value,
-                        "line": issue.line_number,
-                        "description": issue.description,
+                        "rule": _get_issue_attr(issue, "rule_id", ""),
+                        "severity": _get_severity_str(_get_issue_attr(issue, "severity", "INFO")),
+                        "line": _get_issue_attr(issue, "line_number", 0),
+                        "description": _get_issue_attr(issue, "description", ""),
                     }
                     for issue in item.security_issues
                 ],
@@ -350,7 +374,7 @@ def _group_by_severity(issues: list[Any]) -> dict[str, int]:
     """Group security issues by severity."""
     severity_counts: dict[str, int] = {}
     for issue in issues:
-        severity = str(issue.severity.value)
+        severity = _get_severity_str(_get_issue_attr(issue, "severity", "INFO"))
         severity_counts[severity] = severity_counts.get(severity, 0) + 1
     return severity_counts
 

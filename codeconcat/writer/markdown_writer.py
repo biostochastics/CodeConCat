@@ -251,10 +251,11 @@ def write_markdown(
                 output_parts.append("<details>")
                 output_parts.append("<summary>⚠️ Security Issues</summary>\n")
                 for issue in item.security_issues:
-                    severity_badge = _get_severity_badge(issue.severity)
-                    output_parts.append(
-                        f"- {severity_badge} **Line {issue.line_number}**: {issue.description}"
-                    )
+                    severity = _get_issue_attr(issue, "severity", "INFO")
+                    severity_badge = _get_severity_badge(severity)
+                    line_num = _get_issue_attr(issue, "line_number", 0)
+                    description = _get_issue_attr(issue, "description", "")
+                    output_parts.append(f"- {severity_badge} **Line {line_num}**: {description}")
                 output_parts.append("\n</details>\n")
 
         # File content with syntax highlighting or diff
@@ -389,23 +390,45 @@ def _count_lines(item: WritableItem) -> int:
     return len(content.splitlines())
 
 
+def _get_decl_attr(decl, attr: str, default=None):
+    """Safely get attribute from declaration (handles both dict and object)."""
+    if isinstance(decl, dict):
+        return decl.get(attr, default)
+    return getattr(decl, attr, default)
+
+
+def _get_issue_attr(issue, attr: str, default=None):
+    """Safely get attribute from security issue (handles both dict and object)."""
+    if isinstance(issue, dict):
+        return issue.get(attr, default)
+    return getattr(issue, attr, default)
+
+
 def _render_declarations_tree(declarations: list[Declaration], indent: int = 0) -> str:
     """Render declarations as a tree."""
     result = []
     for decl in declarations:
         prefix = "  " * indent + "- "
-        result.append(
-            f"{prefix}**{decl.kind}** `{decl.name}` (lines {decl.start_line}-{decl.end_line})"
-        )
-        if decl.children:
-            result.append(_render_declarations_tree(decl.children, indent + 1))
+        kind = _get_decl_attr(decl, "kind", "unknown")
+        name = _get_decl_attr(decl, "name", "unnamed")
+        start_line = _get_decl_attr(decl, "start_line", 0)
+        end_line = _get_decl_attr(decl, "end_line", 0)
+        children = _get_decl_attr(decl, "children", [])
+        result.append(f"{prefix}**{kind}** `{name}` (lines {start_line}-{end_line})")
+        if children:
+            result.append(_render_declarations_tree(children, indent + 1))
     return "\n".join(result)
 
 
 def _get_severity_badge(severity) -> str:
-    """Get severity badge emoji."""
+    """Get severity badge emoji (handles both enum and string severity values)."""
     badges = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFO": "ℹ️"}
-    return badges.get(str(severity.value).upper(), "❓")
+    # Handle enum with .value attribute
+    if hasattr(severity, "value"):
+        severity_str = str(severity.value).upper()
+    else:
+        severity_str = str(severity).upper()
+    return badges.get(severity_str, "❓")
 
 
 def _add_line_numbers(content: str) -> str:
