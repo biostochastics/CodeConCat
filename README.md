@@ -427,11 +427,14 @@ security_scan_severity_threshold: MEDIUM  # Options: LOW, MEDIUM, HIGH, CRITICAL
 enable_ai_summary: false
 ai_provider: anthropic           # Options: openai, anthropic, openrouter, google, deepseek,
                                  #          minimax, qwen, zhipu, ollama, local_server, vllm,
-                                 #          lmstudio, llamacpp_server (llamacpp deprecated)
+                                 #          lmstudio, llamacpp_server
 ai_model: ""                     # Optional, uses provider defaults
 ai_meta_overview: false          # Generate project-wide overview
+ai_meta_prompt: ""               # Custom prompt for meta-overview
 ai_save_summaries: false         # Save summaries to disk for caching
-ai_min_file_lines: 20           # Skip small files
+ai_summaries_dir: "codeconcat_summaries"  # Directory for saved summaries
+ai_min_file_lines: 20            # Skip small files
+ai_max_concurrent: 25            # Max concurrent AI requests
 ```
 
 Initialize configuration interactively:
@@ -489,6 +492,8 @@ export ENV=production  # Options: production, development, test
 | `--verbose` | `-v` | Increase verbosity (-v for INFO, -vv for DEBUG) |
 | `--quiet` | `-q` | Suppress progress information |
 | `--config` | `-c` | Path to configuration file |
+| `--install-completion` | | Install shell completion |
+| `--show-completion` | | Show shell completion script |
 | `--help` | | Show help message |
 
 ### `codeconcat run`
@@ -501,15 +506,26 @@ Process files and generate AI-optimized output.
 - `TARGET` - Path to process, GitHub URL, or owner/repo shorthand (default: current directory)
 
 <details>
-<summary><strong>Processing Options</strong></summary>
+<summary><strong>Output Options</strong></summary>
 
 | Option | Short | Description |
 |--------|-------|-------------|
+| `--output` | `-o` | Output file path (auto-detected from format if omitted) |
 | `--format` | `-f` | Output format: `markdown`, `json`, `xml`, `text` |
-| `--output` | `-o` | Output file path |
 | `--preset` | `-p` | Configuration preset: `lean`, `medium`, `full` |
-| `--parser-engine` | | Parser engine: `tree_sitter`, `regex` |
-| `--max-workers` | | Parallel workers (1-32, default: 4) |
+
+</details>
+
+<details>
+<summary><strong>Processing Options</strong></summary>
+
+| Option | Description |
+|--------|-------------|
+| `--parser-engine` | Parser engine: `tree_sitter`, `regex` |
+| `--max-workers` | Parallel workers (1-32, default: 4) |
+| `--show-config` | Print configuration and exit |
+| `--no-progress` | Disable progress bars |
+| `--redact-paths` / `--no-redact-paths` | Redact absolute filesystem paths in output |
 
 </details>
 
@@ -522,6 +538,8 @@ Process files and generate AI-optimized output.
 | `--exclude-path` | `-ep` | Glob patterns to exclude (repeatable) |
 | `--include-language` | `-il` | Languages to include |
 | `--exclude-language` | `-el` | Languages to exclude |
+| `--use-gitignore` / `--no-gitignore` | | Respect .gitignore files (default: true) |
+| `--use-default-excludes` / `--no-default-excludes` | | Use built-in default excludes (default: true) |
 
 </details>
 
@@ -530,14 +548,37 @@ Process files and generate AI-optimized output.
 
 | Option | Description |
 |--------|-------------|
-| `--compress` | Enable code compression |
-| `--compression-level` | Level: `low`, `medium`, `high`/`aggressive` |
-| `--security` / `--no-security` | Enable security scanning (default: true) |
-| `--semgrep` | Enable Semgrep security scanning |
-| `--security-threshold` | Severity: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` |
 | `--docs` / `--no-docs` | Extract standalone documentation files |
+| `--merge-docs` / `--no-merge-docs` | Merge docs into main output |
+| `--no-annotations` | Skip code annotation |
 | `--remove-docstrings` | Strip docstrings from code |
 | `--remove-comments` | Strip comments from code |
+| `--xml-pi` / `--no-xml-pi` | Include AI processing instructions in XML output |
+| `--prompt-file` | Custom prompt file for codebase review |
+| `--prompt-var` | Prompt variables (format: KEY=value, repeatable) |
+| `--unsupported-report` | Write unsupported/skipped files report to JSON |
+
+</details>
+
+<details>
+<summary><strong>Compression Options</strong></summary>
+
+| Option | Description |
+|--------|-------------|
+| `--compress` / `--no-compress` | Enable intelligent code compression |
+| `--compression-level` | Level: `low`, `medium`, `high`/`aggressive` |
+
+</details>
+
+<details>
+<summary><strong>Security Options</strong></summary>
+
+| Option | Description |
+|--------|-------------|
+| `--security` / `--no-security` | Enable security scanning (default: true) |
+| `--semgrep` / `--no-semgrep` | Enable Semgrep security scanning |
+| `--security-threshold` | Severity: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` |
+| `--test-security-report` | Write test file security findings to separate file |
 
 </details>
 
@@ -552,17 +593,34 @@ Process files and generate AI-optimized output.
 </details>
 
 <details>
-<summary><strong>AI Options</strong></summary>
+<summary><strong>AI Summarization Options</strong></summary>
 
 | Option | Description |
 |--------|-------------|
-| `--ai-summary` | Enable AI summarization |
-| `--ai-provider` | Provider: `openai`, `anthropic`, `openrouter`, `google`, `deepseek`, `minimax`, `qwen`, `zhipu`, `ollama`, `local_server`, `vllm`, `lmstudio`, `llamacpp_server`, `llamacpp` (deprecated) |
+| `--ai-summary` / `--no-ai-summary` | Enable AI-powered code summarization |
+| `--ai-provider` | Provider: `openai`, `anthropic`, `openrouter`, `google`, `deepseek`, `minimax`, `qwen`, `zhipu`, `ollama`, `local_server`, `vllm`, `lmstudio`, `llamacpp_server` |
 | `--ai-model` | Specific model (uses provider defaults if omitted) |
-| `--ai-meta-overview` | Generate project-wide meta-overview |
-| `--ai-save-summaries` | Save summaries to disk for caching |
 | `--ai-api-key` | API key (alternative to environment variable) |
 | `--ai-api-base` | Override the API base URL for local servers |
+| `--ai-functions` / `--no-ai-functions` | Also summarize individual functions/methods |
+| `--ai-meta-overview` / `--no-ai-meta-overview` | Generate meta-overview from all file summaries |
+| `--ai-meta-prompt` | Custom prompt for meta-overview generation |
+| `--ai-meta-higher-tier` / `--no-ai-meta-higher-tier` | Use higher-tier models for meta-overview (default: true) |
+| `--ai-meta-model` | Override model for meta-overview generation |
+| `--ai-save-summaries` / `--no-ai-save-summaries` | Save summaries to separate files |
+| `--ai-summaries-dir` | Directory for saving AI summaries |
+
+</details>
+
+<details>
+<summary><strong>Local LLM Performance Options</strong></summary>
+
+| Option | Description |
+|--------|-------------|
+| `--llama-gpu-layers` | Number of layers to offload to GPU (0=CPU only) |
+| `--llama-context` | Context window size (default: 2048) |
+| `--llama-threads` | Number of CPU threads |
+| `--llama-batch` | Batch size for prompt processing |
 
 </details>
 
@@ -571,8 +629,9 @@ Process files and generate AI-optimized output.
 
 | Option | Description |
 |--------|-------------|
-| `--source-url` | GitHub URL or owner/repo |
-| `--github-token` | GitHub PAT for private repos |
+| `--source-url` | GitHub URL or owner/repo shorthand |
+| `--github-token` | GitHub PAT for private repos (env: `GITHUB_TOKEN`) |
+| `--source-ref` | Branch, tag, or commit hash for Git source |
 
 </details>
 
@@ -609,7 +668,10 @@ Refer to [`docs/LOCAL_MODELS.md`](docs/LOCAL_MODELS.md) for a detailed guide.
 
 Validate a configuration file.
 
-**Usage:** `codeconcat validate CONFIG_FILE`
+**Usage:** `codeconcat validate [CONFIG_FILE]`
+
+**Arguments:**
+- `CONFIG_FILE` - Configuration file to validate (default: `.codeconcat.yml`)
 
 ### `codeconcat reconstruct`
 
@@ -674,6 +736,7 @@ Manage API keys for AI providers with secure storage.
 - `codeconcat keys delete PROVIDER` - Delete key
 - `codeconcat keys reset [--force]` - Reset all keys
 - `codeconcat keys test PROVIDER` - Test key validity
+- `codeconcat keys change-password` - Change master password for encrypted storage
 - `codeconcat keys export [-o FILE] [--show-keys]` - Export configuration
 
 **Storage Methods:** Encrypted file (default), system keyring, environment variables
@@ -893,11 +956,11 @@ codeconcat run --ai-summary
 # In .codeconcat.yml
 enable_ai_summary: true
 ai_provider: openai
-ai_model: gpt-5-mini-2025-08-07  # Optional
+ai_model: gpt-5-mini-2025-08-07  # Optional, uses provider default
 
 # Meta-overview settings
 ai_meta_overview: false
-ai_meta_prompt: ""  # Custom prompt
+ai_meta_prompt: ""  # Custom prompt for meta-overview
 ai_meta_overview_use_higher_tier: true  # Use premium models
 ai_save_summaries: false
 ai_summaries_dir: "codeconcat_summaries"
@@ -908,12 +971,12 @@ ai_summarize_functions: true
 ai_max_functions_per_file: 10
 
 # Performance
-ai_max_concurrent: 5
+ai_max_concurrent: 25  # Concurrent AI requests (cloud APIs handle high concurrency)
 ai_cache_enabled: true
-ai_timeout: 600  # 10 minutes (default) for AI operations
+ai_timeout: 600  # 10 minutes for AI operations
 ```
 
-> **Note:** AI summaries are saved in the `codeconcat_summaries/` directory adjacent to your output file. The default timeout of 10 minutes accommodates both cloud and local AI models for comprehensive analysis.
+> **Note:** AI summaries are saved in the `codeconcat_summaries/` directory adjacent to your output file. Cache TTL is 7 days by default. Content is normalized (comments/whitespace stripped) for cache key hashing to improve hit rate.
 
 #### Cost Optimization
 

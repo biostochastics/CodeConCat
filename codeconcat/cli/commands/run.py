@@ -380,8 +380,8 @@ def run_command(
         typer.Option(
             "--ai-provider",
             help=(
-                "AI provider (openai, anthropic, openrouter, ollama, local_server, vllm, "
-                "lmstudio, llamacpp_server, llamacpp [deprecated])"
+                "AI provider (openai, anthropic, openrouter, google, deepseek, minimax, "
+                "qwen, zhipu, ollama, local_server, vllm, lmstudio, llamacpp_server)"
             ),
             rich_help_panel="AI Summarization Options",
             autocompletion=complete_provider,
