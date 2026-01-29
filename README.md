@@ -123,6 +123,8 @@ codeconcat run --security --semgrep --compress --output secure-report.json
 - **REST API** - FastAPI-based server for programmatic access
 - **Modern CLI** - Typer-powered interface with shell completion and rich help
 - **Smart Caching** - TTL-based cache management for repeated operations
+- **Graceful Interrupts** - Ctrl+C handling with double-press force quit support
+- **Unified Progress Display** - Flicker-free Rich Live dashboard with stage tracking
 
 ## Language Support
 
@@ -510,7 +512,7 @@ Process files and generate AI-optimized output.
 
 | Option | Short | Description |
 |--------|-------|-------------|
-| `--output` | `-o` | Output file path (auto-detected from format if omitted) |
+| `--output` | `-o` | Output file path (default: `ccc_{folder}_{mmddyy}.{ext}`) |
 | `--format` | `-f` | Output format: `markdown`, `json`, `xml`, `text` |
 | `--preset` | `-p` | Configuration preset: `lean`, `medium`, `full` |
 
@@ -685,6 +687,7 @@ Reconstruct source files from CodeConCat output with security validation.
 |--------|-------|-------------|
 | `--output-dir` | `-o` | Directory for files (default: ./reconstructed) |
 | `--format` | `-f` | Input format (auto-detected if not specified) |
+| `--strict` / `--lenient` | | Strict parsing (default: `--strict`) or lenient repair mode |
 | `--force` | | Overwrite existing files |
 | `--dry-run` | | Preview without creating files |
 | `--verbose` | `-v` | Show detailed progress |
@@ -1069,6 +1072,7 @@ codeconcat reconstruct output.md --force
 **Security Features:**
 - Path traversal protection prevents `../../../etc/passwd` attacks
 - All file writes validated against target directory boundary
+- XML parsing uses `defusedxml` for XXE-safe reconstruction
 - Supports Markdown, XML, and JSON formats
 
 ### Differential Outputs
@@ -1416,7 +1420,7 @@ For detailed technical documentation of all fixes, see **[PARSER_FIXES_SUMMARY.m
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete version history and release notes.
 
-**Current Version:** 0.9.0
+**Current Version:** 0.9.1
 
 ### Troubleshooting
 

@@ -19,14 +19,19 @@ def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> Annotated
     symbols = []
 
     for decl in parsed_data.declarations:
-        if decl.kind == "function":
-            functions.append(decl.name)
-        elif decl.kind == "class":
-            classes.append(decl.name)
-        elif decl.kind == "struct":
-            structs.append(decl.name)
-        elif decl.kind == "symbol" and not config.disable_symbols:
-            symbols.append(decl.name)
+        # Handle both Declaration objects and dict representations
+        kind = decl.get("kind") if isinstance(decl, dict) else getattr(decl, "kind", None)
+        name = decl.get("name") if isinstance(decl, dict) else getattr(decl, "name", None)
+        if not kind or not name:
+            continue
+        if kind == "function":
+            functions.append(name)
+        elif kind == "class":
+            classes.append(name)
+        elif kind == "struct":
+            structs.append(name)
+        elif kind == "symbol" and not config.disable_symbols:
+            symbols.append(name)
 
     # Explicitly list all found functions, classes, structs, and symbols
     if functions:

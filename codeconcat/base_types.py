@@ -714,7 +714,7 @@ class CodeConCatConfig(BaseModel):
     merge_docs: bool = False
     doc_extensions: list[str] = Field(default_factory=lambda: [".md", ".rst", ".txt", ".rmd"])
     custom_extension_map: dict[str, str] = Field(default_factory=dict)
-    output: str = "code_concat_output.md"
+    output: str = ""
     format: str = "markdown"
     max_workers: int = 4
     disable_tree: bool = False

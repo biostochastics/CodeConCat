@@ -7,7 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.1] - 2026-01-28
 
+### Fixed
+
+- **Severity serialization**: Use enum `.name` (string like "HIGH") instead of `.value` (numeric) across all writers (json, markdown, xml) and rendering adapters
+- **Security issue masking**: Respect `mask_output_content` config flag in standalone writers (json, markdown, xml) to suppress security issue details when enabled
+- **PEP 604 isinstance compatibility**: Fix `isinstance(v, str | int | float | bool)` to use tuple form `isinstance(v, (str, int, float, bool))` in rendering_adapters.py for Python 3.9 compatibility
+- **Signal handler thread safety**: Guard `signal.signal()` call in `SignalHandler.install()` to only run from the main thread, preventing `ValueError` in worker threads
+- **Config validation**: Allow `source_url` and `diff` configs without requiring `target_path`, fixing early validation error for remote/diff workflows
+- **Docstring accuracy**: Fix `process_codebase()` docstring that incorrectly claimed `CancelledException` is raised (it returns `None` on cancellation)
+- **Parse result reconstruction**: Properly reconstruct `ParseResult` dataclass from dict when deserializing multiprocess worker results in unified_pipeline.py
+
+### Changed
+
+- **Default output filename convention**: Output files now use `ccc_{folder_name}_{mmddyy}.{ext}` pattern (e.g., `ccc_myproject_012826.md`) instead of the old `{folder_name}_ccc.{format}` pattern. Format names are mapped to proper file extensions (`markdown` → `.md`, `text` → `.txt`). Date stamp is included for easy versioning.
+
 ### Added
+
+- **Graceful Interrupt Handling (Ctrl+C)**: Full cooperative cancellation support
+  - First Ctrl+C triggers graceful cancellation with progress preservation
+  - Second Ctrl+C within 2 seconds forces immediate exit
+  - Thread-safe `CancellationToken` for cooperative task cancellation
+  - `SignalHandler` class with context manager support
+  - Cancellation checks throughout the processing pipeline
+  - New module: `codeconcat/utils/cancellation.py`
+
+- **Unified Progress Dashboard**: Flicker-free Rich Live panel display
+  - Single persistent dashboard showing all 4 processing stages (Collecting → Parsing → Annotating → Writing)
+  - Visual progress bars with percentage and item counts
+  - Stage status icons: ○ pending, ● in progress, ✓ completed, ✗ failed
+  - Elapsed time tracking per stage and total
+  - TTY detection with automatic fallback to `SimpleProgress` for non-interactive environments
+  - Refresh rate limiting (10 Hz) to reduce CPU usage and flicker
+  - New module: `codeconcat/cli/progress.py`
 
 - **5 New AI Providers for Code Summarization**:
   - **Google Gemini**: Native SDK integration via `google-genai`
@@ -44,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Reconstruction Parsing Hardening**: Improved markdown section parsing (supports paths with spaces), robust fenced code extraction, and diff-only block handling.
+  - Added strict parsing mode by default (with optional lenient repairs) for JSON/XML inputs
+  - XML reconstruction now prefers `defusedxml` when available for safer parsing
+
 - **Swift Parser Partial Results Merging**: Tree-sitter partial parse results now merge with regex parser
   - When tree-sitter encounters unsupported syntax (e.g., Swift 5.10+ `nonisolated(unsafe)`), it now includes partial results for merging instead of discarding them
   - Fallback regex parsers always run when tree-sitter has errors, ensuring modern language features are captured
@@ -61,6 +96,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unified Pipeline Merging Tests**: Disabled `parser_early_termination` in tests
   - Early termination was preventing result merging from occurring
   - Tests now properly verify merging behavior
+
+- **Verbose Debug Logging During Annotation Failures**: Removed debug code that dumped entire `ParsedFileData` objects (including full file contents) to stderr when annotation exceptions occurred
+  - Previously, `repr(file)` was logged which could output megabytes of content for large files
+  - Now logs only the file path and exception message
+
+- **Declaration Attribute Access in Writers**: Fixed `'dict' object has no attribute 'kind'` errors
+  - Declarations may be stored as either `Declaration` objects or dict representations
+  - Added `_get_decl_attr()` helper function across all writer modules for defensive attribute access
+  - Affected files: `annotator.py`, `markdown_writer.py`, `json_writer.py`, `xml_writer.py`, `rendering_adapters.py`
+
+- **Security Issue Attribute Access in Writers**: Fixed `'dict' object has no attribute 'severity'` errors
+  - Security issues may be stored as either `SecurityIssue` objects or dict representations
+  - Added `_get_issue_attr()` helper function across all writer modules for defensive attribute access
+  - Handles both enum values (with `.value`/`.name`) and string severity values
+  - Affected files: `markdown_writer.py`, `json_writer.py`, `xml_writer.py`, `rendering_adapters.py`
+
+- **Parallel Processing Dataclass Reconstruction**: Fixed `'dict' object has no attribute 'kind'` error in summarization processor when processing large codebases (50+ files)
+  - Root cause: `dataclasses.asdict()` in parallel processing worker converted nested `Declaration`, `TokenStats`, `SecurityIssue`, and `DiffMetadata` objects to plain dictionaries
+  - When `ParsedFileData(**result_dict)` reconstructed the object, nested dataclasses remained as dicts instead of being converted back to their proper types
+  - Added `_reconstruct_parsed_file_data()` and `_reconstruct_declaration()` helper functions in `unified_pipeline.py` to properly reconstruct all nested dataclass objects
+  - Handles recursive `Declaration.children` reconstruction and `modifiers` set/list conversion
+  - Affected file: `codeconcat/parser/unified_pipeline.py`
 
 ### Performance
 

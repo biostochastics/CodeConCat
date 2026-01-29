@@ -7,6 +7,20 @@ from codeconcat.base_types import CodeConCatConfig, WritableItem
 from codeconcat.writer.compression_helper import CompressionHelper
 
 
+def _get_decl_attr(decl, attr: str, default=None):
+    """Safely get attribute from declaration (handles both dict and object)."""
+    if isinstance(decl, dict):
+        return decl.get(attr, default)
+    return getattr(decl, attr, default)
+
+
+def _get_issue_attr(issue, attr: str, default=None):
+    """Safely get attribute from security issue (handles both dict and object)."""
+    if isinstance(issue, dict):
+        return issue.get(attr, default)
+    return getattr(issue, attr, default)
+
+
 def write_xml(
     items: list[WritableItem],
     config: CodeConCatConfig,
@@ -151,25 +165,37 @@ def write_xml(
             if hasattr(item, "declarations") and item.declarations:
                 declarations = ET.SubElement(analysis, "declarations")
                 for decl in item.declarations:
+                    start_line = _get_decl_attr(decl, "start_line", 0)
+                    end_line = _get_decl_attr(decl, "end_line", 0)
                     ET.SubElement(
                         declarations,
                         "declaration",
-                        type=decl.kind,
-                        name=decl.name,
-                        lines=f"{decl.start_line}-{decl.end_line}",
+                        type=_get_decl_attr(decl, "kind", "unknown"),
+                        name=_get_decl_attr(decl, "name", "unnamed"),
+                        lines=f"{start_line}-{end_line}",
                     )
 
-            # Add security findings
-            if hasattr(item, "security_issues") and item.security_issues:
+            # Add security findings (respect mask_output_content)
+            if (
+                hasattr(item, "security_issues")
+                and item.security_issues
+                and not config.mask_output_content
+            ):
                 security = ET.SubElement(analysis, "security_findings")
                 for issue in item.security_issues:
+                    severity = _get_issue_attr(issue, "severity", "INFO")
+                    # Handle enum with .name attribute (returns string like "HIGH")
+                    if hasattr(severity, "name"):
+                        severity_str = str(severity.name)
+                    else:
+                        severity_str = str(severity)
                     ET.SubElement(
                         security,
                         "issue",
-                        severity=str(issue.severity.value),
-                        line=str(issue.line_number),
-                        rule=issue.rule_id,
-                    ).text = issue.description
+                        severity=severity_str,
+                        line=str(_get_issue_attr(issue, "line_number", 0)),
+                        rule=_get_issue_attr(issue, "rule_id", ""),
+                    ).text = _get_issue_attr(issue, "description", "")
 
         # File content with CDATA preservation
         if hasattr(item, "diff_content") and item.diff_content:

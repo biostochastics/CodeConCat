@@ -47,6 +47,14 @@ def reconstruct_command(
             rich_help_panel="Input Options",
         ),
     ] = None,
+    strict: Annotated[
+        bool,
+        typer.Option(
+            "--strict/--lenient",
+            help="Use strict parsing (disable JSON/XML repair heuristics)",
+            rich_help_panel="Input Options",
+        ),
+    ] = True,
     force: Annotated[
         bool,
         typer.Option(
@@ -131,6 +139,7 @@ def reconstruct_command(
                 str(output_dir),
                 format_type=input_format,
                 verbose=verbose,
+                strict=strict,
             )
 
             progress.update(task, completed=100)

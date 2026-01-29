@@ -83,7 +83,7 @@ class TestReconstructFromFile:
             stats = reconstruct_from_file("test.md", temp_dir)
 
             # Should have created a reconstructor
-            mock_reconstructor_class.assert_called_once_with(temp_dir, False)
+            mock_reconstructor_class.assert_called_once_with(temp_dir, verbose=False, strict=True)
 
             # Should have called reconstruct
             mock_reconstructor.reconstruct.assert_called_once_with("test.md", None)

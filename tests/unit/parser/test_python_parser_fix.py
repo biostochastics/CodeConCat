@@ -96,8 +96,7 @@ def test_parser():
     if async_decl and async_decl.modifiers:
         assert "async" in async_decl.modifiers, "Missing 'async' modifier"
 
-    print("✅ All tests passed!")
-    return True
+    print("All tests passed!")
 
 
 if __name__ == "__main__":

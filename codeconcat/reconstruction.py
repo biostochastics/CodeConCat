@@ -16,25 +16,41 @@ Security:
 import json
 import logging
 import re
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, cast
 
 from codeconcat.utils.path_security import PathTraversalError, validate_safe_path
 
+try:
+    import defusedxml.ElementTree as ET
+
+    _DEFUSEDXML_AVAILABLE = True
+except ImportError:
+    import xml.etree.ElementTree as ET
+
+    _DEFUSEDXML_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
+
+_FENCE_LINE_RE = re.compile(r"^(?P<indent>\s*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 
 
 class CodeConcatReconstructor:
     """Base class for reconstructing files from CodeConCat output."""
 
-    def __init__(self, output_dir: str, verbose: bool = False):
+    def __init__(self, output_dir: str, verbose: bool = False, strict: bool = True):
         """Initialize with target output directory."""
         self.output_dir = Path(output_dir)
         self.files_processed = 0
         self.files_created = 0
         self.errors = 0
         self.verbose = verbose
+        self.strict = strict
+
+        if not _DEFUSEDXML_AVAILABLE:
+            logger.warning(
+                "defusedxml is not installed; XML parsing may be unsafe for untrusted inputs."
+            )
 
     def reconstruct(self, input_file: str, format_type: str | None = None) -> dict[str, int]:
         """
@@ -91,6 +107,82 @@ class CodeConcatReconstructor:
             "errors": self.errors,
         }
 
+    def _is_diff_fence(self, info: str) -> bool:
+        token = info.strip().split(" ", 1)[0].lower() if info else ""
+        return token in {"diff", "patch"}
+
+    def _strip_leading_language_line(self, content: str) -> str:
+        content_lines = content.split("\n")
+        if (
+            len(content_lines) > 1
+            and len(content_lines[0]) < 20
+            and " " not in content_lines[0]
+            and re.match(r"^[a-zA-Z0-9_+-]+$", content_lines[0])
+        ):
+            return "\n".join(content_lines[1:])
+        return content
+
+    def _extract_section_fence(self, text: str) -> tuple[str, str] | None:
+        lines = text.splitlines()
+        fence_lines: list[tuple[int, str, str]] = []
+
+        for index, line in enumerate(lines):
+            match = _FENCE_LINE_RE.match(line)
+            if match:
+                fence_lines.append((index, match.group("fence"), match.group("info").strip()))
+
+        if not fence_lines:
+            return None
+
+        start_index, start_fence, info = fence_lines[0]
+        fence_char = start_fence[0]
+        min_len = len(start_fence)
+        end_index = None
+
+        for index, fence, _ in fence_lines[1:]:
+            if fence[0] == fence_char and len(fence) >= min_len:
+                end_index = index
+
+        if end_index is None or end_index <= start_index:
+            return None
+
+        content = "\n".join(lines[start_index + 1 : end_index])
+        return info, content
+
+    def _find_fenced_blocks(self, text: str) -> list[tuple[str, str]]:
+        blocks: list[tuple[str, str]] = []
+        lines = text.splitlines()
+        index = 0
+
+        while index < len(lines):
+            match = _FENCE_LINE_RE.match(lines[index])
+            if not match:
+                index += 1
+                continue
+
+            fence = match.group("fence")
+            info = match.group("info").strip()
+            fence_char = fence[0]
+            min_len = len(fence)
+            end_index = None
+
+            for next_index in range(index + 1, len(lines)):
+                end_match = _FENCE_LINE_RE.match(lines[next_index])
+                if end_match:
+                    end_fence = end_match.group("fence")
+                    if end_fence[0] == fence_char and len(end_fence) >= min_len:
+                        end_index = next_index
+                        break
+
+            if end_index is None:
+                break
+
+            content = "\n".join(lines[index + 1 : end_index])
+            blocks.append((info, content))
+            index = end_index + 1
+
+        return blocks
+
     def _parse_markdown(self, input_path: Path) -> dict[str, str]:
         """Parse markdown output and extract files.
 
@@ -99,136 +191,79 @@ class CodeConcatReconstructor:
 
         This parser includes security validation to prevent path traversal attacks.
         """
-        files = {}
+        files: dict[str, str] = {}
 
         with open(input_path, encoding="utf-8") as f:
             content = f.read()
 
-        # Try different markdown header patterns to be robust against variations
-        patterns = [
-            # Current format (v2.0): ### 1. path/to/file.ext {#anchor}
-            r"###\s+\d+\.\s+([^\s{]+)(?:\s+\{#[^}]+\})?",
-            # Legacy formats for reference (no longer generated):
-            # r"##\s+(?:File:)?\s*`([^`]+)`",
-            # r"##\s+(?:File:)?\s*([^\s]+\.[^\s]+)",
-            # r"###\s+(?:File:)?\s*`([^`]+)`",
-        ]
+        header_patterns = [re.compile(r"^###\s+\d+\.\s+(.+?)(?:\s+\{#[^}]+\})?\s*$", re.MULTILINE)]
 
-        # Try each pattern until we find one that works
-        file_sections = []
-        for pattern in patterns:
-            file_sections = re.split(pattern, content)
-            if len(file_sections) > 1:
-                # Found a working pattern
+        matches: list[re.Match[str]] = []
+        for pattern in header_patterns:
+            matches = list(pattern.finditer(content))
+            if matches:
                 break
 
-        if len(file_sections) <= 1:
+        if not matches:
             logger.warning(
                 "No file sections found in markdown input. Trying alternative approaches..."
             )
-            # Try to find code blocks with file paths in code info string
-            code_blocks = re.finditer(r"```([^\n]+)\n(.*?)\n```", content, re.DOTALL)
-            for match in code_blocks:
-                file_info = match.group(1).strip()
-                # Look for file path patterns in the code info string
+            for info, block_content in self._find_fenced_blocks(content):
+                file_info = info.strip()
                 if "/" in file_info or "\\" in file_info or "." in file_info:
-                    # This might be a file path or language with file path
-                    possible_path = file_info.split(" ")[-1]  # Take last part if space-separated
-                    if "." in possible_path:  # Simple check for file extension
-                        files[possible_path] = match.group(2)
+                    possible_path = file_info.split(" ")[-1]
+                    if "." in possible_path:
+                        files[possible_path] = self._strip_leading_language_line(block_content)
                         self.files_processed += 1
                         if self.verbose:
                             logger.debug(f"Found file from code block: {possible_path}")
 
-            if not files:  # Still no files found
+            if not files:
                 logger.warning(
                     "Could not detect file sections in markdown using any known pattern."
                 )
                 return files
             return files
 
-        # First element is pre-content, skip it
-        file_sections = file_sections[1:]
+        for index, match in enumerate(matches):
+            file_path = match.group(1).strip()
+            section_start = match.end()
+            section_end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+            file_content_with_meta = content[section_start:section_end]
 
-        # Process file sections
-        for i in range(0, len(file_sections), 2):
-            if i + 1 >= len(file_sections):
-                break
+            fence = self._extract_section_fence(file_content_with_meta)
+            if fence is None:
+                blocks = self._find_fenced_blocks(file_content_with_meta)
+                fence = blocks[0] if blocks else None
 
-            file_path = file_sections[i].strip()
-            file_content_with_meta = file_sections[i + 1]
+            if fence is None:
+                logger.warning(f"Could not extract content for {file_path}")
+                self.errors += 1
+                continue
 
-            # Try multiple code block patterns
-            # 1. Standard code blocks with language
-            code_match: re.Match[str] | None = re.search(
-                r"```[\w-]*\n(.*?)\n```", file_content_with_meta, re.DOTALL
-            )
-            if not code_match:
-                # 2. Code blocks without language
-                code_match = re.search(r"```\n(.*?)\n```", file_content_with_meta, re.DOTALL)
-            if not code_match:
-                # 3. Code blocks with file path/language in first line
-                code_match = re.search(
-                    r"```.*?\n(?:.*?\n)?(.*?)\n```", file_content_with_meta, re.DOTALL
-                )
+            info, raw_content = fence
 
-            if code_match:
-                # Get raw content
-                raw_content = code_match.group(1)
-
-                # Clean up file path (remove any markdown artifacts)
-                file_path = file_path.strip("`").strip()
-
-                # Clean up the extracted content - remove language identifier if present
-                content_lines = raw_content.split("\n")
-                # Check if first line might be a language specifier
-                if (
-                    len(content_lines) > 1
-                    and len(content_lines[0]) < 20
-                    and " " not in content_lines[0]
-                ):
-                    # If first line looks like a language identifier and isn't part of the code
-                    if re.match(r"^[a-zA-Z0-9_+-]+$", content_lines[0]):
-                        file_content = "\n".join(content_lines[1:])
-                    else:
-                        file_content = raw_content
+            if self._is_diff_fence(info):
+                non_diff_blocks = [
+                    block
+                    for block in self._find_fenced_blocks(file_content_with_meta)
+                    if not self._is_diff_fence(block[0])
+                ]
+                if non_diff_blocks:
+                    info, raw_content = non_diff_blocks[0]
                 else:
-                    file_content = raw_content
-
-                files[file_path] = file_content
-                self.files_processed += 1
-                if self.verbose:
-                    logger.debug(f"Parsed file: {file_path}")
-            else:
-                # One more attempt - try to find ANY code block
-                match_any = re.search(r"```(.*?)```", file_content_with_meta, re.DOTALL)
-                if match_any:
-                    # Get raw content
-                    raw_content = match_any.group(1).strip()
-
-                    # Clean up the extracted content
-                    content_lines = raw_content.split("\n")
-                    # Check if first line might be a language specifier
-                    if (
-                        len(content_lines) > 1
-                        and len(content_lines[0]) < 20
-                        and " " not in content_lines[0]
-                    ):
-                        # If first line looks like a language identifier and isn't part of the code
-                        if re.match(r"^[a-zA-Z0-9_+-]+$", content_lines[0]):
-                            file_content = "\n".join(content_lines[1:])
-                        else:
-                            file_content = raw_content
-                    else:
-                        file_content = raw_content
-
-                    files[file_path] = file_content
-                    self.files_processed += 1
-                    if self.verbose:
-                        logger.debug(f"Parsed file using fallback method: {file_path}")
-                else:
-                    logger.warning(f"Could not extract content for {file_path}")
+                    logger.warning(
+                        f"Diff-only block found for {file_path}; skipping reconstruction"
+                    )
                     self.errors += 1
+                    continue
+
+            file_path = file_path.strip("`").strip()
+            file_content = self._strip_leading_language_line(raw_content)
+            files[file_path] = file_content
+            self.files_processed += 1
+            if self.verbose:
+                logger.debug(f"Parsed file: {file_path}")
 
         return files
 
@@ -246,7 +281,7 @@ class CodeConcatReconstructor:
 
         This parser includes security validation to prevent path traversal attacks.
         """
-        files = {}
+        files: dict[str, str] = {}
 
         try:
             with open(input_path, encoding="utf-8") as f:
@@ -259,7 +294,10 @@ class CodeConcatReconstructor:
             try:
                 root = ET.fromstring(xml_content)
             except ET.ParseError as e:
-                # If parsing fails, try to clean the XML by removing problematic sections
+                if self.strict:
+                    logger.error(f"XML parsing failed in strict mode: {e}")
+                    self.errors += 1
+                    return files
                 logger.warning(f"Initial XML parsing failed: {e}. Attempting cleanup...")
                 # Remove CDATA sections that might be malformed
                 xml_content = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", xml_content)
@@ -269,7 +307,8 @@ class CodeConcatReconstructor:
                     root = ET.fromstring(xml_content)
                 except ET.ParseError as e2:
                     logger.error(f"XML parsing failed after cleanup: {e2}")
-                    raise
+                    self.errors += 1
+                    return files
 
             # Find all file elements using multiple patterns
             file_elements = []
@@ -377,13 +416,17 @@ class CodeConcatReconstructor:
 
         This parser includes security validation to prevent path traversal attacks.
         """
-        files = {}
+        files: dict[str, str] = {}
 
         try:
             with open(input_path, encoding="utf-8") as f:
                 try:
                     data = json.load(f)
                 except json.JSONDecodeError as e:
+                    if self.strict:
+                        logger.error(f"JSON parsing failed in strict mode: {e}")
+                        self.errors += 1
+                        return files
                     # Try to fix common JSON issues
                     logger.warning(f"JSON parsing failed: {e}. Attempting to fix...")
                     f.seek(0)  # Go back to start of file
@@ -402,7 +445,8 @@ class CodeConcatReconstructor:
                         data = json.loads(json_content)
                     except json.JSONDecodeError as e2:
                         logger.error(f"JSON parsing failed after fixes: {e2}")
-                        raise
+                        self.errors += 1
+                        return files
 
             # Try multiple approaches to find files in the JSON structure
 
@@ -607,6 +651,7 @@ def reconstruct_from_file(
     output_dir: str = "./reconstructed",
     format_type: str | None = None,
     verbose: bool = False,
+    strict: bool = True,
 ) -> dict:
     """
     Reconstruct files from a CodeConCat output file.
@@ -620,5 +665,5 @@ def reconstruct_from_file(
     Returns:
         Dict with statistics about the reconstruction
     """
-    reconstructor = CodeConcatReconstructor(output_dir, verbose)
+    reconstructor = CodeConcatReconstructor(output_dir, verbose=verbose, strict=strict)
     return reconstructor.reconstruct(input_file, format_type)
