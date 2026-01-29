@@ -246,8 +246,12 @@ def write_markdown(
                 output_parts.append(_render_declarations_tree(item.declarations))
                 output_parts.append("</details>\n")
 
-            # Security issues with severity badges
-            if hasattr(item, "security_issues") and item.security_issues:
+            # Security issues with severity badges (respect mask_output_content)
+            if (
+                hasattr(item, "security_issues")
+                and item.security_issues
+                and not config.mask_output_content
+            ):
                 output_parts.append("<details>")
                 output_parts.append("<summary>⚠️ Security Issues</summary>\n")
                 for issue in item.security_issues:
@@ -423,9 +427,9 @@ def _render_declarations_tree(declarations: list[Declaration], indent: int = 0) 
 def _get_severity_badge(severity) -> str:
     """Get severity badge emoji (handles both enum and string severity values)."""
     badges = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFO": "ℹ️"}
-    # Handle enum with .value attribute
-    if hasattr(severity, "value"):
-        severity_str = str(severity.value).upper()
+    # Handle enum with .name attribute (returns string like "HIGH", not numeric value)
+    if hasattr(severity, "name"):
+        severity_str = str(severity.name).upper()
     else:
         severity_str = str(severity).upper()
     return badges.get(severity_str, "❓")

@@ -802,7 +802,7 @@ def run_codeconcat(
         ConfigurationError: If the configuration is invalid.
         FileProcessingError: For errors related to reading or parsing files.
         OutputError: For errors during output generation.
-        CancelledException: If the operation was cancelled via cancel_token.
+        Note: Returns None if the operation was cancelled via cancel_token.
 
     Complexity:
         O(n*m) where n is number of files and m is average file size
@@ -832,8 +832,10 @@ def run_codeconcat(
     logger.debug("Running CodeConCat with config: %s", config)
     try:
         # Validate configuration
-        if not config.target_path:
-            raise ConfigurationError("Target path is required")
+        if not config.target_path and not config.source_url and not getattr(config, "diff", None):
+            raise ConfigurationError(
+                "Either source_url or target_path must be provided in the configuration."
+            )
         if config.format not in ["markdown", "json", "xml", "text"]:
             raise ConfigurationError(f"Invalid format: {config.format}")
 

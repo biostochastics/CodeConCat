@@ -24,8 +24,8 @@ def _get_issue_attr(issue, attr: str, default=None):
 
 def _get_severity_str(severity) -> str:
     """Get severity as string (handles both enum and string)."""
-    if hasattr(severity, "value"):
-        return str(severity.value)
+    if hasattr(severity, "name"):
+        return str(severity.name)
     return str(severity)
 
 
@@ -171,8 +171,12 @@ def write_json(
             }
             indexes["with_declarations"].append(file_path)
 
-        # Add security data if available
-        if hasattr(item, "security_issues") and item.security_issues:
+        # Add security data if available (respect mask_output_content)
+        if (
+            hasattr(item, "security_issues")
+            and item.security_issues
+            and not config.mask_output_content
+        ):
             file_data["security"] = {
                 "issue_count": len(item.security_issues),
                 "by_severity": _group_by_severity(item.security_issues),

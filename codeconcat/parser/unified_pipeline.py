@@ -211,6 +211,27 @@ def _reconstruct_parsed_file_data(result_dict: dict) -> ParsedFileData:
         else:
             diff_metadata = dm_data
 
+    # Reconstruct parse_result if it's a dict from multiprocess serialization
+    parse_result = result_dict.get("parse_result")
+    if isinstance(parse_result, dict):
+        parse_result = ParseResult(
+            declarations=declarations,
+            imports=parse_result.get("imports", []),
+            missed_features=parse_result.get("missed_features", []),
+            security_issues=parse_result.get("security_issues", []),
+            error=parse_result.get("error"),
+            engine_used=parse_result.get("engine_used", "regex"),
+            parser_quality=parse_result.get("parser_quality", "unknown"),
+            file_path=parse_result.get("file_path"),
+            language=parse_result.get("language"),
+            content=parse_result.get("content"),
+            module_docstring=parse_result.get("module_docstring"),
+            module_name=parse_result.get("module_name"),
+            degraded=parse_result.get("degraded", False),
+            confidence_score=parse_result.get("confidence_score"),
+            parser_type=parse_result.get("parser_type"),
+        )
+
     return ParsedFileData(
         file_path=result_dict["file_path"],
         content=result_dict.get("content"),
@@ -219,7 +240,7 @@ def _reconstruct_parsed_file_data(result_dict: dict) -> ParsedFileData:
         imports=result_dict.get("imports", []),
         token_stats=token_stats,
         security_issues=security_issues,
-        parse_result=result_dict.get("parse_result"),
+        parse_result=parse_result,
         ai_summary=result_dict.get("ai_summary"),
         ai_metadata=result_dict.get("ai_metadata"),
         diff_content=result_dict.get("diff_content"),

@@ -175,14 +175,18 @@ def write_xml(
                         lines=f"{start_line}-{end_line}",
                     )
 
-            # Add security findings
-            if hasattr(item, "security_issues") and item.security_issues:
+            # Add security findings (respect mask_output_content)
+            if (
+                hasattr(item, "security_issues")
+                and item.security_issues
+                and not config.mask_output_content
+            ):
                 security = ET.SubElement(analysis, "security_findings")
                 for issue in item.security_issues:
                     severity = _get_issue_attr(issue, "severity", "INFO")
-                    # Handle enum with .value attribute
-                    if hasattr(severity, "value"):
-                        severity_str = str(severity.value)
+                    # Handle enum with .name attribute (returns string like "HIGH")
+                    if hasattr(severity, "name"):
+                        severity_str = str(severity.name)
                     else:
                         severity_str = str(severity)
                     ET.SubElement(

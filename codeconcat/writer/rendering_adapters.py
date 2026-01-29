@@ -557,7 +557,7 @@ class XmlRenderAdapter:
 
         # Handle severity (may be enum or string)
         severity = _get_issue_attr(issue, "severity", "INFO")
-        severity_str = str(severity.value) if hasattr(severity, "value") else str(severity)
+        severity_str = str(severity.name) if hasattr(severity, "name") else str(severity)
         issue_elem.set("severity", severity_str)
 
         # Add description
@@ -659,9 +659,7 @@ class XmlRenderAdapter:
                 if segment.metadata:
                     metadata_elem = ET.SubElement(segment_elem, "metadata")
                     for key, value in segment.metadata.items():
-                        if key != "original_content" and isinstance(
-                            value, str | int | float | bool
-                        ):
+                        if key != "original_content" and isinstance(value, (str, int, float, bool)):
                             meta_item = ET.SubElement(metadata_elem, "item", {"key": key})
                             meta_item.text = str(value)
 

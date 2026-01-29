@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.1] - 2026-01-28
 
+### Fixed
+
+- **Severity serialization**: Use enum `.name` (string like "HIGH") instead of `.value` (numeric) across all writers (json, markdown, xml) and rendering adapters
+- **Security issue masking**: Respect `mask_output_content` config flag in standalone writers (json, markdown, xml) to suppress security issue details when enabled
+- **PEP 604 isinstance compatibility**: Fix `isinstance(v, str | int | float | bool)` to use tuple form `isinstance(v, (str, int, float, bool))` in rendering_adapters.py for Python 3.9 compatibility
+- **Signal handler thread safety**: Guard `signal.signal()` call in `SignalHandler.install()` to only run from the main thread, preventing `ValueError` in worker threads
+- **Config validation**: Allow `source_url` and `diff` configs without requiring `target_path`, fixing early validation error for remote/diff workflows
+- **Docstring accuracy**: Fix `process_codebase()` docstring that incorrectly claimed `CancelledException` is raised (it returns `None` on cancellation)
+- **Parse result reconstruction**: Properly reconstruct `ParseResult` dataclass from dict when deserializing multiprocess worker results in unified_pipeline.py
+
 ### Changed
 
 - **Default output filename convention**: Output files now use `ccc_{folder_name}_{mmddyy}.{ext}` pattern (e.g., `ccc_myproject_012826.md`) instead of the old `{folder_name}_ccc.{format}` pattern. Format names are mapped to proper file extensions (`markdown` → `.md`, `text` → `.txt`). Date stamp is included for easy versioning.

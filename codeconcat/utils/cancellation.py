@@ -158,8 +158,14 @@ class SignalHandler:
                     self.on_cancel()
 
     def install(self) -> "SignalHandler":
-        """Install the signal handler. Returns self for chaining."""
+        """Install the signal handler. Returns self for chaining.
+
+        Note: signal.signal() can only be called from the main thread.
+        Silently skips installation if called from a non-main thread.
+        """
         if not self._installed:
+            if threading.current_thread() is not threading.main_thread():
+                return self
             self._original_handler = cast(
                 signal.Handlers | int | None, signal.signal(signal.SIGINT, self._handler)
             )
