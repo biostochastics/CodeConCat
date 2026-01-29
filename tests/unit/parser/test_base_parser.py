@@ -29,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class TestParser(EnhancedBaseParser):
+class SampleParser(EnhancedBaseParser):
     """Test implementation of EnhancedBaseParser for testing."""
 
     def __init__(self, language="test"):
@@ -148,14 +148,14 @@ def python_function():
 """
 
     @pytest.fixture
-    def parser(self) -> TestParser:
+    def parser(self) -> SampleParser:
         """Fixture providing a test parser instance."""
-        return TestParser()
+        return SampleParser()
 
     @pytest.fixture
-    def python_parser(self) -> TestParser:
+    def python_parser(self) -> SampleParser:
         """Fixture providing a Python test parser instance."""
-        parser = TestParser("python")
+        parser = SampleParser("python")
         parser.line_comment = "#"
         parser.block_comment_start = '"""'
         parser.block_comment_end = '"""'
