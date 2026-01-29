@@ -10,7 +10,6 @@ import logging
 import os
 import sys
 import traceback
-from typing import List, Tuple
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -53,7 +52,7 @@ def check_tree_sitter_core() -> bool:
         return False
 
 
-def check_tree_sitter_grammars() -> Tuple[bool, List[str], List[str]]:
+def check_tree_sitter_grammars() -> tuple[bool, list[str], list[str]]:
     """
     Check if the tree-sitter grammar shared libraries are available.
 

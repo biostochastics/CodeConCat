@@ -356,10 +356,16 @@ class SecureHash:
     Secure hashing utilities.
     """
 
+    # OWASP 2024 recommendation for PBKDF2-SHA256
+    # https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+    PBKDF2_ITERATIONS: int = 210000
+
     @staticmethod
     def hash_password(password: str, salt: bytes | None = None) -> tuple[str, str]:
         """
-        Hash a password using PBKDF2.
+        Hash a password using PBKDF2-HMAC-SHA256.
+
+        Uses OWASP-compliant iteration count (210,000 for SHA256 in 2024).
 
         Args:
             password: Password to hash
@@ -371,14 +377,16 @@ class SecureHash:
         if salt is None:
             salt = secrets.token_bytes(32)
 
-        key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)  # iterations
+        key = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), salt, SecureHash.PBKDF2_ITERATIONS
+        )
 
         return key.hex(), salt.hex()
 
     @staticmethod
     def verify_password(password: str, hash_hex: str, salt_hex: str) -> bool:
         """
-        Verify a password against a hash.
+        Verify a password against a hash using constant-time comparison.
 
         Args:
             password: Password to verify
@@ -391,7 +399,7 @@ class SecureHash:
         salt = bytes.fromhex(salt_hex)
         computed_hash, _ = SecureHash.hash_password(password, salt)
 
-        # Use constant-time comparison
+        # Use constant-time comparison to prevent timing attacks
         return secrets.compare_digest(computed_hash, hash_hex)
 
     @staticmethod

@@ -356,11 +356,16 @@ SOURCE_CODE_EXTENSIONS = {
     ".txt",
 }
 
+# File size limits (in bytes)
+KILOBYTE = 1024
+MEGABYTE = KILOBYTE * 1024
+GIGABYTE = MEGABYTE * 1024
+
 # Maximum file size for processing (in bytes)
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_FILE_SIZE = 10 * MEGABYTE  # 10 MB
 
 # Maximum total project size (in bytes)
-MAX_PROJECT_SIZE = 100 * 1024 * 1024  # 100 MB
+MAX_PROJECT_SIZE = 100 * MEGABYTE  # 100 MB
 
 # Token limits for different models (updated January 2026)
 TOKEN_LIMITS = {

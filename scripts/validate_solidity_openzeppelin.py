@@ -10,7 +10,6 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -32,12 +31,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def find_solidity_files(contracts_dir: Path) -> List[Path]:
+def find_solidity_files(contracts_dir: Path) -> list[Path]:
     """Find all Solidity files in the contracts directory."""
     return list(contracts_dir.glob("**/*.sol"))
 
 
-def analyze_contract(parser: TreeSitterSolidityParser, file_path: Path) -> Dict:
+def analyze_contract(parser: TreeSitterSolidityParser, file_path: Path) -> dict:
     """Analyze a single Solidity contract file."""
     try:
         with open(file_path, encoding="utf-8") as f:
@@ -88,7 +87,7 @@ def analyze_contract(parser: TreeSitterSolidityParser, file_path: Path) -> Dict:
         }
 
 
-def generate_report(results: List[Dict]) -> Dict:
+def generate_report(results: list[dict]) -> dict:
     """Generate a summary report from analysis results."""
     total_files = len(results)
     successful_parses = sum(1 for r in results if r["success"])

@@ -386,6 +386,51 @@ codeconcat run \
     --output private-analysis.md
 ```
 
+<details>
+<summary><strong>GitHub Token Best Practices</strong></summary>
+
+GitHub recommends **fine-grained personal access tokens** over classic PATs for better security:
+
+| Token Type | Format | Recommendation |
+|------------|--------|----------------|
+| **Fine-grained PAT** | `github_pat_*` | Recommended - scoped to specific repos |
+| **Classic PAT** | `ghp_*` | Legacy - grants broader access |
+| **GitHub App** | `ghs_*` | Best for organizational/production use |
+
+**Creating a Fine-Grained Token (Recommended):**
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens](https://github.com/settings/tokens?type=beta)
+2. Click "Generate new token"
+3. Configure:
+   - **Token name**: `codeconcat-access` (or descriptive name)
+   - **Expiration**: Set appropriate expiration (GitHub allows up to 1 year)
+   - **Repository access**: Select "Only select repositories" and choose specific repos
+   - **Permissions**:
+     - `Contents`: **Read** (required for cloning)
+     - `Metadata`: **Read** (automatically included)
+4. Click "Generate token" and save it securely
+
+**Minimum Required Permissions:**
+- For public repos: No token needed
+- For private repos: `Contents: Read` permission only
+
+**Security Benefits of Fine-Grained Tokens:**
+- Scoped to specific repositories (not all repos you can access)
+- Minimum required permissions (principle of least privilege)
+- Built-in expiration (enterprises can enforce max 90-366 days)
+- Better audit trail in organization settings
+
+**Using the Token:**
+```bash
+# Set as environment variable (recommended)
+export GITHUB_TOKEN=github_pat_11AAAA...
+
+# Or pass directly (avoid in shell history)
+codeconcat run --source-url owner/private-repo --github-token "github_pat_..."
+```
+
+</details>
+
 ## Configuration
 
 ### Configuration File
@@ -458,8 +503,9 @@ codeconcat validate .codeconcat.yml  # Validate existing config
 ### Environment Variables
 
 ```bash
-# API Configuration
-export GITHUB_TOKEN=your_token_here
+# GitHub Token (see "GitHub Token Best Practices" above for creating tokens)
+# Fine-grained tokens (github_pat_*) are recommended over classic tokens (ghp_*)
+export GITHUB_TOKEN=github_pat_11AAAA...
 
 # AI Provider Keys (optional, see AI Summarization section)
 export OPENAI_API_KEY=sk-...

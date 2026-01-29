@@ -5,6 +5,20 @@ All notable changes to CodeConCat will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-01-28
+
+### Fixed
+
+- **OpenAI API key validation**: Added explicit validation during provider initialization that raises `ValueError` with helpful error message when API key is not configured, preventing cryptic runtime errors
+- **ProcessPoolExecutor resource leak**: Added proper exception handling around parallel parsing to ensure worker processes are cleaned up even when errors occur
+- **Unsafe dict deserialization**: Replaced direct `**dict` unpacking in multiprocessing worker with explicit type validation and Pydantic `model_validate()` for config, preventing potential injection attacks through malformed input
+- **jsonschema import bug**: Fixed ineffective dependency check in API module that never actually imported jsonschema, now properly verifies library availability at startup
+- **Password hashing security**: Increased PBKDF2 iterations from 100,000 to 210,000 to meet OWASP 2024 recommendations for password storage
+
+### Changed
+
+- **Constants file**: Replaced magic numbers with named constants (`KILOBYTE`, `MEGABYTE`) for better readability and maintainability of file size limits
+
 ## [0.9.1] - 2026-01-28
 
 ### Fixed

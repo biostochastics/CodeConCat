@@ -20,7 +20,11 @@ class OpenAIProvider(AIProvider):
     _session: aiohttp.ClientSession | None
 
     def __init__(self, config: AIProviderConfig):
-        """Initialize OpenAI provider."""
+        """Initialize OpenAI provider.
+
+        Raises:
+            ValueError: If API key is not configured.
+        """
         super().__init__(config)
         logger.info(f"Initializing OpenAI provider with model: {config.model}")
 
@@ -28,6 +32,17 @@ class OpenAIProvider(AIProvider):
         if not config.api_key:
             config.api_key = os.getenv("OPENAI_API_KEY")
             logger.debug(f"API key loaded from env: {bool(config.api_key)}")
+
+        # CRITICAL: Validate API key is present before proceeding
+        if not config.api_key:
+            error_msg = (
+                "OpenAI API key not configured. Please set one of the following:\n"
+                "1. Set the OPENAI_API_KEY environment variable\n"
+                "2. Provide api_key in the provider configuration\n"
+                "3. Use 'codeconcat keys set openai' to store encrypted credentials"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         if not config.api_base:
             config.api_base = "https://api.openai.com/v1"

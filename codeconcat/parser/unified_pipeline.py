@@ -508,6 +508,9 @@ def _process_file_worker(file_data_dict: dict, config_dict: dict) -> tuple[dict 
     This function is called by ProcessPoolExecutor workers. It creates a minimal
     pipeline instance to process a single file and returns serializable results.
 
+    SECURITY: Validates config using Pydantic's model_validate() and adds explicit
+    type/sanity checks for file_data_dict to prevent injection attacks.
+
     Args:
         file_data_dict: Dictionary representation of ParsedFileData
         config_dict: Dictionary representation of CodeConCatConfig
@@ -520,9 +523,30 @@ def _process_file_worker(file_data_dict: dict, config_dict: dict) -> tuple[dict 
     import dataclasses
 
     try:
-        # Reconstruct objects from dictionaries
+        # Reconstruct config from validated Pydantic model
+        config = CodeConCatConfig.model_validate(config_dict)
+
+        # Validate file_data_dict with explicit type/sanity checks
+        # This prevents injection attacks through malformed input
+        if not isinstance(file_data_dict, dict):
+            raise ValueError("file_data_dict must be a dictionary")
+
+        # Validate required string fields
+        file_path = file_data_dict.get("file_path")
+        if not isinstance(file_path, str) or not file_path:
+            raise ValueError("file_path must be a non-empty string")
+
+        # Validate optional fields have expected types
+        content = file_data_dict.get("content")
+        if content is not None and not isinstance(content, str):
+            raise ValueError("content must be a string or None")
+
+        language = file_data_dict.get("language")
+        if language is not None and not isinstance(language, str):
+            raise ValueError("language must be a string or None")
+
+        # Reconstruct file_data using validated dict
         file_data = ParsedFileData(**file_data_dict)
-        config = CodeConCatConfig(**config_dict)
 
         # Create a minimal pipeline instance
         pipeline = UnifiedPipeline(config)
@@ -657,9 +681,6 @@ class UnifiedPipeline:
         Returns:
             Tuple of (parsed_files, errors)
         """
-        parsed_files_output: list[ParsedFileData] = []
-        errors: list[ParserError] = []
-
         # Determine number of workers
         max_workers = (
             self.config.max_workers
@@ -678,82 +699,92 @@ class UnifiedPipeline:
             self.config.model_dump() if hasattr(self.config, "model_dump") else self.config.__dict__
         )
 
-        # Submit all files to the executor
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            future_to_file = {}
-            for file_data in files_to_parse:
-                # Convert file_data to dict for serialization
-                file_data_dict = (
-                    file_data.model_dump()
-                    if hasattr(file_data, "model_dump")
-                    else file_data.__dict__
-                )
-                future = executor.submit(_process_file_worker, file_data_dict, config_dict)
-                future_to_file[future] = file_data
+        # Lists to collect results
+        parsed_files_output: list[ParsedFileData] = []
+        errors: list[ParserError] = []
 
-            # Process results as they complete with progress tracking
-            completed = 0
-            total = len(future_to_file)
+        try:
+            # Submit all files to the executor
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                future_to_file = {}
+                for file_data in files_to_parse:
+                    # Convert file_data to dict for serialization
+                    file_data_dict = (
+                        file_data.model_dump()
+                        if hasattr(file_data, "model_dump")
+                        else file_data.__dict__
+                    )
+                    future = executor.submit(_process_file_worker, file_data_dict, config_dict)
+                    future_to_file[future] = file_data
 
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[bold blue]Parsing files"),
-                BarColumn(),
-                TaskProgressColumn(),
-                "[progress.percentage]{task.percentage:>3.0f}%",
-                disable=self.config.disable_progress_bar,
-            ) as progress:
-                task = progress.add_task("Parsing", total=total)
+                # Process results as they complete with progress tracking
+                completed = 0
+                total = len(future_to_file)
 
-                for future in as_completed(future_to_file):
-                    file_data = future_to_file[future]
-                    try:
-                        result_dict, error_msg = future.result(timeout=timeout_seconds)
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[bold blue]Parsing files"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    "[progress.percentage]{task.percentage:>3.0f}%",
+                    disable=self.config.disable_progress_bar,
+                ) as progress:
+                    task = progress.add_task("Parsing", total=total)
 
-                        if error_msg:
-                            logger.error(error_msg)
+                    for future in as_completed(future_to_file):
+                        file_data = future_to_file[future]
+                        try:
+                            result_dict, error_msg = future.result(timeout=timeout_seconds)
+
+                            if error_msg:
+                                logger.error(error_msg)
+                                errors.append(
+                                    FileProcessingError(  # type: ignore[arg-type]
+                                        error_msg,
+                                        file_path=file_data.file_path,
+                                    )
+                                )
+                            elif result_dict:
+                                # Reconstruct ParsedFileData from dict with proper nested object reconstruction
+                                # This handles Declaration, TokenStats, SecurityIssue, DiffMetadata
+                                parsed_file = _reconstruct_parsed_file_data(result_dict)
+                                parsed_files_output.append(parsed_file)
+
+                        except TimeoutError:
+                            logger.warning(
+                                f"Timeout parsing {file_data.file_path} after {timeout_seconds}s"
+                            )
                             errors.append(
                                 FileProcessingError(  # type: ignore[arg-type]
-                                    error_msg,
+                                    f"Parsing timeout after {timeout_seconds}s",
                                     file_path=file_data.file_path,
                                 )
                             )
-                        elif result_dict:
-                            # Reconstruct ParsedFileData from dict with proper nested object reconstruction
-                            # This handles Declaration, TokenStats, SecurityIssue, DiffMetadata
-                            parsed_file = _reconstruct_parsed_file_data(result_dict)
-                            parsed_files_output.append(parsed_file)
+                        except Exception as e:
+                            logger.error(
+                                f"Error processing {file_data.file_path} in worker: {e}",
+                                exc_info=True,
+                            )
+                            errors.append(
+                                FileProcessingError(  # type: ignore[arg-type]
+                                    f"Worker error: {str(e)}",
+                                    file_path=file_data.file_path,
+                                )
+                            )
+                        finally:
+                            completed += 1
+                            progress.update(task, advance=1)
 
-                    except TimeoutError:
-                        logger.warning(
-                            f"Timeout parsing {file_data.file_path} after {timeout_seconds}s"
-                        )
-                        errors.append(
-                            FileProcessingError(  # type: ignore[arg-type]
-                                f"Parsing timeout after {timeout_seconds}s",
-                                file_path=file_data.file_path,
-                            )
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Error processing {file_data.file_path} in worker: {e}",
-                            exc_info=True,
-                        )
-                        errors.append(
-                            FileProcessingError(  # type: ignore[arg-type]
-                                f"Worker error: {str(e)}",
-                                file_path=file_data.file_path,
-                            )
-                        )
-                    finally:
-                        completed += 1
-                        progress.update(task, advance=1)
+                            # Periodic progress logging
+                            if completed % 50 == 0 or completed == total:
+                                logger.info(
+                                    f"Parsed {completed}/{total} files ({completed / total * 100:.1f}%)"
+                                )
 
-                        # Periodic progress logging
-                        if completed % 50 == 0 or completed == total:
-                            logger.info(
-                                f"Parsed {completed}/{total} files ({completed / total * 100:.1f}%)"
-                            )
+        except Exception:
+            # Log error and ensure cleanup
+            logger.exception("Error during parallel parsing, cleaning up pending futures")
+            raise
 
         logger.info(
             f"Unified parsing pipeline completed: {len(parsed_files_output)} succeeded, "
