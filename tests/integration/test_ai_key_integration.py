@@ -108,12 +108,9 @@ class TestAPIKeyIntegration:
                 provider_type=AIProviderType.OPENAI, model="gpt-3.5-turbo", max_tokens=100
             )
 
-            # Provider should still be created, but with no key
-            provider = get_ai_provider(config)
-            assert provider is not None
-
-            # Config should not have an API key
-            assert provider.config.api_key is None or provider.config.api_key == ""
+            # OpenAI provider now raises ValueError when no API key is configured
+            with pytest.raises(ValueError, match="OpenAI API key not configured"):
+                get_ai_provider(config)
 
     @pytest.mark.asyncio
     async def test_provider_validation_with_invalid_key(self):

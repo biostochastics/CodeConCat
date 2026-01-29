@@ -12,6 +12,7 @@ import importlib.resources
 import logging
 import os  # Ensure os is imported at the global scope
 import sys
+import tempfile
 import warnings
 from collections.abc import Callable
 from datetime import datetime
@@ -830,6 +831,10 @@ def run_codeconcat(
         logger.error(f"Configuration validation failed: {e}")
         raise ConfigurationError(f"Invalid configuration: {e}") from e
     logger.debug("Running CodeConCat with config: %s", config)
+
+    # Track temp directory for GitHub repos - must be cleaned up after processing
+    temp_dir_obj: tempfile.TemporaryDirectory | None = None
+
     try:
         # Validate configuration
         if not config.target_path and not config.source_url and not getattr(config, "diff", None):
@@ -909,7 +914,11 @@ def run_codeconcat(
         elif config.source_url:
             logger.info(f"Collecting files from source URL: {config.source_url}")
             # Use the secure async implementation with synchronous wrapper
-            files_to_process, temp_dir = collect_git_repo(config.source_url, config)
+            # WHY: temp_dir_obj must be kept alive until processing is complete
+            files_to_process, temp_dir_obj = collect_git_repo(config.source_url, config)
+            # PERF: Set target_path for validation to avoid repeated path resolution failures
+            if temp_dir_obj is not None:
+                config.target_path = temp_dir_obj.name
         elif config.target_path:
             logger.info(f"Collecting files from local path: {config.target_path}")
             files_to_process = collect_local_files(config.target_path, config)
@@ -1500,6 +1509,14 @@ def run_codeconcat(
     except Exception as e:
         logger.error(f"[CodeConCat] Unexpected error: {str(e)}")
         raise
+    finally:
+        # Clean up temp directory for GitHub repos after all processing is complete
+        if temp_dir_obj is not None:
+            try:
+                temp_dir_obj.cleanup()
+                logger.debug("Cleaned up temporary clone directory")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up temp directory: {cleanup_error}")
 
 
 def run_codeconcat_in_memory(config: CodeConCatConfig) -> str | None:

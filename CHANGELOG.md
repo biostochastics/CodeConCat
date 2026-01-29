@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **GitHub temp directory lifecycle**: Fixed premature deletion of cloned repository temp directory before validation/parsing completes by returning `TemporaryDirectory` object for caller-managed cleanup
 - **OpenAI API key validation**: Added explicit validation during provider initialization that raises `ValueError` with helpful error message when API key is not configured, preventing cryptic runtime errors
 - **ProcessPoolExecutor resource leak**: Added proper exception handling around parallel parsing to ensure worker processes are cleaned up even when errors occur
 - **Unsafe dict deserialization**: Replaced direct `**dict` unpacking in multiprocessing worker with explicit type validation and Pydantic `model_validate()` for config, preventing potential injection attacks through malformed input

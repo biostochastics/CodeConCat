@@ -101,7 +101,7 @@ class TestCollectGitRepo:
         result, temp_path = collect_git_repo("octocat/Hello-World", config)
 
         assert result == []
-        assert temp_path == ""
+        assert temp_path is None
 
     def test_collect_invalid_url(self):
         """Test handling invalid URL."""
@@ -109,7 +109,7 @@ class TestCollectGitRepo:
         result, temp_path = collect_git_repo("not-a-valid-url", config)
 
         assert result == []
-        assert temp_path == ""
+        assert temp_path is None
 
     @patch("codeconcat.collector.github_collector.tempfile.TemporaryDirectory")
     @patch("codeconcat.collector.github_collector.asyncio.run")
