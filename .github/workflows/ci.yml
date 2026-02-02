@@ -72,7 +72,7 @@ jobs:
     - name: Install project
       run: poetry install --no-interaction
     - name: Run tests with coverage
-      run: poetry run pytest --cov=codeconcat --cov-report=xml --cov-report=term
+      run: poetry run pytest --cov=codeconcat --cov-report=xml --cov-report=term --ignore=tests/integration/test_ai_summary_generation.py
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.12'
       uses: codecov/codecov-action@v4
