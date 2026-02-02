@@ -42,7 +42,7 @@ class PathValidator:
 
     # Dangerous path patterns
     DANGEROUS_PATTERNS = [
-        r"\.\.",  # Parent directory
+        r"(?:^|[\\/])\.\.(?:[\\/]|$)",  # Parent directory as path component (../foo, foo/.., etc.)
         r"~",  # Home directory
         r"\$",  # Environment variables
         r"%",  # Windows environment variables
