@@ -13,7 +13,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from tree_sitter import Query  # noqa: E402
+# Query class import - guard for potential API differences across tree-sitter versions
+try:
+    from tree_sitter import Query  # noqa: E402
+except ImportError:
+    Query = None  # type: ignore[assignment,misc]
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
@@ -25,7 +29,10 @@ from tree_sitter_language_pack import get_language, get_parser  # noqa: E402
 
 
 # Test Python parser API
-@pytest.mark.skipif(QueryCursor is None, reason="QueryCursor not available in tree-sitter >= 0.24.0")
+@pytest.mark.skipif(
+    Query is None or QueryCursor is None,
+    reason="Query or QueryCursor not available in this tree-sitter version",
+)
 def test_capture_api():
     """Test the NEW QueryCursor API for tree-sitter queries."""
     print("Testing tree-sitter NEW QueryCursor API...")

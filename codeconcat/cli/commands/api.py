@@ -138,19 +138,23 @@ def server_info():
         Panel(
             "[bold cyan]CodeConCat API Server Information[/bold cyan]\n\n"
             "[yellow]Available Endpoints:[/yellow]\n"
-            "  • POST /process - Process files and generate output\n"
-            "  • GET /health - Health check endpoint\n"
-            "  • GET /version - Get API version\n"
-            "  • GET /docs - Interactive API documentation\n"
-            "  • GET /redoc - Alternative API documentation\n\n"
+            "  • POST /api/concat - Process code and generate output\n"
+            "  • POST /api/upload - Upload and process archive (zip/tar)\n"
+            "  • GET /api/ping - Health check endpoint\n"
+            "  • GET /api/config/presets - Available presets\n"
+            "  • GET /api/config/formats - Supported formats\n"
+            "  • GET /api/config/languages - Supported languages\n"
+            "  • GET /api/config/defaults - Default configuration\n"
+            "  • GET /docs - Interactive API documentation (Swagger UI)\n"
+            "  • GET /redoc - Alternative API documentation (ReDoc)\n\n"
             "[yellow]Environment Variables:[/yellow]\n"
             "  • CODECONCAT_HOST - Server host (default: 127.0.0.1)\n"
             "  • CODECONCAT_PORT - Server port (default: 8000)\n"
-            "  • CODECONCAT_API_KEY - API key for authentication (optional)\n\n"
+            "  • CODECONCAT_ALLOW_LOCAL_PATH - Enable local paths in API (dev only)\n\n"
             "[yellow]Example Usage:[/yellow]\n"
-            "  curl -X POST http://localhost:8000/process \\\n"
+            "  curl -X POST http://localhost:8000/api/concat \\\n"
             "    -H 'Content-Type: application/json' \\\n"
-            '    -d \'{"target_path": "/path/to/code", "format": "json"}\'',
+            '    -d \'{"source_url": "owner/repo", "format": "json"}\'',
             title="📡 API Information",
             border_style="cyan",
         )

@@ -9,7 +9,6 @@ import statistics
 import sys
 import time
 from pathlib import Path
-from typing import Dict
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -18,7 +17,7 @@ from codeconcat.parser.language_parsers.tree_sitter_solidity_parser import TreeS
 
 def measure_parse_time(
     parser: TreeSitterSolidityParser, content: str, iterations: int = 10
-) -> Dict:
+) -> dict:
     """Measure parsing time over multiple iterations."""
     times = []
 
@@ -53,7 +52,7 @@ def get_file_size_category(size_bytes: int) -> str:
         return "extra-large (>50KB)"
 
 
-def benchmark_openzeppelin_files(num_files: int = 20) -> Dict:  # noqa: ARG001
+def benchmark_openzeppelin_files(num_files: int = 20) -> dict:  # noqa: ARG001
     """Benchmark parsing performance on real OpenZeppelin contracts."""
     contracts_dir = Path("/tmp/openzeppelin-contracts/contracts")
 

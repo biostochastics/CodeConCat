@@ -36,6 +36,10 @@ logger = logging.getLogger(__name__)
 
 # Tree-sitter queries for HCL2/Terraform syntax
 HCL_QUERIES = {
+    "doc_comments": """
+        ; HCL/Terraform comments (# style and // style)
+        (comment) @comment
+    """,
     "declarations": """
         ; Resource blocks: resource "type" "name" { ... }
         ; Capture only the second string_lit (the resource name)

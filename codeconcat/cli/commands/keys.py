@@ -81,7 +81,8 @@ def list_keys(
     table.add_column("Provider", style="cyan")
     table.add_column("Status", style="green")
     if show_values:
-        table.add_column("API Key", style="yellow")
+        # Prevent truncation when showing full values
+        table.add_column("API Key", style="yellow", no_wrap=True, overflow="fold")
     else:
         table.add_column("Key Preview", style="yellow")
 
@@ -89,7 +90,17 @@ def list_keys(
         ("openai", "OpenAI"),
         ("anthropic", "Anthropic"),
         ("openrouter", "OpenRouter"),
+        ("google", "Google Gemini"),
+        ("deepseek", "DeepSeek"),
+        ("minimax", "MiniMax"),
+        ("qwen", "Qwen/DashScope"),
+        ("zhipu", "Zhipu GLM"),
         ("ollama", "Ollama"),
+        ("vllm", "vLLM"),
+        ("lmstudio", "LM Studio"),
+        ("llamacpp_server", "llama.cpp Server"),
+        ("llamacpp", "llama.cpp (deprecated)"),
+        ("local_server", "Local OpenAI-Compatible"),
     ]
 
     found_any = False
@@ -119,9 +130,7 @@ def list_keys(
 
 @app.command("set")
 def set_key(
-    provider: str = typer.Argument(
-        ..., help="Provider name: openai, anthropic, openrouter, ollama"
-    ),
+    provider: str = typer.Argument(..., help="Provider name (see --help for all providers)"),
     api_key: str | None = typer.Argument(None, help="API key value (will prompt if not provided)"),
     validate: bool = typer.Option(True, "--validate/--no-validate", help="Validate API key format"),
 ):
@@ -130,7 +139,22 @@ def set_key(
 
     # Normalize provider name
     provider = provider.lower()
-    valid_providers = ["openai", "anthropic", "openrouter", "ollama"]
+    valid_providers = [
+        "openai",
+        "anthropic",
+        "openrouter",
+        "google",
+        "deepseek",
+        "minimax",
+        "qwen",
+        "zhipu",
+        "ollama",
+        "vllm",
+        "lmstudio",
+        "llamacpp_server",
+        "local_server",
+        "llamacpp",
+    ]
 
     if provider not in valid_providers:
         console.print(f"[red]❌ Invalid provider: {provider}[/red]")
@@ -174,9 +198,7 @@ def set_key(
 
 @app.command("delete")
 def delete_key(
-    provider: str = typer.Argument(
-        ..., help="Provider name: openai, anthropic, openrouter, ollama"
-    ),
+    provider: str = typer.Argument(..., help="Provider name (see --help for all providers)"),
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
 ):
     """Delete an API key for a specific provider."""
@@ -184,7 +206,22 @@ def delete_key(
 
     # Normalize provider name
     provider = provider.lower()
-    valid_providers = ["openai", "anthropic", "openrouter", "ollama"]
+    valid_providers = [
+        "openai",
+        "anthropic",
+        "openrouter",
+        "google",
+        "deepseek",
+        "minimax",
+        "qwen",
+        "zhipu",
+        "ollama",
+        "vllm",
+        "lmstudio",
+        "llamacpp_server",
+        "local_server",
+        "llamacpp",
+    ]
 
     if provider not in valid_providers:
         console.print(f"[red]❌ Invalid provider: {provider}[/red]")
@@ -222,7 +259,22 @@ def reset_keys(force: bool = typer.Option(False, "--force", "-f", help="Skip con
     manager = APIKeyManager(storage_method=_get_storage_method())
 
     # List current keys
-    providers = ["openai", "anthropic", "openrouter", "ollama"]
+    providers = [
+        "openai",
+        "anthropic",
+        "openrouter",
+        "google",
+        "deepseek",
+        "minimax",
+        "qwen",
+        "zhipu",
+        "ollama",
+        "vllm",
+        "lmstudio",
+        "llamacpp_server",
+        "local_server",
+        "llamacpp",
+    ]
     stored_keys = []
 
     for provider in providers:
@@ -262,14 +314,23 @@ def reset_keys(force: bool = typer.Option(False, "--force", "-f", help="Skip con
 
 @app.command("test")
 def test_key(
-    provider: str = typer.Argument(..., help="Provider name: openai, anthropic, openrouter"),
+    provider: str = typer.Argument(..., help="Provider name (cloud providers with API keys)"),
 ):
     """Test if an API key is valid by making a minimal request."""
     manager = APIKeyManager(storage_method=_get_storage_method())
 
     # Normalize provider name
     provider = provider.lower()
-    valid_providers = ["openai", "anthropic", "openrouter"]
+    valid_providers = [
+        "openai",
+        "anthropic",
+        "openrouter",
+        "google",
+        "deepseek",
+        "minimax",
+        "qwen",
+        "zhipu",
+    ]
 
     if provider not in valid_providers:
         console.print(f"[red]❌ Invalid provider: {provider}[/red]")
@@ -317,7 +378,22 @@ def change_password():
     manager = APIKeyManager(storage_method=KeyStorage.ENCRYPTED_FILE)
 
     # Check if any keys exist
-    providers = ["openai", "anthropic", "openrouter", "ollama"]
+    providers = [
+        "openai",
+        "anthropic",
+        "openrouter",
+        "google",
+        "deepseek",
+        "minimax",
+        "qwen",
+        "zhipu",
+        "ollama",
+        "vllm",
+        "lmstudio",
+        "llamacpp_server",
+        "local_server",
+        "llamacpp",
+    ]
     stored_keys: dict[str, str] = {}
 
     # Get current password and load keys
@@ -328,14 +404,19 @@ def change_password():
     manager._fernet = None  # Reset to force password prompt
 
     try:
-        # Temporarily set password
-        import unittest.mock as mock
+        # Temporarily override getpass to provide the password
+        # Note: This is necessary because APIKeyManager calls getpass internally
+        import getpass as getpass_module
 
-        with mock.patch("getpass.getpass", return_value=current_password):
+        original_getpass = getpass_module.getpass
+        try:
+            getpass_module.getpass = lambda prompt="Password: ", stream=None: current_password  # noqa: ARG005
             for provider in providers:
                 key = manager.get_key(provider)
                 if key:
                     stored_keys[provider] = key
+        finally:
+            getpass_module.getpass = original_getpass
     except Exception as e:
         console.print(f"[red]❌ Failed to decrypt with current password: {e}[/red]")
         raise typer.Exit(1) from e
@@ -361,14 +442,19 @@ def change_password():
     new_manager = APIKeyManager(storage_method=KeyStorage.ENCRYPTED_FILE)
 
     # Store all keys with new password
-    import unittest.mock as mock
+    # Temporarily override getpass to provide the new password
+    import getpass as getpass_module
 
-    with mock.patch("getpass.getpass", return_value=new_password):
+    original_getpass = getpass_module.getpass
+    try:
+        getpass_module.getpass = lambda prompt="Password: ", stream=None: new_password  # noqa: ARG005
         for provider, key in stored_keys.items():
             success = new_manager.set_key(provider, key, validate=False)
             if not success:
                 console.print(f"[red]❌ Failed to re-encrypt key for {provider}[/red]")
                 raise typer.Exit(1)
+    finally:
+        getpass_module.getpass = original_getpass
 
     console.print("[green]✅ Master password changed successfully![/green]")
     console.print(f"[green]✅ Re-encrypted {len(stored_keys)} API key(s)[/green]")
@@ -389,7 +475,22 @@ def export_keys(
 
     manager = APIKeyManager(storage_method=_get_storage_method())
 
-    providers = ["openai", "anthropic", "openrouter", "ollama"]
+    providers = [
+        "openai",
+        "anthropic",
+        "openrouter",
+        "google",
+        "deepseek",
+        "minimax",
+        "qwen",
+        "zhipu",
+        "ollama",
+        "vllm",
+        "lmstudio",
+        "llamacpp_server",
+        "local_server",
+        "llamacpp",
+    ]
     export_data: dict[str, Any] = {"version": "1.0", "keys": {}}
 
     for provider in providers:

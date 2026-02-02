@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 # Update these after testing new versions
 SEMGREP_VERSION = "1.52.0"  # Last audited: 2024-01
 APIIRO_RULESET_URL = "https://github.com/apiiro/malicious-code-ruleset.git"
-APIIRO_RULESET_COMMIT = "c8e8fc2d90e5a3b6d7f1e9c4a2b5d8f3e6c9a1b4"  # Pin to specific commit
+# Verified 2025-02-01: Latest main commit from apiiro/malicious-code-ruleset
+# Run: git ls-remote https://github.com/apiiro/malicious-code-ruleset.git HEAD
+APIIRO_RULESET_COMMIT = "a21246b666f34db899f0e33add7237ed70fab790"
 NETWORK_TIMEOUT = 300  # 5 minutes
 
 
@@ -62,17 +64,22 @@ def install_semgrep():
             logger.error("Semgrep installed but executable not found in PATH")
             return False
 
-        # Verify version matches
+        # Security: Use resolved absolute path to prevent PATH hijacking
+        # Verify version matches exactly (not substring) to prevent spoofing
         version_check = subprocess.run(
-            ["semgrep", "--version"],
+            [semgrep_path, "--version"],
             capture_output=True,
             text=True,
             timeout=10,
         )
-        if SEMGREP_VERSION not in version_check.stdout:
+        version_output = version_check.stdout.strip()
+        if version_output != SEMGREP_VERSION:
             logger.warning(
-                f"Version mismatch: expected {SEMGREP_VERSION}, got {version_check.stdout}"
+                f"Version mismatch: expected exactly '{SEMGREP_VERSION}', got '{version_output}'. "
+                f"Security scanning may produce unexpected results."
             )
+            # Return False on version mismatch to indicate installation is not reliable
+            return False
 
         return True
     except subprocess.TimeoutExpired:

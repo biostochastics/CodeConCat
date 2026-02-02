@@ -1,4 +1,20 @@
-"""Constants and shared configuration values for CodeConcat."""
+"""Constants and shared configuration values for CodeConcat.
+
+This module defines all configuration constants used throughout the CodeConCat
+application, organized into logical categories:
+
+- **File Patterns**: DEFAULT_EXCLUDE_PATTERNS for filtering files
+- **Whitelists**: HIDDEN_CONFIG_WHITELIST for files to include despite being hidden
+- **Extensions**: SOURCE_CODE_EXTENSIONS for recognized source code file types
+- **Size Limits**: MAX_FILE_SIZE, MAX_PROJECT_SIZE for processing limits
+- **Token Limits**: TOKEN_LIMITS for different AI models
+- **Compression**: COMPRESSION_SETTINGS for output compression levels
+- **Security**: SECURITY_PATTERNS for security scanning
+
+Constants are organized by category with inline documentation explaining their
+purpose and usage. All values are designed to be safe defaults that can be
+overridden via configuration files or command-line arguments.
+"""
 
 # Default file patterns to exclude from processing
 DEFAULT_EXCLUDE_PATTERNS: list[str] = [
@@ -356,11 +372,16 @@ SOURCE_CODE_EXTENSIONS = {
     ".txt",
 }
 
+# File size limits (in bytes)
+KILOBYTE = 1024
+MEGABYTE = KILOBYTE * 1024
+GIGABYTE = MEGABYTE * 1024
+
 # Maximum file size for processing (in bytes)
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_FILE_SIZE = 10 * MEGABYTE  # 10 MB
 
 # Maximum total project size (in bytes)
-MAX_PROJECT_SIZE = 100 * 1024 * 1024  # 100 MB
+MAX_PROJECT_SIZE = 100 * MEGABYTE  # 100 MB
 
 # Token limits for different models (updated January 2026)
 TOKEN_LIMITS = {

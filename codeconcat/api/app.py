@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 # Critical dependency check for API security
 try:
+    import jsonschema  # noqa: F401 - actually import to verify availability
+
     HAS_JSONSCHEMA = True
 except ImportError as err:
     HAS_JSONSCHEMA = False

@@ -35,13 +35,21 @@ class SemgrepValidator:
         self.ruleset_path = ruleset_path or self._get_default_ruleset_path()
 
     def _get_default_ruleset_path(self) -> str:
-        """Get the path to the default ruleset."""
-        # First check if we have a bundled ruleset
+        """Determine the path to the default security ruleset.
+
+        This method checks for a bundled ruleset first. If not found, it
+        returns the URL to the official Apiiro malicious code ruleset repository.
+
+        Returns:
+            Path to bundled ruleset if available, otherwise URL to remote ruleset.
+
+        Note:
+            The bundled ruleset is preferred for offline compatibility and
+            consistent results across environments.
+        """
         bundled_path = Path(__file__).parent / "rules" / "apiiro-ruleset"
         if bundled_path.exists():
             return str(bundled_path)
-
-        # Otherwise, return a path to the official GitHub repo
         return "https://github.com/apiiro/malicious-code-ruleset"
 
     def is_available(self) -> bool:

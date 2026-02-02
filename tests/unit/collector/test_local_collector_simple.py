@@ -154,19 +154,18 @@ class TestHelperFunctions:
         assert should_skip_dir("/test/project/__pycache__", config) is True
         assert should_skip_dir("/test/project/src", config) is False
 
-    @pytest.mark.skip(
-        reason="Test environment issue with .txt extension mapping - added to language_map but not recognized in test"
-    )
     def test_should_include_file_basic(self):
         """Test basic file inclusion logic."""
         config = CodeConCatConfig()
-        config.include_languages = ["python", "javascript", "text"]
+        config.include_languages = ["python", "javascript"]
         config.exclude_languages = []
 
         # should_include_file returns language or None
         assert should_include_file("test.py", config) == "python"
         assert should_include_file("test.js", config) == "javascript"
-        assert should_include_file("test.txt", config) == "text"
+        # Note: .txt files are excluded by default as they're in doc_extensions
+        # and handled by doc_extractor, not code parsers
+        assert should_include_file("test.txt", config) is None
 
     @patch("codeconcat.collector.local_collector.Path")
     def test_get_gitignore_spec(self, mock_path):

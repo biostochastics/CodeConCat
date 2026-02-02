@@ -35,6 +35,13 @@ class SqlDialect(Enum):
 
 # SQL parser queries for construct extraction
 SQL_QUERIES = {
+    "doc_comments": """
+        ; SQL line comments (-- style)
+        (comment) @comment
+
+        ; SQL block comments (/* */ style)
+        (block_comment) @block_comment
+    """,
     "ddl_statements": """
         ; DDL statements - Data Definition Language
         (statement

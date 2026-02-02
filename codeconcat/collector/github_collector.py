@@ -172,7 +172,7 @@ def _clone_repository(
 
 async def collect_git_repo_async(
     source_url_in: str, config: CodeConCatConfig
-) -> tuple[list[ParsedFileData], str]:
+) -> tuple[list[ParsedFileData], tempfile.TemporaryDirectory | None]:
     """
     Async version: Collect files from a remote Git repository by cloning it.
 
@@ -181,65 +181,80 @@ async def collect_git_repo_async(
         config: Configuration object.
 
     Returns:
-        Tuple[List[ParsedFileData], str]: List of parsed file data objects and the path to the temporary directory used.
+        Tuple of (files, temp_dir_obj) where:
+        - files: List of parsed file data objects
+        - temp_dir_obj: TemporaryDirectory object that caller must keep alive until
+          processing is complete, then call .cleanup(). Returns None on error.
+
+    Note:
+        The caller is responsible for calling temp_dir_obj.cleanup() after processing
+        is complete to prevent disk leaks. The temp directory must remain valid during
+        validation and parsing stages.
     """
     try:
         owner, repo_name, url_ref = parse_git_url(source_url_in)
     except ValueError as e:
         logger.error(f"Failed to parse source URL '{source_url_in}': {e}")
-        return [], ""
+        return [], None
 
     # Use explicit ref from config if provided, otherwise use ref parsed from URL, default to 'main'
     target_ref = config.source_ref or url_ref or "main"
     logger.info(f"Targeting ref: '{target_ref}' for repo: '{owner}/{repo_name}'")
 
-    # Create a temporary directory for cloning
-    with tempfile.TemporaryDirectory(prefix="codeconcat_clone_") as temp_dir:
-        try:
-            # Build clone URL with optional authentication
-            clone_url = _build_clone_url(source_url_in, owner, repo_name, config.github_token)
+    # Create a temporary directory for cloning - caller owns cleanup
+    # WHY: Keep temp dir valid while pipeline runs (validation, parsing, etc.)
+    temp_dir_obj = tempfile.TemporaryDirectory(prefix="codeconcat_clone_")
+    temp_dir = temp_dir_obj.name
 
-            # Clone repository using GitPython in thread executor (GitPython is synchronous)
-            loop = asyncio.get_event_loop()
-            repo = await loop.run_in_executor(
-                None,
-                _clone_repository,
-                clone_url,
-                temp_dir,
-                target_ref,
-                1,  # Shallow clone for efficiency
-            )
+    try:
+        # Build clone URL with optional authentication
+        clone_url = _build_clone_url(source_url_in, owner, repo_name, config.github_token)
 
-            # Log repository information
-            logger.info("Repository cloned successfully")
-            logger.debug(
-                f"Active branch: {repo.active_branch if not repo.head.is_detached else 'detached HEAD'}"
-            )
-            logger.debug(f"Commit: {repo.head.commit.hexsha[:8]}")
+        # Clone repository using GitPython in thread executor (GitPython is synchronous)
+        loop = asyncio.get_event_loop()
+        repo = await loop.run_in_executor(
+            None,
+            _clone_repository,
+            clone_url,
+            temp_dir,
+            target_ref,
+            1,  # Shallow clone for efficiency
+        )
 
-            # Collect files using the local collector
-            logger.info(f"Collecting files from cloned repository at {temp_dir}")
-            files = await loop.run_in_executor(None, collect_local_files, temp_dir, config)
-            logger.info(f"Found {len(files)} files in repository '{owner}/{repo_name}'")
-            return files, temp_dir
+        # Log repository information
+        logger.info("Repository cloned successfully")
+        logger.debug(
+            f"Active branch: {repo.active_branch if not repo.head.is_detached else 'detached HEAD'}"
+        )
+        logger.debug(f"Commit: {repo.head.commit.hexsha[:8]}")
 
-        except GitCommandError as e:
-            logger.error(f"Git operation failed: {e}")
-            return [], ""
-        except (OSError, PermissionError, ValueError) as e:
-            logger.error(f"Error processing Git repository: {e}")
-            return [], ""
-        except Exception as e:
-            logger.error(f"Unexpected error during repository collection: {e}")
-            import traceback
+        # Collect files using the local collector
+        logger.info(f"Collecting files from cloned repository at {temp_dir}")
+        files = await loop.run_in_executor(None, collect_local_files, temp_dir, config)
+        logger.info(f"Found {len(files)} files in repository '{owner}/{repo_name}'")
+        # HOW: Return temp_dir_obj so caller can manage cleanup
+        return files, temp_dir_obj
 
-            logger.debug(traceback.format_exc())
-            return [], ""
+    except GitCommandError as e:
+        logger.error(f"Git operation failed: {e}")
+        temp_dir_obj.cleanup()
+        return [], None
+    except (OSError, PermissionError, ValueError) as e:
+        logger.error(f"Error processing Git repository: {e}")
+        temp_dir_obj.cleanup()
+        return [], None
+    except Exception as e:
+        logger.error(f"Unexpected error during repository collection: {e}")
+        import traceback
+
+        logger.debug(traceback.format_exc())
+        temp_dir_obj.cleanup()
+        return [], None
 
 
 def collect_git_repo(
     source_url_in: str, config: CodeConCatConfig
-) -> tuple[list[ParsedFileData], str]:
+) -> tuple[list[ParsedFileData], tempfile.TemporaryDirectory | None]:
     """
     Synchronous wrapper for backward compatibility.
     Collect files from a remote Git repository by cloning it.
@@ -249,7 +264,14 @@ def collect_git_repo(
         config: Configuration object.
 
     Returns:
-        Tuple[List[ParsedFileData], str]: List of parsed file data objects and the path to the temporary directory used.
+        Tuple of (files, temp_dir_obj) where:
+        - files: List of parsed file data objects
+        - temp_dir_obj: TemporaryDirectory object that caller must keep alive until
+          processing is complete, then call .cleanup(). Returns None on error.
+
+    Note:
+        The caller is responsible for calling temp_dir_obj.cleanup() after processing
+        is complete to prevent disk leaks.
     """
     # Check if we're already in an event loop
     try:
@@ -268,4 +290,4 @@ def collect_git_repo(
     except (OSError, RuntimeError, asyncio.TimeoutError, Exception) as e:
         # Handle any exceptions from async execution
         logger.error(f"Error in synchronous Git repository collection: {e}")
-        return [], ""
+        return [], None

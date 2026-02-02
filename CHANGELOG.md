@@ -5,6 +5,147 @@ All notable changes to CodeConCat will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Documentation extraction improvements**: Enhanced doc_comments query support across tree-sitter parsers:
+  - Added `doc_comments` queries to 9 parsers: SQL, GraphQL, HCL, GLSL, HLSL, Solidity, WAT, Crystal, and Elixir
+  - Extended `CommentPatterns` in `pattern_library.py` with 16+ language entries for single-line and block comments (Elixir, Julia, SQL, GraphQL, HCL, Terraform, GLSL, HLSL, Solidity, WAT/WASM, Crystal, R, Perl, YAML, TOML, HTML, XML)
+  - Added PHPDoc tag processing using `clean_jsdoc_tags` for consistent @param/@return extraction
+  - Implemented Elixir @doc/@moduledoc attribute extraction with proper module attribute handling
+  - Updated Julia parser to capture both triple-quoted docstrings and line/block comments
+
+### Fixed
+
+- **Test suite cleanup**: Addressed spurious test skips and broken tests:
+  - Fixed `test_should_include_file_basic` in `test_local_collector_simple.py`: Updated test to correctly expect `.txt` files to return `None` since they're in `doc_extensions` by default (handled by doc_extractor, not code parsers)
+  - Removed corpus-dependent `test_language_parser` from `test_parsers.py` that was skipping due to non-existent `parser_test_corpus` directory; replaced with functional `test_parser_has_required_methods` and `test_parser_returns_parse_result` parameterized tests
+  - Fixed `test_tree_sitter_js_ts_parser.py`: Changed skip condition from hardcoded `True` to actual tree-sitter availability check; fixed fixture name mismatch (`_mock_tree_sitter_classes` → `mock_tree_sitter_classes`); configured mock `root_node` with proper `has_error=False` and coordinate values; corrected test assertions to match mocked declaration data instead of expecting non-existent parsed values
+
+- **BaseParser robustness improvements**: Fixed 8 issues in `base_parser.py`:
+  - Fixed potential `IndexError` in `extract_docstring()` when `end` parameter exceeds `len(lines)`
+  - Fixed regex injection vulnerability in `_create_pattern()` by escaping modifier values
+  - Fixed incorrect block detection when braces appear inside string literals (added `_count_braces_outside_strings()` helper)
+  - Fixed type annotation inconsistency (`Pattern` → `Pattern[str]`)
+  - Added explicit `str | None` type hints for `block_start`/`block_end` attributes
+  - Replaced redundant `NotImplementedError` in abstract `parse()` method with `...`
+  - Simplified Unicode identifier pattern (Python 3 `\w` already matches Unicode)
+  - Added `_reset()` method to prevent state bleeding between parser reuses
+
+- **CLI test assertions**: Fixed 3 failing CLI tests (`test_scenario_1_llm_context_preparation`, `test_scenario_5_compression_levels`, `test_token_summary_displayed`) that expected output only shown when no progress callback is active (token stats, compression effectiveness, level info are suppressed during dashboard mode)
+
+- **CLI keys list --show-values truncation**: Fixed Rich table truncating API key values when using `--show-values` flag by adding `no_wrap=True` and `overflow="fold"` to the API Key column
+
+- **Binary file detection test**: Corrected test expectations in `test_binary_file_detection_unicode_decode` to match implementation behavior - high bytes like `\xff\xfe\xfd\xfc` are valid Latin-1 characters and treated as text, not binary
+
+- **Apiiro ruleset test mocks**: Fixed commit hash mock values in `test_apiiro_ruleset.py` and `test_setup_semgrep.py` to import `APIIRO_RULESET_COMMIT` constant instead of hardcoding, ensuring tests stay synchronized when the commit hash is updated
+
+- **Compression metrics calculation**: Fixed compression statistics in `main.py` to capture original line count *before* replacing content with compressed version, and added zero-division guard for empty files
+
+- **Symlink test assertion clarity**: Improved `test_symlink_escape_blocked_in_verify` assertion in `test_security_hardening.py` to be more explicit about what's being tested (symlinks must not be marked as verified)
+
+- **Silent failure elimination (PR #43 review)**: Addressed critical silent failure patterns identified by automated review:
+  - **security.py**: Changed broad `except Exception` to specific `(UnicodeDecodeError, ValueError)` and `OSError` with appropriate logging levels for binary detection
+  - **main.py**: Changed path validation `except Exception` to `except (ValueError, OSError)` with warning logging on fallback
+  - **local_collector.py**: Changed decode fallback `except Exception` to `except (UnicodeDecodeError, LookupError)` with warning logging
+
+- **Production code cleanup**: Removed `unittest.mock` usage from `keys.py` production code, replaced with direct module monkey-patching for getpass during key retrieval
+
+- **Semgrep version mismatch behavior**: Fixed `install_semgrep()` to return `False` when installed version doesn't match expected `SEMGREP_VERSION`, ensuring callers know the installation is unreliable
+
+### Security
+
+- **exec_patterns regex word boundaries**: Added `\b` word boundaries to dangerous pattern detection regex to prevent false positives on variable names like `system_config`, `evaluation_score`, or `execute_flag` while still catching actual dangerous function calls
+
+- **Binary detection Latin-1 fallback**: Improved binary file detection to try Latin-1 (ISO-8859-1) decoding when UTF-8 fails, preventing legitimate text files with extended ASCII characters (e.g., café, naïve) from being incorrectly classified as binary. Only classifies as binary if >10% ASCII control characters are present.
+
+- **Symlink escape prevention in verify_integrity_manifest**: Added symlink detection and skip in manifest verification to prevent directory escape attacks via crafted symlinks pointing outside the base directory
+
+- **Path traversal protection in validate_input_files**: Added `validate_safe_path()` checks with `allow_symlinks=False` to block path traversal attacks (e.g., `../../../etc/passwd`) and symlink escape attempts during file validation
+
+- **Semgrep version exact matching**: Changed version verification from substring check to exact string match to prevent version spoofing attacks (e.g., `1.52.0-exploit` no longer passes validation for `1.52.0`)
+
+- **Apiiro commit hash verification**: Updated Apiiro ruleset commit hash from placeholder to verified real commit (`a21246b666f34db899f0e33add7237ed70fab790`) with documentation on how to verify using `git ls-remote`
+
+- **Secrets pattern keyword restrictions**: Refined secrets detection regex to only flag true secret keywords (`password`, `api_key`, `secret`, `token`, `credential`) with minimum 8-character values, preventing false positives on benign variables like `server_name` or version strings
+
+### Documentation
+
+- **Inline docstring completeness audit**: Addressed all missing docstrings across 7 files:
+  - Added full `ConfigurationError` documentation with attributes and examples
+  - Fixed `CodeSymbol` docstring format in base_parser.py
+  - Added `_create_pattern()` documentation with Args, Returns, and Example
+  - Enhanced constants.py with comprehensive module-level documentation
+  - Added completion function documentation in run.py (`complete_provider`, `complete_language`)
+  - Improved `_get_default_ruleset_path()` documentation in semgrep_validator.py
+  - Enhanced PythonParser class and `__init__` docstrings
+  - Added comprehensive documentation to OpenAI provider methods (`_get_session`, `_make_api_call`, `summarize_code`, `summarize_function`)
+
+- **Documentation style standardization**: Adopted consistent Google-style docstrings across all modified files with Args, Returns, Raises, Attributes, Example, and Note sections. Removed non-standard sections like "Processing Logic:" and fixed incorrect syntax patterns.
+
+- **Extended docstring audit (2026-02)**: Completed comprehensive inline documentation review:
+  - **base_parser.py**: Added Args/Returns/Raises to `_flatten_symbol`, `_find_block_end`, `extract_docstring`, `__init__`
+  - **local_collector.py**: Added comprehensive module docstring with features and examples; fixed all function docstrings with complete Args, Returns, Raises sections
+  - **base_types.py**: Added Pydantic Field descriptions to CodeConCatConfig (~30 fields previously lacking descriptions)
+  - **errors.py**: Added detailed Attributes sections and examples to all exception classes (ValidationError, ConfigurationError, FileProcessingError, ParserError, SecurityValidationError, etc.)
+  - **unified_pipeline.py**: Enhanced `_reconstruct_declaration` with Raises section
+
+- **Exception attribute documentation**: All custom exception classes now document their dynamic attributes (file_path, field, value, severity, pattern_name, etc.) with Examples showing proper usage
+
+- **CLI documentation accuracy fixes**: Comprehensive review and correction of CLI documentation:
+  - Fixed API info command endpoints to show actual routes (`/api/concat`, `/api/upload`, `/api/ping`, `/api/config/*`)
+  - Added missing AI providers to autocomplete function (`google`, `deepseek`, `minimax`, `qwen`, `zhipu`, `llamacpp`)
+  - Extended API key management to support all 14 providers across all key commands
+  - Fixed llama parameter naming in documentation (`--llama-context-size`, `--llama-batch-size`)
+  - Updated Anthropic model examples to current versions (`claude-sonnet-4-20250514`)
+  - Fixed path reference in CLAUDE.md architecture diagram
+
+- **Docstring accuracy improvements (PR #43 review)**:
+  - **base_parser.py**: Added edge case documentation to `_count_braces_outside_strings` (raw strings, f-strings, multiline state); clarified bounds behavior in `extract_docstring`
+  - **openai_provider.py**: Improved `Raises` documentation for `_make_api_call` to accurately describe `Exception` vs `aiohttp.ClientError`
+
+### Added
+
+- **Comprehensive security hardening tests**: Added `tests/unit/validation/test_security_hardening.py` with 30 tests covering all security fixes including exec pattern word boundaries, Latin-1 binary detection, symlink escape prevention, path traversal blocking, semgrep version verification, and secrets pattern accuracy
+
+- **Semgrep version mismatch test**: Added `test_install_semgrep_version_mismatch` to verify that `install_semgrep()` returns `False` when installed version differs from expected `SEMGREP_VERSION`
+
+## [0.9.3] - 2026-02-01
+
+### Changed
+
+- **Default output filename format**: Updated to `ccc_codeconcat_{repo_name}_{mmddyy}.{ext}` pattern (e.g., `ccc_codeconcat_myproject_020126.md`) for consistent branding. Fallback without repo name remains `ccc_codeconcat_{mmddyy}.{ext}`.
+
+### Fixed
+
+- **Progress dashboard UI corruption**: Fixed Rich Live display stacking/clipping issue where multiple progress panels appeared instead of updating in place. Root cause was `print()` statements in `main.py` corrupting the Live display. Suppressed all stdout prints when `progress_callback` is active during CLI dashboard mode.
+
+- **Writing stage appearing stuck**: Fixed "Writing: waiting" showing for extended periods with no progress feedback. Moved `start_stage("Writing")` earlier in the pipeline (before stats calculation, directory tree generation, compression) and added intermediate progress messages ("preparing output...", "computing statistics...", "generating directory tree...", "compressing files...", "writing {format}...") so users see activity during all processing phases.
+
+- **CLI parsing progress bar**: Fixed progress bar showing "0/N" at 0% throughout parsing then jumping to completion. Added `progress_callback` parameter to `parse_code_files()` and `UnifiedPipeline` to properly propagate progress updates from the parsing pipeline to the CLI dashboard, replacing Rich's internal `track()` which conflicted with the dashboard display.
+
+- **PHP Tree-sitter parser queries**: Fixed invalid Tree-sitter query patterns that caused `QueryError` exceptions when parsing PHP files:
+  - Changed `use_declaration` to `namespace_use_declaration` (correct PHP grammar node type)
+  - Changed `call_expression` to `function_call_expression` and added dedicated `require_expression`/`include_expression` patterns
+  - Removed invalid `modifiers:` field from `property_declaration` (modifiers are child nodes in PHP grammar, not a field)
+  - Removed invalid `name:` and `value:` fields from `const_element`
+
+## [0.9.2] - 2026-01-28
+
+### Fixed
+
+- **GitHub temp directory lifecycle**: Fixed premature deletion of cloned repository temp directory before validation/parsing completes by returning `TemporaryDirectory` object for caller-managed cleanup
+- **OpenAI API key validation**: Added explicit validation during provider initialization that raises `ValueError` with helpful error message when API key is not configured, preventing cryptic runtime errors
+- **ProcessPoolExecutor resource leak**: Added proper exception handling around parallel parsing to ensure worker processes are cleaned up even when errors occur
+- **Unsafe dict deserialization**: Replaced direct `**dict` unpacking in multiprocessing worker with explicit type validation and Pydantic `model_validate()` for config, preventing potential injection attacks through malformed input
+- **jsonschema import bug**: Fixed ineffective dependency check in API module that never actually imported jsonschema, now properly verifies library availability at startup
+- **Password hashing security**: Increased PBKDF2 iterations from 100,000 to 210,000 to meet OWASP 2024 recommendations for password storage
+
+### Changed
+
+- **Constants file**: Replaced magic numbers with named constants (`KILOBYTE`, `MEGABYTE`) for better readability and maintainability of file size limits
+
 ## [0.9.1] - 2026-01-28
 
 ### Fixed

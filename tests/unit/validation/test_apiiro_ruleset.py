@@ -9,7 +9,7 @@ import pytest
 
 from codeconcat.errors import ValidationError
 from codeconcat.validation.semgrep_validator import SemgrepValidator
-from codeconcat.validation.setup_semgrep import install_apiiro_ruleset
+from codeconcat.validation.setup_semgrep import APIIRO_RULESET_COMMIT, install_apiiro_ruleset
 
 
 class TestApiiroRuleset:
@@ -64,8 +64,8 @@ rules:
                 elif "git" in cmd[0] and "rev-parse" in cmd:
                     # Mock git rev-parse HEAD to return the expected commit hash
                     mock_result = MagicMock(returncode=0)
-                    # Configure stdout.strip() to return the actual hash string
-                    mock_result.stdout.strip.return_value = "c8e8fc2d90e5a3b6d7f1e9c4a2b5d8f3e6c9a1b4"
+                    # Configure stdout.strip() to return the imported constant
+                    mock_result.stdout.strip.return_value = APIIRO_RULESET_COMMIT
                     return mock_result
 
                 return MagicMock(returncode=0)

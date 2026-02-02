@@ -11,7 +11,6 @@ import logging
 import os
 import sys
 import traceback
-from typing import List, Tuple
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -34,7 +33,7 @@ TREE_SITTER_PARSER_MAP = {
 }
 
 
-def verify_tree_sitter_dependencies() -> Tuple[bool, List[str], List[str]]:
+def verify_tree_sitter_dependencies() -> tuple[bool, list[str], list[str]]:
     """
     Verify that Tree-sitter and all language grammars are properly installed.
 

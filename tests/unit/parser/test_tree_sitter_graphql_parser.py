@@ -1,6 +1,5 @@
 # tests/unit/parser/test_tree_sitter_graphql_parser.py
 
-import pytest
 
 from codeconcat.parser.language_parsers.tree_sitter_graphql_parser import (
     GRAPHQL_QUERIES,
@@ -38,12 +37,15 @@ class TestTreeSitterGraphqlParser:
     def test_graphql_queries_structure(self):
         """Test that GRAPHQL_QUERIES has correct structure."""
         assert isinstance(GRAPHQL_QUERIES, dict)
-        assert len(GRAPHQL_QUERIES) == 5
+        assert len(GRAPHQL_QUERIES) == 6  # 5 original + doc_comments
 
         # Each query should be a non-empty string
-        for query_name, query_str in GRAPHQL_QUERIES.items():
+        for _query_name, query_str in GRAPHQL_QUERIES.items():
             assert isinstance(query_str, str)
             assert len(query_str.strip()) > 0
+
+        # Verify doc_comments query is present
+        assert "doc_comments" in GRAPHQL_QUERIES
 
     def test_parse_empty_schema(self):
         """Test parsing an empty GraphQL schema."""
@@ -104,12 +106,12 @@ type Query {
         parser = TreeSitterGraphqlParser()
 
         # Check cache variables exist
-        assert hasattr(parser, '_current_tree')
-        assert hasattr(parser, '_cached_types')
-        assert hasattr(parser, '_cached_operations')
-        assert hasattr(parser, '_cached_fragments')
-        assert hasattr(parser, '_type_relationships_cache')
-        assert hasattr(parser, '_cached_directives')
+        assert hasattr(parser, "_current_tree")
+        assert hasattr(parser, "_cached_types")
+        assert hasattr(parser, "_cached_operations")
+        assert hasattr(parser, "_cached_fragments")
+        assert hasattr(parser, "_type_relationships_cache")
+        assert hasattr(parser, "_cached_directives")
 
         # Check they're initially None
         assert parser._current_tree is None

@@ -97,13 +97,16 @@ JULIA_QUERIES = {
             (where_expression) @where_constraints
         ) @parametric_func_short
     """,
-    # Capture Julia docstrings (triple-quoted strings before declarations) and line_comments
-    "doc_line_comments": """
-        ; Regular line_comments
+    # Capture Julia comments and docstrings
+    "doc_comments": """
+        ; Regular line comments
         (line_comment) @line_comment
 
         ; Julia docstrings - triple-quoted strings that appear before declarations
         (string_literal) @docstring
+
+        ; Block comments #= =#
+        (block_comment) @block_comment
     """,
 }
 
@@ -160,53 +163,65 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
         imports: set[str] = set()
         doc_line_comment_map = {}  # end_line -> List[str]
 
-        # --- Pass 1: Extract Comments (potential docstrings) --- #
+        # --- Pass 1: Extract Comments and Docstrings --- #
+        docstring_map: dict[int, str] = {}  # end_line -> docstring text
+
         try:
             # Use modern Query() constructor and QueryCursor
-            doc_query = Query(self.ts_language, queries.get("doc_line_comments", ""))
+            doc_query = Query(self.ts_language, queries.get("doc_comments", ""))
             doc_captures = self._execute_query_with_cursor(doc_query, root_node)
             last_line_comment_line = -2
             current_doc_block_expression: list[str] = []
 
-            # doc_captures is a dict: {capture_name: [list of nodes]}
-            for _capture_name, nodes in doc_captures.items():
-                for node in nodes:
+            # Process docstrings (triple-quoted strings)
+            if "docstring" in doc_captures:
+                for node in doc_captures["docstring"]:
+                    text = byte_content[node.start_byte : node.end_byte].decode(
+                        "utf8", errors="replace"
+                    )
+                    # Only treat triple-quoted strings as docstrings
+                    if text.startswith('"""') and text.endswith('"""'):
+                        # Extract content between quotes
+                        content = text[3:-3].strip()
+                        if content:
+                            docstring_map[node.end_point[0]] = normalize_whitespace(content)
+
+            # Process line comments
+            if "line_comment" in doc_captures:
+                for node in doc_captures["line_comment"]:
                     line_comment_text = byte_content[node.start_byte : node.end_byte].decode(
                         "utf8", errors="replace"
                     )
                     current_start_line = node.start_point[0]
-                    current_end_line = node.end_point[0]
-                    is_block_expression = line_comment_text.startswith("#=")
 
-                    if is_block_expression:
+                    if current_start_line == last_line_comment_line + 1:
+                        current_doc_block_expression.append(line_comment_text)
+                    else:
                         if current_doc_block_expression:
                             doc_line_comment_map[last_line_comment_line] = (
                                 current_doc_block_expression
                             )
-                        doc_line_comment_map[current_end_line] = line_comment_text.splitlines()
-                        current_doc_block_expression = []
-                        last_line_comment_line = current_end_line
-                    else:  # Line line_comment
-                        if current_start_line == last_line_comment_line + 1:
-                            current_doc_block_expression.append(line_comment_text)
-                        else:
-                            if current_doc_block_expression:
-                                doc_line_comment_map[last_line_comment_line] = (
-                                    current_doc_block_expression
-                                )
-                            current_doc_block_expression = [line_comment_text]
-                        last_line_comment_line = current_start_line
+                        current_doc_block_expression = [line_comment_text]
+                    last_line_comment_line = current_start_line
 
             # Store the last block_expression if it exists
             if current_doc_block_expression:
                 doc_line_comment_map[last_line_comment_line] = current_doc_block_expression
 
+            # Process block comments (#= =#)
+            if "block_comment" in doc_captures:
+                for node in doc_captures["block_comment"]:
+                    text = byte_content[node.start_byte : node.end_byte].decode(
+                        "utf8", errors="replace"
+                    )
+                    doc_line_comment_map[node.end_point[0]] = text.splitlines()
+
         except Exception as e:
-            logger.warning(f"Failed to execute Julia doc_line_comments query: {e}", exc_info=True)
+            logger.warning(f"Failed to execute Julia doc_comments query: {e}", exc_info=True)
 
         # --- Pass 2: Extract Imports and Declarations --- #
         for query_name, query_str in queries.items():
-            if query_name == "doc_line_comments":
+            if query_name == "doc_comments":
                 continue
 
             try:
@@ -323,14 +338,17 @@ class TreeSitterJuliaParser(BaseTreeSitterParser):
                             if kind == "macro" and not name_text.startswith("@"):
                                 name_text = "@" + name_text
 
-                            # Check for docstring
-                            docstring_lines = doc_line_comment_map.get(
-                                declaration_node.start_point[0] - 1, []
-                            )
-                            if docstring_lines:
-                                docstring = _clean_julia_doc_line_comment(docstring_lines)
-                            else:
-                                docstring = ""
+                            # Check for docstring (triple-quoted string or line comments)
+                            decl_start_line = declaration_node.start_point[0]
+
+                            # First check for triple-quoted docstring
+                            docstring = docstring_map.get(decl_start_line - 1, "")
+
+                            # If no triple-quoted docstring, check for line/block comments
+                            if not docstring:
+                                docstring_lines = doc_line_comment_map.get(decl_start_line - 1, [])
+                                if docstring_lines:
+                                    docstring = _clean_julia_doc_line_comment(docstring_lines)
 
                             start_line, end_line = get_node_location(declaration_node)
                             declarations.append(

@@ -11,7 +11,19 @@ logger = logging.getLogger(__name__)
 def generate_ai_preamble(
     items: list[WritableItem],
 ) -> str:
-    """Generate an AI-friendly preamble that explains the codebase structure and contents."""
+    """Generate an AI-friendly preamble that explains the codebase structure and contents.
+
+    Analyzes the provided items to generate statistics, identify entry points,
+    and create a summary suitable for AI code analysis and understanding.
+
+    Args:
+        items: List of WritableItem objects (AnnotatedFileData or ParsedDocData)
+               containing parsed code and documentation files.
+
+    Returns:
+        str: A markdown-formatted preamble containing codebase statistics,
+             structure overview, and key files summary.
+    """
 
     # --- Filter items into specific types --- #
     code_files: list[AnnotatedFileData] = []

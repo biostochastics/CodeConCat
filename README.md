@@ -8,7 +8,7 @@
   <strong>Transform codebases into AI-ready formats with intelligent parsing, compression, and security analysis</strong>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.9.1-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![DeepWiki](https://img.shields.io/badge/DeepWiki-Documentation-purple)](https://deepwiki.com/biostochastics/CodeConCat) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
+[![Version](https://img.shields.io/badge/version-0.9.3-blue)](https://github.com/biostochastics/codeconcat) [![Tests](https://img.shields.io/badge/tests-1550%2B%20passing-brightgreen)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![DeepWiki](https://img.shields.io/badge/DeepWiki-Documentation-purple)](https://deepwiki.com/biostochastics/CodeConCat) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
 
 ## Table of Contents
 
@@ -271,7 +271,7 @@ codeconcat run --ai-summary --ai-provider openai
 codeconcat run \
     --ai-summary \
     --ai-provider anthropic \
-    --ai-model claude-3-5-haiku-20241022
+    --ai-model claude-sonnet-4-20250514
 
 # Generate meta-overview of entire codebase
 codeconcat run \
@@ -386,6 +386,51 @@ codeconcat run \
     --output private-analysis.md
 ```
 
+<details>
+<summary><strong>GitHub Token Best Practices</strong></summary>
+
+GitHub recommends **fine-grained personal access tokens** over classic PATs for better security:
+
+| Token Type | Format | Recommendation |
+|------------|--------|----------------|
+| **Fine-grained PAT** | `github_pat_*` | Recommended - scoped to specific repos |
+| **Classic PAT** | `ghp_*` | Legacy - grants broader access |
+| **GitHub App** | `ghs_*` | Best for organizational/production use |
+
+**Creating a Fine-Grained Token (Recommended):**
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens](https://github.com/settings/tokens?type=beta)
+2. Click "Generate new token"
+3. Configure:
+   - **Token name**: `codeconcat-access` (or descriptive name)
+   - **Expiration**: Set appropriate expiration (GitHub allows up to 1 year)
+   - **Repository access**: Select "Only select repositories" and choose specific repos
+   - **Permissions**:
+     - `Contents`: **Read** (required for cloning)
+     - `Metadata`: **Read** (automatically included)
+4. Click "Generate token" and save it securely
+
+**Minimum Required Permissions:**
+- For public repos: No token needed
+- For private repos: `Contents: Read` permission only
+
+**Security Benefits of Fine-Grained Tokens:**
+- Scoped to specific repositories (not all repos you can access)
+- Minimum required permissions (principle of least privilege)
+- Built-in expiration (enterprises can enforce max 90-366 days)
+- Better audit trail in organization settings
+
+**Using the Token:**
+```bash
+# Set as environment variable (recommended)
+export GITHUB_TOKEN=github_pat_11AAAA...
+
+# Or pass directly (avoid in shell history)
+codeconcat run --source-url owner/private-repo --github-token "github_pat_..."
+```
+
+</details>
+
 ## Configuration
 
 ### Configuration File
@@ -458,8 +503,9 @@ codeconcat validate .codeconcat.yml  # Validate existing config
 ### Environment Variables
 
 ```bash
-# API Configuration
-export GITHUB_TOKEN=your_token_here
+# GitHub Token (see "GitHub Token Best Practices" above for creating tokens)
+# Fine-grained tokens (github_pat_*) are recommended over classic tokens (ghp_*)
+export GITHUB_TOKEN=github_pat_11AAAA...
 
 # AI Provider Keys (optional, see AI Summarization section)
 export OPENAI_API_KEY=sk-...
@@ -620,9 +666,9 @@ Process files and generate AI-optimized output.
 | Option | Description |
 |--------|-------------|
 | `--llama-gpu-layers` | Number of layers to offload to GPU (0=CPU only) |
-| `--llama-context` | Context window size (default: 2048) |
+| `--llama-context-size` | Context window size (default: 2048) |
 | `--llama-threads` | Number of CPU threads |
-| `--llama-batch` | Batch size for prompt processing |
+| `--llama-batch-size` | Batch size for prompt processing |
 
 </details>
 
@@ -770,7 +816,7 @@ Generate intelligent code summaries to enhance understanding and reduce context 
 | Provider | Default Model (Files) | Default Model (Meta) | Notes |
 |----------|----------------------|---------------------|-------|
 | **OpenAI** | gpt-5-mini-2025-08-07 | gpt-5-2025-08-07 | Fast with reasoning capabilities |
-| **Anthropic** | claude-3-5-haiku-20241022 | claude-sonnet-4-5-20250929 | Fast with extended thinking |
+| **Anthropic** | claude-sonnet-4-20250514 | claude-opus-4-20250514 | Fast with extended thinking |
 | **OpenRouter** | qwen/qwen3-coder | z-ai/glm-4.6 | Access to 100+ models |
 | **Google Gemini** | gemini-2.0-flash | gemini-2.5-pro | Free tier available, 1M+ context |
 | **DeepSeek** | deepseek-coder | deepseek-chat | Extremely cost-effective |
@@ -786,7 +832,7 @@ Generate intelligent code summaries to enhance understanding and reduce context 
 codeconcat run --ai-summary --ai-provider openai
 
 # Use specific model
-codeconcat run --ai-summary --ai-provider anthropic --ai-model claude-3-haiku-20240307
+codeconcat run --ai-summary --ai-provider anthropic --ai-model claude-sonnet-4-20250514
 
 # Local model with Ollama (privacy-focused)
 ollama run llama3.2  # First-time setup
@@ -1420,7 +1466,7 @@ For detailed technical documentation of all fixes, see **[PARSER_FIXES_SUMMARY.m
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete version history and release notes.
 
-**Current Version:** 0.9.1
+**Current Version:** 0.9.3
 
 ### Troubleshooting
 

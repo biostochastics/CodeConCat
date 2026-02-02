@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from codeconcat.errors import ValidationError
-from codeconcat.validation.setup_semgrep import install_apiiro_ruleset, install_semgrep
+from codeconcat.validation.setup_semgrep import (
+    APIIRO_RULESET_COMMIT,
+    install_apiiro_ruleset,
+    install_semgrep,
+)
 
 
 class TestSetupSemgrep:
@@ -45,6 +49,30 @@ class TestSetupSemgrep:
         mock_run.assert_called_once()
 
     @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_install_semgrep_version_mismatch(self, mock_which, mock_run):
+        """Test that version mismatch returns False."""
+        # Mock pip install success
+        mock_pip_result = MagicMock()
+        mock_pip_result.returncode = 0
+        mock_pip_result.stdout = "Successfully installed semgrep-1.99.0"
+        mock_pip_result.stderr = ""
+
+        # Mock version check returns different version
+        mock_version_result = MagicMock()
+        mock_version_result.returncode = 0
+        mock_version_result.stdout = "1.99.0"  # Different from SEMGREP_VERSION (1.52.0)
+        mock_version_result.stderr = ""
+
+        mock_run.side_effect = [mock_pip_result, mock_version_result]
+        mock_which.return_value = "/usr/local/bin/semgrep"
+
+        result = install_semgrep()
+        # Should return False due to version mismatch
+        assert result is False
+        assert mock_run.call_count == 2
+
+    @patch("subprocess.run")
     def test_install_apiiro_ruleset_success(self, mock_run, tmp_path):
         """Test successful installation of Apiiro ruleset."""
         # Mock all 4 git subprocess calls (clone, fetch, checkout, rev-parse)
@@ -55,8 +83,8 @@ class TestSetupSemgrep:
 
         mock_revparse_result = MagicMock()
         mock_revparse_result.returncode = 0
-        # Return the expected commit hash for rev-parse
-        mock_revparse_result.stdout = "c8e8fc2d90e5a3b6d7f1e9c4a2b5d8f3e6c9a1b4"
+        # Return the expected commit hash for rev-parse (uses imported constant)
+        mock_revparse_result.stdout = APIIRO_RULESET_COMMIT
         mock_revparse_result.stderr = ""
 
         # git clone, git fetch, git checkout, git rev-parse

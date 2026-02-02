@@ -81,11 +81,30 @@ def validate_security_threshold(value: str) -> str:
 
 
 def complete_provider(incomplete: str) -> list[str]:
-    """Autocompletion for AI provider names."""
+    """Generate provider name completions for CLI autocompletion.
+
+    Provides a list of available AI provider names that match the given
+    incomplete string. Used by Typer for shell autocompletion support.
+
+    Args:
+        incomplete: Partial provider name typed by the user.
+
+    Returns:
+        List of provider names that start with the incomplete string.
+
+    Example:
+        >>> complete_provider("open")
+        ['openai', 'openrouter']
+    """
     providers = [
         "openai",
         "anthropic",
         "openrouter",
+        "google",
+        "deepseek",
+        "minimax",
+        "qwen",
+        "zhipu",
         "ollama",
         "llamacpp",
         "local_server",
@@ -97,7 +116,21 @@ def complete_provider(incomplete: str) -> list[str]:
 
 
 def complete_language(incomplete: str) -> list[str]:
-    """Autocompletion for programming languages."""
+    """Generate programming language completions for CLI autocompletion.
+
+    Provides a list of supported programming language names that match the
+    given incomplete string. Used by Typer for shell autocompletion support.
+
+    Args:
+        incomplete: Partial language name typed by the user.
+
+    Returns:
+        List of language names that start with the incomplete string.
+
+    Example:
+        >>> complete_language("py")
+        ['python']
+    """
     languages = [
         "python",
         "javascript",
