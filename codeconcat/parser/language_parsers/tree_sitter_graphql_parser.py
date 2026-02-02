@@ -37,6 +37,10 @@ logger = logging.getLogger(__name__)
 
 # Tree-sitter queries for GraphQL syntax
 GRAPHQL_QUERIES = {
+    "doc_comments": """
+        ; GraphQL description strings (triple-quoted strings before definitions)
+        (description) @doc_comment
+    """,
     "type_definitions": """
         ; Object types
         (object_type_definition

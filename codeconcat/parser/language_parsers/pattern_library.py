@@ -102,6 +102,23 @@ class CommentPatterns:
         "go": r"//",
         "rust": r"///",
         "php": r"//",
+        # Extended language support
+        "elixir": r"#",
+        "julia": r"#",
+        "sql": r"--",
+        "graphql": r"#",
+        "hcl": r"#",
+        "terraform": r"#",
+        "glsl": r"//",
+        "hlsl": r"//",
+        "solidity": r"//",
+        "wat": r";;",
+        "wasm": r";;",
+        "crystal": r"#",
+        "r": r"#",
+        "perl": r"#",
+        "yaml": r"#",
+        "toml": r"#",
     }
 
     # Block comment start/end
@@ -114,6 +131,17 @@ class CommentPatterns:
         "rust": (r"/\*", r"\*/"),
         "php": (r"/\*", r"\*/"),
         "css": (r"/\*", r"\*/"),
+        # Extended language support
+        "julia": (r"#=", r"=#"),
+        "graphql": (r'"""', r'"""'),
+        "glsl": (r"/\*", r"\*/"),
+        "hlsl": (r"/\*", r"\*/"),
+        "solidity": (r"/\*", r"\*/"),
+        "crystal": (r"=begin", r"=end"),
+        "ruby": (r"=begin", r"=end"),
+        "perl": (r"=pod", r"=cut"),
+        "html": (r"<!--", r"-->"),
+        "xml": (r"<!--", r"-->"),
     }
 
 

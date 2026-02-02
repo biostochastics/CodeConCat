@@ -37,6 +37,10 @@ logger = logging.getLogger(__name__)
 # Simpler approach: Use direct tree traversal instead of complex queries for keyword nodes
 # Tree-sitter queries for GLSL syntax
 GLSL_QUERIES = {
+    "doc_comments": """
+        ; GLSL comments (// and /* */ style)
+        (comment) @comment
+    """,
     "functions": """
         (function_definition
             (function_declarator

@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 
 # Tree-sitter queries for WebAssembly Text format
 WAT_QUERIES = {
+    "doc_comments": """
+        ; WAT/WebAssembly Text comments (;; style and (; ;) block style)
+        (comment) @comment
+        (block_comment) @block_comment
+    """,
     "imports": """
         ; Import statements
         (module_field_import) @import_statement

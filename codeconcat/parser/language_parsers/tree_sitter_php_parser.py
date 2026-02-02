@@ -11,7 +11,7 @@ except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
 from ...base_types import Declaration
-from ..doc_comment_utils import clean_block_comments, normalize_whitespace
+from ..doc_comment_utils import clean_block_comments, clean_jsdoc_tags, normalize_whitespace
 from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
@@ -22,52 +22,26 @@ logger = logging.getLogger(__name__)
 PHP_QUERIES = {
     "imports": """
         ; Basic use statement (class import)
-        (use_declaration
-          (namespace_use_clause name: (name) @import_path)
+        (namespace_use_declaration
+          (namespace_use_clause (name) @import_path)
         ) @use_statement
 
-        ; Function imports with 'use function'
-        (use_declaration
-          "function"
-          (namespace_use_clause name: (name) @function_import_path)
-        ) @function_use_statement
-
-        ; Constant imports with 'use const'
-        (use_declaration
-          "const"
-          (namespace_use_clause name: (name) @const_import_path)
-        ) @const_use_statement
-
-        ; Group use statements - namespace part
+        ; Group use statements with namespace prefix
         (namespace_use_declaration
             (namespace_name) @group_import_prefix
+            (namespace_use_group
+                (namespace_use_clause (name) @group_import_item)
+            )
         ) @use_statement_group
 
-        ; Group use statements - individual items
-        (namespace_use_declaration
-            (namespace_use_group
-                (namespace_use_clause
-                    name: (name) @group_import_item
-                )
-            )
-        )
-
-        ; Function use statements with aliases
-        (use_declaration
-          (namespace_use_clause
-            name: (name) @import_path
-            alias: (name) @import_alias
-          )
-        ) @use_statement_with_alias
-
-        ; require/include statements
-        (call_expression
-          function: (name) @func_name (#match? @func_name "^(require|require_once|include|include_once)$")
-          arguments: (arguments (string) @import_path)
-        ) @require_include
+        ; require/include statements - dedicated expression types in PHP
+        (require_expression (_) @require_path) @require_statement
+        (require_once_expression (_) @require_once_path) @require_once_statement
+        (include_expression (_) @include_path) @include_statement
+        (include_once_expression (_) @include_once_path) @include_once_statement
 
         ; autoload registration (common pattern)
-        (call_expression
+        (function_call_expression
           function: (name) @register_func (#eq? @register_func "spl_autoload_register")
         ) @autoload_registration
     """,
@@ -102,50 +76,25 @@ PHP_QUERIES = {
             name: (name) @name
         ) @method
 
-        ; Const declarations
+        ; Const declarations - name and value are children, not fields
         (const_declaration
-            (const_element
-                name: (name) @name
-                value: (_) @const_value
-            )
+            (const_element (name) @name)
         ) @const
 
-        ; Properties with type declarations and nullability
+        ; Properties - modifiers are child nodes in PHP grammar
+        ; Use simple matching without field notation for robustness
         (property_declaration
-            (attribute_list
-                (attribute
-                    name: (name) @prop_attr_name
-                    arguments: (arguments)? @prop_attr_args
-                )
-            )* @property_attributes
-            modifiers: [
-                "public" "protected" "private"
-                "static" "readonly"
-            ]* @property_modifiers
-            type: (_)? @property_type
+            (visibility_modifier)? @property_visibility
+            (static_modifier)? @property_static
+            (readonly_modifier)? @property_readonly
             (property_element
-                name: (variable_name) @name
-                default_value: (_)? @property_default
+                (variable_name (name) @name)
             )
         ) @property
 
         ; Enum declarations (PHP 8.1+)
         (enum_declaration
-            (attribute_list
-                (attribute
-                    name: (name) @enum_attr_name
-                    arguments: (arguments)? @enum_attr_args
-                )
-            )* @enum_attributes
             name: (name) @name
-            implements: (class_interface_clause
-                (name_list)? @enum_implements_list
-            )?
-            (enum_case
-                name: (name) @enum_case_name
-                value: (_)? @enum_case_value
-            )* @enum_cases
-            body: (declaration_list) @enum_body
         ) @enum
 
         ; Global variables (less common)
@@ -172,12 +121,15 @@ def _clean_php_doc_comment(comment_block: list[str]) -> str:
     """Cleans a block of PHPDoc comment lines using shared doc_comment_utils.
 
     PHPDoc uses the same /** */ format as Javadoc and JSDoc, so we can
-    use the shared block comment cleaner.
+    use the shared block comment cleaner, followed by JSDoc tag processing
+    for @param, @return, @throws, etc.
     """
     if not comment_block:
         return ""
     # Use shared block comment cleaner for /** */ style
-    return clean_block_comments(comment_block)
+    cleaned = clean_block_comments(comment_block)
+    # Apply JSDoc tag processing (PHPDoc uses same format)
+    return clean_jsdoc_tags(cleaned)
 
 
 class TreeSitterPhpParser(BaseTreeSitterParser):
@@ -245,6 +197,10 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                             "const_import_path",
                             "group_import_item",
                             "group_import_prefix",
+                            "require_path",
+                            "require_once_path",
+                            "include_path",
+                            "include_once_path",
                         ]:
                             for node in nodes:
                                 import_path = (
@@ -265,6 +221,7 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                         signature = ""
 
                         # Check for various declaration types
+                        # Note: capture names must match the @name in queries
                         decl_types = [
                             "namespace",
                             "class",
@@ -274,7 +231,7 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                             "function",
                             "method",
                             "property",
-                            "class_constant",
+                            "const",  # matches @const in query
                             "global_variable",
                         ]
 
@@ -292,13 +249,18 @@ class TreeSitterPhpParser(BaseTreeSitterParser):
                             if name_nodes and len(name_nodes) > 0:
                                 name_node = name_nodes[0]
 
-                        # Get modifiers
-                        if "property_modifiers" in captures_dict:
-                            for mod_node in captures_dict["property_modifiers"]:
-                                modifier_text = byte_content[
-                                    mod_node.start_byte : mod_node.end_byte
-                                ].decode("utf8", errors="replace")
-                                modifiers.add(modifier_text)
+                        # Get modifiers from separate capture names
+                        for mod_capture in [
+                            "property_visibility",
+                            "property_static",
+                            "property_readonly",
+                        ]:
+                            if mod_capture in captures_dict:
+                                for mod_node in captures_dict[mod_capture]:
+                                    modifier_text = byte_content[
+                                        mod_node.start_byte : mod_node.end_byte
+                                    ].decode("utf8", errors="replace")
+                                    modifiers.add(modifier_text)
 
                         # Extract signature for functions and methods
                         if declaration_node and kind in ["function", "method"]:

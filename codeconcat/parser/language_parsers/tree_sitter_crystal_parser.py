@@ -40,6 +40,10 @@ logger = logging.getLogger(__name__)
 # - Use @name for the name capture
 # - Use @import_statement for imports
 CRYSTAL_QUERIES = {
+    "doc_comments": """
+        ; Crystal documentation comments (# style)
+        (comment) @comment
+    """,
     "declarations": """
         ; Class definitions (non-generic)
         (class_def

@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 
 # Tree-sitter queries for Solidity language constructs
 SOLIDITY_QUERIES = {
+    "doc_comments": """
+        ; NatSpec documentation comments (/// and /** */ style)
+        (comment) @comment
+    """,
     "imports": """
         ; Import directives
         (import_directive) @import_statement

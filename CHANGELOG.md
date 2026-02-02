@@ -5,6 +5,102 @@ All notable changes to CodeConCat will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Documentation extraction improvements**: Enhanced doc_comments query support across tree-sitter parsers:
+  - Added `doc_comments` queries to 9 parsers: SQL, GraphQL, HCL, GLSL, HLSL, Solidity, WAT, Crystal, and Elixir
+  - Extended `CommentPatterns` in `pattern_library.py` with 16+ language entries for single-line and block comments (Elixir, Julia, SQL, GraphQL, HCL, Terraform, GLSL, HLSL, Solidity, WAT/WASM, Crystal, R, Perl, YAML, TOML, HTML, XML)
+  - Added PHPDoc tag processing using `clean_jsdoc_tags` for consistent @param/@return extraction
+  - Implemented Elixir @doc/@moduledoc attribute extraction with proper module attribute handling
+  - Updated Julia parser to capture both triple-quoted docstrings and line/block comments
+
+### Fixed
+
+- **BaseParser robustness improvements**: Fixed 8 issues in `base_parser.py`:
+  - Fixed potential `IndexError` in `extract_docstring()` when `end` parameter exceeds `len(lines)`
+  - Fixed regex injection vulnerability in `_create_pattern()` by escaping modifier values
+  - Fixed incorrect block detection when braces appear inside string literals (added `_count_braces_outside_strings()` helper)
+  - Fixed type annotation inconsistency (`Pattern` → `Pattern[str]`)
+  - Added explicit `str | None` type hints for `block_start`/`block_end` attributes
+  - Replaced redundant `NotImplementedError` in abstract `parse()` method with `...`
+  - Simplified Unicode identifier pattern (Python 3 `\w` already matches Unicode)
+  - Added `_reset()` method to prevent state bleeding between parser reuses
+
+- **CLI test assertions**: Fixed 3 failing CLI tests (`test_scenario_1_llm_context_preparation`, `test_scenario_5_compression_levels`, `test_token_summary_displayed`) that expected output only shown when no progress callback is active (token stats, compression effectiveness, level info are suppressed during dashboard mode)
+
+### Security
+
+- **exec_patterns regex word boundaries**: Added `\b` word boundaries to dangerous pattern detection regex to prevent false positives on variable names like `system_config`, `evaluation_score`, or `execute_flag` while still catching actual dangerous function calls
+
+- **Binary detection Latin-1 fallback**: Improved binary file detection to try Latin-1 (ISO-8859-1) decoding when UTF-8 fails, preventing legitimate text files with extended ASCII characters (e.g., café, naïve) from being incorrectly classified as binary. Only classifies as binary if >10% ASCII control characters are present.
+
+- **Symlink escape prevention in verify_integrity_manifest**: Added symlink detection and skip in manifest verification to prevent directory escape attacks via crafted symlinks pointing outside the base directory
+
+- **Path traversal protection in validate_input_files**: Added `validate_safe_path()` checks with `allow_symlinks=False` to block path traversal attacks (e.g., `../../../etc/passwd`) and symlink escape attempts during file validation
+
+- **Semgrep version exact matching**: Changed version verification from substring check to exact string match to prevent version spoofing attacks (e.g., `1.52.0-exploit` no longer passes validation for `1.52.0`)
+
+- **Apiiro commit hash verification**: Updated Apiiro ruleset commit hash from placeholder to verified real commit (`a21246b666f34db899f0e33add7237ed70fab790`) with documentation on how to verify using `git ls-remote`
+
+- **Secrets pattern keyword restrictions**: Refined secrets detection regex to only flag true secret keywords (`password`, `api_key`, `secret`, `token`, `credential`) with minimum 8-character values, preventing false positives on benign variables like `server_name` or version strings
+
+### Documentation
+
+- **Inline docstring completeness audit**: Addressed all missing docstrings across 7 files:
+  - Added full `ConfigurationError` documentation with attributes and examples
+  - Fixed `CodeSymbol` docstring format in base_parser.py
+  - Added `_create_pattern()` documentation with Args, Returns, and Example
+  - Enhanced constants.py with comprehensive module-level documentation
+  - Added completion function documentation in run.py (`complete_provider`, `complete_language`)
+  - Improved `_get_default_ruleset_path()` documentation in semgrep_validator.py
+  - Enhanced PythonParser class and `__init__` docstrings
+  - Added comprehensive documentation to OpenAI provider methods (`_get_session`, `_make_api_call`, `summarize_code`, `summarize_function`)
+
+- **Documentation style standardization**: Adopted consistent Google-style docstrings across all modified files with Args, Returns, Raises, Attributes, Example, and Note sections. Removed non-standard sections like "Processing Logic:" and fixed incorrect syntax patterns.
+
+- **Extended docstring audit (2026-02)**: Completed comprehensive inline documentation review:
+  - **base_parser.py**: Added Args/Returns/Raises to `_flatten_symbol`, `_find_block_end`, `extract_docstring`, `__init__`
+  - **local_collector.py**: Added comprehensive module docstring with features and examples; fixed all function docstrings with complete Args, Returns, Raises sections
+  - **base_types.py**: Added Pydantic Field descriptions to CodeConCatConfig (~30 fields previously lacking descriptions)
+  - **errors.py**: Added detailed Attributes sections and examples to all exception classes (ValidationError, ConfigurationError, FileProcessingError, ParserError, SecurityValidationError, etc.)
+  - **unified_pipeline.py**: Enhanced `_reconstruct_declaration` with Raises section
+
+- **Exception attribute documentation**: All custom exception classes now document their dynamic attributes (file_path, field, value, severity, pattern_name, etc.) with Examples showing proper usage
+
+- **CLI documentation accuracy fixes**: Comprehensive review and correction of CLI documentation:
+  - Fixed API info command endpoints to show actual routes (`/api/concat`, `/api/upload`, `/api/ping`, `/api/config/*`)
+  - Added missing AI providers to autocomplete function (`google`, `deepseek`, `minimax`, `qwen`, `zhipu`, `llamacpp`)
+  - Extended API key management to support all 14 providers across all key commands
+  - Fixed llama parameter naming in documentation (`--llama-context-size`, `--llama-batch-size`)
+  - Updated Anthropic model examples to current versions (`claude-sonnet-4-20250514`)
+  - Fixed path reference in CLAUDE.md architecture diagram
+
+### Added
+
+- **Comprehensive security hardening tests**: Added `tests/unit/validation/test_security_hardening.py` with 30 tests covering all security fixes including exec pattern word boundaries, Latin-1 binary detection, symlink escape prevention, path traversal blocking, semgrep version verification, and secrets pattern accuracy
+
+## [0.9.3] - 2026-02-01
+
+### Changed
+
+- **Default output filename format**: Updated to `ccc_codeconcat_{repo_name}_{mmddyy}.{ext}` pattern (e.g., `ccc_codeconcat_myproject_020126.md`) for consistent branding. Fallback without repo name remains `ccc_codeconcat_{mmddyy}.{ext}`.
+
+### Fixed
+
+- **Progress dashboard UI corruption**: Fixed Rich Live display stacking/clipping issue where multiple progress panels appeared instead of updating in place. Root cause was `print()` statements in `main.py` corrupting the Live display. Suppressed all stdout prints when `progress_callback` is active during CLI dashboard mode.
+
+- **Writing stage appearing stuck**: Fixed "Writing: waiting" showing for extended periods with no progress feedback. Moved `start_stage("Writing")` earlier in the pipeline (before stats calculation, directory tree generation, compression) and added intermediate progress messages ("preparing output...", "computing statistics...", "generating directory tree...", "compressing files...", "writing {format}...") so users see activity during all processing phases.
+
+- **CLI parsing progress bar**: Fixed progress bar showing "0/N" at 0% throughout parsing then jumping to completion. Added `progress_callback` parameter to `parse_code_files()` and `UnifiedPipeline` to properly propagate progress updates from the parsing pipeline to the CLI dashboard, replacing Rich's internal `track()` which conflicted with the dashboard display.
+
+- **PHP Tree-sitter parser queries**: Fixed invalid Tree-sitter query patterns that caused `QueryError` exceptions when parsing PHP files:
+  - Changed `use_declaration` to `namespace_use_declaration` (correct PHP grammar node type)
+  - Changed `call_expression` to `function_call_expression` and added dedicated `require_expression`/`include_expression` patterns
+  - Removed invalid `modifiers:` field from `property_declaration` (modifiers are child nodes in PHP grammar, not a field)
+  - Removed invalid `name:` and `value:` fields from `const_element`
+
 ## [0.9.2] - 2026-01-28
 
 ### Fixed

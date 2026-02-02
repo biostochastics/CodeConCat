@@ -19,9 +19,10 @@ Supports Elixir 1.12+ with features including:
 
 import logging
 
-from tree_sitter import Node
+from tree_sitter import Node, Query
 
 from ...base_types import Declaration, ParseResult
+from ..doc_comment_utils import normalize_whitespace
 
 # QueryCursor was removed in tree-sitter 0.24.0 - import it if available for backward compatibility
 try:
@@ -29,6 +30,7 @@ try:
 except ImportError:
     QueryCursor = None  # type: ignore[assignment,misc]
 
+from ..utils import get_node_location
 from .base_tree_sitter_parser import BaseTreeSitterParser
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,7 @@ ELIXIR_QUERIES = {
             )
         ) @module
 
-        ; Function definitions (def, defp)
+        ; Function definitions with arguments (def, defp) - e.g., def hello(name)
         (call
             (identifier) @def_keyword
             (#match? @def_keyword "^(def|defp)$")
@@ -60,7 +62,16 @@ ELIXIR_QUERIES = {
             )
         ) @function
 
-        ; Macro definitions (defmacro, defmacrop)
+        ; Function definitions without arguments (def, defp) - e.g., def goodbye
+        (call
+            (identifier) @def_keyword
+            (#match? @def_keyword "^(def|defp)$")
+            (arguments
+                (identifier) @name
+            )
+        ) @function
+
+        ; Macro definitions with arguments (defmacro, defmacrop)
         (call
             (identifier) @def_keyword
             (#match? @def_keyword "^(defmacro|defmacrop)$")
@@ -70,6 +81,15 @@ ELIXIR_QUERIES = {
                 )
             )
         ) @function
+
+        ; Macro definitions without arguments (defmacro, defmacrop)
+        (call
+            (identifier) @def_keyword
+            (#match? @def_keyword "^(defmacro|defmacrop)$")
+            (arguments
+                (identifier) @name
+            )
+        ) @function
     """,
     "imports": """
         ; Import, alias, require, use statements
@@ -77,6 +97,31 @@ ELIXIR_QUERIES = {
             (identifier) @import_type
             (#match? @import_type "^(import|alias|require|use)$")
         ) @import_statement
+    """,
+    "doc_comments": """
+        ; @moduledoc attribute with string content
+        (unary_operator
+            "@"
+            (call
+                (identifier) @attr_name
+                (#eq? @attr_name "moduledoc")
+                (arguments
+                    (string) @moduledoc_content
+                )
+            )
+        ) @moduledoc_attr
+
+        ; @doc attribute with string content
+        (unary_operator
+            "@"
+            (call
+                (identifier) @attr_name
+                (#eq? @attr_name "doc")
+                (arguments
+                    (string) @doc_content
+                )
+            )
+        ) @doc_attr
     """,
 }
 
@@ -100,6 +145,172 @@ class TreeSitterElixirParser(BaseTreeSitterParser):
     def get_queries(self) -> dict[str, str]:
         """Get the tree-sitter queries for Elixir."""
         return ELIXIR_QUERIES
+
+    def _run_queries(
+        self, root_node: Node, byte_content: bytes
+    ) -> tuple[list[Declaration], list[str]]:
+        """Run Elixir-specific queries with @doc/@moduledoc extraction."""
+        queries = self.get_queries()
+        declarations: list[Declaration] = []
+        imports: set[str] = set()
+        doc_comment_map: dict[int, str] = {}  # end_line -> docstring text
+        moduledoc_map: dict[int, str] = {}  # end_line -> moduledoc text
+
+        # --- Pass 1: Extract @doc/@moduledoc attributes --- #
+        try:
+            doc_query_str = queries.get("doc_comments", "")
+            if doc_query_str:
+                doc_query = Query(self.ts_language, doc_query_str)
+                doc_captures = self._execute_query_with_cursor(doc_query, root_node)
+
+                # Process @moduledoc captures
+                if "moduledoc_content" in doc_captures:
+                    for node in doc_captures["moduledoc_content"]:
+                        docstring = self._clean_elixir_string(node, byte_content)
+                        if docstring:
+                            # Use the parent's end line for association
+                            parent = node.parent
+                            while parent and parent.type != "unary_operator":
+                                parent = parent.parent
+                            if parent:
+                                moduledoc_map[parent.end_point[0]] = docstring
+
+                # Process @doc captures
+                if "doc_content" in doc_captures:
+                    for node in doc_captures["doc_content"]:
+                        docstring = self._clean_elixir_string(node, byte_content)
+                        if docstring:
+                            # Use the parent's end line for association
+                            parent = node.parent
+                            while parent and parent.type != "unary_operator":
+                                parent = parent.parent
+                            if parent:
+                                doc_comment_map[parent.end_point[0]] = docstring
+
+        except Exception as e:
+            logger.warning(f"Failed to execute Elixir doc_comments query: {e}", exc_info=True)
+
+        # --- Pass 2: Extract imports --- #
+        try:
+            import_query_str = queries.get("imports", "")
+            if import_query_str:
+                import_query = Query(self.ts_language, import_query_str)
+                import_captures = self._execute_query_with_cursor(import_query, root_node)
+
+                if "import_statement" in import_captures:
+                    for node in import_captures["import_statement"]:
+                        import_text = byte_content[node.start_byte : node.end_byte].decode(
+                            "utf-8", errors="replace"
+                        )
+                        imports.add(import_text.strip())
+
+        except Exception as e:
+            logger.warning(f"Failed to execute Elixir imports query: {e}", exc_info=True)
+
+        # --- Pass 3: Extract declarations and associate docstrings --- #
+        try:
+            decl_query_str = queries.get("declarations", "")
+            if decl_query_str:
+                decl_query = Query(self.ts_language, decl_query_str)
+                matches = self._execute_query_matches(decl_query, root_node)
+
+                for _match_id, captures_dict in matches:
+                    declaration_node = None
+                    name_node = None
+                    kind = None
+
+                    # Check for module or function declaration
+                    if "module" in captures_dict and captures_dict["module"]:
+                        declaration_node = captures_dict["module"][0]
+                        kind = "module"
+                    elif "function" in captures_dict and captures_dict["function"]:
+                        declaration_node = captures_dict["function"][0]
+                        kind = "function"
+
+                    # Get the name node
+                    if "name" in captures_dict and captures_dict["name"]:
+                        name_node = captures_dict["name"][0]
+
+                    if declaration_node and name_node:
+                        name_text = byte_content[name_node.start_byte : name_node.end_byte].decode(
+                            "utf-8", errors="replace"
+                        )
+
+                        start_line, end_line = get_node_location(declaration_node)
+
+                        # Look for associated docstring
+                        docstring = ""
+                        decl_start_line = declaration_node.start_point[0]
+
+                        if kind == "module":
+                            # For modules, find @moduledoc that appears after the defmodule
+                            # and before any function definitions
+                            for doc_end_line, doc_text in moduledoc_map.items():
+                                # @moduledoc should be inside the module (after start)
+                                if decl_start_line < doc_end_line < end_line:
+                                    docstring = doc_text
+                                    break
+                        else:
+                            # For functions, find @doc immediately before the def
+                            for doc_end_line, doc_text in doc_comment_map.items():
+                                # @doc should end right before the function starts
+                                if doc_end_line == decl_start_line - 1:
+                                    docstring = doc_text
+                                    break
+
+                        declarations.append(
+                            Declaration(
+                                kind=kind or "unknown",
+                                name=name_text,
+                                start_line=start_line,
+                                end_line=end_line,
+                                docstring=docstring,
+                            )
+                        )
+
+        except Exception as e:
+            logger.warning(f"Failed to execute Elixir declarations query: {e}", exc_info=True)
+
+        declarations.sort(key=lambda d: d.start_line)
+        sorted_imports = sorted(imports)
+
+        logger.debug(
+            f"Tree-sitter Elixir extracted {len(declarations)} declarations "
+            f"and {len(sorted_imports)} imports."
+        )
+        return declarations, sorted_imports
+
+    def _clean_elixir_string(self, string_node: Node, byte_content: bytes) -> str:
+        """Extract and clean content from an Elixir string node.
+
+        Args:
+            string_node: A tree-sitter node of type 'string'.
+            byte_content: The source code as bytes.
+
+        Returns:
+            Cleaned string content without quotes.
+        """
+        # Find quoted_content child which contains the actual string content
+        for child in string_node.children:
+            if child.type == "quoted_content":
+                content = byte_content[child.start_byte : child.end_byte].decode(
+                    "utf-8", errors="replace"
+                )
+                # Normalize whitespace
+                return normalize_whitespace(content.strip())
+
+        # Fallback: extract full string and strip quotes
+        full_text = byte_content[string_node.start_byte : string_node.end_byte].decode(
+            "utf-8", errors="replace"
+        )
+        # Remove triple quotes
+        if full_text.startswith('"""') and full_text.endswith('"""'):
+            content = full_text[3:-3]
+        elif full_text.startswith('"') and full_text.endswith('"'):
+            content = full_text[1:-1]
+        else:
+            content = full_text
+        return normalize_whitespace(content.strip())
 
     def parse(self, content: str, file_path: str | None = None) -> ParseResult:
         """

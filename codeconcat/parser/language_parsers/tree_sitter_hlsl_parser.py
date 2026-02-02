@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 # Simple queries for functions and structs
 HLSL_QUERIES = {
+    "doc_comments": """
+        ; HLSL comments (// and /* */ style)
+        (comment) @comment
+    """,
     "functions": """
         (function_definition
             (function_declarator
