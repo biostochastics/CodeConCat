@@ -697,8 +697,13 @@ def process_file(file_path: str, config: CodeConCatConfig, language: str) -> Par
             # Try with error replacement as fallback
             try:
                 content = raw_content.decode("utf-8", errors="replace")
-            except Exception:
-                logger.debug(f"[process_file] Could not decode file: {file_path}")
+                logger.debug(f"[process_file] Decoded {file_path} with replacement chars")
+            except (UnicodeDecodeError, LookupError) as e:
+                # UnicodeDecodeError: Decoding still failed (shouldn't happen with errors="replace")
+                # LookupError: Invalid encoding name
+                logger.warning(
+                    f"[process_file] Could not decode file {file_path}: {type(e).__name__}: {e}"
+                )
                 return None
 
         # === LANGUAGE DETECTION using content if needed ===

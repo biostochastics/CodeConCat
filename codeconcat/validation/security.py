@@ -494,11 +494,14 @@ class SecurityValidator:
                     # If more than 10% control characters, likely binary
                     # Appears to be Latin-1 text if condition is False
                     return len(decoded) > 0 and control_chars / len(decoded) > 0.1
-                except Exception:
+                except (UnicodeDecodeError, ValueError) as e:
+                    # Latin-1 should accept any byte sequence, but log if it fails
+                    logger.debug(f"Latin-1 decode failed for {file_path}: {e}")
                     return True  # Failed to decode, assume binary
 
-        except Exception:
-            # If we can't determine, assume it's binary to be safe
+        except OSError as e:
+            # File access error - log and assume binary for safety
+            logger.warning(f"Cannot read file for binary detection: {file_path}: {e}")
             return True
 
     @staticmethod

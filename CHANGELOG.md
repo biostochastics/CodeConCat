@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Test suite cleanup**: Addressed spurious test skips and broken tests:
+  - Fixed `test_should_include_file_basic` in `test_local_collector_simple.py`: Updated test to correctly expect `.txt` files to return `None` since they're in `doc_extensions` by default (handled by doc_extractor, not code parsers)
+  - Removed corpus-dependent `test_language_parser` from `test_parsers.py` that was skipping due to non-existent `parser_test_corpus` directory; replaced with functional `test_parser_has_required_methods` and `test_parser_returns_parse_result` parameterized tests
+  - Fixed `test_tree_sitter_js_ts_parser.py`: Changed skip condition from hardcoded `True` to actual tree-sitter availability check; fixed fixture name mismatch (`_mock_tree_sitter_classes` → `mock_tree_sitter_classes`); configured mock `root_node` with proper `has_error=False` and coordinate values; corrected test assertions to match mocked declaration data instead of expecting non-existent parsed values
+
 - **BaseParser robustness improvements**: Fixed 8 issues in `base_parser.py`:
   - Fixed potential `IndexError` in `extract_docstring()` when `end` parameter exceeds `len(lines)`
   - Fixed regex injection vulnerability in `_create_pattern()` by escaping modifier values
@@ -34,7 +39,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Binary file detection test**: Corrected test expectations in `test_binary_file_detection_unicode_decode` to match implementation behavior - high bytes like `\xff\xfe\xfd\xfc` are valid Latin-1 characters and treated as text, not binary
 
-- **Apiiro ruleset test mocks**: Fixed commit hash mock values in `test_apiiro_ruleset.py` and `test_setup_semgrep.py` to use the correct expected commit hash (`a21246b666f34db899f0e33add7237ed70fab790`)
+- **Apiiro ruleset test mocks**: Fixed commit hash mock values in `test_apiiro_ruleset.py` and `test_setup_semgrep.py` to import `APIIRO_RULESET_COMMIT` constant instead of hardcoding, ensuring tests stay synchronized when the commit hash is updated
+
+- **Compression metrics calculation**: Fixed compression statistics in `main.py` to capture original line count *before* replacing content with compressed version, and added zero-division guard for empty files
+
+- **Symlink test assertion clarity**: Improved `test_symlink_escape_blocked_in_verify` assertion in `test_security_hardening.py` to be more explicit about what's being tested (symlinks must not be marked as verified)
+
+- **Silent failure elimination (PR #43 review)**: Addressed critical silent failure patterns identified by automated review:
+  - **security.py**: Changed broad `except Exception` to specific `(UnicodeDecodeError, ValueError)` and `OSError` with appropriate logging levels for binary detection
+  - **main.py**: Changed path validation `except Exception` to `except (ValueError, OSError)` with warning logging on fallback
+  - **local_collector.py**: Changed decode fallback `except Exception` to `except (UnicodeDecodeError, LookupError)` with warning logging
+
+- **Production code cleanup**: Removed `unittest.mock` usage from `keys.py` production code, replaced with direct module monkey-patching for getpass during key retrieval
+
+- **Semgrep version mismatch behavior**: Fixed `install_semgrep()` to return `False` when installed version doesn't match expected `SEMGREP_VERSION`, ensuring callers know the installation is unreliable
 
 ### Security
 
@@ -83,9 +101,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated Anthropic model examples to current versions (`claude-sonnet-4-20250514`)
   - Fixed path reference in CLAUDE.md architecture diagram
 
+- **Docstring accuracy improvements (PR #43 review)**:
+  - **base_parser.py**: Added edge case documentation to `_count_braces_outside_strings` (raw strings, f-strings, multiline state); clarified bounds behavior in `extract_docstring`
+  - **openai_provider.py**: Improved `Raises` documentation for `_make_api_call` to accurately describe `Exception` vs `aiohttp.ClientError`
+
 ### Added
 
 - **Comprehensive security hardening tests**: Added `tests/unit/validation/test_security_hardening.py` with 30 tests covering all security fixes including exec pattern word boundaries, Latin-1 binary detection, symlink escape prevention, path traversal blocking, semgrep version verification, and secrets pattern accuracy
+
+- **Semgrep version mismatch test**: Added `test_install_semgrep_version_mismatch` to verify that `install_semgrep()` returns `False` when installed version differs from expected `SEMGREP_VERSION`
 
 ## [0.9.3] - 2026-02-01
 

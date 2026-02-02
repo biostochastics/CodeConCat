@@ -75,8 +75,11 @@ def install_semgrep():
         version_output = version_check.stdout.strip()
         if version_output != SEMGREP_VERSION:
             logger.warning(
-                f"Version mismatch: expected exactly '{SEMGREP_VERSION}', got '{version_output}'"
+                f"Version mismatch: expected exactly '{SEMGREP_VERSION}', got '{version_output}'. "
+                f"Security scanning may produce unexpected results."
             )
+            # Return False on version mismatch to indicate installation is not reliable
+            return False
 
         return True
     except subprocess.TimeoutExpired:

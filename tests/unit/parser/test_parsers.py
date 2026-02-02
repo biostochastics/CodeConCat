@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
 
 """
-Test suite for language parsers in CodeConcat.
+Test suite for language parser discovery in CodeConcat.
 
-This module validates the functionality of all language parsers against
-the test corpus, ensuring that they correctly identify declarations,
-imports, docstrings, etc.
+This module validates that all language parsers are discoverable and can be instantiated.
+Comprehensive parser functionality tests are in the individual test_tree_sitter_*.py
+and test_enhanced_*.py test files.
 """
 
 import importlib
-import json
-import os
-from typing import Any, Dict, List
 
 import pytest
 
-from codeconcat.base_types import CodeConCatConfig, ParseResult
+from codeconcat.base_types import CodeConCatConfig
 
 
 class TestParsers:
-    """Test class for language parsers."""
+    """Test class for language parser discovery."""
 
     @pytest.fixture
     def config(self) -> CodeConCatConfig:
@@ -83,199 +80,6 @@ class TestParsers:
 
         return None
 
-    @pytest.fixture
-    def corpus_dir(self) -> str:
-        """Fixture to provide the path to the test corpus directory."""
-        # Get the directory of this test file
-        test_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(test_dir, "parser_test_corpus")
-
-    def _get_language_files(self, corpus_dir: str, language: str) -> List[str]:
-        """Get all test files for a specific language."""
-        language_dir = os.path.join(corpus_dir, language)
-        if not os.path.exists(language_dir):
-            return []
-
-        files = []
-        for filename in os.listdir(language_dir):
-            if filename.endswith(tuple(self._get_extensions_for_language(language))):
-                files.append(os.path.join(language_dir, filename))
-
-        return files
-
-    def _get_extensions_for_language(self, language: str) -> List[str]:
-        """Get file extensions for a language."""
-        extensions_map = {
-            "python": [".py"],
-            "javascript": [".js"],
-            "typescript": [".ts", ".tsx"],
-            "go": [".go"],
-            "rust": [".rs"],
-            "php": [".php"],
-            "r": [".r", ".R"],
-            "julia": [".jl"],
-            "c": [".c", ".h"],
-            "cpp": [".cpp", ".hpp", ".cc", ".hxx", ".cxx"],
-            "csharp": [".cs"],
-            "java": [".java"],
-        }
-        return extensions_map.get(language, [])
-
-    def _load_expected_output(self, corpus_dir: str, language: str) -> Dict[str, Any]:
-        """Load expected parsing output for validation."""
-        expected_output_path = os.path.join(corpus_dir, language, "expected_output.json")
-        if os.path.exists(expected_output_path):
-            with open(expected_output_path) as f:
-                return json.load(f)
-        return {}
-
-    def _validate_parse_result(
-        self, parse_result: ParseResult, expected: Dict[str, Any], filename: str
-    ) -> List[str]:
-        """Validate a parse result against expected output."""
-        basename = os.path.basename(filename)
-        file_expected = expected.get(basename, {})
-
-        if not file_expected:
-            return [f"No expected output found for {basename}"]
-
-        errors = []
-
-        # Check declaration count
-        if "declaration_count" in file_expected:
-            expected_count = file_expected["declaration_count"]
-            actual_count = len(parse_result.declarations)
-            if expected_count != actual_count:
-                errors.append(
-                    f"Declaration count mismatch for {basename}: "
-                    f"expected {expected_count}, got {actual_count}"
-                )
-
-        # Check specific declarations
-        if "declarations" in file_expected:
-            expected_declarations = set(file_expected["declarations"])
-            actual_declarations = {d.name for d in parse_result.declarations}
-
-            missing = expected_declarations - actual_declarations
-            extra = actual_declarations - expected_declarations
-
-            if missing:
-                errors.append(f"Missing declarations in {basename}: {missing}")
-
-            if extra:
-                errors.append(f"Extra declarations in {basename}: {extra}")
-
-        # Check import count
-        if "import_count" in file_expected:
-            expected_count = file_expected["import_count"]
-            actual_count = len(parse_result.imports)
-            if expected_count != actual_count:
-                errors.append(
-                    f"Import count mismatch for {basename}: "
-                    f"expected {expected_count}, got {actual_count}"
-                )
-
-        # Check specific imports
-        if "imports" in file_expected:
-            expected_imports = set(file_expected["imports"])
-            actual_imports = set(parse_result.imports)
-
-            missing = expected_imports - actual_imports
-            extra = actual_imports - expected_imports
-
-            if missing:
-                errors.append(f"Missing imports in {basename}: {missing}")
-
-            if extra:
-                errors.append(f"Extra imports in {basename}: {extra}")
-
-        # Note: Docstrings are stored in declarations, not as a separate property
-        # We'll check declarations metadata instead
-
-        return errors
-
-    def _generate_expected_output(self, parse_result: ParseResult, filename: str) -> Dict[str, Any]:
-        """Generate expected output template from a parse result."""
-        basename = os.path.basename(filename)
-
-        # Basic counts
-        expected = {
-            "declaration_count": len(parse_result.declarations),
-            "import_count": len(parse_result.imports),
-            # Detailed data
-            "declarations": [d.name for d in parse_result.declarations],
-            "imports": parse_result.imports,
-            # Add any docstrings found in declarations
-            "declarations_with_docstrings": [
-                d.name for d in parse_result.declarations if d.docstring
-            ],
-        }
-
-        return {basename: expected}
-
-    @pytest.mark.parametrize(
-        "language",
-        ["python", "javascript", "typescript", "go", "rust", "php", "r", "julia", "csharp"],
-    )
-    def test_language_parser(self, config: CodeConCatConfig, corpus_dir: str, language: str):
-        """Test a specific language parser with test corpus files."""
-        print(f"\n\nTesting parser for language: {language}")
-
-        # Skip if no test files for this language
-        files = self._get_language_files(corpus_dir, language)
-        if not files:
-            pytest.skip(f"No test files found for {language}")
-
-        print(f"Found {len(files)} test files: {[os.path.basename(f) for f in files]}")
-
-        # Load expected output
-        expected = self._load_expected_output(corpus_dir, language)
-        print(f"Expected output loaded: {bool(expected)}")
-
-        # Generate expected output templates for missing files
-        generate_expected = len(expected) == 0
-        generated_expected = {}
-
-        # Test each file
-        all_errors = []
-
-        for file_path in files:
-            print(f"\nProcessing file: {os.path.basename(file_path)}")
-
-            # Get parser using our test-friendly wrapper
-            parser = self.get_language_parser(language, config)
-            assert parser is not None, f"Could not get parser for {language}"
-            print(f"Parser class: {parser.__class__.__name__}")
-
-            # Read file content
-            with open(file_path, encoding="utf-8") as f:
-                content = f.read()
-            print(f"File content loaded: {len(content)} bytes")
-
-            # Parse content with timeout protection
-            print("Starting parser.parse() - this is where it might hang...")
-            result = parser.parse(content, file_path)
-
-            # If generating expected output, collect it
-            if generate_expected:
-                generated_expected.update(self._generate_expected_output(result, file_path))
-                continue
-
-            # Validate parse result
-            errors = self._validate_parse_result(result, expected, file_path)
-            all_errors.extend(errors)
-
-        # If generating expected output, write it to file
-        if generate_expected and generated_expected:
-            output_path = os.path.join(corpus_dir, language, "expected_output.json")
-            with open(output_path, "w", encoding="utf-8") as f:
-                json.dump(generated_expected, f, indent=2, sort_keys=True)
-
-            pytest.skip(f"Generated expected output for {language}")
-
-        # Assert no errors
-        assert not all_errors, "\n".join(all_errors)
-
     def test_all_parsers_discoverable(self, config: CodeConCatConfig):
         """Test that all language parsers are discoverable."""
         languages = [
@@ -293,6 +97,36 @@ class TestParsers:
         for language in languages:
             parser = self.get_language_parser(language, config)
             assert parser is not None, f"Could not get parser for {language}"
+
+    @pytest.mark.parametrize(
+        "language",
+        ["python", "javascript", "typescript", "go", "rust", "php", "r", "julia", "csharp"],
+    )
+    def test_parser_has_required_methods(self, config: CodeConCatConfig, language: str):
+        """Test that each parser has the required interface methods."""
+        parser = self.get_language_parser(language, config)
+        assert parser is not None, f"Could not get parser for {language}"
+
+        # Check required methods
+        assert hasattr(parser, "parse"), f"{language} parser missing 'parse' method"
+        assert callable(getattr(parser, "parse")), f"{language} parser 'parse' is not callable"
+
+    @pytest.mark.parametrize(
+        "language",
+        ["python", "javascript", "typescript", "go", "rust", "php", "r", "julia", "csharp"],
+    )
+    def test_parser_returns_parse_result(self, config: CodeConCatConfig, language: str):
+        """Test that each parser returns a ParseResult from minimal input."""
+        from codeconcat.base_types import ParseResult
+
+        parser = self.get_language_parser(language, config)
+        assert parser is not None, f"Could not get parser for {language}"
+
+        # Parse empty content - should return a valid ParseResult
+        result = parser.parse("", f"test.{language}")
+        assert isinstance(result, ParseResult), (
+            f"{language} parser did not return ParseResult, got {type(result)}"
+        )
 
 
 if __name__ == "__main__":

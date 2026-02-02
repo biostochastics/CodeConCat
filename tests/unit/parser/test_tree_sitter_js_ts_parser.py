@@ -13,9 +13,16 @@ import pytest
 from codeconcat.base_types import Declaration, ParseResult
 
 # Skip the entire module if tree-sitter is not available
+try:
+    from tree_sitter_language_pack import get_language, get_parser
+
+    TREE_SITTER_AVAILABLE = True
+except ImportError:
+    TREE_SITTER_AVAILABLE = False
+
 pytestmark = pytest.mark.skipif(
-    True,  # Set to True to skip all tests in this module during modernization
-    reason="Tree-sitter tests being modernized",
+    not TREE_SITTER_AVAILABLE,
+    reason="tree-sitter-language-pack not available",
 )
 
 
@@ -30,6 +37,19 @@ def mock_tree_sitter_classes():
         mock_language = MagicMock()
         mock_parser = MagicMock()
         mock_query = MagicMock()
+
+        # Configure a proper mock root_node
+        mock_root_node = MagicMock()
+        mock_root_node.type = "program"
+        mock_root_node.has_error = False
+        mock_root_node.start_point = (0, 0)
+        mock_root_node.end_point = (100, 0)
+        mock_root_node.children = []
+
+        # Configure parse to return a tree with root_node
+        mock_tree = MagicMock()
+        mock_tree.root_node = mock_root_node
+        mock_parser.parse.return_value = mock_tree
 
         # Configure mocks
         mock_get_language.return_value = mock_language
@@ -49,7 +69,7 @@ class TestTreeSitterJsTs:
     """Test class for the tree-sitter JS/TS parser."""
 
     @pytest.fixture(autouse=True)
-    def setup_method(self, _mock_tree_sitter_classes):
+    def setup_method(self, mock_tree_sitter_classes):
         """Set up test fixtures."""
         # Import here to avoid errors when tree-sitter is not available
         from codeconcat.parser.language_parsers.tree_sitter_js_ts_parser import TreeSitterJsTsParser
@@ -307,7 +327,7 @@ export class UserService {
 }
 """
 
-    def test_parser_initialization(self, _mock_tree_sitter_classes):
+    def test_parser_initialization(self, mock_tree_sitter_classes):
         """Test initializing the tree-sitter JavaScript parser."""
         # Parsers are already initialized in setup_method
         assert self.js_parser is not None
@@ -320,9 +340,9 @@ export class UserService {
             "TypeScript Parser language not set correctly"
         )
 
-    def test_parse_js_file(self, js_code_sample, _mock_tree_sitter_classes):
-        """Test parsing a JavaScript file."""
-        # Mock the return value of _run_queries to return some declarations
+    def test_parse_js_file(self, js_code_sample, mock_tree_sitter_classes):
+        """Test parsing a JavaScript file with mocked declarations."""
+        # Mock the return value of _run_queries to return test declarations
         declarations = [
             Declaration(
                 kind="class",
@@ -350,14 +370,14 @@ export class UserService {
         # Verify we get a proper result
         assert isinstance(result, ParseResult)
         assert result.error is None, f"Parsing error: {result.error}"
-        assert len(result.declarations) > 0, "No declarations found"
+        assert len(result.declarations) == 2, f"Expected 2 declarations, got {len(result.declarations)}"
 
-        # Check if we have specific elements from the sample
+        # Check if we have the mocked declarations
         decl_names = [d.name for d in result.declarations]
 
-        # Check for functions and constants
-        assert "add" in decl_names, "Function 'add' not found"
-        assert "fetchData" in decl_names, "Function 'fetchData' not found"
+        # Check for the mocked declarations (not from the sample code)
+        assert "User" in decl_names, "Class 'User' not found"
+        assert "getData" in decl_names, "Function 'getData' not found"
 
         # Check for classes
         user_class = next((d for d in result.declarations if d.name == "User"), None)
@@ -366,22 +386,8 @@ export class UserService {
             f"User is not recognized as a class, got {user_class.kind}"
         )
 
-        # Check class methods
-        if user_class.children:
-            method_names = [m.name for m in user_class.children]
-            assert "constructor" in method_names, "Constructor not found in User class"
-            assert "getDisplayName" in method_names, (
-                "Method 'getDisplayName' not found in User class"
-            )
-            assert "login" in method_names, "Method 'login' not found in User class"
-
-            # Check if private methods are included (since include_private is True)
-            assert "_updateLastLogin" in method_names, (
-                "Private method '_updateLastLogin' not found in User class"
-            )
-
-    def test_parse_ts_file(self, ts_code_sample, _mock_tree_sitter_classes):
-        """Test parsing a TypeScript file."""
+    def test_parse_ts_file(self, ts_code_sample, mock_tree_sitter_classes):
+        """Test parsing a TypeScript file with mocked declarations."""
         # Mock the return value of _run_queries for TypeScript
         declarations = [
             Declaration(
@@ -410,33 +416,23 @@ export class UserService {
         # Verify we get a proper result
         assert isinstance(result, ParseResult)
         assert result.error is None, f"Parsing error: {result.error}"
-        assert len(result.declarations) > 0, "No declarations found"
+        assert len(result.declarations) == 2, f"Expected 2 declarations, got {len(result.declarations)}"
 
         # Check type definitions
         interface_found = any(d.kind == "interface" for d in result.declarations)
         assert interface_found, "No interface declarations found"
 
-        # Check for functions and other elements
+        # Check for the mocked declarations
         decl_names = [d.name for d in result.declarations]
-        assert "sortUsers" in decl_names, "Function 'sortUsers' not found"
-        assert "useUsers" in decl_names, "Function 'useUsers' not found"
+        assert "DataInterface" in decl_names, "Interface 'DataInterface' not found"
+        assert "DataService" in decl_names, "Class 'DataService' not found"
 
-        # Check for classes with type annotations
-        user_service = next((d for d in result.declarations if d.name == "UserService"), None)
-        assert user_service is not None, "Class 'UserService' not found"
+        # Check for classes
+        data_service = next((d for d in result.declarations if d.name == "DataService"), None)
+        assert data_service is not None, "Class 'DataService' not found"
+        assert data_service.kind == "class", f"DataService should be a class, got {data_service.kind}"
 
-        # Check class methods
-        if user_service.children:
-            method_names = [m.name for m in user_service.children]
-            assert "constructor" in method_names, "Constructor not found in UserService class"
-            assert "getUserById" in method_names, (
-                "Method 'getUserById' not found in UserService class"
-            )
-            assert "createUser" in method_names, (
-                "Method 'createUser' not found in UserService class"
-            )
-
-    def test_private_declarations_filtering(self, js_code_sample, _mock_tree_sitter_classes):
+    def test_private_declarations_filtering(self, js_code_sample, mock_tree_sitter_classes):
         """Test filtering of private declarations."""
         # In the modernized version, private declarations are handled directly by the parser
         # First create some declarations including private ones
@@ -502,8 +498,8 @@ export class UserService {
                 "Private method should be excluded with include_private=False"
             )
 
-    def test_parse_with_docstrings(self, js_code_sample, _mock_tree_sitter_classes):
-        """Test parsing a file with JSDoc docstrings."""
+    def test_parse_with_docstrings(self, js_code_sample, mock_tree_sitter_classes):
+        """Test parsing a file with JSDoc docstrings using mocked declarations."""
         # Mock declarations with docstrings
         declarations = [
             Declaration(
@@ -521,8 +517,8 @@ export class UserService {
                 end_line=70,
                 modifiers=set(),
                 docstring=(
-                    "Fetches data from the API."
-                    "@param {string} url - The URL to fetch from"
+                    "Fetches data from the API. "
+                    "@param {string} url - The URL to fetch from "
                     "@returns {Promise<object>} The fetched data"
                 ),
             ),
@@ -533,13 +529,8 @@ export class UserService {
         # Parse with our mocked declarations
         result = self.js_parser.parse(js_code_sample, "sample.js")
 
-        # Check function docstring extraction
-        add_func = next((d for d in result.declarations if d.name == "add"), None)
-        assert add_func is not None, "Function 'add' not found"
-        assert add_func.docstring is not None and len(add_func.docstring) > 0, (
-            "No docstring found for 'add' function"
-        )
-        assert "adds two numbers" in add_func.docstring, "Expected docstring content not found"
+        # Check that declarations are returned correctly
+        assert len(result.declarations) == 2, f"Expected 2 declarations, got {len(result.declarations)}"
 
         # Check class docstring extraction
         user_class = next((d for d in result.declarations if d.name == "User"), None)
@@ -547,24 +538,21 @@ export class UserService {
         assert user_class.docstring is not None and len(user_class.docstring) > 0, (
             "No docstring found for 'User' class"
         )
-        assert "manage user information" in user_class.docstring, (
-            "Expected docstring content not found"
+        assert "represents a user" in user_class.docstring, (
+            "Expected docstring content not found in User class"
         )
 
-        # Check method docstring extraction
-        if user_class.children:
-            get_display_name = next(
-                (m for m in user_class.children if m.name == "getDisplayName"), None
-            )
-            assert get_display_name is not None, "Method 'getDisplayName' not found"
-            assert get_display_name.docstring is not None and len(get_display_name.docstring) > 0, (
-                "No docstring found for 'getDisplayName' method"
-            )
-            assert "display name" in get_display_name.docstring, (
-                "Expected docstring content not found"
-            )
+        # Check function docstring extraction
+        fetch_func = next((d for d in result.declarations if d.name == "fetchData"), None)
+        assert fetch_func is not None, "Function 'fetchData' not found"
+        assert fetch_func.docstring is not None and len(fetch_func.docstring) > 0, (
+            "No docstring found for 'fetchData' function"
+        )
+        assert "Fetches data" in fetch_func.docstring, (
+            "Expected docstring content not found in fetchData"
+        )
 
-    def test_source_locations(self, js_code_sample, _mock_tree_sitter_classes):
+    def test_source_locations(self, js_code_sample, mock_tree_sitter_classes):
         """Test that source locations are correctly extracted."""
         # Mock declarations with various line positions
         declarations = [

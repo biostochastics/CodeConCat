@@ -99,6 +99,7 @@ def list_keys(
         ("vllm", "vLLM"),
         ("lmstudio", "LM Studio"),
         ("llamacpp_server", "llama.cpp Server"),
+        ("llamacpp", "llama.cpp (deprecated)"),
         ("local_server", "Local OpenAI-Compatible"),
     ]
 
@@ -403,14 +404,19 @@ def change_password():
     manager._fernet = None  # Reset to force password prompt
 
     try:
-        # Temporarily set password
-        import unittest.mock as mock
+        # Temporarily override getpass to provide the password
+        # Note: This is necessary because APIKeyManager calls getpass internally
+        import getpass as getpass_module
 
-        with mock.patch("getpass.getpass", return_value=current_password):
+        original_getpass = getpass_module.getpass
+        try:
+            getpass_module.getpass = lambda prompt="Password: ", stream=None: current_password  # noqa: ARG005
             for provider in providers:
                 key = manager.get_key(provider)
                 if key:
                     stored_keys[provider] = key
+        finally:
+            getpass_module.getpass = original_getpass
     except Exception as e:
         console.print(f"[red]❌ Failed to decrypt with current password: {e}[/red]")
         raise typer.Exit(1) from e
@@ -436,14 +442,19 @@ def change_password():
     new_manager = APIKeyManager(storage_method=KeyStorage.ENCRYPTED_FILE)
 
     # Store all keys with new password
-    import unittest.mock as mock
+    # Temporarily override getpass to provide the new password
+    import getpass as getpass_module
 
-    with mock.patch("getpass.getpass", return_value=new_password):
+    original_getpass = getpass_module.getpass
+    try:
+        getpass_module.getpass = lambda prompt="Password: ", stream=None: new_password  # noqa: ARG005
         for provider, key in stored_keys.items():
             success = new_manager.set_key(provider, key, validate=False)
             if not success:
                 console.print(f"[red]❌ Failed to re-encrypt key for {provider}[/red]")
                 raise typer.Exit(1)
+    finally:
+        getpass_module.getpass = original_getpass
 
     console.print("[green]✅ Master password changed successfully![/green]")
     console.print(f"[green]✅ Re-encrypted {len(stored_keys)} API key(s)[/green]")

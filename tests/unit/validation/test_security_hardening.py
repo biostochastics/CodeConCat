@@ -12,15 +12,11 @@ Test coverage:
 5. Semgrep version exact matching (prevents version spoofing)
 """
 
-import os
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
-from codeconcat.errors import ValidationError
 from codeconcat.validation.integration import validate_input_files
 from codeconcat.validation.security import (
     DANGEROUS_PATTERNS,
@@ -227,9 +223,13 @@ class TestSymlinkEscapeInManifestVerification:
         assert results["new_file.txt"]["unexpected"] is True
 
         # The symlink should not cause issues (no escape)
-        # It should either be skipped or safely handled
-        for path, result in results.items():
-            assert "external_link" not in path or result.get("verified") is False
+        # It should either be skipped entirely or marked as unverified
+        symlink_results = {p: r for p, r in results.items() if "external_link" in p}
+        for path, result in symlink_results.items():
+            # Any symlink that appears in results must NOT be marked as verified
+            assert result.get("verified") is False, (
+                f"Symlink '{path}' should not be verified (was: {result})"
+            )
 
 
 class TestPathTraversalInValidateInputFiles:
@@ -375,8 +375,8 @@ class TestSemgrepVersionVerification:
 
         result = install_semgrep()
 
-        # Should still return True but log a warning
-        assert result is True
+        # Should return False on version mismatch (security: don't trust unexpected versions)
+        assert result is False
         # Check that warning was logged about version mismatch
         mock_logger.warning.assert_called()
 
@@ -398,7 +398,7 @@ class TestApiiroCommitVerification:
         # The old invalid placeholder
         old_placeholder = "c8e8fc2d90e5a3b6d7f1e9c4a2b5d8f3e6c9a1b4"
         assert (
-            APIIRO_RULESET_COMMIT != old_placeholder
+            old_placeholder != APIIRO_RULESET_COMMIT
         ), "Commit hash should be updated from placeholder"
 
 

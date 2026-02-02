@@ -120,7 +120,8 @@ class OpenAIProvider(AIProvider):
             JSON response dictionary from the API.
 
         Raises:
-            Exception: On API error with details in the message.
+            Exception: On API error (non-200 status) with HTTP status code and error details.
+            aiohttp.ClientError: On network/connection errors (timeout, DNS failure, etc.).
         """
         # Use semaphore to limit concurrent requests
         async with self._concurrent_limit:

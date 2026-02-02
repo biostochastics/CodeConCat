@@ -354,8 +354,11 @@ def _create_basic_config() -> None:
         # Validate path to prevent traversal attacks
         try:
             validated_base = SecurityProcessor.validate_path(local_os.getcwd(), base_dir)
-        except Exception:
+        except (ValueError, OSError) as e:
             # If validation fails, use current directory as safe fallback
+            logger.warning(
+                f"Path validation failed for base_dir '{base_dir}': {e}. Using cwd as fallback."
+            )
             validated_base = Path(local_os.getcwd())
 
         template_path = local_os.path.join(
@@ -1239,6 +1242,9 @@ def run_codeconcat(
                     compressed_segments = compression_processor.process_file(item)  # type: ignore[arg-type]
 
                     if compressed_segments:
+                        # Capture original line count BEFORE replacing content
+                        original_lines = len(item.content.split("\n"))
+
                         # Store the compressed content in the item for rendering
                         item.content = compression_processor.apply_compression(item)  # type: ignore[arg-type]
 
@@ -1248,7 +1254,6 @@ def run_codeconcat(
                         config._compressed_segments[item.file_path] = compressed_segments  # type: ignore[attr-defined]
 
                         # Log compression stats
-                        original_lines = len(item.content.split("\n"))
                         compressed_lines = sum(
                             1
                             for s in compressed_segments
@@ -1257,8 +1262,11 @@ def run_codeconcat(
 
                         # Only print detailed file compression stats for large or high-compression-ratio files
                         # (suppress when progress dashboard is active to avoid display corruption)
-                        if not progress_callback and (
-                            original_lines > 15 or original_lines - compressed_lines > 5
+                        # Guard against empty files (original_lines == 0) to prevent ZeroDivisionError
+                        if (
+                            not progress_callback
+                            and original_lines > 0
+                            and (original_lines > 15 or original_lines - compressed_lines > 5)
                         ):
                             # Format the file path to make it more readable
                             rel_path = (

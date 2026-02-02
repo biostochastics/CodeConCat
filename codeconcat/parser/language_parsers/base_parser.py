@@ -127,6 +127,13 @@ class BaseParser(ParserInterface):
         Returns:
             The net brace count (block_start occurrences minus block_end occurrences)
             for braces outside of string literals.
+
+        Note:
+            Known limitations:
+            - Does not track string state across multiple lines (resets each call)
+            - Raw strings (r"...") are treated as regular strings
+            - F-string expressions like f"{x}" may miscount braces inside the expression
+            - Trailing backslash escape state is not preserved across calls
         """
         if self.block_start is None or self.block_end is None:
             return 0
@@ -254,11 +261,16 @@ class BaseParser(ParserInterface):
         Args:
             lines: List of source code lines.
             start: The 0-indexed start line to begin searching.
-            end: The 0-indexed end line (inclusive) to stop searching.
+            end: The 0-indexed end line (inclusive) to stop searching. The actual
+                search range is bounded by min(end + 1, len(lines)) to prevent
+                index errors when end exceeds the list length.
 
         Returns:
             The extracted docstring content with surrounding quotes removed,
             or None if no docstring is found in the range.
+
+        Note:
+            Safe to call with end >= len(lines); the range is automatically bounded.
         """
         for i in range(start, min(end + 1, len(lines))):
             line = lines[i].strip()

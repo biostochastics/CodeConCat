@@ -795,6 +795,19 @@ class CodeConCatConfig(BaseModel):
     format: str = Field(
         "markdown", description="Output format: 'markdown', 'json', 'xml', or 'text'"
     )
+
+    @field_validator("format", mode="before")
+    @classmethod
+    def _validate_format(cls, value: str | None) -> str:
+        """Validate and normalize output format against VALID_FORMATS."""
+        if value is None or str(value).strip() == "":
+            return "markdown"
+        normalised = str(value).strip().lower()
+        if normalised not in VALID_FORMATS:
+            allowed = ", ".join(sorted(VALID_FORMATS))
+            raise ValueError(f"Invalid output format '{value}'. Must be one of: {allowed}.")
+        return normalised
+
     xml_processing_instructions: bool = Field(
         False, description="Include AI processing instructions in XML output"
     )
