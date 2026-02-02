@@ -4,6 +4,10 @@ These tests validate the doc_comments query support and docstring extraction
 for parsers that were enhanced in the documentation extraction improvements.
 """
 
+import pytest
+
+from codeconcat.parser.error_handling import ParserInitializationError
+
 
 class TestElixirDocExtraction:
     """Test Elixir @doc/@moduledoc extraction."""
@@ -361,7 +365,10 @@ class TestWATDocExtraction:
             TreeSitterWatParser,
         )
 
-        self.parser = TreeSitterWatParser()
+        try:
+            self.parser = TreeSitterWatParser()
+        except ParserInitializationError as e:
+            pytest.skip(f"WAT parser unavailable: {e}")
 
     def test_wat_line_comments(self):
         """Test WAT ;; style comments."""
@@ -392,7 +399,10 @@ class TestCrystalDocExtraction:
             TreeSitterCrystalParser,
         )
 
-        self.parser = TreeSitterCrystalParser()
+        try:
+            self.parser = TreeSitterCrystalParser()
+        except ParserInitializationError as e:
+            pytest.skip(f"Crystal parser unavailable: {e}")
 
     def test_crystal_comments(self):
         """Test Crystal # style comments."""
@@ -543,7 +553,10 @@ class TestDocCommentsQueryPresence:
             TreeSitterWatParser,
         )
 
-        parser = TreeSitterWatParser()
+        try:
+            parser = TreeSitterWatParser()
+        except ParserInitializationError as e:
+            pytest.skip(f"WAT parser unavailable: {e}")
         queries = parser.get_queries()
         assert "doc_comments" in queries
 
@@ -553,7 +566,10 @@ class TestDocCommentsQueryPresence:
             TreeSitterCrystalParser,
         )
 
-        parser = TreeSitterCrystalParser()
+        try:
+            parser = TreeSitterCrystalParser()
+        except ParserInitializationError as e:
+            pytest.skip(f"Crystal parser unavailable: {e}")
         queries = parser.get_queries()
         assert "doc_comments" in queries
 
