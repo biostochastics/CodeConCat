@@ -4,8 +4,6 @@ These tests validate the doc_comments query support and docstring extraction
 for parsers that were enhanced in the documentation extraction improvements.
 """
 
-import pytest
-
 
 class TestElixirDocExtraction:
     """Test Elixir @doc/@moduledoc extraction."""
@@ -33,9 +31,7 @@ end
         result = self.parser.parse(code, "calculator.ex")
 
         assert result is not None
-        module_decl = next(
-            (d for d in result.declarations if d.name == "MyApp.Calculator"), None
-        )
+        module_decl = next((d for d in result.declarations if d.name == "MyApp.Calculator"), None)
         assert module_decl is not None
         assert "simple calculator module" in module_decl.docstring.lower()
 
@@ -63,12 +59,12 @@ end
 
     def test_single_line_doc(self):
         """Test single-line @doc attribute."""
-        code = '''
+        code = """
 defmodule MyApp.Utils do
   @doc "Converts value to string."
   def to_string(val), do: "#{val}"
 end
-'''
+"""
         result = self.parser.parse(code, "utils.ex")
 
         assert result is not None
@@ -78,19 +74,17 @@ end
 
     def test_moduledoc_false(self):
         """Test @moduledoc false is handled correctly."""
-        code = '''
+        code = """
 defmodule MyApp.Internal do
   @moduledoc false
 
   def private_func, do: :ok
 end
-'''
+"""
         result = self.parser.parse(code, "internal.ex")
 
         assert result is not None
-        module_decl = next(
-            (d for d in result.declarations if d.name == "MyApp.Internal"), None
-        )
+        module_decl = next((d for d in result.declarations if d.name == "MyApp.Internal"), None)
         assert module_decl is not None
         # Should not have a docstring when @moduledoc false
         assert module_decl.docstring == "" or module_decl.docstring is None
@@ -128,13 +122,13 @@ end
 
     def test_line_comment_doc(self):
         """Test line comment documentation."""
-        code = '''
+        code = """
 # Multiply two numbers
 # Returns the product
 function multiply(a, b)
     return a * b
 end
-'''
+"""
         result = self.parser.parse(code, "math.jl")
 
         assert result is not None
@@ -144,7 +138,7 @@ end
 
     def test_block_comment_doc(self):
         """Test block comment (#= =#) documentation."""
-        code = '''
+        code = """
 #=
 This is a struct for representing a point
 in 2D space with x and y coordinates.
@@ -153,7 +147,7 @@ struct Point
     x::Float64
     y::Float64
 end
-'''
+"""
         result = self.parser.parse(code, "geometry.jl")
 
         assert result is not None
@@ -175,7 +169,7 @@ class TestPHPDocExtraction:
 
     def test_phpdoc_with_tags(self):
         """Test PHPDoc comment with @param and @return tags."""
-        code = '''<?php
+        code = """<?php
 /**
  * Calculate the sum of two numbers.
  *
@@ -186,7 +180,7 @@ class TestPHPDocExtraction:
 function add($a, $b) {
     return $a + $b;
 }
-'''
+"""
         result = self.parser.parse(code, "math.php")
 
         assert result is not None
@@ -194,24 +188,24 @@ function add($a, $b) {
         assert func_decl is not None
         assert "sum" in func_decl.docstring.lower()
         # PHPDoc tags should be cleaned using clean_jsdoc_tags
-        assert "param" in func_decl.docstring.lower() or "first number" in func_decl.docstring.lower()
+        assert (
+            "param" in func_decl.docstring.lower() or "first number" in func_decl.docstring.lower()
+        )
 
     def test_class_phpdoc(self):
         """Test PHPDoc for class definitions."""
-        code = '''<?php
+        code = """<?php
 /**
  * A simple calculator class.
  */
 class Calculator {
     public function calculate() {}
 }
-'''
+"""
         result = self.parser.parse(code, "calculator.php")
 
         assert result is not None
-        class_decl = next(
-            (d for d in result.declarations if d.name == "Calculator"), None
-        )
+        class_decl = next((d for d in result.declarations if d.name == "Calculator"), None)
         assert class_decl is not None
         assert "calculator" in class_decl.docstring.lower()
 
@@ -261,14 +255,14 @@ class TestSQLDocExtraction:
 
     def test_sql_line_comments(self):
         """Test SQL line comment handling."""
-        code = '''
+        code = """
 -- Create the users table
 -- Stores user account information
 CREATE TABLE users (
     id INTEGER PRIMARY KEY,
     name VARCHAR(100)
 );
-'''
+"""
         result = self.parser.parse(code, "schema.sql")
 
         assert result is not None
@@ -277,7 +271,7 @@ CREATE TABLE users (
 
     def test_sql_block_comments(self):
         """Test SQL block comment handling."""
-        code = '''
+        code = """
 /*
  * Create the products table
  * for storing product inventory
@@ -286,7 +280,7 @@ CREATE TABLE products (
     id INTEGER PRIMARY KEY,
     name VARCHAR(200)
 );
-'''
+"""
         result = self.parser.parse(code, "products.sql")
 
         assert result is not None
@@ -306,13 +300,13 @@ class TestHCLDocExtraction:
 
     def test_hcl_hash_comments(self):
         """Test HCL # style comments."""
-        code = '''
+        code = """
 # Configure the AWS provider
 # for the production environment
 provider "aws" {
   region = "us-west-2"
 }
-'''
+"""
         result = self.parser.parse(code, "main.tf")
 
         assert result is not None
@@ -334,7 +328,7 @@ class TestSolidityDocExtraction:
 
     def test_natspec_comments(self):
         """Test NatSpec documentation comments."""
-        code = '''
+        code = """
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -350,7 +344,7 @@ contract Storage {
         value = _value;
     }
 }
-'''
+"""
         result = self.parser.parse(code, "Storage.sol")
 
         assert result is not None
@@ -371,7 +365,7 @@ class TestWATDocExtraction:
 
     def test_wat_line_comments(self):
         """Test WAT ;; style comments."""
-        code = '''
+        code = """
 ;; Simple add function
 ;; Takes two i32 parameters
 (module
@@ -381,7 +375,7 @@ class TestWATDocExtraction:
     i32.add
   )
 )
-'''
+"""
         result = self.parser.parse(code, "math.wat")
 
         assert result is not None
@@ -402,7 +396,7 @@ class TestCrystalDocExtraction:
 
     def test_crystal_comments(self):
         """Test Crystal # style comments."""
-        code = '''
+        code = """
 # A simple calculator class
 # for basic arithmetic
 class Calculator
@@ -411,7 +405,7 @@ class Calculator
     a + b
   end
 end
-'''
+"""
         result = self.parser.parse(code, "calculator.cr")
 
         assert result is not None
