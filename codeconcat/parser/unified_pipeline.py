@@ -21,7 +21,7 @@ import traceback
 import unicodedata
 from concurrent.futures import ProcessPoolExecutor, TimeoutError, as_completed
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from rich.progress import (
     BarColumn,
@@ -55,6 +55,15 @@ from ..utils.feature_flags import is_enabled
 from ..validation.unsupported_reporter import get_reporter as get_unsupported_reporter
 
 logger = logging.getLogger(__name__)
+
+
+class ProgressCallback(Protocol):
+    """Protocol for progress callbacks."""
+
+    def __call__(self, current: int, total: int, message: str = "") -> None:
+        """Update progress."""
+        ...
+
 
 # Allowed language identifiers for security validation
 ALLOWED_LANGUAGES = {
@@ -105,13 +114,20 @@ ALLOWED_LANGUAGES = {
 def _reconstruct_declaration(data: dict | Declaration) -> Declaration:
     """Reconstruct a Declaration object from a dictionary.
 
-    Handles nested children declarations recursively.
+    Handles nested children declarations recursively. If the input is already
+    a Declaration object, it is returned unchanged.
 
     Args:
-        data: Dictionary representation of Declaration or existing Declaration object
+        data: Dictionary representation of Declaration or existing Declaration object.
+            Expected keys: kind, name, start_line, end_line, modifiers (optional),
+            docstring (optional), signature (optional), children (optional).
 
     Returns:
-        Declaration object
+        Declaration object reconstructed from the dictionary data.
+
+    Raises:
+        KeyError: If required keys (kind, name, start_line, end_line) are missing.
+        TypeError: If data is neither a dict nor a Declaration.
     """
     if isinstance(data, Declaration):
         return data
@@ -577,14 +593,16 @@ def _process_file_worker(file_data_dict: dict, config_dict: dict) -> tuple[dict 
 class UnifiedPipeline:
     """Unified parsing pipeline with plugin-based architecture."""
 
-    def __init__(self, config: CodeConCatConfig):
+    def __init__(self, config: CodeConCatConfig, progress_callback: ProgressCallback | None = None):
         """Initialize the unified pipeline with configuration.
 
         Args:
             config: CodeConcat configuration object
+            progress_callback: Optional callback for progress updates
         """
         self.config = config
         self.unsupported_reporter = get_unsupported_reporter()
+        self.progress_callback = progress_callback
 
     def parse(
         self, files_to_parse: list[ParsedFileData]
@@ -638,27 +656,52 @@ class UnifiedPipeline:
         parsed_files_output: list[ParsedFileData] = []
         errors: list[ParserError] = []
 
-        # Use progress tracking if enabled
-        progress_iterator = self._process_with_progress(
-            files_to_parse, "Parsing files", self.config.disable_progress_bar
-        )
+        total_files = len(files_to_parse)
 
-        for file_data in progress_iterator:
-            try:
-                result = self._process_file(file_data)
-                if result:
-                    parsed_files_output.append(result)
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error processing {file_data.file_path}: {str(e)}",
-                    exc_info=True,
-                )
-                errors.append(
-                    FileProcessingError(  # type: ignore[arg-type]
-                        f"Unexpected error: {str(e)}\n{traceback.format_exc()}",
-                        file_path=file_data.file_path,
+        # Use external progress callback if provided (from CLI dashboard)
+        # Otherwise fall back to Rich track() for standalone usage
+        if self.progress_callback:
+            # Use external callback - iterate directly and update progress
+            for idx, file_data in enumerate(files_to_parse):
+                try:
+                    result = self._process_file(file_data)
+                    if result:
+                        parsed_files_output.append(result)
+                except Exception as e:
+                    logger.error(
+                        f"Unexpected error processing {file_data.file_path}: {str(e)}",
+                        exc_info=True,
                     )
-                )
+                    errors.append(
+                        FileProcessingError(  # type: ignore[arg-type]
+                            f"Unexpected error: {str(e)}\n{traceback.format_exc()}",
+                            file_path=file_data.file_path,
+                        )
+                    )
+                # Update external progress callback
+                self.progress_callback(idx + 1, total_files)
+        else:
+            # Use Rich track() for standalone usage
+            progress_iterator = self._process_with_progress(
+                files_to_parse, "Parsing files", self.config.disable_progress_bar
+            )
+
+            for file_data in progress_iterator:
+                try:
+                    result = self._process_file(file_data)
+                    if result:
+                        parsed_files_output.append(result)
+                except Exception as e:
+                    logger.error(
+                        f"Unexpected error processing {file_data.file_path}: {str(e)}",
+                        exc_info=True,
+                    )
+                    errors.append(
+                        FileProcessingError(  # type: ignore[arg-type]
+                            f"Unexpected error: {str(e)}\n{traceback.format_exc()}",
+                            file_path=file_data.file_path,
+                        )
+                    )
 
         logger.info(
             f"Unified parsing pipeline completed: {len(parsed_files_output)} succeeded, "
@@ -721,65 +764,78 @@ class UnifiedPipeline:
                 completed = 0
                 total = len(future_to_file)
 
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[bold blue]Parsing files"),
-                    BarColumn(),
-                    TaskProgressColumn(),
-                    "[progress.percentage]{task.percentage:>3.0f}%",
-                    disable=self.config.disable_progress_bar,
-                ) as progress:
-                    task = progress.add_task("Parsing", total=total)
+                # Helper function to process completed futures
+                def process_future(future, file_data):
+                    nonlocal completed
+                    try:
+                        result_dict, error_msg = future.result(timeout=timeout_seconds)
 
+                        if error_msg:
+                            logger.error(error_msg)
+                            errors.append(
+                                FileProcessingError(  # type: ignore[arg-type]
+                                    error_msg,
+                                    file_path=file_data.file_path,
+                                )
+                            )
+                        elif result_dict:
+                            # Reconstruct ParsedFileData from dict with proper nested object reconstruction
+                            # This handles Declaration, TokenStats, SecurityIssue, DiffMetadata
+                            parsed_file = _reconstruct_parsed_file_data(result_dict)
+                            parsed_files_output.append(parsed_file)
+
+                    except TimeoutError:
+                        logger.warning(
+                            f"Timeout parsing {file_data.file_path} after {timeout_seconds}s"
+                        )
+                        errors.append(
+                            FileProcessingError(  # type: ignore[arg-type]
+                                f"Parsing timeout after {timeout_seconds}s",
+                                file_path=file_data.file_path,
+                            )
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Error processing {file_data.file_path} in worker: {e}",
+                            exc_info=True,
+                        )
+                        errors.append(
+                            FileProcessingError(  # type: ignore[arg-type]
+                                f"Worker error: {str(e)}",
+                                file_path=file_data.file_path,
+                            )
+                        )
+                    finally:
+                        completed += 1
+                        # Periodic progress logging
+                        if completed % 50 == 0 or completed == total:
+                            logger.info(
+                                f"Parsed {completed}/{total} files ({completed / total * 100:.1f}%)"
+                            )
+
+                # Use external progress callback if provided (from CLI dashboard)
+                if self.progress_callback:
                     for future in as_completed(future_to_file):
                         file_data = future_to_file[future]
-                        try:
-                            result_dict, error_msg = future.result(timeout=timeout_seconds)
+                        process_future(future, file_data)
+                        # Update external progress callback
+                        self.progress_callback(completed, total)
+                else:
+                    # Use Rich Progress for standalone usage
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[bold blue]Parsing files"),
+                        BarColumn(),
+                        TaskProgressColumn(),
+                        "[progress.percentage]{task.percentage:>3.0f}%",
+                        disable=self.config.disable_progress_bar,
+                    ) as progress:
+                        task = progress.add_task("Parsing", total=total)
 
-                            if error_msg:
-                                logger.error(error_msg)
-                                errors.append(
-                                    FileProcessingError(  # type: ignore[arg-type]
-                                        error_msg,
-                                        file_path=file_data.file_path,
-                                    )
-                                )
-                            elif result_dict:
-                                # Reconstruct ParsedFileData from dict with proper nested object reconstruction
-                                # This handles Declaration, TokenStats, SecurityIssue, DiffMetadata
-                                parsed_file = _reconstruct_parsed_file_data(result_dict)
-                                parsed_files_output.append(parsed_file)
-
-                        except TimeoutError:
-                            logger.warning(
-                                f"Timeout parsing {file_data.file_path} after {timeout_seconds}s"
-                            )
-                            errors.append(
-                                FileProcessingError(  # type: ignore[arg-type]
-                                    f"Parsing timeout after {timeout_seconds}s",
-                                    file_path=file_data.file_path,
-                                )
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"Error processing {file_data.file_path} in worker: {e}",
-                                exc_info=True,
-                            )
-                            errors.append(
-                                FileProcessingError(  # type: ignore[arg-type]
-                                    f"Worker error: {str(e)}",
-                                    file_path=file_data.file_path,
-                                )
-                            )
-                        finally:
-                            completed += 1
+                        for future in as_completed(future_to_file):
+                            file_data = future_to_file[future]
+                            process_future(future, file_data)
                             progress.update(task, advance=1)
-
-                            # Periodic progress logging
-                            if completed % 50 == 0 or completed == total:
-                                logger.info(
-                                    f"Parsed {completed}/{total} files ({completed / total * 100:.1f}%)"
-                                )
 
         except Exception:
             # Log error and ensure cleanup
@@ -1381,7 +1437,9 @@ def normalize_unicode_content(content: str, file_path: str) -> str:
 
 # Main entry point function for backward compatibility
 def parse_code_files(
-    files_to_parse: list[ParsedFileData], config: CodeConCatConfig
+    files_to_parse: list[ParsedFileData],
+    config: CodeConCatConfig,
+    progress_callback: ProgressCallback | None = None,
 ) -> tuple[list[ParsedFileData], list[ParserError]]:
     """
     Parse multiple code files using the unified pipeline.
@@ -1392,11 +1450,12 @@ def parse_code_files(
     Args:
         files_to_parse: List of ParsedFileData objects to process
         config: Configuration object
+        progress_callback: Optional callback for progress updates (current, total)
 
     Returns:
         Tuple of (parsed_files, errors)
     """
-    pipeline = UnifiedPipeline(config)
+    pipeline = UnifiedPipeline(config, progress_callback=progress_callback)
     return pipeline.parse(files_to_parse)
 
 

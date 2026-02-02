@@ -1,8 +1,4 @@
-"""
-base_types.py
-
-Holds data classes and typed structures used throughout CodeConCat.
-"""
+"""Holds data classes and typed structures used throughout CodeConCat."""
 
 from __future__ import annotations
 
@@ -50,6 +46,7 @@ def _compile_and_test_regex(pattern: str, result_queue: Any) -> None:
     Args:
         pattern: The regex pattern to compile and test.
         result_queue: A multiprocessing Queue to put the result into.
+
     """
     try:
         compiled = re.compile(pattern)
@@ -78,6 +75,7 @@ class ContentSegmentType(Enum):
         CODE: Represents a code segment that should be preserved in output
         OMITTED: Represents code that has been removed and replaced with a placeholder
         METADATA: Contains metadata or summary information about the code
+
     """
 
     CODE = "code"  # Kept code segment
@@ -101,6 +99,7 @@ class ContentSegment:
         metadata: Additional information about the segment (e.g., security issues, complexity)
 
     Complexity: O(1) for all operations (simple data container)
+
     """
 
     segment_type: ContentSegmentType
@@ -127,6 +126,7 @@ class SecuritySeverity(IntEnum):
         MEDIUM: Medium severity issue (2)
         HIGH: High severity issue (3)
         CRITICAL: Critical severity issue (4)
+
     """
 
     INFO = 0
@@ -138,7 +138,17 @@ class SecuritySeverity(IntEnum):
 
 @dataclass
 class SecurityIssue:
-    """Represents a potential security issue found."""
+    """Represents a potential security issue found during scanning.
+
+    Attributes:
+        rule_id: Identifier of the rule that triggered the finding
+        description: Description of the potential issue
+        file_path: Path to the file containing the issue
+        line_number: Line number where the issue was found
+        severity: SecuritySeverity enum level (INFO=0 to CRITICAL=4)
+        context: Snippet of code around the issue for context
+
+    """
 
     rule_id: str  # Identifier of the rule that triggered the finding
     description: str  # Description of the potential issue
@@ -150,21 +160,20 @@ class SecurityIssue:
 
 # Pydantic model for Custom Security Patterns
 class CustomSecurityPattern(BaseModel):
-    """Custom security pattern for detecting sensitive data in code.
+    r"""Custom security pattern for detecting sensitive data in code.
 
     Provides user-defined regex patterns for security scanning with built-in
     protection against Regular Expression Denial of Service (ReDoS) attacks.
 
     Attributes:
-        name: Identifier for the security rule
-        regex: User-provided regex pattern string (max 1000 chars)
-        severity: Severity level (HIGH, MEDIUM, LOW, CRITICAL)
+        name: Identifier for the security rule.
+        regex: User-provided regex pattern string (max 1000 chars).
+        severity: Severity level (HIGH, MEDIUM, LOW, CRITICAL).
 
-    Security Features:
-        - ReDoS protection: 2-second timeout on regex compilation
-        - Pattern length limitation: Maximum 1000 characters
-        - Thread-based sandboxing for regex validation
-        - Safe validation before pattern usage
+    ReDoS protection includes a 2-second timeout on regex compilation,
+    pattern length limitation to 1000 characters maximum,
+    thread-based sandboxing for regex validation,
+    and safe validation before pattern usage.
 
     Example:
         pattern = CustomSecurityPattern(
@@ -172,6 +181,7 @@ class CustomSecurityPattern(BaseModel):
             regex=r"api[_-]?key['\"]*\\s*[:=]\\s*['\"]*[a-zA-Z0-9]+",
             severity="HIGH"
         )
+
     """
 
     name: str  # Identifier for the rule
@@ -191,6 +201,7 @@ class CustomSecurityPattern(BaseModel):
 
         Raises:
             ValueError: If the given value is not a valid severity level.
+
         """
         try:
             # Ensure severity is uppercase and exists in the enum
@@ -269,7 +280,20 @@ class CustomSecurityPattern(BaseModel):
 
 @dataclass
 class Declaration:
-    """A declaration in a code file."""
+    """Represents a code declaration (function, class, variable, etc.).
+
+    Attributes:
+        kind: Type of declaration (e.g., 'function', 'class', 'method', 'variable')
+        name: Name of the declaration
+        start_line: Starting line number in the original file
+        end_line: Ending line number in the original file
+        modifiers: Set of modifiers (e.g., {'public', 'static', 'async'})
+        docstring: Documentation string associated with the declaration
+        signature: Function/method signature without the body
+        children: List of nested declarations (for classes/functions with inner definitions)
+        ai_summary: AI-generated summary for this declaration (if enabled)
+
+    """
 
     kind: str
     name: str
@@ -314,34 +338,34 @@ class ParsedFileData:
     diff_metadata: DiffMetadata | None = None  # Metadata about the diff
 
 
-# New ParseResult Dataclass
 @dataclass
 class ParseResult:
-    """
-    Represents the result of a parsing operation, capturing various outcomes and characteristics of the parse process.
-    Parameters:
-        - declarations (list[Declaration]): A list of parsed declarations from the code.
-        - imports (list[str]): A list of import statements found in the code.
-        - missed_features (list[str]): A list of features not supported by the parser, such as "methods" or "async_functions".
-        - security_issues (list[Any]): A list containing any discovered security issues.
-        - ast_root (Any | None): Optional. Holds a tree_sitter.Node if available.
-        - error (str | None): Optional. Describes any parsing errors encountered.
-        - engine_used (str): The parsing engine used, defaults to "regex".
-        - parser_quality (str): Indicates the quality of the parse as "full", "partial", or "basic".
-        - file_path (str | None): Optional. Path to the file being parsed.
-        - language (str | None): Optional. Language of the file being parsed.
-        - content (str | None): Optional. The content of the file being parsed.
-        - token_stats (Any | None): Optional. Statistics about the tokens processed.
-        - module_docstring (str | None): Optional. The docstring of the module if available.
-        - module_name (str | None): Optional. The name of the module if available.
-        - degraded (bool): Indicates whether the parsing was degraded; defaults to False.
-        - confidence_score (float | None): Optional. Confidence score (0.0-1.0) for result merger decisions.
-        - parser_type (str | None): Optional. Parser type used: "tree-sitter", "enhanced", or "standard".
-    Processing Logic:
-        - Utilizes fields to capture detailed information about the parsing process and result.
-        - Extensively accommodates optional fields to enhance flexibility and adaptability.
-        - Caters to both mandatory and discretionary parsing scenarios by providing default values.
-        - Facilitates concise feedback on parsing efficacy and areas requiring attention.
+    """Represents the result of a parsing operation.
+
+    Captures various outcomes and characteristics of the parse process.
+
+    Attributes:
+        declarations: A list of parsed declarations from the code.
+        imports: A list of import statements found in the code.
+        missed_features: A list of features not supported by the parser.
+        security_issues: A list containing any discovered security issues.
+        ast_root: Holds tree_sitter.Node if available.
+        error: Describes any parsing errors encountered.
+        engine_used: The parsing engine used, defaults to "regex".
+        parser_quality: Indicates the quality of the parse as "full", "partial", or "basic".
+        file_path: Path to the file being parsed.
+        language: Language of the file being parsed.
+        content: The content of the file being parsed.
+        token_stats: Statistics about the tokens processed.
+        module_docstring: The docstring of the module if available.
+        module_name: The name of the module if available.
+        degraded: Indicates whether the parsing was degraded.
+        confidence_score: Confidence score (0.0-1.0) for result merger decisions.
+        parser_type: Parser type used: "tree-sitter", "enhanced", or "standard".
+
+    The result extensively uses optional fields to enhance flexibility,
+    catering to both mandatory and discretionary parsing scenarios.
+
     """
 
     # Required fields first (no defaults)
@@ -381,22 +405,22 @@ class WritableItem(ABC):
 
     @abstractmethod
     def render_text_lines(self, config: CodeConCatConfig) -> list[str]:
-        """Renders the item as a list of strings for the text writer."""
+        """Render the item as a list of strings for the text writer."""
         pass
 
     @abstractmethod
     def render_markdown_chunks(self, config: CodeConCatConfig) -> list[str]:
-        """Renders the item as a list of markdown string chunks."""
+        """Render the item as a list of markdown string chunks."""
         pass
 
     @abstractmethod
     def render_json_dict(self, config: CodeConCatConfig) -> dict[str, Any]:
-        """Renders the item as a dictionary for the JSON writer."""
+        """Render the item as a dictionary for the JSON writer."""
         pass
 
     @abstractmethod
     def render_xml_element(self, config: CodeConCatConfig) -> ET.Element:
-        """Renders the item as an XML element structure."""
+        """Render the item as an XML element structure."""
         pass
 
 
@@ -456,6 +480,7 @@ class AnnotatedFileData(WritableItem):
 
         Returns:
             List of text lines representing the file
+
         """
         from codeconcat.writer.rendering_adapters import TextRenderAdapter
 
@@ -469,6 +494,7 @@ class AnnotatedFileData(WritableItem):
 
         Returns:
             List of Markdown-formatted text chunks
+
         """
         from codeconcat.writer.rendering_adapters import MarkdownRenderAdapter
 
@@ -482,6 +508,7 @@ class AnnotatedFileData(WritableItem):
 
         Returns:
             Dictionary representation of the file data
+
         """
         from codeconcat.writer.rendering_adapters import JsonRenderAdapter
 
@@ -495,6 +522,7 @@ class AnnotatedFileData(WritableItem):
 
         Returns:
             ET.Element containing the XML representation
+
         """
         from codeconcat.writer.rendering_adapters import XmlRenderAdapter
 
@@ -516,6 +544,7 @@ class ParserInterface(ABC):
         Returns:
             A ParseResult object containing declarations, imports, potential AST,
             error information, and the engine used.
+
         """
         pass
 
@@ -533,6 +562,7 @@ class EnhancedParserInterface(ParserInterface):
         Returns:
             A dictionary mapping capability names to booleans indicating support.
             Examples include: 'can_parse_functions', 'can_parse_classes', etc.
+
         """
         return {
             "can_parse_functions": True,
@@ -549,6 +579,7 @@ class EnhancedParserInterface(ParserInterface):
 
         Returns:
             True if the parser is valid and ready to use, False otherwise.
+
         """
         return True
 
@@ -568,21 +599,57 @@ class ParsedDocData(WritableItem):
 
     # Implement WritableItem properties and methods
     def render_text_lines(self, config: CodeConCatConfig) -> list[str]:
+        """Render documentation file as plain text lines.
+
+        Args:
+            config: Configuration for rendering options.
+
+        Returns:
+            List of text lines representing the documentation.
+
+        """
         from codeconcat.writer.rendering_adapters import TextRenderAdapter
 
         return TextRenderAdapter.render_doc_file(self, config)
 
     def render_markdown_chunks(self, config: CodeConCatConfig) -> list[str]:
+        """Render documentation file as Markdown chunks.
+
+        Args:
+            config: Configuration for rendering options.
+
+        Returns:
+            List of Markdown-formatted text chunks.
+
+        """
         from codeconcat.writer.rendering_adapters import MarkdownRenderAdapter
 
         return MarkdownRenderAdapter.render_doc_file(self, config)
 
     def render_json_dict(self, config: CodeConCatConfig) -> dict[str, Any]:
+        """Render documentation file as a JSON-serializable dictionary.
+
+        Args:
+            config: Configuration for rendering options.
+
+        Returns:
+            Dictionary representation of the documentation data.
+
+        """
         from codeconcat.writer.rendering_adapters import JsonRenderAdapter
 
         return JsonRenderAdapter.doc_file_to_dict(self, config)
 
     def render_xml_element(self, config: CodeConCatConfig) -> ET.Element:
+        """Render documentation file as an XML element.
+
+        Args:
+            config: Configuration for rendering options.
+
+        Returns:
+            ET.Element containing the XML representation.
+
+        """
         from codeconcat.writer.rendering_adapters import XmlRenderAdapter
 
         return XmlRenderAdapter.create_doc_file_element(self, config)
@@ -607,7 +674,7 @@ class CodeConCatConfig(BaseModel):
 
     # For backward compatibility with code that treats this like a dictionary
     def get(self, key: str, default=None):
-        """Provide dictionary-like access with .get() method"""
+        """Provide dictionary-like access with .get() method."""
         return getattr(self, key, default)
 
     # --- Add missing parser config fields ---
@@ -692,7 +759,9 @@ class CodeConCatConfig(BaseModel):
         description="Ending Git ref for diff mode (branch, tag, or commit SHA).",
     )
     # Removed duplicate - using the one below with None
-    exclude_languages: list[str] = Field(default_factory=list)
+    exclude_languages: list[str] = Field(
+        default_factory=list, description="List of language identifiers to exclude from processing"
+    )
     include_paths: list[str] = Field(
         default_factory=list, description="Patterns for files/directories to include."
     )
@@ -709,35 +778,61 @@ class CodeConCatConfig(BaseModel):
         None, description="Specific languages to include (by identifier)."
     )
     # Removed duplicate exclude_languages
-    extract_docs: bool = False
-    show_skip: bool = False  # Whether to print skipped files after parsing
-    merge_docs: bool = False
-    doc_extensions: list[str] = Field(default_factory=lambda: [".md", ".rst", ".txt", ".rmd"])
-    custom_extension_map: dict[str, str] = Field(default_factory=dict)
-    output: str = ""
-    format: str = "markdown"
-    max_workers: int = 4
-    disable_tree: bool = False
-    disable_copy: bool = False
-    disable_annotations: bool = False
-    disable_symbols: bool = False
-    disable_ai_context: bool = False
-    include_file_summary: bool = True
-    include_directory_structure: bool = True
-    remove_comments: bool = False
-    remove_empty_lines: bool = False
-    remove_docstrings: bool = False
-    show_line_numbers: bool = False
-    enable_token_counting: bool = False
-    enable_security_scanning: bool = True  # Default enable security scanning
-    security_scan_severity_threshold: str = "MEDIUM"  # Minimum severity to report
+    extract_docs: bool = Field(
+        False, description="Extract documentation files (Markdown, RST, etc.) alongside code"
+    )
+    show_skip: bool = Field(False, description="Print skipped files after processing")
+    merge_docs: bool = Field(False, description="Merge documentation with code output")
+    doc_extensions: list[str] = Field(
+        default_factory=lambda: [".md", ".rst", ".txt", ".rmd"],
+        description="File extensions to treat as documentation",
+    )
+    custom_extension_map: dict[str, str] = Field(
+        default_factory=dict,
+        description="Custom mapping of file extensions to language identifiers",
+    )
+    output: str = Field("", description="Output file path (auto-generated if empty)")
+    format: str = Field(
+        "markdown", description="Output format: 'markdown', 'json', 'xml', or 'text'"
+    )
+    xml_processing_instructions: bool = Field(
+        False, description="Include AI processing instructions in XML output"
+    )
+    max_workers: int = Field(
+        4, description="Maximum number of worker threads for parallel processing"
+    )
+    disable_tree: bool = Field(False, description="Disable directory tree visualization in output")
+    disable_copy: bool = Field(False, description="Disable automatic clipboard copy of output")
+    disable_annotations: bool = Field(False, description="Disable AI annotations in output")
+    disable_symbols: bool = Field(False, description="Disable symbol extraction and listing")
+    disable_ai_context: bool = Field(False, description="Disable AI context generation for output")
+    include_file_summary: bool = Field(True, description="Include file summary section in output")
+    include_directory_structure: bool = Field(
+        True, description="Include directory structure in output"
+    )
+    remove_comments: bool = Field(False, description="Remove comments from code in output")
+    remove_empty_lines: bool = Field(False, description="Remove empty lines from code in output")
+    remove_docstrings: bool = Field(False, description="Remove docstrings from code in output")
+    show_line_numbers: bool = Field(False, description="Include line numbers in code output")
+    enable_token_counting: bool = Field(
+        False, description="Enable token counting for AI processing"
+    )
+    enable_security_scanning: bool = Field(
+        True, description="Enable security scanning for code patterns"
+    )
+    security_scan_severity_threshold: str = Field(
+        "MEDIUM", description="Minimum severity level to report (INFO, LOW, MEDIUM, HIGH, CRITICAL)"
+    )
     security_ignore_paths: list[str] = Field(
-        default_factory=list
-    )  # Glob patterns for files/dirs to skip
+        default_factory=list,
+        description="Glob patterns for files/directories to skip during security scanning",
+    )
     security_ignore_patterns: list[str] = Field(
-        default_factory=list
-    )  # Regex for findings content to ignore
-    security_custom_patterns: list[CustomSecurityPattern] = Field(default_factory=list)
+        default_factory=list, description="Regex patterns for security findings content to ignore"
+    )
+    security_custom_patterns: list[CustomSecurityPattern] = Field(
+        default_factory=list, description="User-defined custom security patterns for scanning"
+    )
 
     # Semgrep integration options
     enable_semgrep: bool = Field(
@@ -765,34 +860,48 @@ class CodeConCatConfig(BaseModel):
     )
 
     # Sorting
-    sort_files: bool = False
+    sort_files: bool = Field(False, description="Sort files alphabetically in output")
 
     # Advanced options
     # max_workers already defined above on line 543
-    split_output: int = 1  # Number of files to split output into
-    verbose: int = 0  # Added for verbose logging control
-    quiet: bool = False  # Suppress all non-error output for API usage
+    split_output: int = Field(
+        1, description="Number of files to split output into for large codebases"
+    )
+    verbose: int = Field(0, description="Verbosity level for logging (0=quiet, 1=info, 2+=debug)")
+    quiet: bool = Field(False, description="Suppress all non-error output for API usage")
 
     # Markdown cross-linking
-    cross_link_symbols: bool = False  # Option to cross-link symbol summaries and definitions
+    cross_link_symbols: bool = Field(
+        False,
+        description="Enable cross-linking between symbol summaries and their definitions in output",
+    )
 
     # Progress Bar
-    disable_progress_bar: bool = False  # Disable tqdm progress bars
+    disable_progress_bar: bool = Field(False, description="Disable progress bars during processing")
 
     # New Output Structure/Verbosity Controls
-    output_preset: str | None = "medium"  # 'lean', 'medium', 'full', or None
-    include_repo_overview: bool = True  # Default based on 'medium'
-    include_file_index: bool = True  # Default based on 'medium'
+    output_preset: str | None = Field(
+        "medium",
+        description="Output preset: 'lean' (minimal), 'medium' (balanced), or 'full' (complete)",
+    )
+    include_repo_overview: bool = Field(
+        True, description="Include repository overview section in output"
+    )
+    include_file_index: bool = Field(True, description="Include file index section in output")
     # include_file_summary already defined above on line 549
-    include_declarations_in_summary: bool = True  # Default based on 'medium'
-    include_imports_in_summary: bool = (
-        False  # Default based on 'medium' (maybe imports are too verbose?)
+    include_declarations_in_summary: bool = Field(
+        True, description="Include function/class declarations in file summaries"
     )
-    xml_processing_instructions: bool = Field(
-        True, description="Include AI processing instructions in XML output for LLM navigation"
+    include_imports_in_summary: bool = Field(
+        False,
+        description="Include import statements in file summaries (disabled by default to reduce verbosity)",
     )
-    include_tokens_in_summary: bool = True  # Default based on 'medium'
-    include_security_in_summary: bool = True  # Default based on 'medium'
+    include_tokens_in_summary: bool = Field(
+        True, description="Include token counts in file summaries"
+    )
+    include_security_in_summary: bool = Field(
+        True, description="Include security issues in file summaries"
+    )
 
     # use_default_excludes already defined above on line 529
     # New flag for output masking

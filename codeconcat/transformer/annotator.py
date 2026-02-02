@@ -3,11 +3,14 @@ from codeconcat.base_types import AnnotatedFileData, CodeConCatConfig, ParsedFil
 
 def annotate(parsed_data: ParsedFileData, config: CodeConCatConfig) -> AnnotatedFileData:
     """Annotate parsed file data according to the specified configuration.
-    Parameters:
-        - parsed_data (ParsedFileData): Contains the various components extracted from the parsed file, such as file path, language, content, declarations, imports, token statistics, and potential security issues.
-        - config (CodeConCatConfig): Holds configuration options that control features like whether to include symbols in the annotations.
+
+    Args:
+        parsed_data: ParsedFileData containing file path, language, content,
+                     declarations, imports, token stats, and security issues.
+        config: CodeConCatConfig with annotation settings like disable_symbols.
+
     Returns:
-        - AnnotatedFileData: Includes the original file path, language, content, annotated content with declarations listed by kind, detailed summary, and a set of tags describing the content.
+        AnnotatedFileData with annotated content, summary, and tags.
     """
     pieces = []
     pieces.append(f"## File: {parsed_data.file_path}\n")

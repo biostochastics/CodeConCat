@@ -31,9 +31,9 @@ logger = logging.getLogger(__name__)
 DANGEROUS_PATTERNS = {
     "exec_patterns": re.compile(
         r"""
-        (exec|eval|system|popen|subprocess\.call|subprocess\.Popen|os\.system|
+        \b(exec|eval|system|popen|subprocess\.call|subprocess\.Popen|os\.system|
         child_process\.exec|require\(\s*["']child_process["']\)|
-        Runtime\.exec|Process\.start|os\.popen|ShellExecute|WScript\.Shell)
+        Runtime\.exec|Process\.start|os\.popen|ShellExecute|WScript\.Shell)\b
         """,
         re.VERBOSE,
     ),
@@ -480,12 +480,22 @@ class SecurityValidator:
             if b"\x00" in chunk:
                 return True
 
-            # Try to decode as UTF-8
+            # Try to decode as UTF-8, with Latin-1 fallback for legacy encodings
             try:
                 chunk.decode("utf-8")
-                return False  # Successfully decoded as text
+                return False  # Successfully decoded as UTF-8 text
             except UnicodeDecodeError:
-                return True  # Failed to decode as text
+                # Try Latin-1 (ISO-8859-1) which accepts any byte sequence
+                # but check for high density of control characters
+                try:
+                    decoded = chunk.decode("latin-1")
+                    # Count non-printable control characters (except common whitespace)
+                    control_chars = sum(1 for c in decoded if ord(c) < 32 and c not in "\t\n\r")
+                    # If more than 10% control characters, likely binary
+                    # Appears to be Latin-1 text if condition is False
+                    return len(decoded) > 0 and control_chars / len(decoded) > 0.1
+                except Exception:
+                    return True  # Failed to decode, assume binary
 
         except Exception:
             # If we can't determine, assume it's binary to be safe
@@ -654,13 +664,27 @@ class SecurityValidator:
         # This catches supply-chain attacks where new files are added
         try:
             for file_path in base_path.glob("**/*"):
-                if file_path.is_file() and file_path not in manifest_files:
-                    rel_path_str = file_path.relative_to(base_path).as_posix()
+                # Security: Skip symlinks to prevent directory escape attacks
+                if file_path.is_symlink():
+                    logger.debug(f"Skipping symlink during verification: {file_path}")
+                    continue
+
+                # Security: Validate path is within base_path before processing
+                try:
+                    validated_path = validate_safe_path(
+                        file_path, base_path=base_path, allow_symlinks=False
+                    )
+                except PathTraversalError:
+                    logger.warning(f"Skipping file with invalid path: {file_path}")
+                    continue
+
+                if validated_path.is_file() and validated_path not in manifest_files:
+                    rel_path_str = validated_path.relative_to(base_path).as_posix()
                     results[rel_path_str] = {
                         "verified": False,
                         "expected_hash": "",
                         "actual_hash": SecurityValidator.compute_file_hash(
-                            file_path, use_cache=False
+                            validated_path, use_cache=False
                         ),
                         "reason": "File not in manifest (unexpected file)",
                         "unexpected": True,

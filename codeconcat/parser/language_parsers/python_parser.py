@@ -12,10 +12,24 @@ logger = logging.getLogger(__name__)
 
 
 class PythonParser(BaseParser):
-    """Python language parser using Regex."""
+    """Python language parser using regex-based pattern matching.
+
+    This parser identifies Python declarations including classes, functions,
+    constants, and variables. It extracts docstrings and recognizes common
+    Python decorators.
+    """
 
     def __init__(self):
-        """Initialize Python parser with regex patterns."""
+        """Initialize the Python parser with regex patterns for Python syntax.
+
+        Sets up patterns for:
+        - Class definitions with optional base classes
+        - Function definitions with decorators and type hints
+        - Constants (ALL_CAPS naming convention)
+        - Variables with type annotations
+
+        Also configures Python-specific comment delimiters and block markers.
+        """
         super().__init__()
         self.patterns = {
             "class": re.compile(

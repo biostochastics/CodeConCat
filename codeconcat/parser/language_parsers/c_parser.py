@@ -12,11 +12,14 @@ logger = logging.getLogger(__name__)
 
 def parse_c_code(file_path: str, content: str) -> ParseResult:
     """Parse C code from a given file path and content.
-    Parameters:
-        - file_path (str): The path of the C file being parsed.
-        - content (str): The content of the C file to be parsed.
+
+    Args:
+        file_path: The path of the C file being parsed.
+        content: The content of the C file to be parsed.
+
     Returns:
-        - ParseResult: The result of parsing the C code."""
+        The result of parsing the C code.
+    """
     parser = CParser()
     try:
         result = parser.parse(content, file_path)
@@ -31,15 +34,16 @@ def parse_c_code(file_path: str, content: str) -> ParseResult:
 
 
 class CParser(BaseParser):
-    """CParser is a specialized parser for C-like source files, inheriting from BaseParser, designed to identify and process code symbols such as functions, structs, unions, enums, typedefs, and preprocessor defines.
-    Parameters:
-        - content (str): The content of the source file as a string.
-        - file_path (str): The file path of the source file being parsed.
-    Processing Logic:
-        - Defines patterns for capturing declarations using regular expressions.
-        - Ignores lines that are comments or empty when parsing.
-        - Identifies block boundaries for code symbols like functions and structs.
-        - Logs missing pattern matches for specific declarations like structs and functions."""
+    """CParser is a specialized parser for C-like source files.
+
+    Inherits from BaseParser and is designed to identify and process code symbols
+    such as functions, structs, unions, enums, typedefs, and preprocessor defines.
+
+    Defines patterns for capturing declarations using regular expressions.
+    Ignores lines that are comments or empty when parsing.
+    Identifies block boundaries for code symbols like functions and structs.
+    Logs missing pattern matches for specific declarations like structs and functions.
+    """
 
     def _setup_patterns(self):
         """
@@ -80,11 +84,14 @@ class CParser(BaseParser):
 
     def parse(self, content: str, file_path: str) -> ParseResult:
         """Parse the content of a C-like source file and return a structured parse result.
-        Parameters:
-            - content (str): The content of the source file as a string.
-            - file_path (str): The file path of the source file being parsed.
+
+        Args:
+            content: The content of the source file as a string.
+            file_path: The file path of the source file being parsed.
+
         Returns:
-            - ParseResult: A structured result containing the file path, language, original content, and parsed declarations as a list of code symbols.
+            A structured result containing the file path, language, original content,
+            and parsed declarations as a list of code symbols.
         """
         lines = content.split("\n")
         symbols: list[CodeSymbol] = []

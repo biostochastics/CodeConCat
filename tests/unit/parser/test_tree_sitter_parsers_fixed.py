@@ -186,19 +186,27 @@ class TestTreeSitterParsersFixed:
         assert "@class" in declarations_query
 
     def test_php_parser_field_fixes(self, mock_tree_sitter):
-        """Test PHP parser field fixes"""
+        """Test PHP parser uses correct tree-sitter-php grammar patterns"""
         from codeconcat.parser.language_parsers.tree_sitter_php_parser import PHP_QUERIES
 
         imports_query = PHP_QUERIES["imports"]
 
-        # Check that 'path:' was replaced with 'name:'
-        assert "path: (_) @path" not in imports_query
-        assert "name: (name)" in imports_query or "name: (namespace_name)" in imports_query
+        # Check correct node types are used
+        # The old wrong pattern was "(use_declaration" - we now use "(namespace_use_declaration"
+        assert "(use_declaration" not in imports_query  # wrong - missing namespace_ prefix
+        assert "(namespace_use_declaration" in imports_query  # correct node type
+        # PHP uses function_call_expression, not call_expression
+        assert "(call_expression" not in imports_query
+        # Check require/include use dedicated expression types
+        assert "require_expression" in imports_query or "require_once_expression" in imports_query
 
         declarations_query = PHP_QUERIES["declarations"]
 
-        # Check that modifier field references were removed
-        assert "modifier: " not in declarations_query
+        # Check that invalid field references were removed
+        assert "modifier: " not in declarations_query  # no modifier field exists
+        assert "modifiers:" not in declarations_query  # no modifiers field exists
+        # Property modifiers are child nodes, not fields
+        assert "property_declaration" in declarations_query
 
     def test_julia_parser_node_type_fixes(self, mock_tree_sitter):
         """Test Julia parser node type fixes"""

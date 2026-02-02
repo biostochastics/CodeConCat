@@ -55,8 +55,8 @@ class TestSetupSemgrep:
 
         mock_revparse_result = MagicMock()
         mock_revparse_result.returncode = 0
-        # Return the expected commit hash for rev-parse
-        mock_revparse_result.stdout = "c8e8fc2d90e5a3b6d7f1e9c4a2b5d8f3e6c9a1b4"
+        # Return the expected commit hash for rev-parse (must match APIIRO_RULESET_COMMIT)
+        mock_revparse_result.stdout = "a21246b666f34db899f0e33add7237ed70fab790"
         mock_revparse_result.stderr = ""
 
         # git clone, git fetch, git checkout, git rev-parse

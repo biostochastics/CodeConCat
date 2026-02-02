@@ -8,7 +8,7 @@
   <strong>Transform codebases into AI-ready formats with intelligent parsing, compression, and security analysis</strong>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.9.1-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![DeepWiki](https://img.shields.io/badge/DeepWiki-Documentation-purple)](https://deepwiki.com/biostochastics/CodeConCat) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
+[![Version](https://img.shields.io/badge/version-0.9.3-blue)](https://github.com/biostochastics/codeconcat) [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![DeepWiki](https://img.shields.io/badge/DeepWiki-Documentation-purple)](https://deepwiki.com/biostochastics/CodeConCat) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](http://mypy-lang.org/) [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit) [![Poetry](https://img.shields.io/badge/dependency%20management-poetry-blueviolet)](https://python-poetry.org/) [![Typer](https://img.shields.io/badge/CLI-typer-green)](https://typer.tiangolo.com/)
 
 ## Table of Contents
 
@@ -271,7 +271,7 @@ codeconcat run --ai-summary --ai-provider openai
 codeconcat run \
     --ai-summary \
     --ai-provider anthropic \
-    --ai-model claude-3-5-haiku-20241022
+    --ai-model claude-sonnet-4-20250514
 
 # Generate meta-overview of entire codebase
 codeconcat run \
@@ -666,9 +666,9 @@ Process files and generate AI-optimized output.
 | Option | Description |
 |--------|-------------|
 | `--llama-gpu-layers` | Number of layers to offload to GPU (0=CPU only) |
-| `--llama-context` | Context window size (default: 2048) |
+| `--llama-context-size` | Context window size (default: 2048) |
 | `--llama-threads` | Number of CPU threads |
-| `--llama-batch` | Batch size for prompt processing |
+| `--llama-batch-size` | Batch size for prompt processing |
 
 </details>
 
@@ -816,7 +816,7 @@ Generate intelligent code summaries to enhance understanding and reduce context 
 | Provider | Default Model (Files) | Default Model (Meta) | Notes |
 |----------|----------------------|---------------------|-------|
 | **OpenAI** | gpt-5-mini-2025-08-07 | gpt-5-2025-08-07 | Fast with reasoning capabilities |
-| **Anthropic** | claude-3-5-haiku-20241022 | claude-sonnet-4-5-20250929 | Fast with extended thinking |
+| **Anthropic** | claude-sonnet-4-20250514 | claude-opus-4-20250514 | Fast with extended thinking |
 | **OpenRouter** | qwen/qwen3-coder | z-ai/glm-4.6 | Access to 100+ models |
 | **Google Gemini** | gemini-2.0-flash | gemini-2.5-pro | Free tier available, 1M+ context |
 | **DeepSeek** | deepseek-coder | deepseek-chat | Extremely cost-effective |
@@ -832,7 +832,7 @@ Generate intelligent code summaries to enhance understanding and reduce context 
 codeconcat run --ai-summary --ai-provider openai
 
 # Use specific model
-codeconcat run --ai-summary --ai-provider anthropic --ai-model claude-3-haiku-20240307
+codeconcat run --ai-summary --ai-provider anthropic --ai-model claude-sonnet-4-20250514
 
 # Local model with Ollama (privacy-focused)
 ollama run llama3.2  # First-time setup
@@ -1466,7 +1466,7 @@ For detailed technical documentation of all fixes, see **[PARSER_FIXES_SUMMARY.m
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete version history and release notes.
 
-**Current Version:** 0.9.1
+**Current Version:** 0.9.3
 
 ### Troubleshooting
 

@@ -10,6 +10,7 @@ from typing import Any
 
 from ..base_types import CodeConCatConfig, ParsedFileData
 from ..errors import ConfigurationError, ValidationError
+from ..utils.path_security import PathTraversalError, validate_safe_path
 from .schema_validation import validate_against_schema
 from .security import security_validator
 from .security_reporter import get_reporter
@@ -70,8 +71,20 @@ def validate_input_files(
             logger_int.debug(f"[validate_input_files] Diff mode: {is_diff_mode}")
 
             if not is_diff_mode:
-                # Resolve path to handle symlinks
-                resolved_path = Path(file_path).resolve()
+                # Security: Validate path is within the allowed base directory
+                # This prevents path traversal attacks (e.g., ../../../../etc/passwd)
+                try:
+                    resolved_path = validate_safe_path(
+                        file_path,
+                        base_path=validation_base_dir,
+                        allow_symlinks=False,
+                    )
+                except PathTraversalError as e:
+                    raise ValidationError(
+                        f"Path traversal blocked for {file_path}: {e}",
+                        field="file_path",
+                    ) from e
+
                 logger_int.debug(f"[validate_input_files] Resolved path: {resolved_path}")
                 logger_int.debug(f"[validate_input_files] Path exists: {resolved_path.exists()}")
                 if not resolved_path.exists():

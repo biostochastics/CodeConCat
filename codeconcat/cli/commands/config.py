@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 
 import typer
-import yaml  # type: ignore[import-untyped]
 from rich.console import Console
 from rich.table import Table
 
@@ -86,22 +85,41 @@ ENV_VAR_BY_PROVIDER = {
 
 
 def _load_config(path: Path) -> dict[str, Any]:
+    """Load YAML configuration file from disk.
+
+    Args:
+        path: Path to the configuration file.
+
+    Returns:
+        dict[str, Any]: Configuration dictionary or empty dict if file doesn't exist or is invalid.
+    """
+    import yaml  # type: ignore[import-untyped]
+
     if not path.exists():
         return {}
-
     try:
-        with path.open("r", encoding="utf-8") as handle:
-            data = yaml.safe_load(handle)
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
             return data if isinstance(data, dict) else {}
-    except Exception as exc:  # pragma: no cover - I/O errors reported to user
-        console.print(f"[red]Failed to read {path}: {exc}[/red]")
+    except Exception:
         return {}
 
 
 def _save_config(path: Path, data: dict[str, Any]) -> None:
+    """Save configuration dictionary to YAML file.
+
+    Creates parent directories if they don't exist and writes the configuration
+    with sorted keys for consistent output.
+
+    Args:
+        path: Path where the configuration file will be saved.
+        data: Configuration dictionary to save.
+    """
+    import yaml  # type: ignore[import-untyped]
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        yaml.safe_dump(data, handle, sort_keys=False)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=True)
 
 
 def _choose_provider(existing_provider: str | None) -> LocalProviderPreset:

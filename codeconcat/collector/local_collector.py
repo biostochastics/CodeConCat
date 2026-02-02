@@ -1,3 +1,31 @@
+"""Local file collection for CodeConCat.
+
+This module provides functionality to collect and process source code files
+from the local filesystem. It handles directory traversal, file filtering,
+language detection, and parallel processing for optimal performance.
+
+Features:
+- Directory tree walking with .gitignore support
+- PathSpec-based pattern matching (same syntax as .gitignore)
+- Language detection by extension and content analysis
+- Binary file detection and filtering
+- Parallel file processing with ThreadPoolExecutor
+- Comprehensive filtering pipeline with multiple criteria
+- File size limits and security validation
+
+The main entry point is :func:`collect_local_files`, which orchestrates
+the entire collection pipeline and returns a list of :class:`ParsedFileData`
+objects ready for parsing.
+
+Example:
+    >>> from codeconcat.base_types import CodeConCatConfig
+    >>> from codeconcat.collector.local_collector import collect_local_files
+    >>> config = CodeConCatConfig(target_path="./src")
+    >>> files = collect_local_files("./src", config)
+    >>> len(files)
+    42
+"""
+
 import fnmatch
 import functools
 import hashlib
@@ -8,7 +36,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from pathspec import PathSpec
-from pathspec.patterns import GitWildMatchPattern  # type: ignore[attr-defined]
+from pathspec.patterns.gitwildmatch import GitWildMatchPattern
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from codeconcat.base_types import CodeConCatConfig, ParsedFileData
@@ -599,22 +627,32 @@ def collect_local_files(root_path: str, config: CodeConCatConfig) -> list[Parsed
         return []  # Return empty list for invalid path
 
 
-# Function to process a single file (called by the executor)
 def process_file(file_path: str, config: CodeConCatConfig, language: str) -> ParsedFileData | None:
-    """Process a single file, reading its content. Assumes file should be included.
+    """Process a single file, reading its content.
 
-    OPTIMIZED: Reads file content ONCE and uses it for:
+    Assumes file should be included. Reads file content ONCE and uses it for:
     - Binary content detection
     - Language detection (guesslang fallback if needed)
     - Final content storage
 
     Args:
-        file_path (str): Absolute path to the file.
-        config (CodeConCatConfig): Configuration object.
-        language (str): The language determined by should_include_file.
-                        May be "__DETECT_BY_CONTENT__" for guesslang fallback.
+        file_path: Absolute path to the file.
+        config: Configuration object containing settings and security rules.
+        language: The language determined by :func:`should_include_file`.
+            May be ``__DETECT_BY_CONTENT__`` for guesslang fallback.
+
     Returns:
-        Optional[ParsedFileData]: Data object if successful, None otherwise.
+        ParsedFileData object if successful, None otherwise. The returned
+        object contains the file path, detected language, and file content.
+
+    Raises:
+        OSError: If file cannot be read due to system error.
+        UnicodeDecodeError: If file content cannot be decoded as UTF-8.
+        PermissionError: If file access is denied.
+
+    Note:
+        This function performs a single read operation for efficiency,
+        checking binary content, decoding, and language detection in one pass.
     """
     try:
         # Validate file path for security
@@ -702,11 +740,12 @@ def process_file(file_path: str, config: CodeConCatConfig, language: str) -> Par
         return None
 
 
-def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept config object
+def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:
     """Check if a directory should be skipped based on exclude patterns.
 
     Compares the directory path against the combined list of default excludes
-    and user-configured excludes. Uses `PathSpec` for matching, similar to .gitignore.
+    and user-configured excludes. Uses :class:`PathSpec` for matching, similar
+    to .gitignore.
 
     Args:
         dirpath: The absolute path to the directory being considered.
@@ -714,6 +753,13 @@ def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept c
 
     Returns:
         True if the directory matches any exclude pattern, False otherwise.
+
+    Raises:
+        ValueError: If the directory path cannot be made relative to target_path.
+
+    Note:
+        This function is called during directory traversal to prune excluded
+        directories before processing their contents.
     """
     all_excludes = DEFAULT_EXCLUDE_PATTERNS + (config.exclude_paths or [])
     # PathSpec is generally used for file paths, but can match directories if paths end with '/'
@@ -789,11 +835,20 @@ def should_skip_dir(dirpath: str, config: CodeConCatConfig) -> bool:  # Accept c
 def get_language_by_extension(file_path: str) -> str | None:
     """Get language based on file extension only (no I/O, O(1) lookup).
 
+    Performs a fast lookup using the file's extension or filename to determine
+    the programming language. This is the primary (fastest) language detection
+    method and is tried before content-based detection.
+
     Args:
-        file_path: Path to the file
+        file_path: Path to the file to determine language for.
 
     Returns:
-        The language as a string if detected by extension, None otherwise
+        The language identifier string if detected by extension, None otherwise.
+        Examples: "python", "javascript", "java", "cpp", etc.
+
+    Note:
+        This function has O(1) time complexity for the lookup itself,
+        though path operations are O(n) where n is the path length.
     """
     filename = os.path.basename(file_path)
     ext_with_dot = os.path.splitext(file_path)[1].lower()
@@ -827,16 +882,26 @@ def _cached_guesslang_detection(content_hash: str, content_sample: str) -> str |
 def get_language_by_content(content: str, file_path: str = "", verbose: bool = False) -> str | None:
     """Get language by analyzing file content with guesslang (if available).
 
-    PERFORMANCE: Results are cached based on content hash to avoid repeated
-    ML inference which takes ~100-500ms per call.
+    Uses machine learning-based language detection as a fallback when
+    extension-based detection fails. Results are cached based on content
+    hash to avoid repeated ML inference which takes ~100-500ms per call.
 
     Args:
-        content: The file content (or first ~5KB of it)
-        file_path: Optional file path for logging
-        verbose: Whether to log debug messages
+        content: The file content (or first ~5KB of it for analysis).
+        file_path: Optional file path for logging and context.
+        verbose: Whether to log debug messages for troubleshooting.
 
     Returns:
-        The language as a string if detected, None otherwise
+        The language identifier string if detected, None otherwise.
+        Returns None if guesslang is not available.
+
+    Raises:
+        ValueError: If content hashing fails.
+        RuntimeError: If guesslang ML model fails to load.
+
+    Note:
+        PERFORMANCE: Results are cached based on SHA256 hash of the first
+        5KB of content. The LRU cache holds up to 512 entries.
     """
     if not GUESSLANG_AVAILABLE:
         return None
@@ -865,15 +930,27 @@ def determine_language(
 ) -> str | None:
     """Determine the language of a file based on extension or content.
 
-    OPTIMIZED: Now checks extension FIRST (O(1)), only uses guesslang as fallback.
+    OPTIMIZED: Checks extension FIRST (O(1)), only uses guesslang as fallback.
+    This two-tier approach prioritizes speed while maintaining accuracy.
 
     Args:
-        file_path: Path to the file to determine language for
-        config: Configuration object
-        content: Optional pre-read content to avoid file I/O for guesslang
+        file_path: Path to the file to determine language for.
+        config: Configuration object with verbose settings.
+        content: Optional pre-read content to avoid file I/O for guesslang.
+            If provided, enables fallback detection without additional reads.
 
     Returns:
-        The language as a string if detected, None otherwise
+        The language identifier string if detected, None otherwise.
+        Returns the detected language on success, None on failure.
+
+    Raises:
+        OSError: If file_path is invalid or inaccessible (when content is None).
+        UnicodeDecodeError: If content cannot be decoded (when content is provided).
+
+    Flow:
+        1. Try extension-based detection (O(1), no I/O)
+        2. If no match and content provided, use guesslang
+        3. Return result or None
     """
     # FAST PATH: Try extension-based detection first (O(1) lookup, no I/O)
     language = get_language_by_extension(file_path)
@@ -1004,8 +1081,19 @@ BINARY_SKIP_PATTERNS = (
 def is_likely_binary_by_path(file_path: str) -> bool:
     """Fast path-only check for binary files (no I/O).
 
-    Returns True if the file is likely binary based on extension or path patterns.
-    Returns False if content-based check is needed.
+    Checks file extension and path patterns to determine if a file is likely
+    binary. This is a fast pre-filter that runs before content-based detection.
+
+    Args:
+        file_path: Path to the file to check.
+
+    Returns:
+        True if the file is likely binary based on extension or path patterns.
+        False if content-based check is needed or file appears text-based.
+
+    Note:
+        This function checks against BINARY_EXTENSIONS frozenset and
+        BINARY_SKIP_PATTERNS tuple for known binary file types and paths.
     """
     ext = os.path.splitext(file_path)[1].lstrip(".").lower()
     if ext in BINARY_EXTENSIONS:
@@ -1025,12 +1113,23 @@ def is_likely_binary_by_path(file_path: str) -> bool:
 def is_binary_content(content: bytes, file_path: str = "") -> bool:
     """Check if content bytes represent binary data.
 
+    Analyzes byte content to determine if it represents binary data rather
+    than text. Uses null byte detection and non-ASCII character analysis.
+
     Args:
-        content: The file content as bytes (or first chunk of it)
-        file_path: Optional file path for logging
+        content: The file content as bytes (or first chunk of it).
+        file_path: Optional file path for logging purposes.
 
     Returns:
-        True if content appears to be binary, False otherwise
+        True if content appears to be binary, False otherwise.
+        Binary indicators include: null bytes, high non-ASCII ratio (>30%).
+
+    Raises:
+        TypeError: If content is not bytes or bytearray.
+
+    Note:
+        A file with null bytes (b"\\0") is strongly indicative of binary.
+        A file with >30% non-ASCII characters is treated as binary.
     """
     if not content:
         return False
@@ -1052,12 +1151,25 @@ def is_binary_content(content: bytes, file_path: str = "") -> bool:
 def is_binary_file(file_path: str, content: bytes | None = None) -> bool:
     """Check if a file is likely to be binary.
 
+    Performs a two-tier check: first by extension/path patterns (fast, no I/O),
+    then by content analysis if needed. Can use pre-read content to avoid
+    additional file I/O.
+
     Args:
-        file_path: Path to the file
+        file_path: Path to the file to check.
         content: Optional pre-read content bytes. If provided, avoids file I/O.
 
     Returns:
-        True if the file is binary, False otherwise
+        True if the file is binary, False otherwise.
+        Returns True (treat as binary) for files too large to check.
+
+    Raises:
+        OSError: If file access fails and content is not provided.
+        PermissionError: If file read is denied.
+
+    Note:
+        This is a wrapper around is_likely_binary_by_path and is_binary_content
+        that provides a unified interface for binary detection.
     """
     # Fast path: check by extension and path patterns (no I/O)
     if is_likely_binary_by_path(file_path):
@@ -1096,22 +1208,31 @@ def is_excluded(
     default_exclude_spec: PathSpec | None,
     config_exclude_spec: PathSpec | None,
     config_include_spec: PathSpec | None,
-    config: CodeConCatConfig,  # Add config here
+    config: CodeConCatConfig,
     is_dir: bool = False,
 ) -> bool:
     """Check if a path should be excluded based on various criteria.
 
+    Evaluates a path against multiple exclusion specifications in order:
+    .gitignore patterns, default excludes, config excludes, and config includes.
+
     Args:
-        path (str): The path to check.
-        gitignore_spec (Optional[PathSpec]): The compiled gitignore patterns.
-        default_exclude_spec (Optional[PathSpec]): The compiled default exclude patterns.
-        config_exclude_spec (Optional[PathSpec]): The compiled config exclude patterns.
-        config_include_spec (Optional[PathSpec]): The compiled config include patterns.
-        config (CodeConCatConfig): The configuration object.
-        is_dir (bool): Whether the path is a directory. Defaults to False.
+        path: The path to check (relative or absolute).
+        gitignore_spec: Compiled .gitignore patterns, or None if disabled.
+        default_exclude_spec: Compiled default exclusion patterns, or None.
+        config_exclude_spec: Compiled user-defined exclude patterns, or None.
+        config_include_spec: Compiled user-defined include patterns, or None.
+            If provided, paths must match to be included.
+        config: The CodeConCatConfig object with settings.
+        is_dir: Whether the path is a directory. Defaults to False.
 
     Returns:
-        bool: True if the path should be excluded, False otherwise.
+        True if the path should be excluded, False otherwise.
+        Returns True if include patterns are defined and path doesn't match.
+
+    Note:
+        This function combines multiple exclusion checks for efficiency.
+        The order of checks matters for logging and potential early exit.
     """
     # Check .gitignore (if spec exists and enabled)
     if gitignore_spec and gitignore_spec.match_file(path):

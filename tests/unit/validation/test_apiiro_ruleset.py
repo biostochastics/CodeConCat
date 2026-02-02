@@ -63,9 +63,10 @@ rules:
                     return MagicMock(returncode=0)
                 elif "git" in cmd[0] and "rev-parse" in cmd:
                     # Mock git rev-parse HEAD to return the expected commit hash
+                    # Must match APIIRO_RULESET_COMMIT in setup_semgrep.py
                     mock_result = MagicMock(returncode=0)
                     # Configure stdout.strip() to return the actual hash string
-                    mock_result.stdout.strip.return_value = "c8e8fc2d90e5a3b6d7f1e9c4a2b5d8f3e6c9a1b4"
+                    mock_result.stdout.strip.return_value = "a21246b666f34db899f0e33add7237ed70fab790"
                     return mock_result
 
                 return MagicMock(returncode=0)

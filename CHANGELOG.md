@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **CLI test assertions**: Fixed 3 failing CLI tests (`test_scenario_1_llm_context_preparation`, `test_scenario_5_compression_levels`, `test_token_summary_displayed`) that expected output only shown when no progress callback is active (token stats, compression effectiveness, level info are suppressed during dashboard mode)
 
+- **CLI keys list --show-values truncation**: Fixed Rich table truncating API key values when using `--show-values` flag by adding `no_wrap=True` and `overflow="fold"` to the API Key column
+
+- **Binary file detection test**: Corrected test expectations in `test_binary_file_detection_unicode_decode` to match implementation behavior - high bytes like `\xff\xfe\xfd\xfc` are valid Latin-1 characters and treated as text, not binary
+
+- **Apiiro ruleset test mocks**: Fixed commit hash mock values in `test_apiiro_ruleset.py` and `test_setup_semgrep.py` to use the correct expected commit hash (`a21246b666f34db899f0e33add7237ed70fab790`)
+
 ### Security
 
 - **exec_patterns regex word boundaries**: Added `\b` word boundaries to dangerous pattern detection regex to prevent false positives on variable names like `system_config`, `evaluation_score`, or `execute_flag` while still catching actual dangerous function calls

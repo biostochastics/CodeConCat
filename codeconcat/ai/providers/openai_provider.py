@@ -83,10 +83,19 @@ class OpenAIProvider(AIProvider):
         )
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create an aiohttp session (thread-safe)."""
+        """Obtain or create an aiohttp client session for API requests.
+
+        This method implements thread-safe singleton pattern for the HTTP session.
+        The session is created once and reused for all subsequent API calls.
+
+        Returns:
+            Active aiohttp ClientSession instance.
+
+        Raises:
+            RuntimeError: If session creation fails.
+        """
         if self._session is None:
             async with self._session_lock:
-                # Double-check after acquiring lock
                 if self._session is None:
                     headers = {
                         "Authorization": f"Bearer {self.config.api_key}",
@@ -98,7 +107,21 @@ class OpenAIProvider(AIProvider):
         return self._session
 
     async def _make_api_call(self, messages: list, max_tokens: int | None = None) -> dict:
-        """Make an API call to OpenAI with rate limiting and concurrency control."""
+        """Execute an API request to OpenAI with rate limiting and concurrency control.
+
+        Handles the HTTP communication with OpenAI's chat completions endpoint,
+        including model-specific parameter adjustments for reasoning models.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys.
+            max_tokens: Maximum tokens for the response (optional).
+
+        Returns:
+            JSON response dictionary from the API.
+
+        Raises:
+            Exception: On API error with details in the message.
+        """
         # Use semaphore to limit concurrent requests
         async with self._concurrent_limit:
             # Enforce minimum delay between requests
@@ -160,7 +183,26 @@ class OpenAIProvider(AIProvider):
         context: dict[str, Any] | None = None,
         max_length: int | None = None,
     ) -> SummarizationResult:
-        """Generate a summary for a code file using OpenAI."""
+        """Generate an AI summary for a code file using OpenAI.
+
+        This method creates a concise summary of the provided code, identifying
+        key functionality, classes, and important patterns. Results are cached
+        to avoid redundant API calls for identical content.
+
+        Args:
+            code: The source code to summarize.
+            language: Programming language of the code (e.g., 'python', 'java').
+            context: Optional context dict with file path, imports, etc.
+            max_length: Maximum summary length in tokens (auto-adjusted for reasoning models).
+
+        Returns:
+            SummarizationResult containing the summary text, token usage, cost estimate,
+            and metadata. Returns error in result if API call fails.
+
+        Note:
+            For reasoning models (GPT-5, o1, o3), max_length is automatically
+            increased as these models use additional tokens for reasoning.
+        """
         # Check cache first
         if self.cache:
             cache_key = self.cache.generate_key(
@@ -244,7 +286,24 @@ class OpenAIProvider(AIProvider):
         language: str,
         context: dict[str, Any] | None = None,
     ) -> SummarizationResult:
-        """Generate a summary for a specific function using OpenAI."""
+        """Generate a concise summary for a specific function.
+
+        Creates a focused summary targeting the function's purpose, parameters,
+        return value, and key implementation details.
+
+        Args:
+            function_code: The function source code.
+            function_name: Name of the function for context.
+            language: Programming language of the code.
+            context: Optional context dict with surrounding code info.
+
+        Returns:
+            SummarizationResult with function summary or error message.
+
+        Note:
+            Uses a shorter max_tokens limit (200) compared to file summaries
+            to keep function summaries concise.
+        """
         # Check cache first
         if self.cache:
             cache_key = self.cache.generate_key(
